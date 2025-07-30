@@ -364,6 +364,127 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Client routes
+  app.get('/api/clients', isAuthenticated, async (req, res) => {
+    try {
+      // Mock clients data - replace with actual database query
+      const mockClients = [
+        {
+          id: "client_1",
+          firstName: "Michael",
+          lastName: "Thompson",
+          email: "michael.thompson@acmecorp.com",
+          phone: "(555) 234-5678",
+          company: "ACME Corporation",
+          title: "Operations Manager",
+          industry: "Manufacturing",
+          address: "123 Business Ave",
+          city: "Chicago",
+          state: "IL",
+          zipCode: "60601",
+          website: "https://acmecorp.com",
+          preferredContact: "Email",
+          clientType: "Corporate",
+          status: "active",
+          totalOrders: 15,
+          totalSpent: 45000,
+          lastOrderDate: "2024-01-15",
+          creditLimit: 50000,
+          paymentTerms: "Net 30",
+          notes: "Long-term client, prefers bulk orders for quarterly campaigns",
+          createdAt: new Date().toISOString(),
+        },
+        {
+          id: "client_2",
+          firstName: "Lisa",
+          lastName: "Rodriguez",
+          email: "lisa.rodriguez@nonprofit.org",
+          phone: "(555) 345-6789",
+          company: "Community Helpers",
+          title: "Development Director",
+          industry: "Non-Profit",
+          address: "456 Charity Ln",
+          city: "Portland",
+          state: "OR",
+          zipCode: "97201",
+          website: "https://communityhelpers.org",
+          preferredContact: "Phone",
+          clientType: "Non-Profit",
+          status: "active",
+          totalOrders: 8,
+          totalSpent: 12000,
+          lastOrderDate: "2024-01-28",
+          creditLimit: 15000,
+          paymentTerms: "Net 15",
+          notes: "Budget-conscious, focuses on eco-friendly products",
+          createdAt: new Date().toISOString(),
+        },
+        {
+          id: "client_3",
+          firstName: "David",
+          lastName: "Chen",
+          email: "d.chen@techstartup.com",
+          phone: "(555) 456-7890",
+          company: "Tech Innovations LLC",
+          title: "Marketing Lead",
+          industry: "Technology",
+          address: "789 Innovation Dr",
+          city: "Austin",
+          state: "TX",
+          zipCode: "73301",
+          website: "https://techinnovations.com",
+          preferredContact: "Email",
+          clientType: "Small Business",
+          status: "prospect",
+          creditLimit: 25000,
+          paymentTerms: "Credit Card",
+          notes: "Interested in branded tech accessories for conferences",
+          createdAt: new Date().toISOString(),
+        }
+      ];
+      res.json(mockClients);
+    } catch (error) {
+      console.error("Error fetching clients:", error);
+      res.status(500).json({ message: "Failed to fetch clients" });
+    }
+  });
+
+  app.post('/api/clients', isAuthenticated, async (req, res) => {
+    try {
+      const clientData = req.body;
+      
+      // Validate required fields
+      if (!clientData.firstName || !clientData.lastName) {
+        return res.status(400).json({ message: "First name and last name are required" });
+      }
+
+      // Mock client creation - replace with actual database insertion
+      const newClient = {
+        id: `client_${Date.now()}`,
+        ...clientData,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+
+      res.status(201).json(newClient);
+    } catch (error) {
+      console.error("Error creating client:", error);
+      res.status(500).json({ message: "Failed to create client" });
+    }
+  });
+
+  app.delete('/api/clients/:id', isAuthenticated, async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      // Mock client deletion - replace with actual database deletion
+      res.json({ message: "Client deleted successfully", id });
+    } catch (error) {
+      console.error("Error deleting client:", error);
+      res.status(500).json({ message: "Failed to delete client" });
+    }
+  });
+
   // Order routes
   app.get('/api/orders', isAuthenticated, async (req, res) => {
     try {
