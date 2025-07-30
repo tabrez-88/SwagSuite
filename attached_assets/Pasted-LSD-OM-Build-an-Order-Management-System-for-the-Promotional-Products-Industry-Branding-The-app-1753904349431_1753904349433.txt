@@ -1,0 +1,206 @@
+LSD OM 
+
+Build an Order Management System for the Promotional Products Industry
+Branding: The application should be called SwagSuite by Liquid Screen Design.  Colors should be black, white, grey, #298fc2, #fedd59, #18454b, #011f35.  Include a location for a company logo to be added.   The look of the software should be modern and sleek.  
+Design an intelligent, end-to-end Order Management System specifically for distributors and suppliers in the promotional products industry, similar to Commonsku. The system should centralize and automate the following:
+Order Processing: Handle sales orders, purchase orders, and invoices in one platform. Include real-time product data, live inventory, electronic purchase orders (ePOs), and production tracking from quote to delivery.
+Client Experience: Provide customizable, interactive client presentations, personalized online shops, and client portals for order status, artwork proofing, and communication.
+Supplier & Inventory Management: Integrate with major product databases (e.g., SAGE, ESP, Distributor Central) for product search, inventory updates, and supplier communications.
+CRM Features: Track customer interactions, manage contacts, and sync data with HubSpot for marketing automation, lead tracking, and campaign management.
+Slack Integration: Enable automated Slack notifications for order status changes, approvals, and important workflow events. Allow team collaboration and instant alerts within Slack channels.
+AI Knowledge Base Search: Provide an AI-powered search tool that allows users to query company policies, order procedures, and product documentation from a connected knowledge base (e.g., Google Drive, Notion, or internal docs).
+Reporting & Analytics: Offer real-time dashboards, production reports, and analytics for sales, order status, and team performance.
+Automation & Workflow: Automate repetitive tasks, such as order confirmations, supplier follow-ups, and customer notifications. Allow for customizable workflow automations.
+Integrations: Ensure seamless integration with HubSpot (for CRM and marketing), Slack (for communication), and external product databases. Support Zapier or similar platforms for additional integrations.
+The system should be user-friendly, support role-based dashboards, and scale for small teams as well as enterprise distributors. Prioritize security, data integrity, and compliance with industry standards.
+
+Key Features to Highlight
+Centralized order, inventory, and production management.  123.
+Interactive client tools: presentations, portals, and shops123.
+Real-time supplier and product integrations123.
+Automated Slack alerts for workflow events456.
+HubSpot CRM and marketing integration for leads and campaigns768.
+AI-powered knowledge base search for instant answers to team queries9.
+Customizable automations and workflow triggers610.
+Comprehensive reporting and analytics1211.
+Allow other integrations through Zapier or AI
+
+Example Use Cases
+A sales rep receives a Slack notification when a high-value order is approved and can instantly collaborate with the production team45.
+Marketing automatically syncs qualified leads from HubSpot into the order system for immediate follow-up768.
+Team members use the AI knowledge base search to find order processing steps or supplier requirements in seconds9.
+Managers review real-time dashboards to track order status, team performance, and sales trends
+
+
+—
+The system should be flexible and modern looking allowing customization of fields and toggling on or off features.  Every page should have a search at the top that can be used to system search anything inside the application.  Also it should contain natural language AI search.  For example, “What company did we order water bottles from last and what was the product number and the cost?” then it should search the orders for that information.  
+
+PAGES to Include: 
+Dashboard - The dashboard will be the home screen of the system.  It should be able to be customized by each user.  Some of the items that should be available on the dashboard are:
+Team KPI Leaderboard 
+Finances
+Year to Date, Last Year to Date, Month to Date, Last Month to Date, Week to Date, Current Day, or Custom by date
+Revenue
+Margin %
+Order Revenue avg
+Order Quantity
+Pipeline from Hubspot
+Invoicing - how much owed, how much over 60 days, 90 days or custom date range
+Slack integration  - team integrated slack on the dashboard page
+Customer and Vendor Breaking News - Using AI to scan the web for any noteworthy news about vendors or customers make a running scrawl with that information.  
+For customers/companies send notices through email and system notification to the salesperson associated with that client.  Also draft auto messages about that news.  
+CRM - The CRM should have a direct integration with Hubspot.  When something gets input in either location, it real-time syncs to the other.  
+Customers - All customer data fields should be available, including the option for multiple addresses, and should sync with a company,  
+Track customer spend and create a running YTD total on the customer page.  Also have a custom date report
+
+
+Leads 
+Allowing for integrations with Apollo.ai, Zoominfo
+New outreach or follow up outreach directly through the customer page of the crm using AI drafts and follow ups. 
+AI should be looking at the customer data and order history to suggest items or reminders about possible recurring events.  
+AI should also make suggestions based on similar companies' orders throughout the system. 
+Allow the ability to create marketing sequences (like in Hubspot) directly in the system.  
+AI generation for these sequences should be built in. Also should be looking for any new relevant news online about the customer or company and add that information to the autodrafts.
+Vendors
+Allow for vendors to be created manually or imported from ASI/ESP and Sage.  
+Ability to automate messages to vendors.  For example “An order was sent and 1 day later we have not yet received confirmation of that order, auto draft and notify the csr to send an AI generated note to vendor
+Auto draft and email to a vendor contact when we match last year to date spending and also when we hit 50% and 100% more with them in the next year and ask for additional benefits (rebates, EQP+, free selfpromos, free shipping, etc)..  Then notify the Vendors Relations Director when those targets are met so they can send and approve the autodraft emails.   
+Create a space for Preferred vendors and on that page allow for notes about what we get from those preferred vendors  (EQP, Rebates, self-promos, etc)
+Orders - This is the main area for placing and tracking all orders.  All items should be brought in through the integration with ESP/ASI, Sage, Distributor Cental, API keys or added manually.  You can start at any stage in the orders section to produce a sale. Every order should also include an overview page which has a text box for additional information that can be shared by the team to each other.  You can also “tag” another coworker about the project by @name and they will receive an email and notification.  
+Products - add a new product.  Can either add an existing product through search of ASI/ESP, SAGE, Distributor Cenral search or create a new product.  
+If there are duplicates of products recommend less expensive options
+Quotes - Creat a quote from the products page
+Sales Orders - Sales orders will be sent to the client for approval.  When an approval comes back as positive it will tag in the production lead and also put it onto a kanban board for the production team (CSR) to take it and place the purchase orders to the vendors.
+Sales orders need to have all the typical information and:
+IHD (only seen by the customer on the purchase order and in the system),, Supplier IHD (only seen by the supplier on the purchase order and in the system), Customer EVENT DATE,
+A place for additional information 
+When a sales order is being built take the information from the product and the artwork to build a mock-up of the item they are requesting.  For example, 3001CVC tshirt in Navy with the attached logo in pms color #243U should preview that item as the image for the sales order.  
+Products to come in from ESP API
+Artwork proofing - every order should include a proofing stage that should be added as a step, sent to the client for approval, and once approved the sales rep, production rep should receive a notification and email.  
+If the person does not approve the proof within 1 business day automate a follow-up email requesting approval.  Continue doing this and flag the reps involved.  Prompt the rep to include for future auto requests for approval to include information about a delay or missing in hands date.  Request of the reps that information each cycle unless they uncheck that option or if the order does not have a FIRM in hands date. 
+When adding artwork information to a quote or sales order look at the information provided by imprint size and highlight in red to the salesperson using AI if the imprint will not work because of sizing constraints (for example a pen with a large image logo may not work).  Make the sales person uncheck to progress 
+Dates to request for every Sales Order
+Customer In hands date
+Supplier in hands date
+Event Date
+Firm or not firm, 
+if not firm, when is the latest the customer can receive them
+Artwork
+Artwork requests for an order can be done in Trello and integrated into the ERP so that the board is inside the ERP. 
+When artwork is done it is moved into an “order” and then lives within that order and also with the customer and company for future use.  
+Artwork needs to be able to be jpeg, png, ai, eps, pdf, or any other option.  
+It should also show a thumbnail of the artwork where ever the artwork is in the system (Sales order, PO, proofing)
+Trello integration through API
+If the artwork has a requested change, the notification of that change will be emailed and system notification to the salesperson and CSR rep.  It will also move the Trello card back to the artwork to do column in Trello for the artists.  
+Production Report - The production report will be the primary place to ensure that all the details from an order are being met.  This section should be very visual at a glance for each order.  
+Items needed will be In Hands Date, Supplier IHD, Customer Event date, Next Actions, Next actions
+Tracking information - to be connected to ShipStation
+All the steps should be customizable for the system in the admin settings section
+Report Generator - Any report should be able to be generated using the data in the system using natural language and AI.  For example “What are our margins for the last 6 weeks”, “Please list our top vendor spends this year and who are contacts are”, or “I need a commissions report for this month’s orders by salesperson”.  
+All reports generated should be able to be saved and repeated in the system for future use
+AI should also give ideas of useful reporting based on user history
+Knowledge base - All items in the system should be accessible as a knowledge base of the team 
+There should be a way to add new items into the knowledge base
+Should learn based on every usage and slack
+If a question is not known, it should verify the answer with a team expert.
+The knowledge base should be able to be limited by user to what areas they can access
+Learning Management Software (LMS) - The LMS will be an area that will allow for training of new staff members and should be able to have videos, testing, and challenges.  
+Each module should be designated for an individual and be available for learning on onboarding or to answer questions
+Invoicing
+Connect with stripe
+Connect with quickbooks
+Vouching that Sales Orders, Purchase Orders, and Vendor Invoices match up.  If there are discrepancies, draw attention to the production team and the finance team
+KPIS - Create a dashboard and leaderboard for Key Performance Indicators.  The Dashboard should draw from the information in the system.  The dashboard/leaderboard should have options for moving around the KPI sections or adding/subtracting from the view).  KIP Errors section should be able to add to the Order after the order has gone through production and shipped to the customer.  There needs to be a place in the order follow -up for errors.  
+KPIs to include (all with options for team and individual):
+ Sales numbers (YTD revenue by salesperson, MTD by salesperson, WTD by salesperson, options to compare these by current to last year or custom fields)
+Contacts reached out to by individual
+Weighted pipeline by individual
+Number of sales booked
+Meetings books 
+Meetings held
+Errors (all fields should be sortable)
+Error types (pricing, in-hands date, shipping, printing, other, proofing, out of stock)
+Sort by client name, vendor, responsable party (LSD, Supplier, Customer) and quantity of issues and cost to LSD
+What was the resolution
+Who was the Production rep, order rep, client rep.  
+Ecom Stores
+New stores launched (ytd, MTD, wtd)
+Refunds issued (ytd, mtd, wtd)
+Store sales and margin (custom dates, ytd, mtd, wtd)
+Marketing
+Sequences sent to new customers, existing customers
+Conversion rates
+Social media posts - have an integration that tracks posts and engagements on Facebook, LinkedIn, Twitter, allow for future integrations with other social media platforms.  Allow for both individual accounts and company accounts.  For example LinkedIn posts should be able to be tracked from the company and individual employee posts
+Media exposures - using AI search the internet for Liquid Screen Design Media exposure
+Blogs
+Google Reviews
+Vendor relations
+# of unique vendors used (YTD, MTD, WTD, custom date range and able to compare against last year)
+# of preferred vendors used (allow for preferred vendor selection in the vendor contact profile)
+# non preferred vendors used
+Track samples and spec samples sent to clients
+With AI automated emails to the salesreps encourage the use of samples to clients when there is an increase in sales with a client or a significant decrease in sales with a client. Explain in the email why they should send a sample and make some recommendations
+Automate draft emails to vendors asking for self promos or spec sample program information after we have sent 2 orders to a vendor.  Allow for this to be toggled on or off in  the vendor contact info.  
+Keep this information on a separate page that is called Vendor Offers
+Use these offers to suggest samples to our customers
+If a salesperson agrees to send a sample to a customer based on the email the system sends, create the purchase order automatically for review by the sales rep.  
+Mock-up Builder - this page should be very simple to use.  The goal is to add the product number with the information coming from ESP/ASI or Sage and show that product.  Then they should be able to insert a logo (can be any file, .ai, .eps, jpeg, png, pdf etc) and that logo should go onto the image of the product.  Then they should be able to move or resize the logo for it to fit correctly.  Also the mock up builder should be able to change the color of the logo by adding in PMS, Hex or selecting colors.  You should also be able to remove the background of the image if necessary.  
+The mock up builder should allow easy download or email straight from the builder page and should flow into the client folder or client order if the salesperson identifies that.  
+The mock up builder should also allow for a template that has a header and footer that can be created company wide
+It should also offer a customer version template with the customer logo on the top along with our company logo.  This should be created with AI and suggested
+
+Other things to add into the system
+All templates for customer interactions (sales orders, quotes, etc.) should be built with AI based on their order.  
+Notifications when people open and receive emails through the system (should be searchable in the system).  Can be toggled on or off for each order when building a sales order
+Allow for the creation of the LQSD Q Score to be autogenerated based on the information in a quote or sales order.  
+THis probably needs to be a separate page that can be built later and added to every sales order
+Allow for us to add customer credits to their customer account and apply it to future orders when sending them an invoice
+In shipping - Once an order has shipping information inserted track once a day using AI to ensure that shipping date is still moving to meet the in hands date.  If there is a delay, notify the salesrep with an email.
+Also automate tracking emails to customers as their shipment is being delivered.  This should be able to be toggled on or off
+Once an item has been delivered, wait 2 business days and send a follow up email asking for a google review (allow for customization in settings for this).  If they give 3 stars or less do not post to google.  If it is 4 or 5 stars post it to google.  
+Also send a message to the vendor asking for google reviews (once per vendor) once we have paid for the order.  If they give 3 stars or less do not post to google.  If it is 4 or 5 stars post it to google.  
+Allow for customization of Production stages for the entire company in admin settings
+Automate follow up emails with AI when things have not been approved (sales order, proofs, quotes, etc.)
+Set a minimum margin % company wide.  Allow for lower or higher margin %  Also allow in the admin section to force margin amounts lower than a certain number to need approval to proceed.  
+Shipping, runs, and set-ups should be able to be included or excluded in the overall margin both on the order and in any reporting
+Shipping, runs, and set-ups should also be able to be run as a separate report when showing off overall margins.  For example YTD margin is 46%, YTD shipping margin is 13%, YTD set-up margin is 21%.  Besides margin % we also want to see these breakdowns in revenue
+Should be able to set minimum client margin % on a client level.  
+AI should suggest minimum client margin % level based on client order volume with increases or decreases tracking YTD and LYTD.  For example: A customer that spent $20,000 last year has now spent $65,000 this year to date.  A notification should pop-up letting the sales person know that they have increased their spend by XXXX% and revenue by XXX do you want to offer a decreased margin to this client or send them a gift?
+Notification to client with scheduled ship date when that is entered in by production team
+On the vendor contact page allow for tracking rebates by the vendor.  Have this be available in KPIs and also on the dashboard
+Every week send all users an email that gives them a report of their week
+How many orders placed
+How much revenue
+Margin %
+New Stores Built
+Etc.  
+Have a space in the client contact for where the lead has come from and also allow for reporting.  For example we have 200 organic leads, 150 referrals, 10 Vectify, etc.  
+All search should be using AI LLM/Natural speech 
+Add a timer on all projects (close, artwork, vendors, email back and forth).  Track clients that ask for more reviews than usual as compared to others in the system and notify monthly admins in their weekly email if there are any customers that take extra attention by requiring more revisions and changes than others.  
+Add a customer portal where they can see all their orders in one place.  Have the main page be current orders and where they are in progress.  Also have a second page that keeps 13 month history of their orders.  Artwork in the customer portal should not be the .ai files.  If there are only .ai files associated with a specific order change it to a 90dpi jpeg file.  
+Allow on the admin side to set vendors as DO NOT ORDER FROM.  If a salesperson chooses a product from one of those vendors please pop-up telling them they are not approved vendor and asking if they want to send it to admin for approval.  THen send an email to admin for approval before it is able to be sent out to the client.  
+
+
+Stages of a General Order as it should be:
+An order comes in
+A Quote or Sales order gets built
+The sales order gets approved
+Production team is notified
+Production sends out the Purchase Orders
+The client is invoiced
+The client pays
+The Vendor sends us confirmation of the order
+The vendor sends us proof
+We send client the proof for approval
+The client approves the proof
+We approve the proof with the vendor
+The vendor gives us a shipping date
+The vendor gives us tracking
+We notify the client of tracking
+Delivery
+Ask for reviews
+Follow up with the client
+
+
+
+
