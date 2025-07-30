@@ -5,15 +5,17 @@ import { SlackPanel } from "@/components/dashboard/SlackPanel";
 export default function Home() {
   return (
     <Layout>
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-        {/* Main Dashboard - Takes up 3/4 of the width */}
-        <div className="lg:col-span-3">
+      <div className="flex gap-6 h-full">
+        {/* Main Dashboard Content */}
+        <div className="flex-1 min-w-0">
           <EnhancedDashboard />
         </div>
         
-        {/* Slack Panel - Takes up 1/4 of the width on the right */}
-        <div className="lg:col-span-1">
-          <SlackPanel />
+        {/* Right Sidebar - Slack Panel */}
+        <div className="w-80 flex-shrink-0">
+          <div className="sticky top-0">
+            <SlackPanel />
+          </div>
         </div>
       </div>
     </Layout>
