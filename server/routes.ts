@@ -759,6 +759,465 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ESP/ASI/SAGE Product Integration Routes
+  
+  // ESP Product Search and Integration
+  app.get('/api/integrations/esp/products', isAuthenticated, async (req, res) => {
+    try {
+      const { search, category, minPrice, maxPrice, asiNumber } = req.query;
+      
+      // Mock ESP product search - would integrate with actual ESP API
+      const mockProducts = [
+        {
+          id: 'esp_1',
+          asiNumber: '12345',
+          productName: 'Custom Branded Coffee Mug - 11oz',
+          supplierName: 'Premier Promotions',
+          supplierAsiNumber: '98765',
+          category: 'Drinkware',
+          subCategory: 'Mugs',
+          description: 'Ceramic coffee mug with full-color imprint capability. Perfect for corporate branding.',
+          longDescription: 'High-quality ceramic mug designed for daily use. Features dishwasher-safe construction and vibrant full-color printing capabilities. Ideal for corporate gifts, events, and promotional campaigns.',
+          pricingCode: 'B',
+          basePricing: {
+            '144': 4.85,
+            '288': 4.35,
+            '576': 3.95,
+            '1008': 3.65
+          },
+          decorationPricing: {
+            setup: 65.00,
+            runCharge: 0.85
+          },
+          minimumQuantity: 144,
+          productionTime: '7-10 business days',
+          rushService: true,
+          decorationMethods: ['Full Color Imprint', 'Screen Print', 'Pad Print'],
+          colors: ['White', 'Black', 'Navy', 'Red', 'Forest Green'],
+          sizes: ['11oz'],
+          imageUrls: [
+            'https://example.com/mug-front.jpg',
+            'https://example.com/mug-side.jpg'
+          ],
+          complianceInfo: {
+            prop65: false,
+            fda: true,
+            cpsia: true
+          },
+          dimensions: '3.75" H x 3.25" Dia',
+          weight: 0.75,
+          lastSyncedAt: new Date().toISOString(),
+          syncStatus: 'active'
+        },
+        {
+          id: 'esp_2',
+          asiNumber: '23456',
+          productName: 'Eco-Friendly Bamboo Pen Set',
+          supplierName: 'Green Earth Promotions',
+          supplierAsiNumber: '87654',
+          category: 'Writing Instruments',
+          subCategory: 'Pen Sets',
+          description: 'Sustainable bamboo pen set with custom laser engraving capability.',
+          longDescription: 'Environmentally conscious pen set made from sustainable bamboo. Features smooth-writing ink and precision laser engraving for professional branding. Perfect for eco-friendly corporate campaigns.',
+          pricingCode: 'A',
+          basePricing: {
+            '100': 8.95,
+            '250': 7.45,
+            '500': 6.25,
+            '1000': 5.45
+          },
+          decorationPricing: {
+            setup: 45.00,
+            runCharge: 1.25
+          },
+          minimumQuantity: 100,
+          productionTime: '5-7 business days',
+          rushService: false,
+          decorationMethods: ['Laser Engraving', 'Pad Print'],
+          colors: ['Natural Bamboo'],
+          sizes: ['Standard'],
+          imageUrls: [
+            'https://example.com/bamboo-pen-set.jpg',
+            'https://example.com/bamboo-pen-engraved.jpg'
+          ],
+          complianceInfo: {
+            prop65: false,
+            fsc: true,
+            sustainable: true
+          },
+          dimensions: '6" L x 0.5" Dia',
+          weight: 0.25,
+          lastSyncedAt: new Date().toISOString(),
+          syncStatus: 'active'
+        }
+      ];
+
+      // Filter products based on search criteria
+      let filteredProducts = mockProducts;
+      
+      if (search) {
+        const searchTerm = search.toString().toLowerCase();
+        filteredProducts = filteredProducts.filter(p => 
+          p.productName.toLowerCase().includes(searchTerm) ||
+          p.description.toLowerCase().includes(searchTerm) ||
+          p.category.toLowerCase().includes(searchTerm)
+        );
+      }
+      
+      if (category) {
+        filteredProducts = filteredProducts.filter(p => 
+          p.category.toLowerCase() === category.toString().toLowerCase()
+        );
+      }
+      
+      if (asiNumber) {
+        filteredProducts = filteredProducts.filter(p => p.asiNumber === asiNumber);
+      }
+
+      res.json({
+        products: filteredProducts,
+        totalResults: filteredProducts.length,
+        searchCriteria: { search, category, minPrice, maxPrice, asiNumber },
+        lastSync: new Date().toISOString()
+      });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch ESP products" });
+    }
+  });
+
+  // SAGE Product Search and Integration
+  app.get('/api/integrations/sage/products', isAuthenticated, async (req, res) => {
+    try {
+      const { search, category, eqpLevel, brand } = req.query;
+      
+      // Mock SAGE product search - would integrate with actual SAGE API
+      const mockSageProducts = [
+        {
+          id: 'sage_1',
+          sageId: 'SAGE001',
+          productName: 'Premium Canvas Tote Bag',
+          productNumber: 'CTB-001',
+          supplierName: 'Quality Bags Inc',
+          category: 'Bags',
+          subcategory: 'Tote Bags',
+          brand: 'EcoBag',
+          description: 'Heavy-duty canvas tote bag with reinforced handles and bottom gusset.',
+          features: ['Reinforced Handles', 'Bottom Gusset', '100% Cotton Canvas', 'Machine Washable'],
+          materials: ['100% Cotton Canvas', '24oz Weight'],
+          dimensions: '15" W x 16" H x 5" D',
+          weight: 0.8,
+          eqpLevel: 'A+',
+          qualityRating: 9,
+          pricingStructure: {
+            '50': 12.95,
+            '100': 10.45,
+            '250': 8.95,
+            '500': 7.25
+          },
+          quantityBreaks: [50, 100, 250, 500, 1000],
+          setupCharges: {
+            screenPrint: 65.00,
+            embroidery: 85.00,
+            heatTransfer: 45.00
+          },
+          decorationMethods: ['Screen Print', 'Embroidery', 'Heat Transfer', 'Digital Print'],
+          leadTimes: {
+            standard: '10-12 business days',
+            rush: '5-7 business days'
+          },
+          imageGallery: [
+            'https://example.com/tote-front.jpg',
+            'https://example.com/tote-side.jpg',
+            'https://example.com/tote-handle.jpg'
+          ],
+          technicalDrawings: [
+            'https://example.com/tote-technical.pdf'
+          ],
+          complianceCertifications: ['CPSIA', 'CA Prop 65 Compliant'],
+          lastSyncedAt: new Date().toISOString(),
+          syncStatus: 'active'
+        },
+        {
+          id: 'sage_2',
+          sageId: 'SAGE002',
+          productName: 'Wireless Charging Pad with LED Logo',
+          productNumber: 'WCP-LED-001',
+          supplierName: 'Tech Innovations',
+          category: 'Technology',
+          subcategory: 'Wireless Chargers',
+          brand: 'PowerTech',
+          description: 'Qi-compatible wireless charging pad with illuminated logo capability.',
+          features: ['Qi Wireless Technology', 'LED Logo Illumination', 'Non-Slip Base', 'Type-C Input'],
+          materials: ['ABS Plastic', 'Rubber Base', 'Aluminum Ring'],
+          dimensions: '4" Dia x 0.5" H',
+          weight: 0.3,
+          eqpLevel: 'A',
+          qualityRating: 8,
+          pricingStructure: {
+            '25': 24.95,
+            '50': 19.95,
+            '100': 16.45,
+            '250': 13.95
+          },
+          quantityBreaks: [25, 50, 100, 250, 500],
+          setupCharges: {
+            laserEngraving: 75.00,
+            ledLogo: 125.00,
+            padPrint: 65.00
+          },
+          decorationMethods: ['Laser Engraving', 'LED Logo', 'Pad Print', 'Full Color Imprint'],
+          leadTimes: {
+            standard: '12-15 business days',
+            rush: '7-10 business days'
+          },
+          imageGallery: [
+            'https://example.com/charger-top.jpg',
+            'https://example.com/charger-bottom.jpg',
+            'https://example.com/charger-led.jpg'
+          ],
+          technicalDrawings: [
+            'https://example.com/charger-specs.pdf'
+          ],
+          complianceCertifications: ['FCC', 'CE', 'RoHS'],
+          lastSyncedAt: new Date().toISOString(),
+          syncStatus: 'active'
+        }
+      ];
+
+      // Filter SAGE products based on search criteria
+      let filteredProducts = mockSageProducts;
+      
+      if (search) {
+        const searchTerm = search.toString().toLowerCase();
+        filteredProducts = filteredProducts.filter(p => 
+          p.productName.toLowerCase().includes(searchTerm) ||
+          p.description.toLowerCase().includes(searchTerm) ||
+          p.features.some(f => f.toLowerCase().includes(searchTerm))
+        );
+      }
+      
+      if (category) {
+        filteredProducts = filteredProducts.filter(p => 
+          p.category.toLowerCase() === category.toString().toLowerCase()
+        );
+      }
+      
+      if (eqpLevel) {
+        filteredProducts = filteredProducts.filter(p => p.eqpLevel === eqpLevel);
+      }
+      
+      if (brand) {
+        filteredProducts = filteredProducts.filter(p => 
+          p.brand.toLowerCase() === brand.toString().toLowerCase()
+        );
+      }
+
+      res.json({
+        products: filteredProducts,
+        totalResults: filteredProducts.length,
+        searchCriteria: { search, category, eqpLevel, brand },
+        lastSync: new Date().toISOString()
+      });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch SAGE products" });
+    }
+  });
+
+  // Distributor Central Product Search
+  app.get('/api/integrations/dc/products', isAuthenticated, async (req, res) => {
+    try {
+      const { search, category, minPrice, maxPrice } = req.query;
+      
+      // Mock Distributor Central products - would integrate with actual DC API
+      const mockDCProducts = [
+        {
+          id: 'dc_1',
+          dcProductId: 'DC001',
+          productName: 'Sport Water Bottle - 32oz',
+          supplierName: 'Hydration Solutions',
+          category: 'Drinkware',
+          subcategory: 'Water Bottles',
+          description: 'BPA-free sport water bottle with easy-grip design and leak-proof cap.',
+          keyFeatures: ['BPA-Free', 'Leak-Proof Cap', 'Easy-Grip Design', 'Wide Mouth Opening'],
+          decorationAreas: {
+            front: { width: 3, height: 2.5 },
+            back: { width: 3, height: 2.5 }
+          },
+          imprintMethods: ['Screen Print', 'Pad Print', 'Full Color Digital'],
+          colors: ['Clear', 'Blue', 'Red', 'Green', 'Black'],
+          sizes: ['32oz'],
+          pricing: {
+            '48': 7.95,
+            '96': 6.45,
+            '192': 5.25,
+            '384': 4.65
+          },
+          quantityPricing: {
+            setup: 55.00,
+            runCharge: 0.95
+          },
+          minimumOrder: 48,
+          rushOptions: {
+            available: true,
+            additionalCost: 0.50,
+            timeReduction: '3 days'
+          },
+          productImages: [
+            'https://example.com/water-bottle-clear.jpg',
+            'https://example.com/water-bottle-colors.jpg'
+          ],
+          compliance: ['BPA-Free', 'FDA Approved', 'CPSIA Compliant'],
+          lastSyncedAt: new Date().toISOString(),
+          syncStatus: 'active'
+        }
+      ];
+
+      res.json({
+        products: mockDCProducts,
+        totalResults: mockDCProducts.length,
+        searchCriteria: { search, category, minPrice, maxPrice },
+        lastSync: new Date().toISOString()
+      });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch Distributor Central products" });
+    }
+  });
+
+  // Unified Product Search across all platforms
+  app.get('/api/integrations/products/search', isAuthenticated, async (req, res) => {
+    try {
+      const { query, source, category, minPrice, maxPrice, limit = 50 } = req.query;
+      
+      // Mock unified search results - would search across ESP, SAGE, DC databases
+      const unifiedResults = [
+        {
+          id: 'unified_1',
+          sourceSystem: 'esp',
+          sourceProductId: 'esp_1',
+          productName: 'Custom Branded Coffee Mug - 11oz',
+          category: 'Drinkware',
+          subcategory: 'Mugs',
+          supplierName: 'Premier Promotions',
+          asiNumber: '12345',
+          description: 'Ceramic coffee mug with full-color imprint capability',
+          minPrice: 3.65,
+          maxPrice: 4.85,
+          minQuantity: 144,
+          decorationMethods: ['Full Color Imprint', 'Screen Print'],
+          colors: ['White', 'Black', 'Navy', 'Red'],
+          primaryImage: 'https://example.com/mug-front.jpg',
+          qualityScore: 8.5,
+          popularityScore: 95,
+          lastUpdated: new Date().toISOString()
+        },
+        {
+          id: 'unified_2',
+          sourceSystem: 'sage',
+          sourceProductId: 'sage_1',
+          productName: 'Premium Canvas Tote Bag',
+          category: 'Bags',
+          subcategory: 'Tote Bags',
+          supplierName: 'Quality Bags Inc',
+          description: 'Heavy-duty canvas tote bag with reinforced handles',
+          minPrice: 7.25,
+          maxPrice: 12.95,
+          minQuantity: 50,
+          decorationMethods: ['Screen Print', 'Embroidery'],
+          colors: ['Natural', 'Black', 'Navy'],
+          primaryImage: 'https://example.com/tote-front.jpg',
+          qualityScore: 9.2,
+          popularityScore: 88,
+          lastUpdated: new Date().toISOString()
+        }
+      ];
+
+      res.json({
+        results: unifiedResults,
+        totalFound: unifiedResults.length,
+        searchSources: ['esp', 'sage', 'dc'],
+        searchTime: '0.23s',
+        filters: {
+          categories: ['Drinkware', 'Bags', 'Writing Instruments', 'Technology'],
+          priceRanges: ['$0-$5', '$5-$10', '$10-$25', '$25+'],
+          decorationMethods: ['Screen Print', 'Embroidery', 'Laser Engraving', 'Full Color']
+        }
+      });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to perform unified product search" });
+    }
+  });
+
+  // Integration Configuration Routes
+  app.get('/api/integrations/configurations', isAuthenticated, async (req, res) => {
+    try {
+      // Mock integration configurations - would fetch from database
+      const configurations = [
+        {
+          id: 'config_esp',
+          integration: 'esp',
+          displayName: 'ASI ESP+',
+          syncEnabled: false,
+          syncFrequency: 'daily',
+          isHealthy: true,
+          lastHealthCheck: new Date().toISOString(),
+          totalSyncs: 0,
+          totalRecordsSynced: 0,
+          status: 'Not Configured'
+        },
+        {
+          id: 'config_sage',
+          integration: 'sage',
+          displayName: 'SAGE World',
+          syncEnabled: false,
+          syncFrequency: 'daily',
+          isHealthy: true,
+          lastHealthCheck: new Date().toISOString(),
+          totalSyncs: 0,
+          totalRecordsSynced: 0,
+          status: 'Not Configured'
+        },
+        {
+          id: 'config_dc',
+          integration: 'dc',
+          displayName: 'Distributor Central',
+          syncEnabled: true,
+          syncFrequency: 'daily',
+          isHealthy: true,
+          lastHealthCheck: new Date().toISOString(),
+          totalSyncs: 12,
+          totalRecordsSynced: 2847,
+          status: 'Active'
+        }
+      ];
+
+      res.json(configurations);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch integration configurations" });
+    }
+  });
+
+  // Sync product data from external sources
+  app.post('/api/integrations/:source/sync', isAuthenticated, async (req, res) => {
+    try {
+      const { source } = req.params;
+      const { syncType = 'incremental', categories = [] } = req.body;
+      
+      // Mock sync initiation - would trigger actual sync with ESP/SAGE/DC
+      const syncId = `sync_${source}_${Date.now()}`;
+      
+      res.json({
+        syncId,
+        status: 'initiated',
+        source,
+        syncType,
+        estimatedDuration: '15-30 minutes',
+        message: `${source.toUpperCase()} product sync has been initiated. You will receive notifications upon completion.`
+      });
+    } catch (error) {
+      res.status(500).json({ message: `Failed to initiate ${req.params.source} sync` });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

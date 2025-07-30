@@ -479,6 +479,137 @@ export const reportTemplates = pgTable("report_templates", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+// ESP/ASI/SAGE Promotional Products Integration Tables
+export const espProducts = pgTable("esp_products", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  asiNumber: varchar("asi_number").notNull(),
+  productName: varchar("product_name").notNull(),
+  supplierId: varchar("supplier_id").references(() => suppliers.id),
+  supplierAsiNumber: varchar("supplier_asi_number"),
+  category: varchar("category"),
+  subCategory: varchar("sub_category"),
+  description: text("description"),
+  longDescription: text("long_description"),
+  specifications: jsonb("specifications"),
+  pricingCode: varchar("pricing_code"), // ESP pricing codes
+  basePricing: jsonb("base_pricing"),
+  decorationPricing: jsonb("decoration_pricing"),
+  minimumQuantity: integer("minimum_quantity"),
+  productionTime: varchar("production_time"),
+  rushService: boolean("rush_service").default(false),
+  decorationMethods: text("decoration_methods").array(),
+  colors: text("colors").array(),
+  sizes: text("sizes").array(),
+  imageUrls: text("image_urls").array(),
+  espProductId: varchar("esp_product_id").unique(),
+  lastSyncedAt: timestamp("last_synced_at").defaultNow(),
+  syncStatus: varchar("sync_status").default('active'),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const sageProducts = pgTable("sage_products", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  sageId: varchar("sage_id").notNull().unique(),
+  productName: varchar("product_name").notNull(),
+  productNumber: varchar("product_number"),
+  supplierId: varchar("supplier_id").references(() => suppliers.id),
+  category: varchar("category"),
+  subcategory: varchar("subcategory"),
+  brand: varchar("brand"),
+  description: text("description"),
+  features: text("features").array(),
+  materials: text("materials").array(),
+  dimensions: varchar("dimensions"),
+  weight: decimal("weight"),
+  eqpLevel: varchar("eqp_level"), // SAGE EQP rating
+  pricingStructure: jsonb("pricing_structure"),
+  quantityBreaks: jsonb("quantity_breaks"),
+  setupCharges: jsonb("setup_charges"),
+  decorationMethods: text("decoration_methods").array(),
+  leadTimes: jsonb("lead_times"),
+  imageGallery: text("image_gallery").array(),
+  technicalDrawings: text("technical_drawings").array(),
+  complianceCertifications: text("compliance_certifications").array(),
+  lastSyncedAt: timestamp("last_synced_at").defaultNow(),
+  syncStatus: varchar("sync_status").default('active'),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const distributorCentralProducts = pgTable("distributor_central_products", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  dcProductId: varchar("dc_product_id").notNull().unique(),
+  productName: varchar("product_name").notNull(),
+  supplierId: varchar("supplier_id").references(() => suppliers.id),
+  category: varchar("category"),
+  subcategory: varchar("subcategory"),
+  description: text("description"),
+  keyFeatures: text("key_features").array(),
+  decorationAreas: jsonb("decoration_areas"),
+  imprintMethods: text("imprint_methods").array(),
+  colors: text("available_colors").array(),
+  sizes: text("available_sizes").array(),
+  pricing: jsonb("pricing"),
+  quantityPricing: jsonb("quantity_pricing"),
+  minimumOrder: integer("minimum_order"),
+  rushOptions: jsonb("rush_options"),
+  productImages: text("product_images").array(),
+  compliance: text("compliance").array(),
+  lastSyncedAt: timestamp("last_synced_at").defaultNow(),
+  syncStatus: varchar("sync_status").default('active'),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Unified product search index for cross-platform searching
+export const productSearchIndex = pgTable("product_search_index", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  sourceSystem: varchar("source_system").notNull(), // 'esp', 'sage', 'dc', 'internal'
+  sourceProductId: varchar("source_product_id").notNull(),
+  productName: varchar("product_name").notNull(),
+  category: varchar("category"),
+  subcategory: varchar("subcategory"),
+  supplierId: varchar("supplier_id"),
+  supplierName: varchar("supplier_name"),
+  asiNumber: varchar("asi_number"),
+  description: text("description"),
+  keyTerms: text("key_terms").array(),
+  minPrice: decimal("min_price"),
+  maxPrice: decimal("max_price"),
+  minQuantity: integer("min_quantity"),
+  decorationMethods: text("decoration_methods").array(),
+  colors: text("colors").array(),
+  primaryImage: varchar("primary_image"),
+  qualityScore: decimal("quality_score"),
+  popularityScore: integer("popularity_score").default(0),
+  lastUpdated: timestamp("last_updated").defaultNow(),
+  searchRank: integer("search_rank").default(0),
+  isActive: boolean("is_active").default(true),
+});
+
+// Integration configurations and API management
+export const integrationConfigurations = pgTable("integration_configurations", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  integration: varchar("integration").notNull().unique(), // 'esp', 'sage', 'dc'
+  displayName: varchar("display_name").notNull(),
+  apiEndpoint: varchar("api_endpoint"),
+  apiVersion: varchar("api_version"),
+  syncEnabled: boolean("sync_enabled").default(false),
+  syncFrequency: varchar("sync_frequency").default('daily'),
+  categoryFilters: text("category_filters").array(),
+  supplierFilters: text("supplier_filters").array(),
+  priceRangeMin: decimal("price_range_min"),
+  priceRangeMax: decimal("price_range_max"),
+  maxApiCallsPerHour: integer("max_api_calls_per_hour").default(1000),
+  isHealthy: boolean("is_healthy").default(true),
+  lastHealthCheck: timestamp("last_health_check"),
+  totalSyncs: integer("total_syncs").default(0),
+  totalRecordsSynced: integer("total_records_synced").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 export type UpsertUser = typeof users.$inferInsert;
 export type User = typeof users.$inferSelect;
 export type Company = typeof companies.$inferSelect;
@@ -497,3 +628,10 @@ export type ArtworkFile = typeof artworkFiles.$inferSelect;
 export type InsertArtworkFile = z.infer<typeof insertArtworkFileSchema>;
 export type Activity = typeof activities.$inferSelect;
 export type InsertActivity = z.infer<typeof insertActivitySchema>;
+
+// ESP/ASI/SAGE Integration Types
+export type EspProduct = typeof espProducts.$inferSelect;
+export type SageProduct = typeof sageProducts.$inferSelect;
+export type DistributorCentralProduct = typeof distributorCentralProducts.$inferSelect;
+export type ProductSearchResult = typeof productSearchIndex.$inferSelect;
+export type IntegrationConfig = typeof integrationConfigurations.$inferSelect;

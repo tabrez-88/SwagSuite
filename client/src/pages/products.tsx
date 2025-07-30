@@ -1,11 +1,13 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import Layout from "@/components/Layout";
+import { ProductIntegrations } from "@/components/integrations/ProductIntegrations";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Dialog,
   DialogContent,
@@ -25,7 +27,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { isUnauthorizedError } from "@/lib/authUtils";
-import { Box, Search, Plus, DollarSign, Package } from "lucide-react";
+import { Box, Search, Plus, DollarSign, Package, Database, ShoppingCart } from "lucide-react";
 import type { Product, Supplier } from "@shared/schema";
 
 export default function Products() {
@@ -82,7 +84,7 @@ export default function Products() {
         imageUrl: "",
       });
     },
-    onError: (error: Error) => {
+    onError: (error) => {
       if (isUnauthorizedError(error)) {
         toast({
           title: "Unauthorized",
@@ -96,383 +98,306 @@ export default function Products() {
       }
       toast({
         title: "Error",
-        description: "Failed to create product",
+        description: "Failed to create product. Please try again.",
         variant: "destructive",
       });
     },
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (!newProduct.name.trim()) {
-      toast({
-        title: "Validation Error",
-        description: "Product name is required",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    const productData = {
+    const data = {
       ...newProduct,
-      basePrice: newProduct.basePrice ? parseFloat(newProduct.basePrice) : null,
-      minimumQuantity: parseInt(newProduct.minimumQuantity) || 1,
-      leadTime: newProduct.leadTime ? parseInt(newProduct.leadTime) : null,
+      basePrice: parseFloat(newProduct.basePrice),
+      minimumQuantity: parseInt(newProduct.minimumQuantity),
+      colors: newProduct.colors ? newProduct.colors.split(",").map(c => c.trim()) : [],
+      sizes: newProduct.sizes ? newProduct.sizes.split(",").map(s => s.trim()) : [],
+      imprintMethods: newProduct.imprintMethods ? newProduct.imprintMethods.split(",").map(m => m.trim()) : [],
     };
-
-    createProductMutation.mutate(productData);
-  };
-
-  const getSupplierName = (supplierId: string) => {
-    const supplier = suppliers?.find((s: Supplier) => s.id === supplierId);
-    return supplier?.name || "Unknown Supplier";
+    createProductMutation.mutate(data);
   };
 
   const filteredProducts = products?.filter((product: Product) =>
     product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    product.sku?.toLowerCase().includes(searchQuery.toLowerCase()) ||
     product.description?.toLowerCase().includes(searchQuery.toLowerCase())
   ) || [];
 
   return (
     <Layout>
       <div className="space-y-6">
-        {/* Header */}
-        <div className="flex justify-between items-center">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">Products</h1>
-            <p className="text-gray-600 mt-1">Manage your product catalog and inventory</p>
-          </div>
-          
-          <Dialog open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen}>
-            <DialogTrigger asChild>
-              <Button className="bg-swag-primary hover:bg-swag-primary/90">
-                <Plus className="mr-2" size={20} />
-                Add Product
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-2xl max-h-screen overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle>Add New Product</DialogTitle>
-              </DialogHeader>
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="name">Product Name *</Label>
-                    <Input
-                      id="name"
-                      value={newProduct.name}
-                      onChange={(e) => setNewProduct(prev => ({ ...prev, name: e.target.value }))}
-                      placeholder="Enter product name"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="sku">SKU</Label>
-                    <Input
-                      id="sku"
-                      value={newProduct.sku}
-                      onChange={(e) => setNewProduct(prev => ({ ...prev, sku: e.target.value }))}
-                      placeholder="Product SKU"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="supplier">Supplier</Label>
-                    <Select 
-                      value={newProduct.supplierId} 
-                      onValueChange={(value) => setNewProduct(prev => ({ ...prev, supplierId: value }))}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select supplier..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {suppliers?.map((supplier: Supplier) => (
-                          <SelectItem key={supplier.id} value={supplier.id}>
-                            {supplier.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label htmlFor="basePrice">Base Price</Label>
-                    <Input
-                      id="basePrice"
-                      type="number"
-                      step="0.01"
-                      value={newProduct.basePrice}
-                      onChange={(e) => setNewProduct(prev => ({ ...prev, basePrice: e.target.value }))}
-                      placeholder="0.00"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="minimumQuantity">Minimum Quantity</Label>
-                    <Input
-                      id="minimumQuantity"
-                      type="number"
-                      value={newProduct.minimumQuantity}
-                      onChange={(e) => setNewProduct(prev => ({ ...prev, minimumQuantity: e.target.value }))}
-                      placeholder="1"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="leadTime">Lead Time (days)</Label>
-                    <Input
-                      id="leadTime"
-                      type="number"
-                      value={newProduct.leadTime}
-                      onChange={(e) => setNewProduct(prev => ({ ...prev, leadTime: e.target.value }))}
-                      placeholder="7"
-                    />
-                  </div>
-                </div>
-                <div>
-                  <Label htmlFor="description">Description</Label>
-                  <Textarea
-                    id="description"
-                    value={newProduct.description}
-                    onChange={(e) => setNewProduct(prev => ({ ...prev, description: e.target.value }))}
-                    placeholder="Product description"
-                    rows={3}
-                  />
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div>
-                    <Label htmlFor="colors">Available Colors</Label>
-                    <Input
-                      id="colors"
-                      value={newProduct.colors}
-                      onChange={(e) => setNewProduct(prev => ({ ...prev, colors: e.target.value }))}
-                      placeholder="Red, Blue, Green"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="sizes">Available Sizes</Label>
-                    <Input
-                      id="sizes"
-                      value={newProduct.sizes}
-                      onChange={(e) => setNewProduct(prev => ({ ...prev, sizes: e.target.value }))}
-                      placeholder="S, M, L, XL"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="imprintMethods">Imprint Methods</Label>
-                    <Input
-                      id="imprintMethods"
-                      value={newProduct.imprintMethods}
-                      onChange={(e) => setNewProduct(prev => ({ ...prev, imprintMethods: e.target.value }))}
-                      placeholder="Embroidery, Screen Print"
-                    />
-                  </div>
-                </div>
-                <div>
-                  <Label htmlFor="imageUrl">Image URL</Label>
-                  <Input
-                    id="imageUrl"
-                    value={newProduct.imageUrl}
-                    onChange={(e) => setNewProduct(prev => ({ ...prev, imageUrl: e.target.value }))}
-                    placeholder="https://example.com/image.jpg"
-                  />
-                </div>
-                <div className="flex justify-end space-x-2 pt-4">
-                  <Button type="button" variant="outline" onClick={() => setIsCreateModalOpen(false)}>
-                    Cancel
-                  </Button>
-                  <Button 
-                    type="submit" 
-                    className="bg-swag-primary hover:bg-swag-primary/90"
-                    disabled={createProductMutation.isPending}
-                  >
-                    {createProductMutation.isPending ? "Creating..." : "Create Product"}
-                  </Button>
-                </div>
-              </form>
-            </DialogContent>
-          </Dialog>
-        </div>
-
-        {/* Product Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center space-x-2">
-                <Package className="text-blue-600" size={20} />
-                <div>
-                  <p className="text-sm text-gray-600">Total Products</p>
-                  <p className="text-xl font-bold">{products?.length || 0}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center space-x-2">
-                <DollarSign className="text-green-600" size={20} />
-                <div>
-                  <p className="text-sm text-gray-600">Avg. Price</p>
-                  <p className="text-xl font-bold">
-                    ${products?.length ? 
-                      (products.reduce((sum: number, p: Product) => sum + Number(p.basePrice || 0), 0) / products.length).toFixed(2) 
-                      : '0.00'}
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center space-x-2">
-                <Box className="text-purple-600" size={20} />
-                <div>
-                  <p className="text-sm text-gray-600">With Images</p>
-                  <p className="text-xl font-bold">
-                    {products?.filter((p: Product) => p.imageUrl).length || 0}
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Search */}
-        <div className="relative max-w-md">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
-          <Input
-            placeholder="Search products..."
-            className="pl-10"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
-        </div>
-
-        {/* Products Grid */}
-        {isLoading ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {[...Array(6)].map((_, i) => (
-              <Card key={i}>
-                <CardContent className="p-6">
-                  <div className="space-y-3">
-                    <Skeleton className="h-32 w-full" />
-                    <Skeleton className="h-6 w-3/4" />
-                    <Skeleton className="h-4 w-1/2" />
-                    <Skeleton className="h-4 w-2/3" />
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        ) : filteredProducts.length === 0 ? (
-          <Card>
-            <CardContent className="p-12 text-center">
-              <Box className="mx-auto mb-4 text-gray-400" size={48} />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">
-                {searchQuery ? "No products found" : "No products yet"}
-              </h3>
-              <p className="text-gray-600 mb-4">
-                {searchQuery 
-                  ? `No products match "${searchQuery}"`
-                  : "Start building your product catalog by adding your first product"
-                }
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Package className="h-8 w-8 text-swag-blue" />
+            <div>
+              <h1 className="text-3xl font-bold text-swag-navy">Product Management</h1>
+              <p className="text-muted-foreground">
+                Search ESP/ASI/SAGE databases and manage your product catalog
               </p>
-              {!searchQuery && (
-                <Button 
-                  onClick={() => setIsCreateModalOpen(true)}
-                  className="bg-swag-primary hover:bg-swag-primary/90"
-                >
-                  <Plus className="mr-2" size={20} />
-                  Add First Product
-                </Button>
-              )}
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredProducts.map((product: Product) => (
-              <Card key={product.id} className="hover:shadow-md transition-shadow">
-                <CardContent className="p-6">
-                  {/* Product Image */}
-                  <div className="mb-4">
-                    {product.imageUrl ? (
-                      <img 
-                        src={product.imageUrl} 
-                        alt={product.name}
-                        className="w-full h-32 object-cover rounded-lg"
-                        onError={(e) => {
-                          e.currentTarget.style.display = 'none';
-                          e.currentTarget.nextElementSibling!.classList.remove('hidden');
-                        }}
-                      />
-                    ) : null}
-                    <div className={`w-full h-32 bg-gray-100 rounded-lg flex items-center justify-center ${product.imageUrl ? 'hidden' : ''}`}>
-                      <Box className="text-gray-400" size={32} />
+            </div>
+          </div>
+        </div>
+
+        <Tabs defaultValue="integrations" className="space-y-6">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="integrations" className="flex items-center gap-2">
+              <Database className="h-4 w-4" />
+              ESP/ASI/SAGE Search
+            </TabsTrigger>
+            <TabsTrigger value="catalog" className="flex items-center gap-2">
+              <ShoppingCart className="h-4 w-4" />
+              My Catalog ({filteredProducts?.length || 0})
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="integrations">
+            <ProductIntegrations />
+          </TabsContent>
+
+          <TabsContent value="catalog" className="space-y-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-2xl font-bold text-swag-navy">My Product Catalog</h2>
+                <p className="text-muted-foreground">
+                  Manage your imported and custom promotional products
+                </p>
+              </div>
+              <Dialog open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen}>
+                <DialogTrigger asChild>
+                  <Button className="bg-swag-blue hover:bg-swag-blue/90">
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Custom Product
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-lg">
+                  <DialogHeader>
+                    <DialogTitle>Add Custom Product</DialogTitle>
+                  </DialogHeader>
+                  <form onSubmit={handleCreate}>
+                    <div className="space-y-4">
+                      <div>
+                        <Label htmlFor="name">Product Name</Label>
+                        <Input
+                          id="name"
+                          value={newProduct.name}
+                          onChange={(e) =>
+                            setNewProduct({ ...newProduct, name: e.target.value })
+                          }
+                          required
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="sku">SKU</Label>
+                        <Input
+                          id="sku"
+                          value={newProduct.sku}
+                          onChange={(e) =>
+                            setNewProduct({ ...newProduct, sku: e.target.value })
+                          }
+                          required
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="supplierId">Supplier</Label>
+                        <Select
+                          value={newProduct.supplierId}
+                          onValueChange={(value) =>
+                            setNewProduct({ ...newProduct, supplierId: value })
+                          }
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select supplier" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {suppliers?.map((supplier: Supplier) => (
+                              <SelectItem key={supplier.id} value={supplier.id}>
+                                {supplier.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label htmlFor="basePrice">Base Price</Label>
+                        <Input
+                          id="basePrice"
+                          type="number"
+                          step="0.01"
+                          value={newProduct.basePrice}
+                          onChange={(e) =>
+                            setNewProduct({ ...newProduct, basePrice: e.target.value })
+                          }
+                          required
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="minimumQuantity">Minimum Quantity</Label>
+                        <Input
+                          id="minimumQuantity"
+                          type="number"
+                          value={newProduct.minimumQuantity}
+                          onChange={(e) =>
+                            setNewProduct({ ...newProduct, minimumQuantity: e.target.value })
+                          }
+                          required
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="description">Description</Label>
+                        <Textarea
+                          id="description"
+                          value={newProduct.description}
+                          onChange={(e) =>
+                            setNewProduct({ ...newProduct, description: e.target.value })
+                          }
+                        />
+                      </div>
                     </div>
+                    <div className="flex justify-end gap-2 pt-4">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => setIsCreateModalOpen(false)}
+                      >
+                        Cancel
+                      </Button>
+                      <Button type="submit" disabled={createProductMutation.isPending}>
+                        {createProductMutation.isPending ? "Creating..." : "Create Product"}
+                      </Button>
+                    </div>
+                  </form>
+                </DialogContent>
+              </Dialog>
+            </div>
+
+            {/* Search Bar */}
+            <Card>
+              <CardContent className="pt-6">
+                <div className="relative max-w-md">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+                  <Input
+                    placeholder="Search your catalog..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-10"
+                  />
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Products Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {isLoading ? (
+                Array.from({ length: 6 }).map((_, i) => (
+                  <Card key={i}>
+                    <CardHeader>
+                      <Skeleton className="h-4 w-3/4" />
+                      <Skeleton className="h-3 w-1/2" />
+                    </CardHeader>
+                    <CardContent className="space-y-2">
+                      <Skeleton className="h-3 w-full" />
+                      <Skeleton className="h-3 w-2/3" />
+                      <div className="flex gap-2">
+                        <Skeleton className="h-6 w-16" />
+                        <Skeleton className="h-6 w-16" />
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))
+              ) : filteredProducts.length === 0 ? (
+                <div className="col-span-full text-center py-12">
+                  <Box className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                  <h3 className="text-lg font-semibold mb-2">No products found</h3>
+                  <p className="text-muted-foreground mb-4">
+                    {searchQuery
+                      ? "No products match your search criteria."
+                      : "Import products from ESP/ASI/SAGE or add custom products to get started."}
+                  </p>
+                  <div className="flex gap-2 justify-center">
+                    <Button variant="outline" onClick={() => setIsCreateModalOpen(true)}>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add Custom Product
+                    </Button>
                   </div>
-
-                  {/* Product Info */}
-                  <div className="space-y-2">
-                    <div className="flex items-start justify-between">
-                      <h3 className="font-semibold text-lg text-gray-900 line-clamp-2">
-                        {product.name}
-                      </h3>
-                      {product.sku && (
-                        <Badge variant="outline" className="ml-2">
-                          {product.sku}
+                </div>
+              ) : (
+                filteredProducts.map((product: Product) => (
+                  <Card key={product.id} className="hover:shadow-md transition-shadow">
+                    <CardHeader>
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <CardTitle className="text-lg">{product.name}</CardTitle>
+                          <p className="text-sm text-muted-foreground">
+                            SKU: {product.sku}
+                          </p>
+                        </div>
+                        <Badge variant="outline">
+                          {suppliers?.find((s: Supplier) => s.id === product.supplierId)?.name || 'Unknown'}
                         </Badge>
-                      )}
-                    </div>
-
-                    {product.description && (
-                      <p className="text-sm text-gray-600 line-clamp-2">
-                        {product.description}
-                      </p>
-                    )}
-
-                    <div className="space-y-1">
-                      {product.supplierId && (
-                        <p className="text-sm text-gray-600">
-                          <span className="font-medium">Supplier:</span> {getSupplierName(product.supplierId)}
+                      </div>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      {product.description && (
+                        <p className="text-sm text-muted-foreground line-clamp-2">
+                          {product.description}
                         </p>
                       )}
+                      
+                      <div className="flex items-center gap-2">
+                        <DollarSign className="h-4 w-4 text-muted-foreground" />
+                        <span className="font-semibold">${product.basePrice}</span>
+                        <span className="text-sm text-muted-foreground">
+                          (Min: {product.minimumQuantity})
+                        </span>
+                      </div>
 
-                      {product.basePrice && (
-                        <p className="text-sm text-gray-600">
-                          <span className="font-medium">Price:</span> ${Number(product.basePrice).toFixed(2)}
-                        </p>
+                      {product.colors && product.colors.length > 0 && (
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-muted-foreground">Colors:</span>
+                          <div className="flex gap-1">
+                            {product.colors.slice(0, 4).map((color, index) => (
+                              <Badge key={index} variant="outline" className="text-xs">
+                                {color}
+                              </Badge>
+                            ))}
+                            {product.colors.length > 4 && (
+                              <Badge variant="outline" className="text-xs">
+                                +{product.colors.length - 4}
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
                       )}
 
-                      <p className="text-sm text-gray-600">
-                        <span className="font-medium">Min Qty:</span> {product.minimumQuantity || 1}
-                      </p>
+                      {product.imprintMethods && product.imprintMethods.length > 0 && (
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-muted-foreground">Methods:</span>
+                          <div className="flex gap-1">
+                            {product.imprintMethods.slice(0, 2).map((method, index) => (
+                              <Badge key={index} variant="secondary" className="text-xs">
+                                {method}
+                              </Badge>
+                            ))}
+                            {product.imprintMethods.length > 2 && (
+                              <Badge variant="secondary" className="text-xs">
+                                +{product.imprintMethods.length - 2}
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+                      )}
 
                       {product.leadTime && (
-                        <p className="text-sm text-gray-600">
-                          <span className="font-medium">Lead Time:</span> {product.leadTime} days
+                        <p className="text-xs text-muted-foreground">
+                          Lead time: {product.leadTime}
                         </p>
                       )}
-                    </div>
-
-                    {/* Colors and Sizes */}
-                    <div className="space-y-1">
-                      {product.colors && (
-                        <div>
-                          <p className="text-xs text-gray-500 font-medium">Colors:</p>
-                          <p className="text-xs text-gray-600">{product.colors}</p>
-                        </div>
-                      )}
-                      {product.sizes && (
-                        <div>
-                          <p className="text-xs text-gray-500 font-medium">Sizes:</p>
-                          <p className="text-xs text-gray-600">{product.sizes}</p>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        )}
+                    </CardContent>
+                  </Card>
+                ))
+              )}
+            </div>
+          </TabsContent>
+        </Tabs>
       </div>
     </Layout>
   );
