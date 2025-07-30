@@ -51,8 +51,8 @@ interface SlackConfig {
 
 export function SlackPanel() {
   const [config, setConfig] = useState<SlackConfig>({
-    enabled: true, // Auto-enable since we have the token configured
-    botToken: "configured", // Placeholder since token is in env
+    enabled: false, // Disable until we get the correct token
+    botToken: "",
     channelId: "",
     notifications: {
       newOrders: true,
@@ -185,14 +185,22 @@ export function SlackPanel() {
       </CardHeader>
 
       <CardContent className="space-y-4">
-        {/* Connection Status */}
-        <div className="space-y-3 p-3 bg-green-50 rounded-lg border border-green-200">
+        {/* Connection Status - Show Error */}
+        <div className="space-y-3 p-3 bg-red-50 rounded-lg border border-red-200">
           <div className="flex items-center gap-2">
-            <CheckCircle className="h-4 w-4 text-green-600" />
-            <div className="text-sm font-medium text-green-800">Slack Connected</div>
+            <AlertCircle className="h-4 w-4 text-red-600" />
+            <div className="text-sm font-medium text-red-800">Token Type Error</div>
           </div>
-          <div className="text-xs text-green-600">
-            SwagSuite is connected to your Slack workspace and ready to send notifications.
+          <div className="text-xs text-red-600 space-y-2">
+            <div>The provided token (xoxe-...) is an Enterprise Grid token, but SwagSuite needs a Bot User OAuth Token that starts with "xoxb-".</div>
+            <div className="font-medium">To get the correct token:</div>
+            <ol className="list-decimal list-inside space-y-1 ml-2">
+              <li>Go to <a href="https://api.slack.com/apps" target="_blank" rel="noopener noreferrer" className="underline text-blue-600">api.slack.com/apps</a></li>
+              <li>Select your SwagSuite app (or create a new one)</li>
+              <li>Go to "OAuth & Permissions" in the sidebar</li>
+              <li>Copy the "Bot User OAuth Token" (starts with xoxb-)</li>
+              <li>Add these scopes: channels:read, chat:write, chat:write.public</li>
+            </ol>
           </div>
         </div>
 
