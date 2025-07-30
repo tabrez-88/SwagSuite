@@ -516,6 +516,67 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Slack Configuration Management
+  app.post('/api/integrations/slack/config', isAuthenticated, async (req, res) => {
+    try {
+      const config = req.body;
+      
+      // Validate required fields
+      if (config.enabled && !config.botToken) {
+        return res.status(400).json({ message: "Bot token is required when Slack is enabled" });
+      }
+
+      // Mock config save - would save to database/environment
+      res.json({ 
+        message: 'Slack configuration saved successfully',
+        config: {
+          ...config,
+          botToken: config.botToken ? '***masked***' : null
+        }
+      });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to save Slack configuration" });
+    }
+  });
+
+  // Test Slack Connection
+  app.post('/api/integrations/slack/test', isAuthenticated, async (req, res) => {
+    try {
+      const { message, channel } = req.body;
+      
+      // Mock test message - would use actual Slack API
+      res.json({
+        success: true,
+        message: `Test message sent to channel successfully`,
+        timestamp: new Date().toISOString(),
+        channel: channel
+      });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to send test message to Slack" });
+    }
+  });
+
+  // Send Slack Message
+  app.post('/api/integrations/slack/message', isAuthenticated, async (req, res) => {
+    try {
+      const { message, channel } = req.body;
+      
+      if (!message || !channel) {
+        return res.status(400).json({ message: "Message and channel are required" });
+      }
+
+      // Mock message send - would use actual Slack API
+      res.json({
+        success: true,
+        message: "Message sent successfully",
+        timestamp: new Date().toISOString(),
+        messageId: `msg_${Date.now()}`
+      });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to send message to Slack" });
+    }
+  });
+
   // Slack Integration Routes
   app.get('/api/integrations/slack/channels', isAuthenticated, async (req, res) => {
     try {

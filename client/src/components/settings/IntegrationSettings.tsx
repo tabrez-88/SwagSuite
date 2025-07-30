@@ -10,6 +10,7 @@ import { Separator } from "@/components/ui/separator";
 import { AlertCircle, CheckCircle, Database, Key, RefreshCw, Settings, Eye, EyeOff } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
+import { SlackIntegration } from "./SlackIntegration";
 
 interface IntegrationConfig {
   id: string;
@@ -164,16 +165,18 @@ export function IntegrationSettings() {
   }, {} as Record<string, ApiCredential[]>) || {};
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold text-swag-navy mb-2">Integration Settings</h2>
-        <p className="text-muted-foreground">
-          Manage ESP/ASI/SAGE database connections and API credentials
-        </p>
-      </div>
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      {/* Main Integration Settings - Left Side */}
+      <div className="lg:col-span-2 space-y-6">
+        <div>
+          <h2 className="text-2xl font-bold text-swag-navy mb-2">Integration Settings</h2>
+          <p className="text-muted-foreground">
+            Manage ESP/ASI/SAGE database connections and API credentials
+          </p>
+        </div>
 
-      {/* Integration Status Overview */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* Integration Status Overview */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {configsLoading ? (
           <div className="col-span-3 text-center py-8">Loading integrations...</div>
         ) : (
@@ -234,10 +237,10 @@ export function IntegrationSettings() {
             </Card>
           ))
         )}
-      </div>
+        </div>
 
-      {/* API Credentials Management */}
-      <Card>
+        {/* API Credentials Management */}
+        <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Key className="h-5 w-5" />
@@ -315,10 +318,10 @@ export function IntegrationSettings() {
             </Button>
           </div>
         </CardContent>
-      </Card>
+        </Card>
 
-      {/* Integration Help */}
-      <Card>
+        {/* Integration Help */}
+        <Card>
         <CardHeader>
           <CardTitle>Getting API Credentials</CardTitle>
           <CardDescription>
@@ -352,7 +355,13 @@ export function IntegrationSettings() {
             </div>
           </div>
         </CardContent>
-      </Card>
+        </Card>
+        </div>
+
+      {/* Slack Integration - Right Side */}
+      <div className="lg:col-span-1">
+        <SlackIntegration />
+      </div>
     </div>
   );
 }
