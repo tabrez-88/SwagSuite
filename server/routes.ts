@@ -754,14 +754,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { message, channel } = req.body;
       
-      // Mock test message - would use actual Slack API
+      if (!process.env.SLACK_BOT_TOKEN) {
+        return res.status(400).json({ message: "Slack bot token not configured" });
+      }
+
+      const { WebClient } = await import("@slack/web-api");
+      const slack = new WebClient(process.env.SLACK_BOT_TOKEN);
+
+      const testMessage = message || "🎉 SwagSuite is now connected! This is a test message from your promotional products ERP system.";
+
+      const result = await slack.chat.postMessage({
+        channel: channel,
+        text: testMessage,
+        username: 'SwagSuite Bot',
+        icon_emoji: ':package:'
+      });
+
       res.json({
         success: true,
         message: `Test message sent to channel successfully`,
         timestamp: new Date().toISOString(),
-        channel: channel
+        channel: channel,
+        messageId: result.ts
       });
     } catch (error) {
+      console.error("Error sending test Slack message:", error);
       res.status(500).json({ message: "Failed to send test message to Slack" });
     }
   });
@@ -775,14 +792,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Message and channel are required" });
       }
 
-      // Mock message send - would use actual Slack API
+      if (!process.env.SLACK_BOT_TOKEN) {
+        return res.status(400).json({ message: "Slack bot token not configured" });
+      }
+
+      const { WebClient } = await import("@slack/web-api");
+      const slack = new WebClient(process.env.SLACK_BOT_TOKEN);
+
+      const result = await slack.chat.postMessage({
+        channel: channel,
+        text: message,
+        username: 'SwagSuite Bot'
+      });
+
       res.json({
         success: true,
         message: "Message sent successfully",
         timestamp: new Date().toISOString(),
-        messageId: `msg_${Date.now()}`
+        messageId: result.ts
       });
     } catch (error) {
+      console.error("Error sending Slack message:", error);
       res.status(500).json({ message: "Failed to send message to Slack" });
     }
   });
@@ -790,18 +820,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get Slack Channels
   app.get('/api/integrations/slack/channels', isAuthenticated, async (req, res) => {
     try {
-      // Mock channels data - would fetch from actual Slack API
-      const mockChannels = [
-        { id: "C1234567890", name: "general", memberCount: 25, isArchived: false },
-        { id: "C2345678901", name: "swag-suite", memberCount: 12, isArchived: false },
-        { id: "C3456789012", name: "orders", memberCount: 8, isArchived: false },
-        { id: "C4567890123", name: "alerts", memberCount: 15, isArchived: false },
-        { id: "C5678901234", name: "team-updates", memberCount: 20, isArchived: false },
-        { id: "C6789012345", name: "random", memberCount: 30, isArchived: false }
-      ];
-      
-      res.json(mockChannels);
+      if (!process.env.SLACK_BOT_TOKEN) {
+        return res.status(400).json({ message: "Slack bot token not configured" });
+      }
+
+      const { WebClient } = await import("@slack/web-api");
+      const slack = new WebClient(process.env.SLACK_BOT_TOKEN);
+
+      const result = await slack.conversations.list({
+        exclude_archived: true,
+        types: 'public_channel,private_channel'
+      });
+
+      const channels = result.channels?.map(channel => ({
+        id: channel.id,
+        name: channel.name,
+        memberCount: channel.num_members || 0,
+        isArchived: channel.is_archived || false
+      })) || [];
+
+      res.json(channels);
     } catch (error) {
+      console.error("Error fetching Slack channels:", error);
       res.status(500).json({ message: "Failed to fetch Slack channels" });
     }
   });
@@ -823,24 +863,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get('/api/integrations/slack/messages', isAuthenticated, async (req, res) => {
     try {
-      // Mock recent Slack messages - would integrate with actual Slack API
-      res.json([
-        {
-          id: '1',
-          content: 'New order from ABC Corp needs artwork approval',
-          user: 'Sarah Johnson',
-          timestamp: new Date(Date.now() - 300000).toISOString(),
-          channel: 'sales'
-        },
-        {
-          id: '2', 
-          content: 'Weekly production meeting at 2pm',
-          user: 'Mike Davis',
-          timestamp: new Date(Date.now() - 600000).toISOString(),
-          channel: 'production'
-        }
-      ]);
+      if (!process.env.SLACK_BOT_TOKEN || !process.env.SLACK_CHANNEL_ID) {
+        return res.status(400).json({ message: "Slack configuration incomplete" });
+      }
+
+      const { WebClient } = await import("@slack/web-api");
+      const slack = new WebClient(process.env.SLACK_BOT_TOKEN);
+
+      const result = await slack.conversations.history({
+        channel: process.env.SLACK_CHANNEL_ID,
+        limit: 10
+      });
+
+      const messages = result.messages?.map(msg => ({
+        id: msg.ts,
+        content: msg.text || '',
+        user: msg.user || 'Unknown',
+        timestamp: new Date(parseFloat(msg.ts || '0') * 1000).toISOString(),
+        channel: process.env.SLACK_CHANNEL_ID
+      })) || [];
+
+      res.json(messages);
     } catch (error) {
+      console.error("Error fetching Slack messages:", error);
       res.status(500).json({ message: "Failed to fetch Slack messages" });
     }
   });

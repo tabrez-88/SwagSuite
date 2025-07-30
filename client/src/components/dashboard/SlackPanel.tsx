@@ -51,8 +51,8 @@ interface SlackConfig {
 
 export function SlackPanel() {
   const [config, setConfig] = useState<SlackConfig>({
-    enabled: false,
-    botToken: "",
+    enabled: true, // Auto-enable since we have the token configured
+    botToken: "configured", // Placeholder since token is in env
     channelId: "",
     notifications: {
       newOrders: true,
@@ -71,7 +71,14 @@ export function SlackPanel() {
   // Fetch Slack channels
   const { data: channels, isLoading: channelsLoading } = useQuery<SlackChannel[]>({
     queryKey: ['/api/integrations/slack/channels'],
-    enabled: config.enabled && !!config.botToken,
+    enabled: config.enabled,
+  });
+
+  // Fetch recent messages
+  const { data: messages = [], isLoading: messagesLoading } = useQuery({
+    queryKey: ['/api/integrations/slack/messages'],
+    enabled: config.enabled,
+    refetchInterval: 30000, // Refresh every 30 seconds
   });
 
   // Save Slack configuration
@@ -178,38 +185,16 @@ export function SlackPanel() {
       </CardHeader>
 
       <CardContent className="space-y-4">
-        {/* Quick Setup - Always Visible */}
-        {!config.enabled && (
-          <div className="space-y-3 p-3 bg-purple-50 rounded-lg border border-purple-200">
-            <div className="text-sm font-medium text-purple-800">Quick Setup</div>
-            <div className="space-y-2">
-              <Input
-                placeholder="Enter your Slack Bot Token (xoxb-...)"
-                type="password"
-                value={config.botToken}
-                onChange={(e) => setConfig(prev => ({ ...prev, botToken: e.target.value }))}
-              />
-              <div className="flex items-center gap-2">
-                <Switch
-                  checked={config.enabled}
-                  onCheckedChange={(checked) => setConfig(prev => ({ ...prev, enabled: checked }))}
-                />
-                <Label className="text-sm">Enable Slack Integration</Label>
-              </div>
-              <Button
-                size="sm"
-                onClick={handleSaveConfig}
-                disabled={!config.botToken || saveConfigMutation.isPending}
-                className="w-full bg-purple-600 hover:bg-purple-700"
-              >
-                {saveConfigMutation.isPending ? "Connecting..." : "Connect to Slack"}
-              </Button>
-            </div>
-            <div className="text-xs text-purple-600">
-              Get your bot token from <a href="https://api.slack.com/apps" target="_blank" rel="noopener noreferrer" className="underline">api.slack.com/apps</a>
-            </div>
+        {/* Connection Status */}
+        <div className="space-y-3 p-3 bg-green-50 rounded-lg border border-green-200">
+          <div className="flex items-center gap-2">
+            <CheckCircle className="h-4 w-4 text-green-600" />
+            <div className="text-sm font-medium text-green-800">Slack Connected</div>
           </div>
-        )}
+          <div className="text-xs text-green-600">
+            SwagSuite is connected to your Slack workspace and ready to send notifications.
+          </div>
+        </div>
 
         {/* Quick Message - When Connected */}
         {config.enabled && (
@@ -310,6 +295,27 @@ export function SlackPanel() {
               </Button>
             </div>
           </>
+        )}
+
+        {/* Recent Messages */}
+        {config.enabled && messages && messages.length > 0 && (
+          <div className="pt-3 border-t">
+            <div className="text-xs text-muted-foreground mb-2">Recent Messages</div>
+            <div className="space-y-2 max-h-32 overflow-y-auto">
+              {messages.slice(0, 3).map((message) => (
+                <div key={message.id} className="text-xs bg-muted rounded p-2">
+                  <div className="flex items-center gap-1 mb-1">
+                    <Users className="h-3 w-3" />
+                    <span className="font-medium">{message.user}</span>
+                    <span className="text-muted-foreground">
+                      {new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                  </div>
+                  <div className="text-muted-foreground">{message.content}</div>
+                </div>
+              ))}
+            </div>
+          </div>
         )}
 
         {/* Channel Info - When Connected */}
