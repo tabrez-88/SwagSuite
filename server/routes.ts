@@ -577,6 +577,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get Slack Channels
+  app.get('/api/integrations/slack/channels', isAuthenticated, async (req, res) => {
+    try {
+      // Mock channels data - would fetch from actual Slack API
+      const mockChannels = [
+        { id: "C1234567890", name: "general", memberCount: 25, isArchived: false },
+        { id: "C2345678901", name: "swag-suite", memberCount: 12, isArchived: false },
+        { id: "C3456789012", name: "orders", memberCount: 8, isArchived: false },
+        { id: "C4567890123", name: "alerts", memberCount: 15, isArchived: false },
+        { id: "C5678901234", name: "team-updates", memberCount: 20, isArchived: false },
+        { id: "C6789012345", name: "random", memberCount: 30, isArchived: false }
+      ];
+      
+      res.json(mockChannels);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch Slack channels" });
+    }
+  });
+
   // Slack Integration Routes
   app.get('/api/integrations/slack/channels', isAuthenticated, async (req, res) => {
     try {
