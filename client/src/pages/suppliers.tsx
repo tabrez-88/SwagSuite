@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import Layout from "@/components/Layout";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -115,8 +115,7 @@ export default function Suppliers() {
   const doNotOrderSuppliers = filteredSuppliers.filter((s: Supplier) => s.doNotOrder);
 
   return (
-    <Layout>
-      <div className="space-y-6">
+    <div className="space-y-6 p-6">
         {/* Header */}
         <div className="flex justify-between items-center">
           <div>
@@ -426,7 +425,6 @@ export default function Suppliers() {
             ))}
           </div>
         )}
-      </div>
-    </Layout>
+    </div>
   );
 }

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import Layout from "@/components/Layout";
+
 import { IntegrationSettings } from "@/components/settings/IntegrationSettings";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -102,8 +102,7 @@ export default function Settings() {
   };
 
   return (
-    <Layout>
-      <div className="space-y-6">
+    <div className="space-y-6 p-6">
         {/* Header */}
         <div>
           <h1 className="text-3xl font-bold text-gray-900 flex items-center">
@@ -505,8 +504,7 @@ export default function Settings() {
             </Card>
           </TabsContent>
         </Tabs>
-      </div>
-    </Layout>
+    </div>
   );
 }
 

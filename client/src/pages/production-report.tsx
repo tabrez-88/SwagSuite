@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import Layout from "@/components/Layout";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -403,8 +403,7 @@ export default function ProductionReport() {
   const uniqueAssignees = Array.from(new Set(ordersToDisplay.map(o => o.assignedTo).filter(Boolean)));
 
   return (
-    <Layout>
-      <div className="space-y-6">
+    <div className="space-y-6 p-6">
         {/* Header */}
         <div className="flex justify-between items-start">
           <div>
@@ -959,7 +958,6 @@ export default function ProductionReport() {
             )}
           </DialogContent>
         </Dialog>
-      </div>
-    </Layout>
+    </div>
   );
 }

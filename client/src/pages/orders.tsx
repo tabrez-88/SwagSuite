@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import Layout from "@/components/Layout";
+
 import OrderModal from "@/components/OrderModal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -120,8 +120,7 @@ export default function Orders() {
   };
 
   return (
-    <Layout>
-      <div className="space-y-6">
+    <div className="space-y-6 p-6">
         {/* Header */}
         <div className="flex justify-between items-center">
           <div>
@@ -338,7 +337,6 @@ export default function Orders() {
           open={isCreateModalOpen} 
           onOpenChange={setIsCreateModalOpen} 
         />
-      </div>
-    </Layout>
+    </div>
   );
 }

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import Layout from "@/components/Layout";
+
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Building, Users, TrendingUp, UserCheck } from "lucide-react";
 
@@ -25,8 +25,7 @@ export default function CRM() {
   const [activeTab, setActiveTab] = useState("companies");
 
   return (
-    <Layout>
-      <div className="space-y-6">
+    <div className="space-y-6 p-6">
         {/* Header */}
         <div>
           <h1 className="text-3xl font-bold text-swag-navy">CRM</h1>
@@ -72,7 +71,6 @@ export default function CRM() {
             <Clients />
           </TabsContent>
         </Tabs>
-      </div>
-    </Layout>
+    </div>
   );
 }
