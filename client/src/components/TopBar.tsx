@@ -1,5 +1,5 @@
 import { Bell, User } from "lucide-react";
-import SearchBar from "./SearchBar";
+import { GlobalSearch } from "./GlobalSearch";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import {
@@ -20,8 +20,8 @@ export default function TopBar() {
   return (
     <header className="bg-white shadow-sm border-b border-gray-200 px-6 py-4">
       <div className="flex items-center justify-between">
-        <div className="flex items-center space-x-4">
-          <SearchBar />
+        <div className="flex items-center space-x-4 flex-1 max-w-lg">
+          <GlobalSearch />
         </div>
 
         <div className="flex items-center space-x-4">

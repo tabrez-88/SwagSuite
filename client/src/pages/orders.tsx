@@ -56,11 +56,11 @@ export default function Orders() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const { data: orders, isLoading } = useQuery({
+  const { data: orders = [], isLoading } = useQuery({
     queryKey: ["/api/orders"],
   });
 
-  const { data: companies } = useQuery({
+  const { data: companies = [] } = useQuery({
     queryKey: ["/api/companies"],
   });
 
@@ -289,7 +289,7 @@ export default function Orders() {
                       </TableCell>
                       <TableCell>
                         <Select
-                          value={order.status}
+                          value={order.status || "quote"}
                           onValueChange={(value) => handleStatusChange(order.id, value)}
                         >
                           <SelectTrigger className="w-40">

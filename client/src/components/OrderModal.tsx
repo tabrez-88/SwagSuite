@@ -38,7 +38,7 @@ export default function OrderModal({ open, onOpenChange }: OrderModalProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const { data: companies } = useQuery({
+  const { data: companies = [] } = useQuery({
     queryKey: ["/api/companies"],
     enabled: open,
   });
