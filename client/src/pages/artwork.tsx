@@ -1,5 +1,6 @@
 import { useState, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { DragDropContext, Droppable, Draggable } from "react-beautiful-dnd";
 import { Plus, MoreHorizontal, Search, Filter, Calendar, User, Building, Package, Paperclip, MessageSquare, CheckSquare, Upload, Image, X } from "lucide-react";
 import Sidebar from "@/components/Sidebar";
 import { Button } from "@/components/ui/button";
@@ -156,6 +157,19 @@ export default function ArtworkPage() {
     },
   });
 
+  // Update card position mutation
+  const updateCardPositionMutation = useMutation({
+    mutationFn: async ({ cardId, columnId, position }: { cardId: string; columnId: string; position: number }) => {
+      return apiRequest("PATCH", `/api/artwork/cards/${cardId}/move`, {
+        columnId,
+        position,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/artwork/cards"] });
+    },
+  });
+
   // File upload functionality
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files || []);
@@ -233,6 +247,31 @@ export default function ArtworkPage() {
 
   const onCreateColumn = (data: CreateColumnFormData) => {
     createColumnMutation.mutate(data);
+  };
+
+  // Drag and drop handler
+  const onDragEnd = (result: any) => {
+    const { destination, source, draggableId } = result;
+
+    // If dropped outside a droppable area
+    if (!destination) {
+      return;
+    }
+
+    // If dropped in the same position
+    if (
+      destination.droppableId === source.droppableId &&
+      destination.index === source.index
+    ) {
+      return;
+    }
+
+    // Update card position
+    updateCardPositionMutation.mutate({
+      cardId: draggableId,
+      columnId: destination.droppableId,
+      position: destination.index + 1,
+    });
   };
 
   // Initialize columns if empty
@@ -350,8 +389,9 @@ export default function ArtworkPage() {
         </div>
 
         {/* Kanban Board */}
-        <div className="flex gap-6 overflow-x-auto pb-6">
-          {(columns as any[]).map((column: any) => (
+        <DragDropContext onDragEnd={onDragEnd}>
+          <div className="flex gap-6 overflow-x-auto pb-6">
+            {(columns as any[]).map((column: any) => (
             <div key={column.id} className="flex-shrink-0 w-80">
               {/* Column Header */}
               <div className="bg-white rounded-lg shadow-sm border border-gray-200 mb-4">
@@ -382,14 +422,27 @@ export default function ArtworkPage() {
               </div>
 
               {/* Cards Container */}
-              <div className="space-y-3 min-h-[400px] bg-gray-50/50 rounded-lg p-3 border-2 border-dashed border-gray-200">
-                {(cards as any[])
-                  .filter((card: any) => 
-                    card.columnId === column.id &&
-                    card.title?.toLowerCase().includes(searchQuery.toLowerCase())
-                  )
-                  .map((card: any) => (
-                    <Card key={card.id} className="cursor-pointer hover:shadow-lg transition-all duration-200 bg-white border border-gray-200 hover:border-gray-300">
+              <Droppable droppableId={column.id}>
+                {(provided) => (
+                  <div 
+                    {...provided.droppableProps}
+                    ref={provided.innerRef}
+                    className="space-y-3 min-h-[400px] bg-gray-50/50 rounded-lg p-3 border-2 border-dashed border-gray-200"
+                  >
+                    {(cards as any[])
+                      .filter((card: any) => 
+                        card.columnId === column.id &&
+                        card.title?.toLowerCase().includes(searchQuery.toLowerCase())
+                      )
+                      .map((card: any, index: number) => (
+                        <Draggable key={card.id} draggableId={card.id} index={index}>
+                          {(provided) => (
+                            <Card 
+                              ref={provided.innerRef}
+                              {...provided.draggableProps}
+                              {...provided.dragHandleProps}
+                              className="cursor-pointer hover:shadow-lg transition-all duration-200 bg-white border border-gray-200 hover:border-gray-300"
+                            >
                       {/* Card Image Preview */}
                       {card.attachments && (() => {
                         const attachments = safeJsonParse(card.attachments, []);
@@ -484,23 +537,29 @@ export default function ArtworkPage() {
                             )}
                           </div>
                         </div>
-                      </CardContent>
-                    </Card>
-                  ))}
+                              </CardContent>
+                            </Card>
+                          )}
+                        </Draggable>
+                      ))}
+                    {provided.placeholder}
                 
-                {/* Add Card Button */}
-                <Button 
-                  variant="ghost" 
-                  className="w-full h-12 border-2 border-dashed border-gray-300 hover:border-gray-400 hover:bg-white/50 transition-colors"
-                  onClick={() => handleCreateCard(column.id)}
-                >
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add a card
-                </Button>
-              </div>
+                    {/* Add Card Button */}
+                    <Button 
+                      variant="ghost" 
+                      className="w-full h-12 border-2 border-dashed border-gray-300 hover:border-gray-400 hover:bg-white/50 transition-colors"
+                      onClick={() => handleCreateCard(column.id)}
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add a card
+                    </Button>
+                  </div>
+                )}
+              </Droppable>
             </div>
           ))}
-        </div>
+          </div>
+        </DragDropContext>
 
         {/* Create Card Dialog */}
         <Dialog open={showNewCardDialog} onOpenChange={setShowNewCardDialog}>
