@@ -147,9 +147,7 @@ export function EnhancedDashboard() {
 
   const seedDataMutation = useMutation({
     mutationFn: async () => {
-      return await apiRequest('/api/seed-dummy-data', {
-        method: 'POST'
-      });
+      return await apiRequest('POST', '/api/seed-dummy-data', {});
     },
     onSuccess: () => {
       toast({
