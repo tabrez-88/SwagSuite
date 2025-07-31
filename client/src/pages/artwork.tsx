@@ -68,8 +68,12 @@ export default function ArtworkPage() {
   const [selectedColumnId, setSelectedColumnId] = useState("");
   const [editingCard, setEditingCard] = useState<any>(null);
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
+  const [editUploadedFiles, setEditUploadedFiles] = useState<File[]>([]);
   const [filePreviews, setFilePreviews] = useState<{[key: string]: string}>({});
+  const [editFilePreviews, setEditFilePreviews] = useState<{[key: string]: string}>({});
+  const [existingAttachments, setExistingAttachments] = useState<any[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const editFileInputRef = useRef<HTMLInputElement>(null);
   const queryClient = useQueryClient();
 
   const cardForm = useForm<CreateCardFormData>({
@@ -191,6 +195,9 @@ export default function ArtworkPage() {
       setShowEditCardDialog(false);
       editCardForm.reset();
       setEditingCard(null);
+      setEditUploadedFiles([]);
+      setEditFilePreviews({});
+      setExistingAttachments([]);
     },
   });
 
@@ -228,6 +235,46 @@ export default function ArtworkPage() {
       delete newPreviews[fileName];
       return newPreviews;
     });
+  };
+
+  // File management for edit dialog
+  const handleEditFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files || []);
+    const allowedTypes = ['.ai', '.eps', '.jpeg', '.jpg', '.png', '.pdf'];
+    
+    const validFiles = files.filter(file => {
+      const extension = '.' + file.name.split('.').pop()?.toLowerCase();
+      return allowedTypes.includes(extension);
+    });
+
+    setEditUploadedFiles(prev => [...prev, ...validFiles]);
+
+    // Create previews for image files
+    validFiles.forEach(file => {
+      if (file.type.startsWith('image/')) {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          setEditFilePreviews(prev => ({
+            ...prev,
+            [file.name]: e.target?.result as string
+          }));
+        };
+        reader.readAsDataURL(file);
+      }
+    });
+  };
+
+  const removeEditFile = (fileName: string) => {
+    setEditUploadedFiles(prev => prev.filter(file => file.name !== fileName));
+    setEditFilePreviews(prev => {
+      const newPreviews = { ...prev };
+      delete newPreviews[fileName];
+      return newPreviews;
+    });
+  };
+
+  const removeExistingAttachment = (attachmentId: string) => {
+    setExistingAttachments(prev => prev.filter(att => att.id !== attachmentId));
   };
 
   const handleCreateCard = (columnId: string) => {
@@ -275,17 +322,22 @@ export default function ArtworkPage() {
 
   const onEditCard = (data: CreateCardFormData) => {
     if (editingCard) {
+      // Combine existing attachments with new uploaded files
+      const newAttachments = editUploadedFiles.map(file => ({
+        id: Math.random().toString(36).substr(2, 9),
+        fileName: file.name,
+        fileUrl: URL.createObjectURL(file),
+        fileType: file.type,
+        fileSize: file.size
+      }));
+      
+      const allAttachments = [...existingAttachments, ...newAttachments];
+      
       updateCardMutation.mutate({
         cardId: editingCard.id,
         data: {
           ...data,
-          attachments: uploadedFiles.map(file => ({
-            id: Math.random().toString(36).substr(2, 9),
-            fileName: file.name,
-            fileUrl: URL.createObjectURL(file),
-            fileType: file.type,
-            fileSize: file.size
-          }))
+          attachments: allAttachments
         }
       });
     }
@@ -302,6 +354,13 @@ export default function ArtworkPage() {
       priority: card.priority || "medium",
       dueDate: card.dueDate ? new Date(card.dueDate).toISOString().split('T')[0] : "",
     });
+    
+    // Handle existing attachments
+    const attachments = safeJsonParse(card.attachments, []);
+    setExistingAttachments(attachments);
+    setEditUploadedFiles([]);
+    setEditFilePreviews({});
+    
     setShowEditCardDialog(true);
   };
 
@@ -958,6 +1017,124 @@ export default function ArtworkPage() {
                     </FormItem>
                   )}
                 />
+
+                {/* File Management Section */}
+                <div className="space-y-3">
+                  <FormLabel>Artwork Files</FormLabel>
+                  
+                  {/* Existing Attachments */}
+                  {existingAttachments.length > 0 && (
+                    <div>
+                      <p className="text-sm text-gray-600 mb-2">Current Files:</p>
+                      <div className="grid grid-cols-2 gap-2 mb-3">
+                        {existingAttachments.map(attachment => (
+                          <div key={attachment.id} className="relative bg-gray-50 rounded p-2 text-xs">
+                            {attachment.fileType?.startsWith('image/') && attachment.fileUrl ? (
+                              <div className="flex items-center gap-2">
+                                <img 
+                                  src={attachment.fileUrl} 
+                                  alt={attachment.fileName}
+                                  className="w-8 h-8 object-cover rounded"
+                                />
+                                <span className="truncate">{attachment.fileName}</span>
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-2">
+                                <div className="w-8 h-8 bg-gray-200 rounded flex items-center justify-center">
+                                  <Paperclip className="w-4 h-4 text-gray-500" />
+                                </div>
+                                <span className="truncate">{attachment.fileName}</span>
+                              </div>
+                            )}
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="absolute -top-1 -right-1 h-5 w-5 p-0 bg-red-500 hover:bg-red-600 text-white"
+                              onClick={() => removeExistingAttachment(attachment.id)}
+                            >
+                              <X className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* File Upload Section */}
+                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-4">
+                    <input
+                      ref={editFileInputRef}
+                      type="file"
+                      multiple
+                      accept=".ai,.eps,.jpeg,.jpg,.png,.pdf"
+                      onChange={handleEditFileUpload}
+                      className="hidden"
+                    />
+                    
+                    {editUploadedFiles.length === 0 ? (
+                      <div className="text-center">
+                        <Upload className="h-8 w-8 mx-auto text-gray-400 mb-2" />
+                        <p className="text-sm text-gray-600 mb-2">
+                          Add more artwork files (.ai, .eps, .jpeg, .png, .pdf)
+                        </p>
+                        <Button 
+                          type="button" 
+                          variant="outline" 
+                          onClick={() => editFileInputRef.current?.click()}
+                        >
+                          Choose Files
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm font-medium">{editUploadedFiles.length} new file(s) selected</span>
+                          <Button 
+                            type="button" 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => editFileInputRef.current?.click()}
+                          >
+                            Add More
+                          </Button>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2 max-h-32 overflow-y-auto">
+                          {editUploadedFiles.map(file => (
+                            <div key={file.name} className="relative bg-gray-50 rounded p-2 text-xs">
+                              {editFilePreviews[file.name] ? (
+                                <div className="flex items-center gap-2">
+                                  <img 
+                                    src={editFilePreviews[file.name]} 
+                                    alt={file.name}
+                                    className="w-8 h-8 object-cover rounded"
+                                  />
+                                  <span className="truncate">{file.name}</span>
+                                </div>
+                              ) : (
+                                <div className="flex items-center gap-2">
+                                  <div className="w-8 h-8 bg-gray-200 rounded flex items-center justify-center">
+                                    <Paperclip className="w-4 h-4 text-gray-500" />
+                                  </div>
+                                  <span className="truncate">{file.name}</span>
+                                </div>
+                              )}
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                className="absolute -top-1 -right-1 h-5 w-5 p-0 bg-red-500 hover:bg-red-600 text-white"
+                                onClick={() => removeEditFile(file.name)}
+                              >
+                                <X className="h-3 w-3" />
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
 
                 <div className="flex justify-end gap-2">
                   <Button type="button" variant="outline" onClick={() => setShowEditCardDialog(false)}>
