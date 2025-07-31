@@ -10,7 +10,9 @@ import {
   insertOrderSchema,
   insertOrderItemSchema,
   insertArtworkFileSchema,
-  insertActivitySchema
+  insertActivitySchema,
+  insertArtworkColumnSchema,
+  insertArtworkCardSchema
 } from "@shared/schema";
 import multer from "multer";
 import path from "path";
@@ -2035,11 +2037,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/artwork/cards', isAuthenticated, async (req, res) => {
     try {
-      const card = await storage.createArtworkCard(req.body);
-      res.json(card);
+      console.log("Received card creation request:", req.body);
+      const validatedData = insertArtworkCardSchema.parse(req.body);
+      console.log("Validated data:", validatedData);
+      const card = await storage.createArtworkCard(validatedData);
+      console.log("Created card:", card);
+      res.status(201).json(card);
     } catch (error) {
       console.error("Error creating artwork card:", error);
-      res.status(500).json({ message: "Failed to create artwork card" });
+      res.status(500).json({ message: "Failed to create artwork card", error: error.message });
     }
   });
 
@@ -2107,15 +2113,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/artwork/cards", isAuthenticated, async (req, res) => {
-    try {
-      const card = await storage.createArtworkCard(req.body);
-      res.status(201).json(card);
-    } catch (error) {
-      console.error("Error creating artwork card:", error);
-      res.status(500).json({ error: "Failed to create artwork card" });
-    }
-  });
+
 
   app.patch("/api/artwork/cards/:id/move", isAuthenticated, async (req, res) => {
     try {

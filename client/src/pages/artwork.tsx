@@ -38,13 +38,6 @@ const createCardSchema = z.object({
   assignedUserId: z.string().optional(),
   priority: z.enum(["low", "medium", "high", "urgent"]).default("medium"),
   dueDate: z.string().optional(),
-  attachments: z.array(z.object({
-    id: z.string(),
-    fileName: z.string(),
-    fileUrl: z.string(),
-    fileType: z.string(),
-    fileSize: z.number(),
-  })).optional(),
 });
 
 const createColumnSchema = z.object({
@@ -71,7 +64,6 @@ export default function ArtworkPage() {
       title: "",
       description: "",
       priority: "medium",
-      attachments: [],
     },
   });
 
@@ -129,16 +121,27 @@ export default function ArtworkPage() {
   // Create card mutation
   const createCardMutation = useMutation({
     mutationFn: async (cardData: CreateCardFormData) => {
-      return apiRequest("/api/artwork/cards", "POST", {
+      console.log("Creating card with data:", cardData);
+      console.log("Selected column ID:", selectedColumnId);
+      
+      const requestData = {
         ...cardData,
         columnId: selectedColumnId,
         position: (cards as any[]).filter((card: any) => card.columnId === selectedColumnId).length + 1,
-      });
+      };
+      
+      console.log("Full request data:", requestData);
+      
+      return apiRequest("/api/artwork/cards", "POST", requestData);
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
+      console.log("Card created successfully:", data);
       queryClient.invalidateQueries({ queryKey: ["/api/artwork/cards"] });
       setShowNewCardDialog(false);
       cardForm.reset();
+    },
+    onError: (error) => {
+      console.error("Error creating card:", error);
     },
   });
 
@@ -184,17 +187,32 @@ export default function ArtworkPage() {
   };
 
   const onCreateCard = (data: CreateCardFormData) => {
-    // Include uploaded files in the card data
+    console.log("Form submitted with data:", data);
+    console.log("Selected column:", selectedColumnId);
+    
+    if (!selectedColumnId) {
+      console.error("No column selected!");
+      return;
+    }
+    
+    // Include uploaded files in the card data as an array (will be stored as jsonb)
+    const attachmentsData = uploadedFiles.map(file => ({
+      id: Math.random().toString(36).substr(2, 9),
+      fileName: file.name,
+      fileUrl: URL.createObjectURL(file),
+      fileType: file.type,
+      fileSize: file.size,
+    }));
+    
     const cardData = {
       ...data,
-      attachments: uploadedFiles.map(file => ({
-        id: Math.random().toString(36).substr(2, 9),
-        fileName: file.name,
-        fileUrl: URL.createObjectURL(file),
-        fileType: file.type,
-        fileSize: file.size,
-      }))
+      attachments: attachmentsData,
+      labels: [],
+      checklist: [],
+      comments: [],
     };
+    
+    console.log("Submitting card data:", cardData);
     createCardMutation.mutate(cardData);
     
     // Reset file upload state

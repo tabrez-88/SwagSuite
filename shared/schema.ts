@@ -394,6 +394,8 @@ export const insertDataUploadSchema = createInsertSchema(dataUploads).omit({
 
 
 
+
+
 // Types
 // AI Knowledge Base
 export const knowledgeBase = pgTable("knowledge_base", {
@@ -676,6 +678,19 @@ export type ArtworkColumn = typeof artworkColumns.$inferSelect;
 export type InsertArtworkColumn = typeof artworkColumns.$inferInsert;
 export type ArtworkCard = typeof artworkCards.$inferSelect;
 export type InsertArtworkCard = typeof artworkCards.$inferInsert;
+
+// Artwork insert schemas
+export const insertArtworkColumnSchema = createInsertSchema(artworkColumns).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertArtworkCardSchema = createInsertSchema(artworkCards).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
 
 // Artwork relations
 export const artworkColumnsRelations = relations(artworkColumns, ({ many }) => ({
