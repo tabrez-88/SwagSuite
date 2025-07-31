@@ -15,6 +15,7 @@ import Reports from "@/pages/reports";
 import KnowledgeBase from "@/pages/knowledge-base";
 import Settings from "@/pages/settings";
 import ArtworkPage from "@/pages/artwork";
+import MockupBuilderPage from "@/pages/mockup-builder";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -33,6 +34,7 @@ function Router() {
           <Route path="/products" component={Products} />
           <Route path="/suppliers" component={Suppliers} />
           <Route path="/artwork" component={ArtworkPage} />
+          <Route path="/mockup-builder" component={MockupBuilderPage} />
           <Route path="/reports" component={Reports} />
           <Route path="/knowledge-base" component={KnowledgeBase} />
           <Route path="/settings" component={Settings} />

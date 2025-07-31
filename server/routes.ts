@@ -2139,6 +2139,186 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Mock-up Builder API endpoints
+  app.get('/api/mockup-builder/products/search', isAuthenticated, async (req, res) => {
+    try {
+      const { query } = req.query;
+      
+      // Mock product search from ESP/ASI/SAGE systems
+      const mockProducts = [
+        {
+          id: "1",
+          name: "Premium Cotton T-Shirt",
+          number: "PC-001",
+          image: "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=400&h=400&fit=crop",
+          category: "Apparel",
+          colors: ["White", "Black", "Navy", "Red"],
+          description: "100% cotton premium t-shirt perfect for promotional printing",
+          source: "ESP",
+          price: { min: 8.50, max: 12.95 },
+          minQuantity: 24
+        },
+        {
+          id: "2", 
+          name: "Ceramic Coffee Mug",
+          number: "MUG-101",
+          image: "https://images.unsplash.com/photo-1514228742587-6b1558fcf93a?w=400&h=400&fit=crop",
+          category: "Drinkware",
+          colors: ["White", "Blue", "Black"],
+          description: "11oz ceramic mug with large imprint area",
+          source: "ASI",
+          price: { min: 5.25, max: 8.75 },
+          minQuantity: 36
+        },
+        {
+          id: "3",
+          name: "Promotional Pen Set",
+          number: "PEN-202",
+          image: "https://images.unsplash.com/photo-1586952518485-11b180e92764?w=400&h=400&fit=crop",
+          category: "Writing Instruments",
+          colors: ["Blue", "Black", "Red", "Silver"],
+          description: "Professional ballpoint pen with custom engraving",
+          source: "SAGE",
+          price: { min: 2.15, max: 4.95 },
+          minQuantity: 100
+        }
+      ];
+
+      const filtered = query 
+        ? mockProducts.filter(product => 
+            product.name.toLowerCase().includes(query.toString().toLowerCase()) ||
+            product.number.toLowerCase().includes(query.toString().toLowerCase())
+          )
+        : mockProducts;
+
+      res.json(filtered);
+    } catch (error) {
+      console.error("Error searching products:", error);
+      res.status(500).json({ message: "Failed to search products" });
+    }
+  });
+
+  app.get('/api/mockup-builder/templates', isAuthenticated, async (req, res) => {
+    try {
+      // Mock template data
+      const templates = [
+        {
+          id: "company-default",
+          name: "Company Default",
+          type: "company",
+          header: "SwagSuite by Liquid Screen Design",
+          footer: "Your Promotional Products Partner",
+          isActive: true
+        },
+        {
+          id: "customer-abc",
+          name: "ABC Corporation Template",
+          type: "customer",
+          header: "ABC Corporation",
+          footer: "Powered by SwagSuite",
+          customerLogo: "https://via.placeholder.com/200x80/4F46E5/white?text=ABC+Corp",
+          companyLogo: "https://via.placeholder.com/150x60/059669/white?text=SwagSuite",
+          isActive: false
+        }
+      ];
+
+      res.json(templates);
+    } catch (error) {
+      console.error("Error fetching templates:", error);
+      res.status(500).json({ message: "Failed to fetch templates" });
+    }
+  });
+
+  app.post('/api/mockup-builder/templates', isAuthenticated, async (req, res) => {
+    try {
+      const templateData = req.body;
+      
+      // Mock template creation
+      const newTemplate = {
+        id: `template_${Date.now()}`,
+        ...templateData,
+        createdAt: new Date().toISOString(),
+        createdBy: (req.user as any)?.claims?.sub
+      };
+
+      res.status(201).json(newTemplate);
+    } catch (error) {
+      console.error("Error creating template:", error);
+      res.status(500).json({ message: "Failed to create template" });
+    }
+  });
+
+  app.post('/api/mockup-builder/generate-ai-templates', isAuthenticated, async (req, res) => {
+    try {
+      const { customerInfo, preferences } = req.body;
+      
+      // Mock AI template generation
+      setTimeout(() => {
+        const aiTemplates = [
+          {
+            id: `ai_template_${Date.now()}_1`,
+            name: `${customerInfo?.name || 'Customer'} Professional`,
+            type: "customer",
+            header: `${customerInfo?.name || 'Your Company'} - Professional Solutions`,
+            footer: "Crafted with SwagSuite Technology",
+            aiGenerated: true,
+            confidence: 0.92
+          },
+          {
+            id: `ai_template_${Date.now()}_2`,
+            name: `${customerInfo?.name || 'Customer'} Modern`,
+            type: "customer", 
+            header: `Modern Branding for ${customerInfo?.name || 'Your Business'}`,
+            footer: "Innovation Meets Promotion",
+            aiGenerated: true,
+            confidence: 0.88
+          }
+        ];
+        
+        res.json({ templates: aiTemplates, generated: aiTemplates.length });
+      }, 2000);
+    } catch (error) {
+      console.error("Error generating AI templates:", error);
+      res.status(500).json({ message: "Failed to generate AI templates" });
+    }
+  });
+
+  app.post('/api/mockup-builder/mockups/download', isAuthenticated, async (req, res) => {
+    try {
+      const { mockupData, format = 'png' } = req.body;
+      
+      // Mock mockup download preparation
+      const downloadUrl = `https://mock-storage.example.com/mockups/${Date.now()}.${format}`;
+      
+      res.json({ 
+        downloadUrl,
+        expiresAt: new Date(Date.now() + 3600000).toISOString(), // 1 hour
+        format,
+        size: '1920x1080'
+      });
+    } catch (error) {
+      console.error("Error preparing mockup download:", error);
+      res.status(500).json({ message: "Failed to prepare mockup download" });
+    }
+  });
+
+  app.post('/api/mockup-builder/mockups/email', isAuthenticated, async (req, res) => {
+    try {
+      const { mockupData, emailData } = req.body;
+      
+      // Mock email sending
+      res.json({ 
+        success: true,
+        messageId: `email_${Date.now()}`,
+        sentTo: emailData.recipients,
+        sentAt: new Date().toISOString()
+      });
+    } catch (error) {
+      console.error("Error sending mockup email:", error);
+      res.status(500).json({ message: "Failed to send mockup email" });
+    }
+  });
+
   // Seed dummy data endpoint (for development)
   app.post('/api/seed-dummy-data', isAuthenticated, async (req, res) => {
     try {

@@ -10,7 +10,8 @@ import {
   Brain, 
   Settings,
   Factory,
-  Palette
+  Palette,
+  Wand2
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -22,6 +23,7 @@ const navigation = [
   { name: "Products", href: "/products", icon: Box },
   { name: "Suppliers", href: "/suppliers", icon: Truck },
   { name: "Artwork", href: "/artwork", icon: Palette },
+  { name: "Mock-up Builder", href: "/mockup-builder", icon: Wand2 },
   { name: "Reports", href: "/reports", icon: ChartBar },
   { name: "Knowledge Base", href: "/knowledge-base", icon: Brain },
   { name: "Settings", href: "/settings", icon: Settings },
