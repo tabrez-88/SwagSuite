@@ -20,9 +20,13 @@ import ArtworkPage from "@/pages/artwork";
 import MockupBuilderPage from "@/pages/mockup-builder";
 import AIPresentationBuilder from "@/pages/ai-presentation-builder";
 import NotFound from "@/pages/not-found";
+import { SlackSidebar } from "@/components/SlackSidebar";
+import { useState } from 'react';
 
 // Layout component for authenticated pages
 function AuthenticatedLayout({ children }: { children: React.ReactNode }) {
+  const [isSlackMinimized, setIsSlackMinimized] = useState(true);
+
   return (
     <div className="flex h-screen bg-gray-50">
       <Sidebar />
@@ -32,6 +36,10 @@ function AuthenticatedLayout({ children }: { children: React.ReactNode }) {
           {children}
         </main>
       </div>
+      <SlackSidebar 
+        isMinimized={isSlackMinimized} 
+        onToggleMinimize={() => setIsSlackMinimized(!isSlackMinimized)} 
+      />
     </div>
   );
 }

@@ -18,6 +18,7 @@ import {
   insertArtworkCardSchema
 } from "@shared/schema";
 import Anthropic from '@anthropic-ai/sdk';
+import { sendSlackMessage } from "../shared/slack";
 
 // Configure multer for file uploads
 const uploadDir = path.join(process.cwd(), 'uploads');
@@ -2921,6 +2922,47 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error deleting presentation:", error);
       res.status(500).json({ message: "Failed to delete presentation" });
+    }
+  });
+
+  // Slack Integration Routes
+  app.get('/api/slack/messages', isAuthenticated, async (req, res) => {
+    try {
+      const messages = await storage.getSlackMessages();
+      res.json(messages);
+    } catch (error) {
+      console.error("Error fetching Slack messages:", error);
+      res.status(500).json({ message: "Failed to fetch Slack messages" });
+    }
+  });
+
+  app.post('/api/slack/send-message', isAuthenticated, async (req, res) => {
+    try {
+      const { content } = req.body;
+      if (!content?.trim()) {
+        return res.status(400).json({ message: "Message content is required" });
+      }
+
+      // Send message to Slack
+      const messageResponse = await sendSlackMessage({
+        channel: process.env.SLACK_CHANNEL_ID!,
+        text: content.trim(),
+        username: 'SwagSuite',
+        icon_emoji: ':briefcase:'
+      });
+
+      // Store message in database
+      const message = await storage.createSlackMessage({
+        channelId: process.env.SLACK_CHANNEL_ID!,
+        messageId: messageResponse || 'sent',
+        userId: req.user.claims.sub,
+        content: content.trim()
+      });
+
+      res.json(message);
+    } catch (error) {
+      console.error("Error sending Slack message:", error);
+      res.status(500).json({ message: "Failed to send Slack message" });
     }
   });
 

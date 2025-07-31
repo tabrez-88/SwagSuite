@@ -688,6 +688,10 @@ export type InsertPresentationFile = typeof presentationFiles.$inferInsert;
 export type PresentationProduct = typeof presentationProducts.$inferSelect;
 export type InsertPresentationProduct = typeof presentationProducts.$inferInsert;
 
+// Slack Message Types
+export type SlackMessage = typeof slackMessages.$inferSelect;
+export type InsertSlackMessage = typeof slackMessages.$inferInsert;
+
 // Artwork management tables for Kanban-style workflow
 export const artworkColumns = pgTable("artwork_columns", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),

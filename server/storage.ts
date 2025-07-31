@@ -14,6 +14,7 @@ import {
   presentations,
   presentationFiles,
   presentationProducts,
+  slackMessages,
   type User,
   type UpsertUser,
   type Company,
@@ -44,6 +45,8 @@ import {
   type InsertPresentationFile,
   type PresentationProduct,
   type InsertPresentationProduct,
+  type SlackMessage,
+  type InsertSlackMessage,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, like, and, gte, lte, sql } from "drizzle-orm";
@@ -147,6 +150,10 @@ export interface IStorage {
   
   createPresentationProduct(product: InsertPresentationProduct): Promise<PresentationProduct>;
   getPresentationProducts(presentationId: string): Promise<PresentationProduct[]>;
+  
+  // Slack Message operations
+  getSlackMessages(): Promise<SlackMessage[]>;
+  createSlackMessage(message: InsertSlackMessage): Promise<SlackMessage>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1434,6 +1441,20 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(presentationProducts)
       .where(eq(presentationProducts.presentationId, presentationId))
       .orderBy(desc(presentationProducts.createdAt));
+  }
+
+  // Slack Message operations
+  async getSlackMessages(): Promise<SlackMessage[]> {
+    return await db.select().from(slackMessages)
+      .orderBy(desc(slackMessages.createdAt))
+      .limit(100); // Get latest 100 messages
+  }
+
+  async createSlackMessage(message: InsertSlackMessage): Promise<SlackMessage> {
+    const [newMessage] = await db.insert(slackMessages)
+      .values(message)
+      .returning();
+    return newMessage;
   }
 }
 
