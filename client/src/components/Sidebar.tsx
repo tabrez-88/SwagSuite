@@ -11,7 +11,8 @@ import {
   Settings,
   Factory,
   Palette,
-  Wand2
+  Wand2,
+  Presentation
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -24,6 +25,7 @@ const navigation = [
   { name: "Suppliers", href: "/suppliers", icon: Truck },
   { name: "Artwork", href: "/artwork", icon: Palette },
   { name: "Mock-up Builder", href: "/mockup-builder", icon: Wand2 },
+  { name: "AI Presentation Builder", href: "/ai-presentation-builder", icon: Presentation },
   { name: "Reports", href: "/reports", icon: ChartBar },
   { name: "Knowledge Base", href: "/knowledge-base", icon: Brain },
   { name: "Settings", href: "/settings", icon: Settings },

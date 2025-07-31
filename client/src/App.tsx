@@ -18,6 +18,7 @@ import KnowledgeBase from "@/pages/knowledge-base";
 import Settings from "@/pages/settings";
 import ArtworkPage from "@/pages/artwork";
 import MockupBuilderPage from "@/pages/mockup-builder";
+import AIPresentationBuilder from "@/pages/ai-presentation-builder";
 import NotFound from "@/pages/not-found";
 
 // Layout component for authenticated pages
@@ -53,6 +54,7 @@ function Router() {
             <Route path="/suppliers" component={Suppliers} />
             <Route path="/artwork" component={ArtworkPage} />
             <Route path="/mockup-builder" component={MockupBuilderPage} />
+            <Route path="/ai-presentation-builder" component={AIPresentationBuilder} />
             <Route path="/reports" component={Reports} />
             <Route path="/knowledge-base" component={KnowledgeBase} />
             <Route path="/settings" component={Settings} />

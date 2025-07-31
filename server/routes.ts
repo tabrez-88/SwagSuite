@@ -1,6 +1,9 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
+import multer from "multer";
+import path from "path";
+import fs from "fs";
 import { setupAuth, isAuthenticated } from "./replitAuth";
 import { 
   insertCompanySchema, 
@@ -14,9 +17,6 @@ import {
   insertArtworkColumnSchema,
   insertArtworkCardSchema
 } from "@shared/schema";
-import multer from "multer";
-import path from "path";
-import fs from "fs";
 import Anthropic from '@anthropic-ai/sdk';
 
 // Configure multer for file uploads
@@ -59,10 +59,104 @@ const upload = multer({
   }
 });
 
+// Separate upload configuration for presentation files
+const presentationUpload = multer({
+  dest: uploadDir,
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10MB limit for presentation files
+  },
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = ['.ai', '.eps', '.jpeg', '.jpg', '.png', '.pdf', '.psd', '.svg'];
+    const ext = path.extname(file.originalname).toLowerCase();
+    if (allowedTypes.includes(ext)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Invalid file type. Only AI, EPS, JPEG, PNG, PDF, PSD, and SVG files are allowed.'));
+    }
+  }
+});
+
 // Initialize Anthropic client
 const anthropic = process.env.ANTHROPIC_API_KEY ? new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 }) : null;
+
+// AI Processing Function for Presentation Generation
+async function generatePresentationWithAI(presentationId: string, dealNotes: string) {
+  try {
+    await storage.updatePresentation(presentationId, { status: 'generating' });
+
+    if (!anthropic) {
+      throw new Error('Anthropic API key not configured');
+    }
+
+    // Get available products for suggestions
+    const products = await storage.getProducts();
+    const productContext = products.slice(0, 20).map(p => 
+      `${p.name} - $${p.price} - ${p.category} - ${p.description || 'No description'}`
+    ).join('\n');
+
+    // AI prompt for product suggestions
+    const prompt = `Analyze these deal notes and suggest the most relevant promotional products with pricing and quantities.
+
+Deal Notes:
+${dealNotes}
+
+Available Products:
+${productContext}
+
+Based on the deal notes, suggest 3-5 products that would best fit this client's needs. For each product, provide:
+1. Product name
+2. Suggested quantity based on the notes
+3. Suggested price point
+4. Clear reasoning why this product fits the deal
+
+Return your response as a JSON object with this structure:
+{
+  "analysis": "Brief analysis of the client's needs",
+  "suggestedProducts": [
+    {
+      "productName": "Product Name",
+      "suggestedQuantity": 500,
+      "suggestedPrice": 15.99,
+      "reasoning": "Why this product fits their needs"
+    }
+  ],
+  "totalEstimatedValue": 7995.00,
+  "recommendations": "Additional recommendations for the presentation"
+}`;
+
+    const response = await anthropic.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 2000,
+      messages: [{ role: 'user', content: prompt }]
+    });
+
+    const aiResponse = JSON.parse(response.content[0].text);
+
+    // Update presentation with AI suggestions
+    await storage.updatePresentation(presentationId, {
+      suggestedProducts: aiResponse.suggestedProducts,
+      status: 'completed'
+    });
+
+    // Create individual product suggestions
+    for (const product of aiResponse.suggestedProducts) {
+      await storage.createPresentationProduct({
+        presentationId,
+        productName: product.productName,
+        suggestedPrice: product.suggestedPrice,
+        suggestedQuantity: product.suggestedQuantity,
+        reasoning: product.reasoning
+      });
+    }
+
+    console.log(`Presentation ${presentationId} generated successfully with ${aiResponse.suggestedProducts.length} product suggestions`);
+  } catch (error) {
+    console.error(`Error generating presentation ${presentationId}:`, error);
+    await storage.updatePresentation(presentationId, { status: 'error' });
+  }
+}
 
 // AI Processing Function for Data Uploads
 async function processDataUploadWithAI(uploadId: string, file: Express.Multer.File) {
@@ -2646,6 +2740,133 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error("Error seeding dummy data:", error);
       console.error("Error stack:", error.stack);
       res.status(500).json({ message: "Failed to seed dummy data", error: error.message });
+    }
+  });
+
+  // AI Presentation Builder routes
+  app.get('/api/presentations', isAuthenticated, async (req, res) => {
+    try {
+      const presentations = await storage.getPresentations(req.user.claims.sub);
+      res.json(presentations);
+    } catch (error) {
+      console.error("Error fetching presentations:", error);
+      res.status(500).json({ message: "Failed to fetch presentations" });
+    }
+  });
+
+  app.post('/api/presentations', isAuthenticated, presentationUpload.array('files', 10), async (req, res) => {
+    try {
+      const { title, description, dealNotes } = req.body;
+      
+      if (!title?.trim()) {
+        return res.status(400).json({ message: "Title is required" });
+      }
+
+      // Create presentation
+      const presentation = await storage.createPresentation({
+        title: title.trim(),
+        description: description?.trim() || null,
+        dealNotes: dealNotes?.trim() || null,
+        userId: req.user.claims.sub,
+        status: 'draft'
+      });
+
+      // Handle file uploads if any
+      if (req.files && Array.isArray(req.files)) {
+        for (const file of req.files) {
+          await storage.createPresentationFile({
+            presentationId: presentation.id,
+            fileName: file.originalname,
+            fileType: path.extname(file.originalname).toLowerCase(),
+            fileSize: file.size,
+            filePath: file.path
+          });
+        }
+      }
+
+      res.status(201).json(presentation);
+
+      // Start AI analysis in background if there are deal notes
+      if (dealNotes?.trim()) {
+        generatePresentationWithAI(presentation.id, dealNotes.trim());
+      }
+    } catch (error) {
+      console.error("Error creating presentation:", error);
+      res.status(500).json({ message: "Failed to create presentation" });
+    }
+  });
+
+  app.post('/api/presentations/import-hubspot', isAuthenticated, async (req, res) => {
+    try {
+      const { hubspotDealId } = req.body;
+      
+      if (!hubspotDealId?.trim()) {
+        return res.status(400).json({ message: "HubSpot Deal ID is required" });
+      }
+
+      // Mock HubSpot integration - in real implementation, fetch from HubSpot API
+      const mockDealData = {
+        dealname: `Deal #${hubspotDealId}`,
+        amount: '25000',
+        description: 'Q1 promotional products campaign for corporate events. Looking for branded apparel, tech accessories, and drinkware. Budget range $20k-30k. Timeline: 6 weeks. Quantities: 500-1000 units per item. Previous orders included polo shirts, wireless chargers, and custom water bottles.',
+        company: 'ABC Corporation'
+      };
+
+      const presentation = await storage.createPresentation({
+        title: mockDealData.dealname,
+        description: `Imported from HubSpot Deal - ${mockDealData.company}`,
+        dealNotes: mockDealData.description,
+        hubspotDealId: hubspotDealId.trim(),
+        userId: req.user.claims.sub,
+        status: 'draft'
+      });
+
+      res.status(201).json(presentation);
+
+      // Start AI analysis in background
+      generatePresentationWithAI(presentation.id, mockDealData.description);
+    } catch (error) {
+      console.error("Error importing from HubSpot:", error);
+      res.status(500).json({ message: "Failed to import from HubSpot" });
+    }
+  });
+
+  app.post('/api/presentations/:id/generate', isAuthenticated, async (req, res) => {
+    try {
+      const presentationId = req.params.id;
+      const presentation = await storage.getPresentation(presentationId);
+      
+      if (!presentation || presentation.userId !== req.user.claims.sub) {
+        return res.status(404).json({ message: "Presentation not found" });
+      }
+
+      // Update status to generating
+      await storage.updatePresentation(presentationId, { status: 'generating' });
+      
+      res.json({ message: "Generation started" });
+
+      // Start AI generation in background
+      generatePresentationWithAI(presentationId, presentation.dealNotes || '');
+    } catch (error) {
+      console.error("Error generating presentation:", error);
+      res.status(500).json({ message: "Failed to generate presentation" });
+    }
+  });
+
+  app.delete('/api/presentations/:id', isAuthenticated, async (req, res) => {
+    try {
+      const presentationId = req.params.id;
+      const presentation = await storage.getPresentation(presentationId);
+      
+      if (!presentation || presentation.userId !== req.user.claims.sub) {
+        return res.status(404).json({ message: "Presentation not found" });
+      }
+
+      await storage.deletePresentation(presentationId);
+      res.json({ message: "Presentation deleted" });
+    } catch (error) {
+      console.error("Error deleting presentation:", error);
+      res.status(500).json({ message: "Failed to delete presentation" });
     }
   });
 
