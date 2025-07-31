@@ -1878,6 +1878,119 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Production Report API routes
+  app.get('/api/production/orders', isAuthenticated, async (req, res) => {
+    try {
+      // Mock production orders data for now
+      const productionOrders = [
+        {
+          id: '1',
+          orderNumber: 'ORD-2024-001',
+          companyName: 'TechCorp Inc',
+          productName: 'Custom T-Shirts',
+          quantity: 500,
+          currentStage: 'proof-received',
+          assignedTo: 'Sarah Wilson',
+          nextActionDate: new Date().toISOString().split('T')[0],
+          nextActionNotes: 'Follow up with client on proof approval',
+          stagesCompleted: ['sales-booked', 'po-placed', 'confirmation-received'],
+          priority: 'high',
+          dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+          orderValue: 12500
+        },
+        {
+          id: '2',
+          orderNumber: 'ORD-2024-002',
+          companyName: 'StartupXYZ',
+          productName: 'Branded Mugs',
+          quantity: 200,
+          currentStage: 'order-placed',
+          assignedTo: 'Mike Johnson',
+          nextActionDate: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+          nextActionNotes: 'Check production timeline with vendor',
+          stagesCompleted: ['sales-booked', 'po-placed', 'confirmation-received', 'proof-received', 'proof-approved'],
+          priority: 'medium',
+          dueDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+          orderValue: 4800
+        }
+      ];
+      
+      res.json(productionOrders);
+    } catch (error) {
+      console.error('Error fetching production orders:', error);
+      res.status(500).json({ message: 'Failed to fetch production orders' });
+    }
+  });
+
+  app.get('/api/production/stages', isAuthenticated, async (req, res) => {
+    try {
+      // Mock production stages data
+      const stages = [
+        { id: 'sales-booked', name: 'Sales Order Booked', order: 1, color: 'bg-blue-100 text-blue-800' },
+        { id: 'po-placed', name: 'Purchase Order Placed', order: 2, color: 'bg-purple-100 text-purple-800' },
+        { id: 'confirmation-received', name: 'Confirmation Received', order: 3, color: 'bg-indigo-100 text-indigo-800' },
+        { id: 'proof-received', name: 'Proof Received', order: 4, color: 'bg-yellow-100 text-yellow-800' },
+        { id: 'proof-approved', name: 'Proof Approved', order: 5, color: 'bg-orange-100 text-orange-800' },
+        { id: 'order-placed', name: 'Order Placed', order: 6, color: 'bg-teal-100 text-teal-800' },
+        { id: 'invoice-paid', name: 'Invoice Paid', order: 7, color: 'bg-green-100 text-green-800' },
+        { id: 'shipping-scheduled', name: 'Shipping Scheduled', order: 8, color: 'bg-cyan-100 text-cyan-800' },
+        { id: 'shipped', name: 'Shipped', order: 9, color: 'bg-emerald-100 text-emerald-800' },
+      ];
+      
+      res.json(stages);
+    } catch (error) {
+      console.error('Error fetching production stages:', error);
+      res.status(500).json({ message: 'Failed to fetch production stages' });
+    }
+  });
+
+  // Global search API endpoint
+  app.get('/api/search', isAuthenticated, async (req, res) => {
+    try {
+      const { q } = req.query;
+      
+      if (!q || typeof q !== 'string' || q.length < 3) {
+        return res.json([]);
+      }
+      
+      // Mock search results across different entities
+      const searchResults = [
+        {
+          id: '1',
+          title: `TechCorp Inc`,
+          description: 'Technology company with 5 active orders',
+          type: 'company',
+          url: '/crm?company=1',
+          metadata: { industry: 'Technology', ytdSpend: 25000 }
+        },
+        {
+          id: '2',
+          title: `Order ORD-2024-001`,
+          description: 'Custom T-Shirts for TechCorp Inc (500 units)',
+          type: 'order',
+          url: '/orders?id=1',
+          metadata: { status: 'In Production', value: 12500 }
+        },
+        {
+          id: '3',
+          title: `Custom T-Shirts`,
+          description: 'Promotional t-shirts with custom printing',
+          type: 'product',
+          url: '/products?id=1',
+          metadata: { category: 'Apparel', supplier: 'ABC Textiles' }
+        }
+      ].filter(result => 
+        result.title.toLowerCase().includes(q.toLowerCase()) ||
+        result.description.toLowerCase().includes(q.toLowerCase())
+      );
+      
+      res.json(searchResults);
+    } catch (error) {
+      console.error('Error performing search:', error);
+      res.status(500).json({ message: 'Search failed' });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

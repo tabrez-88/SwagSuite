@@ -9,6 +9,7 @@ import Home from "@/pages/home";
 import CRM from "@/pages/crm";
 import Orders from "@/pages/orders";
 import Products from "@/pages/products";
+import ProductionReport from "@/pages/production-report";
 import Suppliers from "@/pages/suppliers";
 import Reports from "@/pages/reports";
 import KnowledgeBase from "@/pages/knowledge-base";
@@ -27,6 +28,7 @@ function Router() {
           <Route path="/" component={Home} />
           <Route path="/crm" component={CRM} />
           <Route path="/orders" component={Orders} />
+          <Route path="/production-report" component={ProductionReport} />
           <Route path="/products" component={Products} />
           <Route path="/suppliers" component={Suppliers} />
           <Route path="/reports" component={Reports} />

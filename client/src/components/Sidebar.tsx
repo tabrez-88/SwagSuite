@@ -8,7 +8,8 @@ import {
   Truck, 
   ChartBar, 
   Brain, 
-  Settings 
+  Settings,
+  Factory
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -16,6 +17,7 @@ const navigation = [
   { name: "Dashboard", href: "/", icon: Gauge },
   { name: "CRM", href: "/crm", icon: Users },
   { name: "Orders", href: "/orders", icon: ShoppingCart },
+  { name: "Production Report", href: "/production-report", icon: Factory },
   { name: "Products", href: "/products", icon: Box },
   { name: "Suppliers", href: "/suppliers", icon: Truck },
   { name: "Reports", href: "/reports", icon: ChartBar },
