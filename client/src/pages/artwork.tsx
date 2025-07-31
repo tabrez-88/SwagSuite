@@ -64,13 +64,24 @@ export default function ArtworkPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [showNewCardDialog, setShowNewCardDialog] = useState(false);
   const [showNewColumnDialog, setShowNewColumnDialog] = useState(false);
+  const [showEditCardDialog, setShowEditCardDialog] = useState(false);
   const [selectedColumnId, setSelectedColumnId] = useState("");
+  const [editingCard, setEditingCard] = useState<any>(null);
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
   const [filePreviews, setFilePreviews] = useState<{[key: string]: string}>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
   const queryClient = useQueryClient();
 
   const cardForm = useForm<CreateCardFormData>({
+    resolver: zodResolver(createCardSchema),
+    defaultValues: {
+      title: "",
+      description: "",
+      priority: "medium",
+    },
+  });
+
+  const editCardForm = useForm<CreateCardFormData>({
     resolver: zodResolver(createCardSchema),
     defaultValues: {
       title: "",
@@ -170,6 +181,19 @@ export default function ArtworkPage() {
     },
   });
 
+  // Update card mutation
+  const updateCardMutation = useMutation({
+    mutationFn: async ({ cardId, data }: { cardId: string; data: any }) => {
+      return apiRequest("PATCH", `/api/artwork/cards/${cardId}`, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/artwork/cards"] });
+      setShowEditCardDialog(false);
+      editCardForm.reset();
+      setEditingCard(null);
+    },
+  });
+
   // File upload functionality
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files || []);
@@ -247,6 +271,38 @@ export default function ArtworkPage() {
 
   const onCreateColumn = (data: CreateColumnFormData) => {
     createColumnMutation.mutate(data);
+  };
+
+  const onEditCard = (data: CreateCardFormData) => {
+    if (editingCard) {
+      updateCardMutation.mutate({
+        cardId: editingCard.id,
+        data: {
+          ...data,
+          attachments: uploadedFiles.map(file => ({
+            id: Math.random().toString(36).substr(2, 9),
+            fileName: file.name,
+            fileUrl: URL.createObjectURL(file),
+            fileType: file.type,
+            fileSize: file.size
+          }))
+        }
+      });
+    }
+  };
+
+  const handleCardClick = (card: any) => {
+    setEditingCard(card);
+    editCardForm.reset({
+      title: card.title || "",
+      description: card.description || "",
+      companyId: card.companyId || "",
+      orderId: card.orderId || "",
+      assignedUserId: card.assignedUserId || "",
+      priority: card.priority || "medium",
+      dueDate: card.dueDate ? new Date(card.dueDate).toISOString().split('T')[0] : "",
+    });
+    setShowEditCardDialog(true);
   };
 
   // Drag and drop handler
@@ -442,6 +498,7 @@ export default function ArtworkPage() {
                               {...provided.draggableProps}
                               {...provided.dragHandleProps}
                               className="cursor-pointer hover:shadow-lg transition-all duration-200 bg-white border border-gray-200 hover:border-gray-300"
+                              onClick={() => handleCardClick(card)}
                             >
                       {/* Card Image Preview */}
                       {card.attachments && (() => {
@@ -766,6 +823,148 @@ export default function ArtworkPage() {
                   </Button>
                   <Button type="submit" disabled={createCardMutation.isPending}>
                     Create Card
+                  </Button>
+                </div>
+              </form>
+            </Form>
+          </DialogContent>
+        </Dialog>
+
+        {/* Edit Card Dialog */}
+        <Dialog open={showEditCardDialog} onOpenChange={setShowEditCardDialog}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>Edit Card</DialogTitle>
+              <DialogDescription>
+                Update the artwork card details.
+              </DialogDescription>
+            </DialogHeader>
+            <Form {...editCardForm}>
+              <form onSubmit={editCardForm.handleSubmit(onEditCard)} className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField
+                    control={editCardForm.control}
+                    name="title"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Card Title</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Enter card title" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={editCardForm.control}
+                    name="priority"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Priority</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select priority" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="low">Low</SelectItem>
+                            <SelectItem value="medium">Medium</SelectItem>
+                            <SelectItem value="high">High</SelectItem>
+                            <SelectItem value="urgent">Urgent</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+                
+                <FormField
+                  control={editCardForm.control}
+                  name="description"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Description</FormLabel>
+                      <FormControl>
+                        <Textarea placeholder="Enter card description" rows={3} {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField
+                    control={editCardForm.control}
+                    name="companyId"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Company</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select company" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {(companies as any[]).map((company: any) => (
+                              <SelectItem key={company.id} value={company.id}>
+                                {company.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={editCardForm.control}
+                    name="orderId"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Order</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select order" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {(orders as any[]).map((order: any) => (
+                              <SelectItem key={order.id} value={order.id}>
+                                #{order.orderNumber}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                <FormField
+                  control={editCardForm.control}
+                  name="dueDate"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Due Date</FormLabel>
+                      <FormControl>
+                        <Input type="date" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <div className="flex justify-end gap-2">
+                  <Button type="button" variant="outline" onClick={() => setShowEditCardDialog(false)}>
+                    Cancel
+                  </Button>
+                  <Button type="submit" disabled={updateCardMutation.isPending}>
+                    {updateCardMutation.isPending ? "Updating..." : "Update Card"}
                   </Button>
                 </div>
               </form>

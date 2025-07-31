@@ -2061,6 +2061,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.patch('/api/artwork/cards/:id', isAuthenticated, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const updates = req.body;
+      const card = await storage.updateArtworkCard(id, updates);
+      res.json(card);
+    } catch (error) {
+      console.error("Error updating artwork card:", error);
+      res.status(500).json({ message: "Failed to update artwork card" });
+    }
+  });
+
   // Artwork Kanban API routes
   app.get("/api/artwork/columns", isAuthenticated, async (req, res) => {
     try {
