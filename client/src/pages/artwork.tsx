@@ -48,6 +48,17 @@ const createColumnSchema = z.object({
 type CreateCardFormData = z.infer<typeof createCardSchema>;
 type CreateColumnFormData = z.infer<typeof createColumnSchema>;
 
+// Safe JSON parsing helper
+const safeJsonParse = (jsonString: any, fallback: any = []) => {
+  if (!jsonString) return fallback;
+  if (typeof jsonString !== 'string') return jsonString;
+  try {
+    return JSON.parse(jsonString);
+  } catch (e) {
+    return fallback;
+  }
+};
+
 export default function ArtworkPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [showNewCardDialog, setShowNewCardDialog] = useState(false);
@@ -95,7 +106,7 @@ export default function ArtworkPage() {
   // Initialize columns if empty
   const initializeColumnsMutation = useMutation({
     mutationFn: async () => {
-      return apiRequest("/api/artwork/columns/initialize", "POST");
+      return apiRequest("POST", "/api/artwork/columns/initialize", {});
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/artwork/columns"] });
@@ -105,7 +116,7 @@ export default function ArtworkPage() {
   // Create column mutation
   const createColumnMutation = useMutation({
     mutationFn: async (columnData: CreateColumnFormData) => {
-      return apiRequest("/api/artwork/columns", "POST", {
+      return apiRequest("POST", "/api/artwork/columns", {
         ...columnData,
         position: (columns as any[]).length + 1,
         isDefault: false,
@@ -132,7 +143,7 @@ export default function ArtworkPage() {
       
       console.log("Full request data:", requestData);
       
-      return apiRequest("/api/artwork/cards", "POST", requestData);
+      return apiRequest("POST", "/api/artwork/cards", requestData);
     },
     onSuccess: (data) => {
       console.log("Card created successfully:", data);
@@ -381,26 +392,22 @@ export default function ArtworkPage() {
                     <Card key={card.id} className="cursor-pointer hover:shadow-lg transition-all duration-200 bg-white border border-gray-200 hover:border-gray-300">
                       {/* Card Image Preview */}
                       {card.attachments && (() => {
-                        try {
-                          const attachments = JSON.parse(card.attachments || '[]');
-                          const imageAttachment = attachments.find((att: any) => att.fileType?.startsWith('image/'));
-                          if (imageAttachment) {
-                            return (
-                              <div className="relative h-32 w-full overflow-hidden rounded-t-lg">
-                                <img 
-                                  src={imageAttachment.fileUrl} 
-                                  alt={card.title}
-                                  className="w-full h-full object-cover"
-                                />
-                                <div className="absolute top-2 right-2 bg-black/50 text-white text-xs px-2 py-1 rounded">
-                                  <Image className="w-3 h-3 inline mr-1" />
-                                  {attachments.length}
-                                </div>
+                        const attachments = safeJsonParse(card.attachments, []);
+                        const imageAttachment = attachments.find((att: any) => att.fileType?.startsWith('image/'));
+                        if (imageAttachment) {
+                          return (
+                            <div className="relative h-32 w-full overflow-hidden rounded-t-lg">
+                              <img 
+                                src={imageAttachment.fileUrl} 
+                                alt={card.title}
+                                className="w-full h-full object-cover"
+                              />
+                              <div className="absolute top-2 right-2 bg-black/50 text-white text-xs px-2 py-1 rounded">
+                                <Image className="w-3 h-3 inline mr-1" />
+                                {attachments.length}
                               </div>
-                            );
-                          }
-                        } catch (e) {
-                          // Handle JSON parse error silently
+                            </div>
+                          );
                         }
                         return null;
                       })()}
@@ -448,28 +455,24 @@ export default function ArtworkPage() {
                           </div>
                           <div className="flex items-center gap-1">
                             {card.attachments && (() => {
-                              try {
-                                const attachments = JSON.parse(card.attachments || '[]');
-                                return attachments.length > 0 ? (
-                                  <div className="flex items-center text-xs text-gray-500">
-                                    <Paperclip className="w-3 h-3" />
-                                    <span className="ml-1">{attachments.length}</span>
-                                  </div>
-                                ) : null;
-                              } catch (e) {
-                                return null;
-                              }
+                              const attachments = safeJsonParse(card.attachments, []);
+                              return attachments.length > 0 ? (
+                                <div className="flex items-center text-xs text-gray-500">
+                                  <Paperclip className="w-3 h-3" />
+                                  <span className="ml-1">{attachments.length}</span>
+                                </div>
+                              ) : null;
                             })()}
-                            {card.comments && JSON.parse(card.comments || '[]').length > 0 && (
+                            {card.comments && safeJsonParse(card.comments, []).length > 0 && (
                               <div className="flex items-center text-xs text-gray-500">
                                 <MessageSquare className="w-3 h-3" />
-                                <span className="ml-1">{JSON.parse(card.comments).length}</span>
+                                <span className="ml-1">{safeJsonParse(card.comments, []).length}</span>
                               </div>
                             )}
-                            {card.checklist && JSON.parse(card.checklist || '[]').length > 0 && (
+                            {card.checklist && safeJsonParse(card.checklist, []).length > 0 && (
                               <div className="flex items-center text-xs text-gray-500">
                                 <CheckSquare className="w-3 h-3" />
-                                <span className="ml-1">{JSON.parse(card.checklist).length}</span>
+                                <span className="ml-1">{safeJsonParse(card.checklist, []).length}</span>
                               </div>
                             )}
                             {card.assignedUserName && (

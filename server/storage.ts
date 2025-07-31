@@ -1338,7 +1338,9 @@ export class DatabaseStorage implements IStorage {
     });
 
     // Insert artwork cards
-    await db.insert(artworkCards).values(sampleArtworkCards).onConflictDoNothing();
+    if (sampleArtworkCards.length > 0) {
+      await db.insert(artworkCards).values(sampleArtworkCards).onConflictDoNothing();
+    }
 
     console.log('✓ All dummy data seeded successfully!');
     console.log(`  - ${sampleCompanies.length} companies`);
