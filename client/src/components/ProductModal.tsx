@@ -64,6 +64,7 @@ export default function ProductModal({ open, onOpenChange }: ProductModalProps) 
   const [searchType, setSearchType] = useState<'sku' | 'style' | 'name'>('sku');
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<SsActivewearProduct[]>([]);
+  const [selectedProductImage, setSelectedProductImage] = useState<string>("");
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -102,6 +103,7 @@ export default function ProductModal({ open, onOpenChange }: ProductModalProps) 
           color: product.colorName,
           size: product.sizeName || "",
         });
+        setSelectedProductImage(product.colorFrontImage || "");
         toast({
           title: "Product Found",
           description: `Found ${product.brandName} ${product.styleName} in S&S Activewear catalog`,
@@ -183,6 +185,9 @@ export default function ProductModal({ open, onOpenChange }: ProductModalProps) 
       size: "",
     });
     setSearchError("");
+    setSelectedProductImage("");
+    setSearchResults([]);
+    setSearchQuery("");
   };
 
   const handleSearch = () => {
@@ -210,6 +215,7 @@ export default function ProductModal({ open, onOpenChange }: ProductModalProps) 
       color: product.colorName,
       size: product.sizeName || "",
     });
+    setSelectedProductImage(product.colorFrontImage || "");
     setSearchResults([]);
     setSearchQuery("");
     toast({
@@ -327,9 +333,19 @@ export default function ProductModal({ open, onOpenChange }: ProductModalProps) 
                   {searchResults.map((product) => (
                     <div
                       key={product.sku}
-                      className="flex items-center justify-between p-2 border rounded hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer"
+                      className="flex items-center gap-3 p-2 border rounded hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer"
                       onClick={() => selectProduct(product)}
                     >
+                      {product.colorFrontImage && (
+                        <img
+                          src={product.colorFrontImage}
+                          alt={`${product.brandName} ${product.styleName}`}
+                          className="w-12 h-12 object-cover rounded border"
+                          onError={(e) => {
+                            e.currentTarget.style.display = 'none';
+                          }}
+                        />
+                      )}
                       <div className="flex-1">
                         <div className="font-medium text-sm">
                           {product.brandName} {product.styleName} - {product.colorName}
@@ -347,6 +363,24 @@ export default function ProductModal({ open, onOpenChange }: ProductModalProps) 
               </div>
             )}
           </div>
+
+          {/* Selected Product Image */}
+          {selectedProductImage && (
+            <div className="flex justify-center p-4 bg-gray-50 dark:bg-gray-900 rounded-lg">
+              <div className="text-center">
+                <img
+                  src={selectedProductImage}
+                  alt="Selected Product"
+                  className="w-32 h-32 object-cover rounded-lg border shadow-md mx-auto"
+                  onError={(e) => {
+                    e.currentTarget.style.display = 'none';
+                    setSelectedProductImage("");
+                  }}
+                />
+                <p className="text-xs text-gray-500 mt-2">Product Image</p>
+              </div>
+            </div>
+          )}
 
           {/* Product Details Section */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
