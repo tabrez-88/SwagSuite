@@ -2996,6 +2996,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get product by SKU from S&S Activewear
+  app.get('/api/ss-activewear/product/:sku', isAuthenticated, async (req, res) => {
+    try {
+      const { sku } = req.params;
+      const service = new SsActivewearService({ 
+        accountNumber: '52733', 
+        apiKey: '1812622b-59cd-4863-8a9f-ad64eee5cd22' 
+      });
+      const product = await service.getProductBySku(sku);
+      
+      if (!product) {
+        return res.status(404).json({ error: 'Product not found' });
+      }
+      
+      res.json(product);
+    } catch (error) {
+      console.error('Error fetching S&S Activewear product:', error);
+      res.status(500).json({ error: 'Failed to fetch product' });
+    }
+  });
+
   app.post('/api/ss-activewear/import', isAuthenticated, async (req, res) => {
     try {
       const { accountNumber, apiKey, styleFilter } = req.body;

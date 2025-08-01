@@ -64,6 +64,9 @@ export class SsActivewearService {
       let url = `${this.baseUrl}/products/`;
       if (styleFilter) {
         url += `?style=${encodeURIComponent(styleFilter)}`;
+      } else {
+        // Default to a small sample style to avoid overwhelming API
+        url += `?style=00760`;
       }
 
       const response = await fetch(url, {
@@ -79,6 +82,28 @@ export class SsActivewearService {
       return products;
     } catch (error) {
       console.error('Error fetching S&S Activewear products:', error);
+      throw error;
+    }
+  }
+
+  async getProductBySku(sku: string): Promise<SsActivewearProduct | null> {
+    try {
+      const response = await fetch(`${this.baseUrl}/products/?sku=${encodeURIComponent(sku)}`, {
+        method: 'GET',
+        headers: this.getAuthHeaders(),
+      });
+
+      if (!response.ok) {
+        if (response.status === 404) {
+          return null; // Product not found
+        }
+        throw new Error(`S&S Activewear API error: ${response.status} ${response.statusText}`);
+      }
+
+      const products = await response.json();
+      return products.length > 0 ? products[0] : null;
+    } catch (error) {
+      console.error('Error fetching S&S Activewear product by SKU:', error);
       throw error;
     }
   }
