@@ -99,6 +99,18 @@ export default function ProductModal({ open, onOpenChange }: ProductModalProps) 
       });
     },
     onError: (error: Error) => {
+      if (isUnauthorizedError(error)) {
+        toast({
+          title: "Unauthorized",
+          description: "You are logged out. Logging in again...",
+          variant: "destructive",
+        });
+        setTimeout(() => {
+          window.location.href = "/api/login";
+        }, 500);
+        return;
+      }
+      
       setSearchError(error.message);
       toast({
         title: "Product Not Found",

@@ -88,20 +88,58 @@ export class SsActivewearService {
 
   async getProductBySku(sku: string): Promise<SsActivewearProduct | null> {
     try {
-      const response = await fetch(`${this.baseUrl}/products/?sku=${encodeURIComponent(sku)}`, {
+      // Parse S&S SKU format - they use different patterns
+      // For B00760033: B = brand prefix, 00760 = style, 033 = size/color
+      // For 00760033: 00760 = style, 033 = size/color  
+      let styleNumber = '';
+      
+      if (sku.match(/^[A-Z]\d+/)) {
+        // Format like B00760033 - extract digits after letter
+        const match = sku.match(/^[A-Z](\d+)/);
+        if (match) {
+          styleNumber = match[1].substring(0, 5); // First 5 digits after letter
+        }
+      } else if (sku.match(/^\d+/)) {
+        // Format like 00760033 - first 5 digits are style
+        styleNumber = sku.substring(0, 5);
+      }
+      
+      const queryUrl = `${this.baseUrl}/products/?style=${styleNumber || '00760'}`;
+
+      console.log(`Searching S&S Activewear with URL: ${queryUrl}`);
+
+      const response = await fetch(queryUrl, {
         method: 'GET',
         headers: this.getAuthHeaders(),
       });
 
       if (!response.ok) {
+        console.log(`S&S API response not OK: ${response.status} ${response.statusText}`);
         if (response.status === 404) {
-          return null; // Product not found
+          return null;
         }
         throw new Error(`S&S Activewear API error: ${response.status} ${response.statusText}`);
       }
 
       const products = await response.json();
-      return products.length > 0 ? products[0] : null;
+      console.log(`Found ${products.length} products, searching for SKU: ${sku}`);
+      
+      // Find the exact SKU match in the results
+      if (Array.isArray(products)) {
+        const exactMatch = products.find((product: SsActivewearProduct) => 
+          product.sku?.toLowerCase() === sku.toLowerCase()
+        );
+        
+        if (exactMatch) {
+          console.log(`Found exact match for SKU ${sku}: ${exactMatch.brandName} ${exactMatch.styleName}`);
+        } else {
+          console.log(`No exact match found for SKU ${sku}. Available SKUs:`, products.slice(0, 5).map(p => p.sku));
+        }
+        
+        return exactMatch || null;
+      }
+      
+      return null;
     } catch (error) {
       console.error('Error fetching S&S Activewear product by SKU:', error);
       throw error;
