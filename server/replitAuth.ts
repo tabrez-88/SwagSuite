@@ -27,7 +27,7 @@ export function getSession() {
   const pgStore = connectPg(session);
   const sessionStore = new pgStore({
     conString: process.env.DATABASE_URL,
-    createTableIfMissing: false,
+    createTableIfMissing: true,
     ttl: sessionTtl,
     tableName: "sessions",
   });
@@ -95,6 +95,7 @@ export async function setupAuth(app: Express) {
       },
       verify,
     );
+    console.log(`Registering authentication strategy for domain: ${domain}`);
     passport.use(strategy);
   }
 
@@ -102,7 +103,9 @@ export async function setupAuth(app: Express) {
   passport.deserializeUser((user: Express.User, cb) => cb(null, user));
 
   app.get("/api/login", (req, res, next) => {
-    passport.authenticate(`replitauth:${req.hostname}`, {
+    const strategy = `replitauth:${req.hostname}`;
+    console.log(`Attempting authentication with strategy: ${strategy}`);
+    passport.authenticate(strategy, {
       prompt: "login consent",
       scope: ["openid", "email", "profile", "offline_access"],
     })(req, res, next);

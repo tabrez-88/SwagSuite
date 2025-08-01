@@ -41,13 +41,10 @@ export function SsActivewearIntegration() {
   // Test connection mutation
   const testConnectionMutation = useMutation({
     mutationFn: async ({ accountNumber, apiKey }: { accountNumber: string; apiKey: string }) => {
-      const response = await apiRequest('/api/ss-activewear/test-connection', {
-        method: 'POST',
-        body: { accountNumber, apiKey },
-      });
+      const response = await apiRequest('POST', '/api/ss-activewear/test-connection', { accountNumber, apiKey });
       return response;
     },
-    onSuccess: (data) => {
+    onSuccess: (data: any) => {
       if (data.connected) {
         toast({
           title: "Connection Successful",
@@ -73,10 +70,7 @@ export function SsActivewearIntegration() {
   // Import products mutation
   const importMutation = useMutation({
     mutationFn: async () => {
-      const response = await apiRequest('/api/ss-activewear/import', {
-        method: 'POST',
-        body: { accountNumber, apiKey, styleFilter: styleFilter || undefined },
-      });
+      const response = await apiRequest('POST', '/api/ss-activewear/import', { accountNumber, apiKey, styleFilter: styleFilter || undefined });
       return response;
     },
     onSuccess: () => {
@@ -242,7 +236,7 @@ export function SsActivewearIntegration() {
                       <div className="flex items-center gap-2 mb-1">
                         {getStatusBadge(job.status)}
                         <span className="text-sm text-gray-500">
-                          {new Date(job.createdAt).toLocaleString()}
+                          {job.createdAt ? new Date(job.createdAt).toLocaleString() : 'N/A'}
                         </span>
                       </div>
                       {job.errorMessage && (
@@ -251,14 +245,14 @@ export function SsActivewearIntegration() {
                     </div>
                   </div>
                   
-                  {job.status === 'running' && job.totalProducts > 0 && (
+                  {job.status === 'running' && job.totalProducts && job.totalProducts > 0 && (
                     <div className="space-y-2">
                       <div className="flex justify-between text-sm">
                         <span>Progress</span>
-                        <span>{job.processedProducts} / {job.totalProducts}</span>
+                        <span>{job.processedProducts || 0} / {job.totalProducts}</span>
                       </div>
                       <Progress 
-                        value={(job.processedProducts / job.totalProducts) * 100} 
+                        value={((job.processedProducts || 0) / job.totalProducts) * 100} 
                         className="h-2"
                       />
                     </div>
@@ -355,7 +349,7 @@ export function SsActivewearIntegration() {
                 ))}
               </div>
             ) : (
-              searchQuery.length <= 2 && !loadingProducts && products?.length > 0 && (
+              searchQuery.length <= 2 && !loadingProducts && products && products.length > 0 && (
                 <div className="text-center py-8">
                   <Package className="w-12 h-12 text-gray-300 mx-auto mb-3" />
                   <p className="text-gray-500">
@@ -365,7 +359,7 @@ export function SsActivewearIntegration() {
               )
             )}
 
-            {!loadingProducts && !products?.length && (
+            {!loadingProducts && (!products || products.length === 0) && (
               <div className="text-center py-8">
                 <Package className="w-12 h-12 text-gray-300 mx-auto mb-3" />
                 <p className="text-gray-500">No products imported yet. Start an import to populate the catalog.</p>
