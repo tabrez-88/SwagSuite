@@ -55,7 +55,7 @@ import {
   type InsertSsActivewearImportJob,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, desc, like, and, gte, lte, sql } from "drizzle-orm";
+import { eq, desc, like, and, gte, lte, sql, or, ilike } from "drizzle-orm";
 
 export interface IStorage {
   // User operations (required for Replit Auth)

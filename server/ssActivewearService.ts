@@ -30,7 +30,7 @@ interface SsActivewearProduct {
 }
 
 export class SsActivewearService {
-  private baseUrl = 'https://api.ssactivewear.com/v2';
+  private baseUrl = 'https://api.ssactivewear.com/V2';
   private config: SsActivewearConfig;
 
   constructor(config: SsActivewearConfig) {

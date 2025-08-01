@@ -5,6 +5,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 
 import { ProductIntegrations } from "@/components/integrations/ProductIntegrations";
+import { SsActivewearIntegration } from "@/components/integrations/SsActivewearIntegration";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -426,10 +427,14 @@ export default function Products() {
 
         {/* Main Content */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-          <TabsList className="grid w-full grid-cols-2">
+          <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="my-catalog" className="flex items-center gap-2">
               <Package size={16} />
               My Catalog
+            </TabsTrigger>
+            <TabsTrigger value="ss-activewear" className="flex items-center gap-2">
+              <ShoppingCart size={16} />
+              S&S Activewear
             </TabsTrigger>
             <TabsTrigger value="integrations" className="flex items-center gap-2">
               <Database size={16} />
@@ -582,6 +587,11 @@ export default function Products() {
                 </CardContent>
               </Card>
             )}
+          </TabsContent>
+
+          {/* S&S Activewear Integration Tab */}
+          <TabsContent value="ss-activewear">
+            <SsActivewearIntegration />
           </TabsContent>
 
           {/* ESP/ASI/SAGE Integration Tab */}

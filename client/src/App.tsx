@@ -64,7 +64,6 @@ function Router() {
             <Route path="/artwork" component={ArtworkPage} />
             <Route path="/mockup-builder" component={MockupBuilderPage} />
             <Route path="/ai-presentation-builder" component={AIPresentationBuilder} />
-            <Route path="/ss-activewear" component={SsActivewearPage} />
             <Route path="/reports" component={Reports} />
             <Route path="/knowledge-base" component={KnowledgeBase} />
             <Route path="/settings" component={Settings} />
