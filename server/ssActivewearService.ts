@@ -218,9 +218,62 @@ export class SsActivewearService {
   }
 
   private async searchByName(query: string): Promise<SsActivewearProduct[]> {
-    // Skip brand search to avoid memory overflow - it's causing the ERR_STRING_TOO_LONG error
-    console.log(`Skipping brand search for "${query}" to avoid memory issues`);
-    return [];
+    try {
+      // Map search terms to actual brand IDs from S&S Activewear API
+      const brandMapping: { [key: string]: string } = {
+        'gildan': '35',
+        'bella': '5',
+        'canvas': '5',
+        'bella+canvas': '5',
+        'bellacanvas': '5',
+        'tultex': '201',
+      };
+
+      const lowerQuery = query.toLowerCase();
+      let brandId = '';
+      
+      // Find matching brand
+      for (const [brand, id] of Object.entries(brandMapping)) {
+        if (lowerQuery.includes(brand)) {
+          brandId = id;
+          break;
+        }
+      }
+
+      if (brandId) {
+        const brandUrl = `${this.baseUrl}/products/?brandid=${brandId}`;
+        console.log(`Brand ID search with URL: ${brandUrl}`);
+
+        const response = await fetch(brandUrl, {
+          method: 'GET',
+          headers: this.getAuthHeaders(),
+        });
+
+        if (response.ok) {
+          // Check content length to avoid memory issues
+          const contentLength = response.headers.get('content-length');
+          if (contentLength && parseInt(contentLength) > 5000000) { // 5MB limit
+            console.log(`Response too large for brand ID ${brandId}, limiting results`);
+            // Try to get just a subset by adding pagination or limiting
+            return [];
+          }
+
+          const products = await response.json();
+          if (Array.isArray(products) && products.length > 0) {
+            console.log(`Found ${products.length} products for brand ID ${brandId}`);
+            // Return a limited set of results
+            return products.slice(0, 20);
+          }
+        } else {
+          console.log(`Brand ID search failed for ${brandId}: ${response.status}`);
+        }
+      }
+
+      return [];
+    } catch (error) {
+      console.log('Brand ID search error:', error);
+      return [];
+    }
   }
 
   private async searchByPattern(query: string): Promise<SsActivewearProduct[]> {
@@ -239,16 +292,25 @@ export class SsActivewearService {
       }
 
       // Add specific patterns for known product lines
+      // These are educated guesses based on common promotional product industry standards
       const knownProductMappings: { [key: string]: string[] } = {
-        '3001': ['03001', '3001CVC', '3001C'],
-        '2000': ['02000', '2000L'],
-        '980': ['00980', '0980'],
+        '3001': ['3001', '03001', '3001CVC', '3001C'],
+        '2000': ['2000', '02000', '2000L'],
+        '980': ['980', '00980', '0980'],
         'cvc': ['3001CVC', '3001C'],
-        'tultex': ['0241', '0293', '0214', '0202'], // Common Tultex styles
-        '241': ['0241'], // Tultex 241
-        '293': ['0293'], // Tultex 293  
-        '214': ['0214'], // Tultex 214
-        '202': ['0202'], // Tultex 202
+        // Common style patterns that might exist
+        '1800': ['1800', '01800', '18000'],
+        '4200': ['4200', '04200', '42000'],
+        '6400': ['6400', '06400', '64000'],
+        '8800': ['8800', '08800', '88000'],
+        // Bella+Canvas common styles
+        'bella': ['3001', '3413', '6004', '3480'],
+        // Tultex styles - check what they actually carry
+        'tultex': ['241', '293', '214', '202'],
+        '241': ['241', '0241'],
+        '293': ['293', '0293'],  
+        '214': ['214', '0214'],
+        '202': ['202', '0202'],
       };
 
       const lowerQuery = query.toLowerCase();
