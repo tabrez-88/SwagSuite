@@ -12,28 +12,26 @@ import { useLocation } from 'wouter';
 interface PopularProduct {
   id: string;
   name: string;
-  price: string;
-  totalSold: number;
-  revenue: number;
+  sku: string;
+  imageUrl: string;
   productType: 'apparel' | 'hard_goods';
-  imageUrl?: string;
-  brand?: string;
-  description?: string;
+  totalQuantity: number;
+  orderCount: number;
+  avgPrice: number;
+  totalRevenue: number;
 }
 
 interface SuggestedProduct {
   id: string;
   name: string;
-  price: string;
+  sku: string;
+  imageUrl: string;
   productType: 'apparel' | 'hard_goods';
-  presentationId: string;
-  presentationName: string;
-  isStaffPick: boolean;
-  discount?: number;
-  rebate?: number;
-  imageUrl?: string;
-  brand?: string;
-  description?: string;
+  presentationCount: number;
+  avgPresentationPrice: number;
+  discount: number;
+  adminNote: string;
+  isAdminSuggested: boolean;
 }
 
 export function PopularProducts() {
@@ -76,15 +74,15 @@ export function PopularProducts() {
       <div className="flex-1 min-w-0">
         <h4 className="font-medium text-sm truncate">{product.name}</h4>
         <div className="flex items-center gap-2 text-xs text-gray-500">
-          <span>{product.brand}</span>
+          <span>{product.sku}</span>
           <span>•</span>
-          <span>{product.totalSold} sold</span>
+          <span>{product.totalQuantity} sold</span>
           <span>•</span>
-          <span>${product.revenue.toLocaleString()}</span>
+          <span>${product.totalRevenue.toLocaleString()}</span>
         </div>
       </div>
       <div className="text-right">
-        <p className="font-medium text-sm">{product.price}</p>
+        <p className="font-medium text-sm">${product.avgPrice.toFixed(2)}</p>
       </div>
     </div>
   );
@@ -117,37 +115,35 @@ export function PopularProducts() {
           >
             {product.name}
           </h4>
-          {product.isStaffPick && (
+          {product.isAdminSuggested && (
             <Badge variant="secondary" className="text-xs flex items-center gap-1">
               <Star className="w-3 h-3" />
-              Staff Pick
+              Admin Pick
             </Badge>
           )}
         </div>
         <div className="flex items-center gap-2 text-xs text-gray-500">
-          <span>{product.brand}</span>
+          <span>{product.sku}</span>
           <span>•</span>
-          <span 
-            className="cursor-pointer hover:text-blue-600 flex items-center gap-1"
-            onClick={() => setLocation(`/reports/presentations/${product.presentationId}`)}
-          >
-            {product.presentationName}
-            <ExternalLink className="w-3 h-3" />
-          </span>
-          {(product.discount || product.rebate) && (
+          <span>{product.presentationCount} presentations</span>
+          {product.discount > 0 && (
             <>
               <span>•</span>
               <span className="text-green-600 font-medium">
-                {product.discount && `${product.discount}% off`}
-                {product.discount && product.rebate && ' + '}
-                {product.rebate && `$${product.rebate} rebate`}
+                {product.discount}% off
               </span>
             </>
           )}
         </div>
+        {product.adminNote && (
+          <p className="text-xs text-gray-400 mt-1">{product.adminNote}</p>
+        )}
       </div>
       <div className="text-right">
-        <p className="font-medium text-sm">{product.price}</p>
+        <p className="font-medium text-sm">${product.avgPresentationPrice.toFixed(2)}</p>
+        {product.discount > 0 && (
+          <p className="text-xs text-green-600">{product.discount}% off</p>
+        )}
       </div>
     </div>
   );
