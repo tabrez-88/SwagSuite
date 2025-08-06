@@ -7,7 +7,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Calendar, Package, Shirt, HardHat, TrendingUp, Lightbulb, Percent } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Calendar, Package, Shirt, HardHat, TrendingUp, Lightbulb, Percent, Star, ExternalLink } from "lucide-react";
+import { Link, useLocation } from "wouter";
 
 interface PopularProduct {
   id: string;
@@ -85,55 +87,57 @@ export function PopularProducts({
   });
 
   const renderProductCard = (product: PopularProduct, index: number) => (
-    <div key={product.id} className="flex items-center space-x-3 p-3 rounded-lg border bg-white">
-      <div className="flex-shrink-0">
-        <div className="w-10 h-10 bg-swag-primary/10 rounded-lg flex items-center justify-center">
-          <span className="text-sm font-bold text-swag-primary">#{index + 1}</span>
-        </div>
-      </div>
-      
-      {/* Product Image */}
-      <div className="flex-shrink-0">
-        <img 
-          src={product.imageUrl || '/public-objects/products/placeholder.jpg'} 
-          alt={product.name}
-          className="w-12 h-12 object-cover rounded-lg border"
-          onError={(e) => {
-            const target = e.target as HTMLImageElement;
-            target.src = '/public-objects/products/placeholder.jpg';
-          }}
-        />
-      </div>
-      
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center justify-between">
-          <div className="flex-1">
-            <p className="text-sm font-medium text-gray-900 truncate">{product.name}</p>
-            <p className="text-xs text-gray-500">SKU: {product.sku}</p>
-          </div>
-          <Badge variant={product.productType === 'apparel' ? 'default' : 'secondary'} className="ml-2">
-            {product.productType === 'apparel' ? <Shirt className="w-3 h-3 mr-1" /> : <HardHat className="w-3 h-3 mr-1" />}
-            {product.productType === 'apparel' ? 'Apparel' : 'Hard Goods'}
-          </Badge>
-        </div>
-        
-        <div className="flex items-center justify-between mt-2">
-          <div className="text-xs text-gray-600">
-            <span className="font-medium">{product.totalQuantity.toLocaleString()}</span> units ordered
-          </div>
-          <div className="text-xs text-green-600 font-medium">
-            ${product.totalRevenue.toLocaleString()}
+    <Link key={product.id} href={`/products?search=${product.sku}`}>
+      <div className="flex items-center space-x-3 p-3 rounded-lg border bg-white hover:bg-gray-50 transition-colors cursor-pointer">
+        <div className="flex-shrink-0">
+          <div className="w-10 h-10 bg-swag-primary/10 rounded-lg flex items-center justify-center">
+            <span className="text-sm font-bold text-swag-primary">#{index + 1}</span>
           </div>
         </div>
         
-        {!compact && (
-          <div className="flex items-center gap-4 mt-1 text-xs text-gray-500">
-            <span>{product.orderCount} orders</span>
-            <span>Avg: ${product.avgPrice.toFixed(2)}</span>
+        {/* Product Image */}
+        <div className="flex-shrink-0">
+          <img 
+            src={product.imageUrl || '/public-objects/products/placeholder.jpg'} 
+            alt={product.name}
+            className="w-12 h-12 object-cover rounded-lg border"
+            onError={(e) => {
+              const target = e.target as HTMLImageElement;
+              target.src = '/public-objects/products/placeholder.jpg';
+            }}
+          />
+        </div>
+        
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center justify-between">
+            <div className="flex-1">
+              <p className="text-sm font-medium text-gray-900 truncate">{product.name}</p>
+              <p className="text-xs text-gray-500">SKU: {product.sku}</p>
+            </div>
+            <Badge variant={product.productType === 'apparel' ? 'default' : 'secondary'} className="ml-2">
+              {product.productType === 'apparel' ? <Shirt className="w-3 h-3 mr-1" /> : <HardHat className="w-3 h-3 mr-1" />}
+              {product.productType === 'apparel' ? 'Apparel' : 'Hard Goods'}
+            </Badge>
           </div>
-        )}
+          
+          <div className="flex items-center justify-between mt-2">
+            <div className="text-xs text-gray-600">
+              <span className="font-medium">{product.totalQuantity.toLocaleString()}</span> units ordered
+            </div>
+            <div className="text-xs text-green-600 font-medium">
+              ${product.totalRevenue.toLocaleString()}
+            </div>
+          </div>
+          
+          {!compact && (
+            <div className="flex items-center gap-4 mt-1 text-xs text-gray-500">
+              <span>{product.orderCount} orders</span>
+              <span>Avg: ${product.avgPrice.toFixed(2)}</span>
+            </div>
+          )}
+        </div>
       </div>
-    </div>
+    </Link>
   );
 
   const renderSuggestedCard = (product: SuggestedProduct, index: number) => (
@@ -145,27 +149,30 @@ export function PopularProducts({
       </div>
       
       {/* Product Image */}
-      <div className="flex-shrink-0">
+      <Link href={`/products?search=${product.sku}`} className="flex-shrink-0">
         <img 
           src={product.imageUrl || '/public-objects/products/placeholder.jpg'} 
           alt={product.name}
-          className="w-12 h-12 object-cover rounded-lg border"
+          className="w-12 h-12 object-cover rounded-lg border hover:ring-2 hover:ring-blue-300 transition-all cursor-pointer"
           onError={(e) => {
             const target = e.target as HTMLImageElement;
             target.src = '/public-objects/products/placeholder.jpg';
           }}
         />
-      </div>
+      </Link>
       
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between">
           <div className="flex-1">
-            <p className="text-sm font-medium text-gray-900 truncate">{product.name}</p>
+            <Link href={`/products?search=${product.sku}`} className="hover:text-blue-600 transition-colors">
+              <p className="text-sm font-medium text-gray-900 truncate cursor-pointer">{product.name}</p>
+            </Link>
             <p className="text-xs text-gray-500">SKU: {product.sku}</p>
           </div>
           <div className="flex items-center gap-2">
             {product.isAdminSuggested && (
               <Badge variant="outline" className="text-blue-600 border-blue-200">
+                <Star className="w-3 h-3 mr-1" />
                 Staff Pick
               </Badge>
             )}
@@ -178,7 +185,22 @@ export function PopularProducts({
         
         <div className="flex items-center justify-between mt-2">
           <div className="text-xs text-blue-600">
-            <span className="font-medium">{product.presentationCount}</span> presentations
+            {product.isAdminSuggested ? (
+              <span>Admin suggested</span>
+            ) : (
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                className="h-auto p-0 text-xs text-blue-600 hover:text-blue-800 hover:underline"
+                onClick={(e) => {
+                  e.preventDefault();
+                  window.location.href = `/reports?filter=presentations&product=${product.sku}`;
+                }}
+              >
+                <span className="font-medium">{product.presentationCount}</span> presentations
+                <ExternalLink className="w-3 h-3 ml-1" />
+              </Button>
+            )}
           </div>
           <div className="flex items-center gap-2">
             {product.discount > 0 && (
