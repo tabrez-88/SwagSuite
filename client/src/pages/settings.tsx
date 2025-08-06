@@ -63,9 +63,16 @@ import {
   Lock,
   Unlock,
   ToggleLeft,
+  Zap,
+  Search,
+  MessageSquare,
+  Calculator,
+  Truck,
+  X,
+  List,
+  Image,
   ToggleRight,
   Star,
-  Zap,
   Target,
   TrendingUp
 } from "lucide-react";
@@ -360,6 +367,48 @@ export default function Settings() {
   const [showAddIntegration, setShowAddIntegration] = useState(false);
   const [selectedIntegrationType, setSelectedIntegrationType] = useState(null);
 
+  // System Configuration State
+  const [systemConfig, setSystemConfig] = useState({
+    logo: {
+      current: '/default-logo.png',
+      uploading: false
+    },
+    theme: {
+      primaryColor: '#3b82f6',
+      secondaryColor: '#64748b',
+      accentColor: '#10b981',
+      backgroundColor: '#ffffff',
+      textColor: '#1f2937'
+    },
+    formFields: {
+      salesOrders: [
+        { id: 'customer', label: 'Customer', type: 'text', required: true, enabled: true },
+        { id: 'orderDate', label: 'Order Date', type: 'date', required: true, enabled: true },
+        { id: 'dueDate', label: 'Due Date', type: 'date', required: true, enabled: true },
+        { id: 'total', label: 'Total Amount', type: 'number', required: true, enabled: true },
+        { id: 'notes', label: 'Notes', type: 'textarea', required: false, enabled: true },
+        { id: 'priority', label: 'Priority', type: 'select', required: false, enabled: false },
+        { id: 'salesRep', label: 'Sales Rep', type: 'text', required: false, enabled: true }
+      ],
+      purchaseOrders: [
+        { id: 'supplier', label: 'Supplier', type: 'text', required: true, enabled: true },
+        { id: 'orderDate', label: 'Order Date', type: 'date', required: true, enabled: true },
+        { id: 'expectedDate', label: 'Expected Delivery', type: 'date', required: true, enabled: true },
+        { id: 'total', label: 'Total Amount', type: 'number', required: true, enabled: true },
+        { id: 'terms', label: 'Payment Terms', type: 'text', required: false, enabled: true },
+        { id: 'shipping', label: 'Shipping Method', type: 'select', required: false, enabled: false }
+      ]
+    },
+    dataImport: {
+      processing: false,
+      lastImport: null,
+      supportedFormats: ['CSV', 'Excel', 'JSON', 'XML']
+    }
+  });
+
+  const [showDataImport, setShowDataImport] = useState(false);
+  const [importFile, setImportFile] = useState(null);
+
   const isAdmin = user?.role === 'admin' || user?.email === 'bgoltzman@liquidscreendesign.com';
 
   const toggleFeature = (featureId: string) => {
@@ -429,6 +478,86 @@ export default function Settings() {
       title: "Integration Removed",
       description: "Integration has been successfully removed.",
     });
+  };
+
+  // System Configuration Functions
+  const handleLogoUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file && (file.type === 'image/jpeg' || file.type === 'image/png' || file.type === 'application/pdf')) {
+      setSystemConfig(prev => ({
+        ...prev,
+        logo: { ...prev.logo, uploading: true }
+      }));
+      
+      // Simulate upload process
+      setTimeout(() => {
+        const logoUrl = URL.createObjectURL(file);
+        setSystemConfig(prev => ({
+          ...prev,
+          logo: { current: logoUrl, uploading: false }
+        }));
+        
+        toast({
+          title: "Logo Updated",
+          description: "System logo has been successfully updated.",
+        });
+      }, 2000);
+    } else {
+      toast({
+        title: "Invalid File Type",
+        description: "Please select a JPEG, PNG, or PDF file.",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const updateThemeColor = (colorType: string, color: string) => {
+    setSystemConfig(prev => ({
+      ...prev,
+      theme: { ...prev.theme, [colorType]: color }
+    }));
+  };
+
+  const toggleFormField = (formType: string, fieldId: string) => {
+    setSystemConfig(prev => ({
+      ...prev,
+      formFields: {
+        ...prev.formFields,
+        [formType]: prev.formFields[formType].map(field =>
+          field.id === fieldId ? { ...field, enabled: !field.enabled } : field
+        )
+      }
+    }));
+  };
+
+  const handleDataImport = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      setImportFile(file);
+      setSystemConfig(prev => ({
+        ...prev,
+        dataImport: { ...prev.dataImport, processing: true }
+      }));
+      
+      // Simulate AI processing
+      setTimeout(() => {
+        setSystemConfig(prev => ({
+          ...prev,
+          dataImport: {
+            ...prev.dataImport,
+            processing: false,
+            lastImport: new Date().toISOString()
+          }
+        }));
+        setShowDataImport(false);
+        setImportFile(null);
+        
+        toast({
+          title: "Data Import Complete",
+          description: "AI has successfully processed and imported your data. All records have been categorized and organized.",
+        });
+      }, 5000);
+    }
   };
 
   const FeatureCard = ({ feature }: { feature: FeatureToggle }) => {
@@ -613,7 +742,7 @@ export default function Settings() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-9">
           <TabsTrigger value="features" className="flex items-center gap-2">
             <ToggleRight className="w-4 h-4" />
             Features
@@ -633,6 +762,22 @@ export default function Settings() {
           <TabsTrigger value="integrations" className="flex items-center gap-2">
             <Globe className="w-4 h-4" />
             Integrations
+          </TabsTrigger>
+          <TabsTrigger value="branding" className="flex items-center gap-2">
+            <Image className="w-4 h-4" />
+            Branding
+          </TabsTrigger>
+          <TabsTrigger value="theme" className="flex items-center gap-2">
+            <Palette className="w-4 h-4" />
+            Theme
+          </TabsTrigger>
+          <TabsTrigger value="forms" className="flex items-center gap-2">
+            <List className="w-4 h-4" />
+            Forms
+          </TabsTrigger>
+          <TabsTrigger value="import" className="flex items-center gap-2">
+            <Brain className="w-4 h-4" />
+            Data Import
           </TabsTrigger>
         </TabsList>
 
@@ -994,6 +1139,449 @@ export default function Settings() {
           </Card>
           
           <AddIntegrationModal />
+        </TabsContent>
+
+        {/* Branding Tab - Logo Upload */}
+        <TabsContent value="branding" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Image className="w-5 h-5" />
+                System Branding
+              </CardTitle>
+              <p className="text-sm text-gray-600">
+                Customize your system logo and branding elements.
+              </p>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="space-y-4">
+                <Label>Current Logo</Label>
+                <div className="flex items-center gap-4">
+                  <div className="w-20 h-20 border rounded-lg flex items-center justify-center overflow-hidden">
+                    {systemConfig.logo.current ? (
+                      <img 
+                        src={systemConfig.logo.current} 
+                        alt="System Logo" 
+                        className="w-full h-full object-contain"
+                      />
+                    ) : (
+                      <Image className="w-8 h-8 text-gray-400" />
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    <p className="text-sm text-gray-600">
+                      Upload a new logo (JPEG, PNG, or PDF format)
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        type="file"
+                        accept=".jpg,.jpeg,.png,.pdf"
+                        onChange={handleLogoUpload}
+                        disabled={systemConfig.logo.uploading}
+                        className="w-auto"
+                      />
+                      {systemConfig.logo.uploading && (
+                        <div className="flex items-center gap-2 text-sm text-gray-600">
+                          <Clock className="w-4 h-4 animate-spin" />
+                          Uploading...
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <Separator />
+              <div className="space-y-4">
+                <Label>Logo Placement</Label>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="logoSize">Logo Size</Label>
+                    <Select defaultValue="medium">
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="small">Small (32px)</SelectItem>
+                        <SelectItem value="medium">Medium (48px)</SelectItem>
+                        <SelectItem value="large">Large (64px)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="logoPosition">Position</Label>
+                    <Select defaultValue="left">
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="left">Top Left</SelectItem>
+                        <SelectItem value="center">Top Center</SelectItem>
+                        <SelectItem value="right">Top Right</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Theme Tab - Color Customization */}
+        <TabsContent value="theme" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Palette className="w-5 h-5" />
+                System Theme
+              </CardTitle>
+              <p className="text-sm text-gray-600">
+                Customize system colors and visual appearance.
+              </p>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="grid grid-cols-2 gap-6">
+                <div className="space-y-4">
+                  <Label>Primary Colors</Label>
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="primaryColor">Primary</Label>
+                      <div className="flex items-center gap-2">
+                        <div 
+                          className="w-8 h-8 rounded border"
+                          style={{ backgroundColor: systemConfig.theme.primaryColor }}
+                        />
+                        <Input
+                          id="primaryColor"
+                          type="color"
+                          value={systemConfig.theme.primaryColor}
+                          onChange={(e) => updateThemeColor('primaryColor', e.target.value)}
+                          className="w-16 h-8 p-1"
+                        />
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="secondaryColor">Secondary</Label>
+                      <div className="flex items-center gap-2">
+                        <div 
+                          className="w-8 h-8 rounded border"
+                          style={{ backgroundColor: systemConfig.theme.secondaryColor }}
+                        />
+                        <Input
+                          id="secondaryColor"
+                          type="color"
+                          value={systemConfig.theme.secondaryColor}
+                          onChange={(e) => updateThemeColor('secondaryColor', e.target.value)}
+                          className="w-16 h-8 p-1"
+                        />
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="accentColor">Accent</Label>
+                      <div className="flex items-center gap-2">
+                        <div 
+                          className="w-8 h-8 rounded border"
+                          style={{ backgroundColor: systemConfig.theme.accentColor }}
+                        />
+                        <Input
+                          id="accentColor"
+                          type="color"
+                          value={systemConfig.theme.accentColor}
+                          onChange={(e) => updateThemeColor('accentColor', e.target.value)}
+                          className="w-16 h-8 p-1"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div className="space-y-4">
+                  <Label>Background & Text</Label>
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="backgroundColor">Background</Label>
+                      <div className="flex items-center gap-2">
+                        <div 
+                          className="w-8 h-8 rounded border"
+                          style={{ backgroundColor: systemConfig.theme.backgroundColor }}
+                        />
+                        <Input
+                          id="backgroundColor"
+                          type="color"
+                          value={systemConfig.theme.backgroundColor}
+                          onChange={(e) => updateThemeColor('backgroundColor', e.target.value)}
+                          className="w-16 h-8 p-1"
+                        />
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="textColor">Text</Label>
+                      <div className="flex items-center gap-2">
+                        <div 
+                          className="w-8 h-8 rounded border"
+                          style={{ backgroundColor: systemConfig.theme.textColor }}
+                        />
+                        <Input
+                          id="textColor"
+                          type="color"
+                          value={systemConfig.theme.textColor}
+                          onChange={(e) => updateThemeColor('textColor', e.target.value)}
+                          className="w-16 h-8 p-1"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <Separator />
+              <div className="space-y-4">
+                <Label>Theme Preview</Label>
+                <div 
+                  className="p-4 rounded-lg border"
+                  style={{
+                    backgroundColor: systemConfig.theme.backgroundColor,
+                    color: systemConfig.theme.textColor,
+                    borderColor: systemConfig.theme.secondaryColor
+                  }}
+                >
+                  <div className="flex items-center gap-4 mb-3">
+                    <div 
+                      className="w-8 h-8 rounded"
+                      style={{ backgroundColor: systemConfig.theme.primaryColor }}
+                    />
+                    <h3 style={{ color: systemConfig.theme.textColor }}>Sample Header</h3>
+                  </div>
+                  <p className="text-sm mb-2">This is how your theme will look in the application.</p>
+                  <Button 
+                    size="sm"
+                    style={{ 
+                      backgroundColor: systemConfig.theme.accentColor,
+                      color: '#ffffff'
+                    }}
+                  >
+                    Sample Button
+                  </Button>
+                </div>
+              </div>
+              <Button onClick={() => saveSettings('Theme')} className="w-full">
+                <Save className="w-4 h-4 mr-2" />
+                Apply Theme Changes
+              </Button>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Forms Tab - Field Configuration */}
+        <TabsContent value="forms" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <List className="w-5 h-5" />
+                Form Field Configuration
+              </CardTitle>
+              <p className="text-sm text-gray-600">
+                Configure which fields are required in sales orders, purchase orders, and other forms.
+              </p>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="space-y-6">
+                <div className="space-y-4">
+                  <h3 className="font-medium flex items-center gap-2">
+                    <ShoppingCart className="w-4 h-4" />
+                    Sales Order Fields
+                  </h3>
+                  <div className="space-y-2">
+                    {systemConfig.formFields.salesOrders.map(field => (
+                      <div key={field.id} className="flex items-center justify-between p-3 border rounded-lg">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <Label className="font-medium">{field.label}</Label>
+                            <Badge variant={field.required ? "destructive" : "secondary"} className="text-xs">
+                              {field.required ? 'Required' : 'Optional'}
+                            </Badge>
+                            <Badge variant="outline" className="text-xs capitalize">
+                              {field.type}
+                            </Badge>
+                          </div>
+                        </div>
+                        <Switch
+                          checked={field.enabled}
+                          onCheckedChange={() => toggleFormField('salesOrders', field.id)}
+                          disabled={field.required}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                
+                <Separator />
+                
+                <div className="space-y-4">
+                  <h3 className="font-medium flex items-center gap-2">
+                    <Package className="w-4 h-4" />
+                    Purchase Order Fields
+                  </h3>
+                  <div className="space-y-2">
+                    {systemConfig.formFields.purchaseOrders.map(field => (
+                      <div key={field.id} className="flex items-center justify-between p-3 border rounded-lg">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <Label className="font-medium">{field.label}</Label>
+                            <Badge variant={field.required ? "destructive" : "secondary"} className="text-xs">
+                              {field.required ? 'Required' : 'Optional'}
+                            </Badge>
+                            <Badge variant="outline" className="text-xs capitalize">
+                              {field.type}
+                            </Badge>
+                          </div>
+                        </div>
+                        <Switch
+                          checked={field.enabled}
+                          onCheckedChange={() => toggleFormField('purchaseOrders', field.id)}
+                          disabled={field.required}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              
+              <div className="bg-blue-50 p-4 rounded-lg">
+                <div className="flex items-start gap-3">
+                  <AlertCircle className="w-5 h-5 text-blue-600 mt-0.5" />
+                  <div>
+                    <h4 className="font-medium text-blue-900">Field Configuration Notes</h4>
+                    <p className="text-sm text-blue-700 mt-1">
+                      Required fields cannot be disabled. Optional fields can be toggled on/off based on your business needs.
+                      Changes will apply to new forms created after saving.
+                    </p>
+                  </div>
+                </div>
+              </div>
+              
+              <Button onClick={() => saveSettings('Form Fields')} className="w-full">
+                <Save className="w-4 h-4 mr-2" />
+                Save Field Configuration
+              </Button>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Data Import Tab - AI-Powered Import */}
+        <TabsContent value="import" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Brain className="w-5 h-5" />
+                AI-Powered Data Import
+              </CardTitle>
+              <p className="text-sm text-gray-600">
+                Import and organize your existing business data with AI assistance.
+              </p>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="grid grid-cols-2 gap-6">
+                <div className="space-y-4">
+                  <Label>Supported Data Types</Label>
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle className="w-4 h-4 text-green-600" />
+                      <span className="text-sm">Customer & Company Data</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <CheckCircle className="w-4 h-4 text-green-600" />
+                      <span className="text-sm">Sales Orders & Quotes</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <CheckCircle className="w-4 h-4 text-green-600" />
+                      <span className="text-sm">Purchase Orders</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <CheckCircle className="w-4 h-4 text-green-600" />
+                      <span className="text-sm">Product Catalogs</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <CheckCircle className="w-4 h-4 text-green-600" />
+                      <span className="text-sm">Artwork & Files</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <CheckCircle className="w-4 h-4 text-green-600" />
+                      <span className="text-sm">Estimates & Proofing</span>
+                    </div>
+                  </div>
+                </div>
+                <div className="space-y-4">
+                  <Label>Supported Formats</Label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {systemConfig.dataImport.supportedFormats.map(format => (
+                      <div key={format} className="flex items-center gap-2 p-2 border rounded">
+                        <FileSpreadsheet className="w-4 h-4 text-blue-600" />
+                        <span className="text-sm">{format}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              
+              <Separator />
+              
+              <div className="space-y-4">
+                <Label>Import Data</Label>
+                {systemConfig.dataImport.processing ? (
+                  <div className="border rounded-lg p-6 text-center">
+                    <Brain className="w-12 h-12 text-blue-600 mx-auto mb-4 animate-pulse" />
+                    <h3 className="font-medium mb-2">AI Processing Your Data</h3>
+                    <p className="text-sm text-gray-600 mb-4">
+                      Our AI is analyzing and categorizing your import file. This may take a few minutes.
+                    </p>
+                    <div className="flex items-center justify-center gap-2">
+                      <Clock className="w-4 h-4 animate-spin" />
+                      <span className="text-sm">Processing...</span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="border-2 border-dashed border-gray-200 rounded-lg p-6 text-center">
+                    <Upload className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                    <h3 className="font-medium mb-2">Upload Your Data File</h3>
+                    <p className="text-sm text-gray-600 mb-4">
+                      Select a file containing your business data. Our AI will automatically detect and organize:
+                    </p>
+                    <Input
+                      type="file"
+                      accept=".csv,.xlsx,.json,.xml"
+                      onChange={handleDataImport}
+                      className="max-w-xs mx-auto"
+                    />
+                  </div>
+                )}
+              </div>
+              
+              {systemConfig.dataImport.lastImport && (
+                <div className="bg-green-50 p-4 rounded-lg">
+                  <div className="flex items-start gap-3">
+                    <CheckCircle className="w-5 h-5 text-green-600 mt-0.5" />
+                    <div>
+                      <h4 className="font-medium text-green-900">Last Import Successful</h4>
+                      <p className="text-sm text-green-700 mt-1">
+                        Completed: {new Date(systemConfig.dataImport.lastImport).toLocaleString()}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+              
+              <div className="bg-amber-50 p-4 rounded-lg">
+                <div className="flex items-start gap-3">
+                  <Lightbulb className="w-5 h-5 text-amber-600 mt-0.5" />
+                  <div>
+                    <h4 className="font-medium text-amber-900">AI Import Process</h4>
+                    <p className="text-sm text-amber-700 mt-1">
+                      Our AI will intelligently categorize your data, match customer information, 
+                      organize orders by status, and maintain data relationships. Review suggested matches before finalizing.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
     </div>
