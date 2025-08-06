@@ -1476,7 +1476,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           id: '1',
           name: 'Gildan 2000 Ultra Cotton T-Shirt',
           sku: 'G2000',
-          imageUrl: 'https://example.com/gildan-2000.jpg',
+          imageUrl: '/public-objects/products/gildan-2000.jpg',
           productType: 'apparel',
           totalQuantity: 1250,
           orderCount: 45,
@@ -1487,7 +1487,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           id: '2', 
           name: 'Bella+Canvas 3001 Unisex Jersey Tee',
           sku: 'BC3001',
-          imageUrl: 'https://example.com/bella-3001.jpg',
+          imageUrl: '/public-objects/products/bella-3001.jpg',
           productType: 'apparel',
           totalQuantity: 980,
           orderCount: 38,
@@ -1498,12 +1498,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
           id: '3',
           name: 'Custom Logo Pen',
           sku: 'PEN001',
-          imageUrl: 'https://example.com/logo-pen.jpg', 
+          imageUrl: '/public-objects/products/logo-pen.jpg', 
           productType: 'hard_goods',
           totalQuantity: 2500,
           orderCount: 15,
           avgPrice: 0.89,
           totalRevenue: 2225
+        },
+        {
+          id: '4',
+          name: 'Port & Company Core Cotton Tee',
+          sku: 'PC54',
+          imageUrl: '/public-objects/products/port-company-tee.jpg',
+          productType: 'apparel',
+          totalQuantity: 750,
+          orderCount: 28,
+          avgPrice: 3.95,
+          totalRevenue: 2962
+        },
+        {
+          id: '5',
+          name: 'YETI Rambler Tumbler',
+          sku: 'YETI20',
+          imageUrl: '/public-objects/products/yeti-tumbler.jpg',
+          productType: 'hard_goods',
+          totalQuantity: 320,
+          orderCount: 22,
+          avgPrice: 28.50,
+          totalRevenue: 9120
         }
       ];
 
@@ -1519,6 +1541,178 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Error fetching popular products:', error);
       res.status(500).json({ error: 'Failed to fetch popular products' });
+    }
+  });
+
+  // Suggested products endpoint - items in presentations but not yet sold
+  app.get('/api/products/suggested', isAuthenticated, async (req, res) => {
+    try {
+      const { productType = 'all' } = req.query;
+
+      // Mock data for products that appear in presentations but haven't been sold
+      const mockSuggestedProducts = [
+        {
+          id: 'sg1',
+          name: 'Champion Powerblend Fleece Hoodie',
+          sku: 'S700',
+          imageUrl: '/public-objects/products/champion-hoodie.jpg',
+          productType: 'apparel',
+          presentationCount: 15,
+          avgPresentationPrice: 32.50,
+          discount: 0,
+          adminNote: '',
+          isAdminSuggested: false
+        },
+        {
+          id: 'sg2',
+          name: 'Nike Dri-FIT Performance Polo',
+          sku: 'NK1',
+          imageUrl: '/public-objects/products/nike-polo.jpg',
+          productType: 'apparel',
+          presentationCount: 12,
+          avgPresentationPrice: 45.00,
+          discount: 15,
+          adminNote: 'Volume discount available',
+          isAdminSuggested: true
+        },
+        {
+          id: 'sg3',
+          name: 'Custom Wireless Charger',
+          sku: 'WC100',
+          imageUrl: '/public-objects/products/wireless-charger.jpg',
+          productType: 'hard_goods',
+          presentationCount: 8,
+          avgPresentationPrice: 22.00,
+          discount: 0,
+          adminNote: '',
+          isAdminSuggested: false
+        },
+        {
+          id: 'sg4',
+          name: 'Leather Portfolio Folder',
+          sku: 'LPF200',
+          imageUrl: '/public-objects/products/leather-portfolio.jpg',
+          productType: 'hard_goods',
+          presentationCount: 6,
+          avgPresentationPrice: 38.00,
+          discount: 20,
+          adminNote: 'End of quarter special',
+          isAdminSuggested: true
+        },
+        {
+          id: 'sg5',
+          name: 'Patagonia Better Sweater Vest',
+          sku: 'PAT25622',
+          imageUrl: '/public-objects/products/patagonia-vest.jpg',
+          productType: 'apparel',
+          presentationCount: 10,
+          avgPresentationPrice: 89.00,
+          discount: 0,
+          adminNote: '',
+          isAdminSuggested: false
+        }
+      ];
+
+      // Filter by product type if specified
+      let filteredProducts = mockSuggestedProducts;
+      if (productType === 'apparel') {
+        filteredProducts = mockSuggestedProducts.filter(p => p.productType === 'apparel');
+      } else if (productType === 'hard_goods') {
+        filteredProducts = mockSuggestedProducts.filter(p => p.productType === 'hard_goods');
+      }
+
+      res.json(filteredProducts);
+    } catch (error) {
+      console.error('Error fetching suggested products:', error);
+      res.status(500).json({ error: 'Failed to fetch suggested products' });
+    }
+  });
+
+  // Admin endpoints for managing suggested products
+  app.post('/api/admin/suggested-products', isAuthenticated, async (req, res) => {
+    try {
+      const { name, sku, imageUrl, productType, avgPresentationPrice, discount, adminNote } = req.body;
+      
+      // In production, this would save to database
+      const newSuggestedProduct = {
+        id: `admin-${Date.now()}`,
+        name,
+        sku,
+        imageUrl,
+        productType,
+        presentationCount: 0,
+        avgPresentationPrice,
+        discount: discount || 0,
+        adminNote: adminNote || '',
+        isAdminSuggested: true
+      };
+
+      res.json({ success: true, product: newSuggestedProduct });
+    } catch (error) {
+      console.error('Error adding suggested product:', error);
+      res.status(500).json({ error: 'Failed to add suggested product' });
+    }
+  });
+
+  app.get('/api/admin/suggested-products', isAuthenticated, async (req, res) => {
+    try {
+      // Mock admin-managed suggested products
+      const adminSuggestedProducts = [
+        {
+          id: 'admin-1',
+          name: 'Nike Dri-FIT Performance Polo',
+          sku: 'NK1',
+          imageUrl: '/public-objects/products/nike-polo.jpg',
+          productType: 'apparel',
+          presentationCount: 12,
+          avgPresentationPrice: 45.00,
+          discount: 15,
+          adminNote: 'Volume discount available',
+          isAdminSuggested: true
+        },
+        {
+          id: 'admin-2',
+          name: 'Leather Portfolio Folder',
+          sku: 'LPF200',
+          imageUrl: '/public-objects/products/leather-portfolio.jpg',
+          productType: 'hard_goods',
+          presentationCount: 6,
+          avgPresentationPrice: 38.00,
+          discount: 20,
+          adminNote: 'End of quarter special',
+          isAdminSuggested: true
+        }
+      ];
+
+      res.json(adminSuggestedProducts);
+    } catch (error) {
+      console.error('Error fetching admin suggested products:', error);
+      res.status(500).json({ error: 'Failed to fetch admin suggested products' });
+    }
+  });
+
+  app.put('/api/admin/suggested-products/:id', isAuthenticated, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { discount, adminNote } = req.body;
+      
+      // In production, this would update the database record
+      res.json({ success: true, message: 'Product updated successfully' });
+    } catch (error) {
+      console.error('Error updating suggested product:', error);
+      res.status(500).json({ error: 'Failed to update suggested product' });
+    }
+  });
+
+  app.delete('/api/admin/suggested-products/:id', isAuthenticated, async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      // In production, this would delete from database
+      res.json({ success: true, message: 'Product removed successfully' });
+    } catch (error) {
+      console.error('Error removing suggested product:', error);
+      res.status(500).json({ error: 'Failed to remove suggested product' });
     }
   });
 

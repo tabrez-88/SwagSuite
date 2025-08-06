@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
 
 import { IntegrationSettings } from "@/components/settings/IntegrationSettings";
 import { useToast } from "@/hooks/use-toast";
@@ -113,7 +114,7 @@ export default function Settings() {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-6">
+          <TabsList className="grid w-full grid-cols-7">
             <TabsTrigger value="general" className="flex items-center space-x-2">
               <SettingsIcon size={16} />
               <span>General</span>
@@ -125,6 +126,10 @@ export default function Settings() {
             <TabsTrigger value="workflow" className="flex items-center space-x-2">
               <Database size={16} />
               <span>Workflow</span>
+            </TabsTrigger>
+            <TabsTrigger value="suggested" className="flex items-center space-x-2">
+              <Lightbulb size={16} />
+              <span>Suggested Items</span>
             </TabsTrigger>
             <TabsTrigger value="integrations" className="flex items-center space-x-2">
               <Globe size={16} />
@@ -503,7 +508,316 @@ export default function Settings() {
               </CardContent>
             </Card>
           </TabsContent>
+
+          {/* Suggested Products Settings */}
+          <TabsContent value="suggested" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Lightbulb className="text-blue-600" />
+                  Manage Suggested Products
+                </CardTitle>
+                <p className="text-sm text-gray-600">Add products to the suggested items list with custom discounts and notes</p>
+              </CardHeader>
+              <CardContent>
+                <SuggestedProductsManager />
+              </CardContent>
+            </Card>
+          </TabsContent>
         </Tabs>
+    </div>
+  );
+}
+
+// Suggested Products Manager Component
+function SuggestedProductsManager() {
+  const [isAddingProduct, setIsAddingProduct] = useState(false);
+  const [newProduct, setNewProduct] = useState({
+    name: '',
+    sku: '',
+    imageUrl: '',
+    productType: 'apparel',
+    avgPresentationPrice: '',
+    discount: '',
+    adminNote: ''
+  });
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  // Fetch admin suggested products
+  const { data: adminProducts = [], isLoading } = useQuery({
+    queryKey: ['/api/admin/suggested-products'],
+  });
+
+  // Add product mutation
+  const addProductMutation = useMutation({
+    mutationFn: async (productData: any) => {
+      await apiRequest('/api/admin/suggested-products', {
+        method: 'POST',
+        body: JSON.stringify(productData),
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/suggested-products'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/products/suggested'] });
+      setIsAddingProduct(false);
+      setNewProduct({
+        name: '',
+        sku: '',
+        imageUrl: '',
+        productType: 'apparel',
+        avgPresentationPrice: '',
+        discount: '',
+        adminNote: ''
+      });
+      toast({
+        title: "Success",
+        description: "Product added to suggested items",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to add product",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Remove product mutation
+  const removeProductMutation = useMutation({
+    mutationFn: async (productId: string) => {
+      await apiRequest(`/api/admin/suggested-products/${productId}`, {
+        method: 'DELETE',
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/suggested-products'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/products/suggested'] });
+      toast({
+        title: "Success",
+        description: "Product removed from suggested items",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to remove product",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleAddProduct = () => {
+    if (!newProduct.name || !newProduct.sku || !newProduct.avgPresentationPrice) {
+      toast({
+        title: "Error",
+        description: "Please fill in all required fields",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const productData = {
+      ...newProduct,
+      avgPresentationPrice: parseFloat(newProduct.avgPresentationPrice),
+      discount: parseFloat(newProduct.discount) || 0,
+    };
+
+    addProductMutation.mutate(productData);
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Add New Product */}
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h3 className="text-lg font-medium">Admin Suggested Products</h3>
+          <Button 
+            onClick={() => setIsAddingProduct(!isAddingProduct)}
+            className="bg-swag-primary hover:bg-swag-primary/90"
+          >
+            <Plus className="mr-2 h-4 w-4" />
+            Add Product
+          </Button>
+        </div>
+
+        {isAddingProduct && (
+          <Card className="border-blue-200 bg-blue-50/50">
+            <CardHeader>
+              <CardTitle className="text-base">Add New Suggested Product</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="productName">Product Name *</Label>
+                  <Input
+                    id="productName"
+                    value={newProduct.name}
+                    onChange={(e) => setNewProduct(prev => ({ ...prev, name: e.target.value }))}
+                    placeholder="e.g., Nike Dri-FIT Polo"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="productSku">SKU *</Label>
+                  <Input
+                    id="productSku"
+                    value={newProduct.sku}
+                    onChange={(e) => setNewProduct(prev => ({ ...prev, sku: e.target.value }))}
+                    placeholder="e.g., NK100"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="productType">Product Type</Label>
+                  <Select 
+                    value={newProduct.productType} 
+                    onValueChange={(value) => setNewProduct(prev => ({ ...prev, productType: value }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="apparel">Apparel</SelectItem>
+                      <SelectItem value="hard_goods">Hard Goods</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label htmlFor="price">Price *</Label>
+                  <Input
+                    id="price"
+                    type="number"
+                    step="0.01"
+                    value={newProduct.avgPresentationPrice}
+                    onChange={(e) => setNewProduct(prev => ({ ...prev, avgPresentationPrice: e.target.value }))}
+                    placeholder="25.00"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="discount">Discount (%)</Label>
+                  <Input
+                    id="discount"
+                    type="number"
+                    min="0"
+                    max="100"
+                    value={newProduct.discount}
+                    onChange={(e) => setNewProduct(prev => ({ ...prev, discount: e.target.value }))}
+                    placeholder="10"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="imageUrl">Image URL</Label>
+                  <Input
+                    id="imageUrl"
+                    value={newProduct.imageUrl}
+                    onChange={(e) => setNewProduct(prev => ({ ...prev, imageUrl: e.target.value }))}
+                    placeholder="/public-objects/products/product.jpg"
+                  />
+                </div>
+              </div>
+              <div>
+                <Label htmlFor="adminNote">Admin Note</Label>
+                <Textarea
+                  id="adminNote"
+                  value={newProduct.adminNote}
+                  onChange={(e) => setNewProduct(prev => ({ ...prev, adminNote: e.target.value }))}
+                  placeholder="Special promotion details, volume discounts, etc."
+                  rows={2}
+                />
+              </div>
+              <div className="flex gap-2">
+                <Button 
+                  onClick={handleAddProduct}
+                  disabled={addProductMutation.isPending}
+                  className="bg-swag-primary hover:bg-swag-primary/90"
+                >
+                  {addProductMutation.isPending ? "Adding..." : "Add Product"}
+                </Button>
+                <Button 
+                  variant="outline" 
+                  onClick={() => setIsAddingProduct(false)}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+      </div>
+
+      {/* Existing Products List */}
+      <div className="space-y-4">
+        <h3 className="text-lg font-medium">Current Suggested Products</h3>
+        {isLoading ? (
+          <div className="space-y-3">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <div key={i} className="border rounded-lg p-4">
+                <div className="flex items-center gap-4">
+                  <div className="w-16 h-16 bg-gray-200 rounded-lg animate-pulse" />
+                  <div className="flex-1 space-y-2">
+                    <div className="h-4 bg-gray-200 rounded animate-pulse w-3/4" />
+                    <div className="h-3 bg-gray-200 rounded animate-pulse w-1/2" />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : adminProducts.length === 0 ? (
+          <div className="text-center py-8 text-gray-500">
+            <Lightbulb className="mx-auto h-12 w-12 mb-4 text-gray-400" />
+            <p>No admin suggested products yet</p>
+            <p className="text-sm">Add products to help promote specific items with discounts</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {adminProducts.map((product: any) => (
+              <div key={product.id} className="border rounded-lg p-4 bg-gradient-to-r from-blue-50 to-indigo-50">
+                <div className="flex items-center gap-4">
+                  <img 
+                    src={product.imageUrl || '/public-objects/products/placeholder.jpg'} 
+                    alt={product.name}
+                    className="w-16 h-16 object-cover rounded-lg border"
+                    onError={(e) => {
+                      const target = e.target as HTMLImageElement;
+                      target.src = '/public-objects/products/placeholder.jpg';
+                    }}
+                  />
+                  <div className="flex-1">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h4 className="font-medium">{product.name}</h4>
+                        <p className="text-sm text-gray-600">SKU: {product.sku}</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm px-2 py-1 bg-blue-100 text-blue-800 rounded">
+                          {product.productType === 'apparel' ? 'Apparel' : 'Hard Goods'}
+                        </span>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => removeProductMutation.mutate(product.id)}
+                          disabled={removeProductMutation.isPending}
+                        >
+                          <Trash2 className="h-4 w-4 text-red-500" />
+                        </Button>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-4 mt-2 text-sm text-gray-600">
+                      <span>Price: ${product.avgPresentationPrice.toFixed(2)}</span>
+                      {product.discount > 0 && (
+                        <span className="text-green-600 font-medium">{product.discount}% off</span>
+                      )}
+                    </div>
+                    {product.adminNote && (
+                      <p className="text-sm text-blue-600 italic mt-1">{product.adminNote}</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
