@@ -532,7 +532,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/companies', isAuthenticated, async (req, res) => {
     try {
-      const validatedData = insertCompanySchema.parse(req.body);
+      const { linkedinUrl, twitterUrl, facebookUrl, instagramUrl, otherSocialUrl, ...companyData } = req.body;
+      
+      // Build social media links object if any URLs are provided
+      const socialMediaLinks = {
+        linkedin: linkedinUrl || undefined,
+        twitter: twitterUrl || undefined,
+        facebook: facebookUrl || undefined,
+        instagram: instagramUrl || undefined,
+        other: otherSocialUrl || undefined,
+      };
+
+      const dataToInsert = {
+        ...companyData,
+        ...(Object.values(socialMediaLinks).some(link => link) && { socialMediaLinks })
+      };
+
+      const validatedData = insertCompanySchema.parse(dataToInsert);
       const company = await storage.createCompany(validatedData);
       
       // Log activity
@@ -553,7 +569,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.patch('/api/companies/:id', isAuthenticated, async (req, res) => {
     try {
-      const validatedData = insertCompanySchema.partial().parse(req.body);
+      const { linkedinUrl, twitterUrl, facebookUrl, instagramUrl, otherSocialUrl, ...companyData } = req.body;
+      
+      // Build social media links object if any URLs are provided
+      const socialMediaLinks = {
+        linkedin: linkedinUrl || undefined,
+        twitter: twitterUrl || undefined,
+        facebook: facebookUrl || undefined,
+        instagram: instagramUrl || undefined,
+        other: otherSocialUrl || undefined,
+      };
+
+      const dataToUpdate = {
+        ...companyData,
+        ...(Object.values(socialMediaLinks).some(link => link) && { socialMediaLinks })
+      };
+
+      const validatedData = insertCompanySchema.partial().parse(dataToUpdate);
       const company = await storage.updateCompany(req.params.id, validatedData);
       
       // Log activity
