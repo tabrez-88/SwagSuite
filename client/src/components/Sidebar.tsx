@@ -13,7 +13,8 @@ import {
   Palette,
   Wand2,
   Presentation,
-  Package
+  Package,
+  Zap
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -29,6 +30,7 @@ const navigation = [
   { name: "AI Presentation Builder", href: "/ai-presentation-builder", icon: Presentation },
   { name: "Reports", href: "/reports", icon: ChartBar },
   { name: "Knowledge Base", href: "/knowledge-base", icon: Brain },
+  { name: "Sequence Builder", href: "/sequence-builder", icon: Zap },
   { name: "Settings", href: "/settings", icon: Settings },
 ];
 

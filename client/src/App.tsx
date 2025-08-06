@@ -18,6 +18,7 @@ import Suppliers from "@/pages/suppliers";
 import Reports from "@/pages/reports";
 import KnowledgeBase from "@/pages/knowledge-base";
 import Settings from "@/pages/settings";
+import SequenceBuilder from "@/pages/sequence-builder";
 import ArtworkPage from "@/pages/artwork";
 import MockupBuilderPage from "@/pages/mockup-builder";
 import AIPresentationBuilder from "@/pages/ai-presentation-builder";
@@ -81,6 +82,7 @@ function Router() {
             <Route path="/ai-presentation-builder" component={AIPresentationBuilder} />
             <Route path="/reports" component={Reports} />
             <Route path="/knowledge-base" component={KnowledgeBase} />
+            <Route path="/sequence-builder" component={SequenceBuilder} />
             <Route path="/settings" component={Settings} />
             <Route component={NotFound} />
           </Switch>

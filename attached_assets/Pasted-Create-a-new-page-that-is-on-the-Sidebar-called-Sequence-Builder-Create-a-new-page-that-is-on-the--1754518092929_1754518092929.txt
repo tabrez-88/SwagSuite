@@ -1,0 +1,31 @@
+Create a new page that is on the Sidebar called Sequence Builder.  Create a new page that is on the Sidebar called Sequence Builder.  Design and build a page that mimics the "Sequence Builder" sales automation tool from HubSpot. The application should allow users to create, edit, manage, and track personalized email outreach sequences along with related tasks and reminders. The sequence builder could generate AI sales sequences for a new clients, existing clients, or using general information.  This page should also analyze the sequence open rate, meeting rate,and interaction rate, and sales orders closed rate.  Use AI to suggest flow but allow for the user to make from scratch if they would like.
+Core Functional Requirements:
+Sequence Management:
+Users can create, edit, rename, and delete sequences.
+Sequences can have a variable number of steps (emails, call reminders, tasks, linkedin messages).
+Drag-and-drop or reorder steps within a sequence.
+Step Types & Content Personalization:
+Step type options: automated email, manual task/reminder, call prompt.
+Email steps allow for dynamic template content and personalization tokens (e.g., contact name).
+Manual steps prompt reminders for tasks such as phone calls or LinkedIn connections.  Allow for AI to generate these steps and do them with a simple one click to do that from the application
+Timing & Scheduling:
+Users can set delays between steps (in minutes, hours, or days).
+Each contact enrolled in a sequence receives actions at the appropriate intervals.
+Contact Enrollment & Management:
+UI for adding and managing contacts.
+Ability to enroll individual or bulk contacts into sequences.
+Automatic unenrollment if contact replies or completes a desired action (simulate this with status update or flag).
+Reminders & Task Tracking:
+Dashboard for users to view pending manual steps and tasks per contact and per sequence.
+Notifications or reminders for scheduled manual steps.
+Analytics & Reporting:
+Track email opens, replies, and sequence completion/unenrollment.
+Display metrics: open rates, reply rates, best-performing sequences, etc.
+Bonus/Stretch Features:
+Bulk import contacts (CSV upload).
+Template library for common email/task sequences.
+Email sending integration (using a service like SendGrid or simulated for demo purposes).
+Responsive design for mobile and desktop.
+User Experience:
+ Provide a clean, modern UI with intuitive sequence-editing UX, clear task lists, and concise analytics. Focus on the end-to-end flow: from adding contacts, building multi-step sequences, enrolling contacts, to tracking engagement and sequence outcomes.
+This prompt covers the main features and flow involved in replicating HubSpot’s Sequence Builder. You may tailor the stack or features as needed.

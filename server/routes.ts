@@ -16,7 +16,11 @@ import {
   insertArtworkFileSchema,
   insertActivitySchema,
   insertArtworkColumnSchema,
-  insertArtworkCardSchema
+  insertArtworkCardSchema,
+  insertSequenceSchema,
+  insertSequenceStepSchema,
+  insertSequenceEnrollmentSchema,
+  insertSequenceAnalyticsSchema
 } from "@shared/schema";
 import Anthropic from '@anthropic-ai/sdk';
 import { sendSlackMessage } from "../shared/slack";
@@ -3811,6 +3815,146 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error generating weekly report:", error);
       res.status(500).json({ message: "Failed to generate weekly report" });
+    }
+  });
+
+  // Sequence routes
+  app.get('/api/sequences', isAuthenticated, async (req, res) => {
+    try {
+      const userId = req.user?.claims?.sub;
+      const sequences = await storage.getSequences(userId);
+      res.json(sequences);
+    } catch (error) {
+      console.error('Error fetching sequences:', error);
+      res.status(500).json({ error: 'Failed to fetch sequences' });
+    }
+  });
+
+  app.get('/api/sequences/:id', isAuthenticated, async (req, res) => {
+    try {
+      const sequence = await storage.getSequence(req.params.id);
+      if (!sequence) {
+        return res.status(404).json({ error: 'Sequence not found' });
+      }
+      res.json(sequence);
+    } catch (error) {
+      console.error('Error fetching sequence:', error);
+      res.status(500).json({ error: 'Failed to fetch sequence' });
+    }
+  });
+
+  app.post('/api/sequences', isAuthenticated, async (req, res) => {
+    try {
+      const validatedData = insertSequenceSchema.parse(req.body);
+      const userId = req.user?.claims?.sub;
+      
+      const sequenceData = {
+        ...validatedData,
+        userId: userId || validatedData.userId
+      };
+      
+      const sequence = await storage.createSequence(sequenceData);
+      res.status(201).json(sequence);
+    } catch (error) {
+      console.error('Error creating sequence:', error);
+      res.status(500).json({ error: 'Failed to create sequence' });
+    }
+  });
+
+  app.put('/api/sequences/:id', isAuthenticated, async (req, res) => {
+    try {
+      const sequence = await storage.updateSequence(req.params.id, req.body);
+      res.json(sequence);
+    } catch (error) {
+      console.error('Error updating sequence:', error);
+      res.status(500).json({ error: 'Failed to update sequence' });
+    }
+  });
+
+  app.delete('/api/sequences/:id', isAuthenticated, async (req, res) => {
+    try {
+      await storage.deleteSequence(req.params.id);
+      res.status(204).send();
+    } catch (error) {
+      console.error('Error deleting sequence:', error);
+      res.status(500).json({ error: 'Failed to delete sequence' });
+    }
+  });
+
+  // Sequence Step routes
+  app.get('/api/sequences/:sequenceId/steps', isAuthenticated, async (req, res) => {
+    try {
+      const steps = await storage.getSequenceSteps(req.params.sequenceId);
+      res.json(steps);
+    } catch (error) {
+      console.error('Error fetching sequence steps:', error);
+      res.status(500).json({ error: 'Failed to fetch sequence steps' });
+    }
+  });
+
+  app.post('/api/sequences/:sequenceId/steps', isAuthenticated, async (req, res) => {
+    try {
+      const validatedData = insertSequenceStepSchema.parse(req.body);
+      const stepData = {
+        ...validatedData,
+        sequenceId: req.params.sequenceId
+      };
+      
+      const step = await storage.createSequenceStep(stepData);
+      res.status(201).json(step);
+    } catch (error) {
+      console.error('Error creating sequence step:', error);
+      res.status(500).json({ error: 'Failed to create sequence step' });
+    }
+  });
+
+  // Sequence Enrollment routes
+  app.get('/api/sequence-enrollments', isAuthenticated, async (req, res) => {
+    try {
+      const sequenceId = req.query.sequenceId as string;
+      const enrollments = await storage.getSequenceEnrollments(sequenceId);
+      res.json(enrollments);
+    } catch (error) {
+      console.error('Error fetching sequence enrollments:', error);
+      res.status(500).json({ error: 'Failed to fetch sequence enrollments' });
+    }
+  });
+
+  app.post('/api/sequence-enrollments', isAuthenticated, async (req, res) => {
+    try {
+      const validatedData = insertSequenceEnrollmentSchema.parse(req.body);
+      const enrollment = await storage.createSequenceEnrollment(validatedData);
+      res.status(201).json(enrollment);
+    } catch (error) {
+      console.error('Error creating sequence enrollment:', error);
+      res.status(500).json({ error: 'Failed to create sequence enrollment' });
+    }
+  });
+
+  // Sequence Analytics routes
+  app.get('/api/sequences/:sequenceId/analytics', isAuthenticated, async (req, res) => {
+    try {
+      const analytics = await storage.getSequenceAnalytics(req.params.sequenceId);
+      res.json(analytics);
+    } catch (error) {
+      console.error('Error fetching sequence analytics:', error);
+      res.status(500).json({ error: 'Failed to fetch sequence analytics' });
+    }
+  });
+
+  app.post('/api/sequences/:sequenceId/analytics', isAuthenticated, async (req, res) => {
+    try {
+      const validatedData = insertSequenceAnalyticsSchema.parse(req.body);
+      const analyticsData = {
+        ...validatedData,
+        sequenceId: req.params.sequenceId
+      };
+      
+      const analytics = await storage.createSequenceAnalytics(analyticsData);
+      res.status(201).json(analytics);
+    } catch (error) {
+      console.error('Error creating sequence analytics:', error);
+      res.status(500).json({ error: 'Failed to create sequence analytics' });
     }
   });
 
