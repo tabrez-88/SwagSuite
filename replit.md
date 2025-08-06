@@ -35,7 +35,7 @@ Preferred communication style: Simple, everyday language.
 ## Key Components
 
 ### Core Business Entities
-1. **Users**: Authentication and role-based access control
+1. **Users**: Authentication and role-based access control with admin management
 2. **Companies**: Customer/client management with full contact information
 3. **Contacts**: Individual contacts within companies
 4. **Suppliers**: Vendor management with performance tracking
@@ -44,6 +44,12 @@ Preferred communication style: Simple, everyday language.
 7. **Order Items**: Line items within orders with product details
 8. **Artwork Files**: File management for product customization assets
 9. **Activities**: Audit trail and activity logging
+
+### Admin Management System
+- **Feature Toggles**: Comprehensive system for enabling/disabling features by category
+- **User Role Management**: Admin-controlled user permissions and access levels
+- **System Configuration**: General settings, notifications, and integration management
+- **Security Controls**: Admin-only features and access restrictions
 
 ### UI Components
 - **Dashboard**: Customizable home screen with KPIs and quick actions

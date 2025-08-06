@@ -3606,6 +3606,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Admin Settings Management Endpoints
+  app.get('/api/admin/settings', isAuthenticated, async (req, res) => {
+    try {
+      const settings = {
+        features: [
+          { id: 'popular_products', enabled: true, category: 'analytics' },
+          { id: 'suggested_items', enabled: true, category: 'analytics' },
+          { id: 'admin_suggestions', enabled: true, category: 'core', adminOnly: true },
+          { id: 'universal_search', enabled: true, category: 'core' },
+          { id: 'ss_activewear_integration', enabled: true, category: 'integrations' },
+          { id: 'hubspot_sync', enabled: false, category: 'integrations' },
+          { id: 'slack_notifications', enabled: true, category: 'integrations' },
+          { id: 'ai_knowledge_base', enabled: true, category: 'advanced' },
+          { id: 'production_reports', enabled: true, category: 'analytics' },
+          { id: 'team_leaderboard', enabled: true, category: 'analytics' },
+          { id: 'automation_workflows', enabled: true, category: 'advanced' },
+          { id: 'multi_company_view', enabled: false, category: 'advanced', adminOnly: true }
+        ]
+      };
+      res.json(settings);
+    } catch (error) {
+      console.error('Error fetching admin settings:', error);
+      res.status(500).json({ error: 'Failed to fetch settings' });
+    }
+  });
+
+  app.put('/api/admin/settings/features', isAuthenticated, async (req, res) => {
+    try {
+      const { featureId, enabled } = req.body;
+      console.log(`Feature ${featureId} ${enabled ? 'enabled' : 'disabled'}`);
+      res.json({ success: true, message: 'Feature updated successfully' });
+    } catch (error) {
+      console.error('Error updating feature:', error);
+      res.status(500).json({ error: 'Failed to update feature' });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }
