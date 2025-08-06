@@ -3662,6 +3662,158 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Weekly Report Config routes
+  app.get("/api/weekly-reports/config", isAuthenticated, async (req, res) => {
+    try {
+      const configs = await storage.getWeeklyReportConfigs();
+      res.json(configs);
+    } catch (error) {
+      console.error("Error fetching weekly report configs:", error);
+      res.status(500).json({ message: "Failed to fetch report configs" });
+    }
+  });
+
+  app.post("/api/weekly-reports/config", isAuthenticated, async (req, res) => {
+    try {
+      const config = await storage.createWeeklyReportConfig(req.body);
+      res.json(config);
+    } catch (error) {
+      console.error("Error creating weekly report config:", error);
+      res.status(500).json({ message: "Failed to create report config" });
+    }
+  });
+
+  app.patch("/api/weekly-reports/config/:id", isAuthenticated, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const config = await storage.updateWeeklyReportConfig(id, req.body);
+      res.json(config);
+    } catch (error) {
+      console.error("Error updating weekly report config:", error);
+      res.status(500).json({ message: "Failed to update report config" });
+    }
+  });
+
+  app.delete("/api/weekly-reports/config/:id", isAuthenticated, async (req, res) => {
+    try {
+      const { id } = req.params;
+      await storage.deleteWeeklyReportConfig(id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting weekly report config:", error);
+      res.status(500).json({ message: "Failed to delete report config" });
+    }
+  });
+
+  // Weekly Report Log routes
+  app.get("/api/weekly-reports/logs", isAuthenticated, async (req, res) => {
+    try {
+      const userId = req.user?.claims?.sub;
+      const logs = await storage.getWeeklyReportLogs(userId);
+      res.json(logs);
+    } catch (error) {
+      console.error("Error fetching weekly report logs:", error);
+      res.status(500).json({ message: "Failed to fetch report logs" });
+    }
+  });
+
+  app.post("/api/weekly-reports/logs", isAuthenticated, async (req, res) => {
+    try {
+      const userId = req.user?.claims?.sub;
+      const log = await storage.createWeeklyReportLog({
+        ...req.body,
+        userId,
+      });
+      res.json(log);
+    } catch (error) {
+      console.error("Error creating weekly report log:", error);
+      res.status(500).json({ message: "Failed to create report log" });
+    }
+  });
+
+  // Generate weekly report for current user
+  app.post("/api/weekly-reports/generate", isAuthenticated, async (req, res) => {
+    try {
+      const userId = req.user?.claims?.sub;
+      
+      // Calculate date range for this week
+      const now = new Date();
+      const weekStart = new Date(now.setDate(now.getDate() - now.getDay()));
+      const weekEnd = new Date(weekStart);
+      weekEnd.setDate(weekEnd.getDate() + 6);
+      
+      // Get active report configurations
+      const configs = await storage.getWeeklyReportConfigs();
+      const activeConfigs = configs.filter(config => config.isActive);
+      
+      // Calculate metrics (basic implementation)
+      const metricsData: Record<string, any> = {};
+      
+      for (const config of activeConfigs) {
+        let value = 0;
+        
+        switch (config.dataSource) {
+          case 'orders':
+            const orders = await storage.getOrdersByStatus('approved');
+            value = orders.filter(order => 
+              order.createdAt && order.createdAt >= weekStart && order.createdAt <= weekEnd
+            ).length;
+            break;
+          case 'revenue':
+            const revenueOrders = await storage.getOrdersByStatus('approved');
+            value = revenueOrders
+              .filter(order => order.createdAt && order.createdAt >= weekStart && order.createdAt <= weekEnd)
+              .reduce((sum, order) => sum + parseFloat(order.total || '0'), 0);
+            break;
+          case 'margin':
+            const marginOrders = await storage.getOrdersByStatus('approved');
+            const totalRevenue = marginOrders
+              .filter(order => order.createdAt && order.createdAt >= weekStart && order.createdAt <= weekEnd)
+              .reduce((sum, order) => sum + parseFloat(order.total || '0'), 0);
+            const totalMargin = marginOrders
+              .filter(order => order.createdAt && order.createdAt >= weekStart && order.createdAt <= weekEnd)
+              .reduce((sum, order) => sum + (parseFloat(order.total || '0') * parseFloat(order.margin || '0') / 100), 0);
+            value = totalRevenue > 0 ? (totalMargin / totalRevenue) * 100 : 0;
+            break;
+          case 'stores':
+            const companies = await storage.getCompanies();
+            value = companies.filter(company => 
+              company.createdAt && company.createdAt >= weekStart && company.createdAt <= weekEnd
+            ).length;
+            break;
+          default:
+            value = 0;
+        }
+        
+        metricsData[config.metricName] = {
+          displayName: config.displayName,
+          value,
+          calculationMethod: config.calculationMethod,
+          description: config.description
+        };
+      }
+      
+      // Create report log
+      const reportLog = await storage.createWeeklyReportLog({
+        userId,
+        reportWeekStart: weekStart,
+        reportWeekEnd: weekEnd,
+        metricsData,
+        emailStatus: 'pending'
+      });
+      
+      res.json({
+        success: true,
+        reportLog,
+        message: "Weekly report generated successfully. Email functionality will be available when SendGrid is configured."
+      });
+      
+    } catch (error) {
+      console.error("Error generating weekly report:", error);
+      res.status(500).json({ message: "Failed to generate weekly report" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

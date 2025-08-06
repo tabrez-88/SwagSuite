@@ -18,6 +18,8 @@ import {
   slackMessages,
   ssActivewearProducts,
   ssActivewearImportJobs,
+  weeklyReportConfig,
+  weeklyReportLogs,
   type User,
   type UpsertUser,
   type Company,
@@ -56,6 +58,10 @@ import {
   type InsertSsActivewearProduct,
   type SsActivewearImportJob,
   type InsertSsActivewearImportJob,
+  type WeeklyReportConfig,
+  type InsertWeeklyReportConfig,
+  type WeeklyReportLog,
+  type InsertWeeklyReportLog,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, like, and, gte, lte, sql, or, ilike } from "drizzle-orm";
@@ -185,6 +191,17 @@ export interface IStorage {
   getSsActivewearImportJob(id: string): Promise<SsActivewearImportJob | undefined>;
   createSsActivewearImportJob(job: InsertSsActivewearImportJob): Promise<SsActivewearImportJob>;
   updateSsActivewearImportJob(id: string, job: Partial<InsertSsActivewearImportJob>): Promise<SsActivewearImportJob>;
+
+  // Weekly Report Config operations
+  getWeeklyReportConfigs(): Promise<WeeklyReportConfig[]>;
+  createWeeklyReportConfig(config: InsertWeeklyReportConfig): Promise<WeeklyReportConfig>;
+  updateWeeklyReportConfig(id: string, config: Partial<InsertWeeklyReportConfig>): Promise<WeeklyReportConfig>;
+  deleteWeeklyReportConfig(id: string): Promise<void>;
+
+  // Weekly Report Log operations  
+  getWeeklyReportLogs(userId?: string): Promise<WeeklyReportLog[]>;
+  createWeeklyReportLog(log: InsertWeeklyReportLog): Promise<WeeklyReportLog>;
+  updateWeeklyReportLog(id: string, log: Partial<InsertWeeklyReportLog>): Promise<WeeklyReportLog>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1613,6 +1630,52 @@ export class DatabaseStorage implements IStorage {
       .where(eq(ssActivewearImportJobs.id, id))
       .returning();
     return updatedJob;
+  }
+
+  // Weekly Report Config operations
+  async getWeeklyReportConfigs(): Promise<WeeklyReportConfig[]> {
+    return await db.select().from(weeklyReportConfig).orderBy(weeklyReportConfig.sortOrder);
+  }
+
+  async createWeeklyReportConfig(config: InsertWeeklyReportConfig): Promise<WeeklyReportConfig> {
+    const [created] = await db.insert(weeklyReportConfig).values(config).returning();
+    return created;
+  }
+
+  async updateWeeklyReportConfig(id: string, config: Partial<InsertWeeklyReportConfig>): Promise<WeeklyReportConfig> {
+    const [updated] = await db
+      .update(weeklyReportConfig)
+      .set(config)
+      .where(eq(weeklyReportConfig.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteWeeklyReportConfig(id: string): Promise<void> {
+    await db.delete(weeklyReportConfig).where(eq(weeklyReportConfig.id, id));
+  }
+
+  // Weekly Report Log operations
+  async getWeeklyReportLogs(userId?: string): Promise<WeeklyReportLog[]> {
+    const query = db.select().from(weeklyReportLogs);
+    if (userId) {
+      return await query.where(eq(weeklyReportLogs.userId, userId)).orderBy(desc(weeklyReportLogs.createdAt));
+    }
+    return await query.orderBy(desc(weeklyReportLogs.createdAt));
+  }
+
+  async createWeeklyReportLog(log: InsertWeeklyReportLog): Promise<WeeklyReportLog> {
+    const [created] = await db.insert(weeklyReportLogs).values(log).returning();
+    return created;
+  }
+
+  async updateWeeklyReportLog(id: string, log: Partial<InsertWeeklyReportLog>): Promise<WeeklyReportLog> {
+    const [updated] = await db
+      .update(weeklyReportLogs)
+      .set(log)
+      .where(eq(weeklyReportLogs.id, id))
+      .returning();
+    return updated;
   }
 }
 
