@@ -307,8 +307,8 @@ export function PopularProducts({
               </CardHeader>
               <CardContent>
                 {isLoading ? (
-                  <div className="space-y-3 max-h-[400px] overflow-y-auto">
-                    {Array.from({ length: 5 }).map((_, i) => (
+                  <div className="space-y-3 max-h-[258px] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 hover:scrollbar-thumb-gray-400">
+                    {Array.from({ length: 3 }).map((_, i) => (
                       <div key={i} className="flex items-center space-x-3">
                         <Skeleton className="w-10 h-10 rounded-lg" />
                         <Skeleton className="w-12 h-12 rounded-lg" />
@@ -320,7 +320,7 @@ export function PopularProducts({
                     ))}
                   </div>
                 ) : (
-                  <div className="space-y-3 max-h-[400px] overflow-y-auto">
+                  <div className="space-y-3 max-h-[258px] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 hover:scrollbar-thumb-gray-400">
                     {products
                       .filter(p => p.productType === 'apparel')
                       .slice(0, 10)
@@ -346,8 +346,8 @@ export function PopularProducts({
               </CardHeader>
               <CardContent>
                 {isLoading ? (
-                  <div className="space-y-3 max-h-[400px] overflow-y-auto">
-                    {Array.from({ length: 5 }).map((_, i) => (
+                  <div className="space-y-3 max-h-[258px] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 hover:scrollbar-thumb-gray-400">
+                    {Array.from({ length: 3 }).map((_, i) => (
                       <div key={i} className="flex items-center space-x-3">
                         <Skeleton className="w-10 h-10 rounded-lg" />
                         <Skeleton className="w-12 h-12 rounded-lg" />
@@ -359,7 +359,7 @@ export function PopularProducts({
                     ))}
                   </div>
                 ) : (
-                  <div className="space-y-3 max-h-[400px] overflow-y-auto">
+                  <div className="space-y-3 max-h-[258px] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 hover:scrollbar-thumb-gray-400">
                     {products
                       .filter(p => p.productType === 'hard_goods')
                       .slice(0, 10)
@@ -389,7 +389,7 @@ export function PopularProducts({
               </CardHeader>
               <CardContent>
                 {suggestedLoading ? (
-                  <div className="space-y-3 max-h-[400px] overflow-y-auto">
+                  <div className="space-y-3 max-h-[258px] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 hover:scrollbar-thumb-gray-400">
                     {Array.from({ length: 3 }).map((_, i) => (
                       <div key={i} className="flex items-center space-x-3">
                         <Skeleton className="w-10 h-10 rounded-lg" />
@@ -402,7 +402,7 @@ export function PopularProducts({
                     ))}
                   </div>
                 ) : (
-                  <div className="space-y-3 max-h-[400px] overflow-y-auto">
+                  <div className="space-y-3 max-h-[258px] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 hover:scrollbar-thumb-gray-400">
                     {suggestedProducts
                       .filter(p => p.productType === 'apparel')
                       .slice(0, 10)
@@ -429,7 +429,7 @@ export function PopularProducts({
               </CardHeader>
               <CardContent>
                 {suggestedLoading ? (
-                  <div className="space-y-3 max-h-[400px] overflow-y-auto">
+                  <div className="space-y-3 max-h-[258px] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 hover:scrollbar-thumb-gray-400">
                     {Array.from({ length: 3 }).map((_, i) => (
                       <div key={i} className="flex items-center space-x-3">
                         <Skeleton className="w-10 h-10 rounded-lg" />
@@ -442,7 +442,7 @@ export function PopularProducts({
                     ))}
                   </div>
                 ) : (
-                  <div className="space-y-3 max-h-[400px] overflow-y-auto">
+                  <div className="space-y-3 max-h-[258px] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 hover:scrollbar-thumb-gray-400">
                     {suggestedProducts
                       .filter(p => p.productType === 'hard_goods')
                       .slice(0, 10)
