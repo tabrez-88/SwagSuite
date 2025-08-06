@@ -26,6 +26,7 @@ import {
   Database
 } from "lucide-react";
 import { SlackPanel } from "./SlackPanel";
+import { PopularProducts } from "../PopularProducts";
 
 interface DashboardMetrics {
   totalRevenue: number;
@@ -202,9 +203,10 @@ export function EnhancedDashboard() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="team">Team Performance</TabsTrigger>
+          <TabsTrigger value="popular">Popular Items</TabsTrigger>
           <TabsTrigger value="automation">AI Automation</TabsTrigger>
           <TabsTrigger value="news">News & Alerts</TabsTrigger>
         </TabsList>
@@ -395,6 +397,10 @@ export function EnhancedDashboard() {
               </div>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="popular" className="space-y-6">
+          <PopularProducts />
         </TabsContent>
 
         <TabsContent value="automation" className="space-y-6">

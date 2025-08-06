@@ -9,10 +9,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { isUnauthorizedError } from "@/lib/authUtils";
-import { Box, Search, Plus, DollarSign, Package, Database, ShoppingCart, Trash2 } from "lucide-react";
+import { Box, Search, Plus, DollarSign, Package, Database, ShoppingCart, Trash2, TrendingUp } from "lucide-react";
 import ProductModal from "@/components/ProductModal";
 import { ProductIntegrations } from "@/components/integrations/ProductIntegrations";
 import { SsActivewearIntegration } from "@/components/integrations/SsActivewearIntegration";
+import { PopularProducts } from "@/components/PopularProducts";
 
 interface Product {
   id: string;
@@ -122,10 +123,14 @@ export default function Products() {
 
       {/* Main Content */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="my-catalog" className="flex items-center gap-2">
             <Package size={16} />
             My Catalog
+          </TabsTrigger>
+          <TabsTrigger value="popular" className="flex items-center gap-2">
+            <TrendingUp size={16} />
+            Popular Items
           </TabsTrigger>
           <TabsTrigger value="ss-activewear" className="flex items-center gap-2">
             <ShoppingCart size={16} />
@@ -282,6 +287,11 @@ export default function Products() {
               </CardContent>
             </Card>
           )}
+        </TabsContent>
+
+        {/* Popular Products Tab */}
+        <TabsContent value="popular">
+          <PopularProducts />
         </TabsContent>
 
         {/* S&S Activewear Integration Tab */}

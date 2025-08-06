@@ -1438,6 +1438,90 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Popular products analytics endpoint
+  app.get('/api/products/popular', isAuthenticated, async (req, res) => {
+    try {
+      const { period = 'ytd', productType = 'all', startDate, endDate } = req.query;
+
+      // Calculate date range based on period
+      let dateFilter = '';
+      const now = new Date();
+      
+      if (period === 'ytd') {
+        const yearStart = new Date(now.getFullYear(), 0, 1);
+        dateFilter = `AND o.created_at >= '${yearStart.toISOString()}'`;
+      } else if (period === 'mtd') {
+        const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+        dateFilter = `AND o.created_at >= '${monthStart.toISOString()}'`;
+      } else if (period === 'wtd') {
+        const weekStart = new Date(now);
+        weekStart.setDate(now.getDate() - now.getDay());
+        dateFilter = `AND o.created_at >= '${weekStart.toISOString()}'`;
+      } else if (period === 'custom' && startDate && endDate) {
+        dateFilter = `AND o.created_at >= '${startDate}' AND o.created_at <= '${endDate}'`;
+      }
+
+      // Product type filter
+      let productTypeFilter = '';
+      if (productType === 'apparel') {
+        productTypeFilter = "AND (p.product_type = 'apparel' OR p.product_type IS NULL)";
+      } else if (productType === 'hard_goods') {
+        productTypeFilter = "AND p.product_type = 'hard_goods'";
+      }
+
+      // For now, return mock data since we don't have actual order data yet
+      // In production, this would use the actual SQL query
+      const mockPopularProducts = [
+        {
+          id: '1',
+          name: 'Gildan 2000 Ultra Cotton T-Shirt',
+          sku: 'G2000',
+          imageUrl: 'https://example.com/gildan-2000.jpg',
+          productType: 'apparel',
+          totalQuantity: 1250,
+          orderCount: 45,
+          avgPrice: 4.50,
+          totalRevenue: 5625
+        },
+        {
+          id: '2', 
+          name: 'Bella+Canvas 3001 Unisex Jersey Tee',
+          sku: 'BC3001',
+          imageUrl: 'https://example.com/bella-3001.jpg',
+          productType: 'apparel',
+          totalQuantity: 980,
+          orderCount: 38,
+          avgPrice: 5.25,
+          totalRevenue: 5145
+        },
+        {
+          id: '3',
+          name: 'Custom Logo Pen',
+          sku: 'PEN001',
+          imageUrl: 'https://example.com/logo-pen.jpg', 
+          productType: 'hard_goods',
+          totalQuantity: 2500,
+          orderCount: 15,
+          avgPrice: 0.89,
+          totalRevenue: 2225
+        }
+      ];
+
+      // Filter by product type if specified
+      let filteredProducts = mockPopularProducts;
+      if (productType === 'apparel') {
+        filteredProducts = mockPopularProducts.filter(p => p.productType === 'apparel');
+      } else if (productType === 'hard_goods') {
+        filteredProducts = mockPopularProducts.filter(p => p.productType === 'hard_goods');
+      }
+
+      res.json(filteredProducts);
+    } catch (error) {
+      console.error('Error fetching popular products:', error);
+      res.status(500).json({ error: 'Failed to fetch popular products' });
+    }
+  });
+
   app.get('/api/dashboard/automation-tasks', isAuthenticated, async (req, res) => {
     try {
       // Mock automation tasks - would fetch from actual AI automation system

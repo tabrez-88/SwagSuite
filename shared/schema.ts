@@ -139,6 +139,7 @@ export const products = pgTable("products", {
   imprintMethods: text("imprint_methods"), // JSON array
   leadTime: integer("lead_time"), // days
   imageUrl: varchar("image_url"),
+  productType: varchar("product_type").default("apparel"), // apparel, hard_goods
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
