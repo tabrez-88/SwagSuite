@@ -2,6 +2,7 @@ import {
   users,
   companies,
   contacts,
+  clients,
   suppliers,
   products,
   orders,
@@ -23,6 +24,8 @@ import {
   type InsertCompany,
   type Contact,
   type InsertContact,
+  type Client,
+  type InsertClient,
   type Supplier,
   type InsertSupplier,
   type Product,
@@ -76,6 +79,14 @@ export interface IStorage {
   createContact(contact: InsertContact): Promise<Contact>;
   updateContact(id: string, contact: Partial<InsertContact>): Promise<Contact>;
   deleteContact(id: string): Promise<void>;
+
+  // Client operations
+  getClients(): Promise<Client[]>;
+  getClient(id: string): Promise<Client | undefined>;
+  createClient(client: InsertClient): Promise<Client>;
+  updateClient(id: string, client: Partial<InsertClient>): Promise<Client>;
+  deleteClient(id: string): Promise<void>;
+  searchClients(query: string): Promise<Client[]>;
 
   // Supplier operations
   getSuppliers(): Promise<Supplier[]>;
@@ -266,6 +277,50 @@ export class DatabaseStorage implements IStorage {
 
   async deleteContact(id: string): Promise<void> {
     await db.delete(contacts).where(eq(contacts.id, id));
+  }
+
+  // Client operations
+  async getClients(): Promise<Client[]> {
+    return await db.select().from(clients).orderBy(desc(clients.createdAt));
+  }
+
+  async getClient(id: string): Promise<Client | undefined> {
+    const [client] = await db.select().from(clients).where(eq(clients.id, id));
+    return client;
+  }
+
+  async createClient(clientData: InsertClient): Promise<Client> {
+    const [newClient] = await db.insert(clients).values(clientData).returning();
+    return newClient;
+  }
+
+  async updateClient(id: string, clientData: Partial<InsertClient>): Promise<Client> {
+    const [updatedClient] = await db
+      .update(clients)
+      .set({ ...clientData, updatedAt: new Date() })
+      .where(eq(clients.id, id))
+      .returning();
+    
+    return updatedClient;
+  }
+
+  async deleteClient(id: string): Promise<void> {
+    await db.delete(clients).where(eq(clients.id, id));
+  }
+
+  async searchClients(query: string): Promise<Client[]> {
+    return await db
+      .select()
+      .from(clients)
+      .where(
+        or(
+          ilike(clients.firstName, `%${query}%`),
+          ilike(clients.lastName, `%${query}%`),
+          ilike(clients.email, `%${query}%`),
+          ilike(clients.company, `%${query}%`)
+        )
+      )
+      .orderBy(desc(clients.createdAt));
   }
 
   // Supplier operations

@@ -56,9 +56,14 @@ export const companies = pgTable("companies", {
   // HubSpot integration fields
   hubspotId: varchar("hubspot_id"),
   hubspotSyncedAt: timestamp("hubspot_synced_at"),
+  // Social media integration
+  socialMediaLinks: jsonb("social_media_links"), // { linkedin: "url", twitter: "url", facebook: "url" }
+  socialMediaPosts: jsonb("social_media_posts"), // Array of recent posts with content and timestamps
+  lastSocialMediaSync: timestamp("last_social_media_sync"),
   // AI-powered insights
   lastNewsUpdate: timestamp("last_news_update"),
   newsAlerts: jsonb("news_alerts"),
+  excitingNewsFlags: jsonb("exciting_news_flags"), // Array of flagged posts containing "exciting news"
   // Customer scoring and analytics
   customerScore: integer("customer_score").default(0),
   engagementLevel: varchar("engagement_level"), // high, medium, low
@@ -79,6 +84,39 @@ export const contacts = pgTable("contacts", {
   phone: varchar("phone"),
   title: varchar("title"),
   isPrimary: boolean("is_primary").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Dedicated clients table for CRM
+export const clients = pgTable("clients", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  firstName: varchar("first_name").notNull(),
+  lastName: varchar("last_name").notNull(),
+  email: varchar("email"),
+  phone: varchar("phone"),
+  company: varchar("company"),
+  title: varchar("title"),
+  industry: varchar("industry"),
+  address: text("address"),
+  city: varchar("city"),
+  state: varchar("state"),
+  zipCode: varchar("zip_code"),
+  website: varchar("website"),
+  preferredContact: varchar("preferred_contact").notNull(),
+  clientType: varchar("client_type").notNull(),
+  status: varchar("status").notNull().default("active"),
+  notes: text("notes"),
+  totalOrders: integer("total_orders").default(0),
+  totalSpent: decimal("total_spent", { precision: 12, scale: 2 }).default("0"),
+  lastOrderDate: timestamp("last_order_date"),
+  accountManager: varchar("account_manager"),
+  creditLimit: decimal("credit_limit", { precision: 12, scale: 2 }),
+  paymentTerms: varchar("payment_terms"),
+  // Social media integration
+  socialMediaLinks: jsonb("social_media_links"), // { linkedin: "url", twitter: "url", facebook: "url", instagram: "url", other: "url" }
+  socialMediaPosts: jsonb("social_media_posts"), // Array of recent posts with content, timestamps, and platform
+  lastSocialMediaSync: timestamp("last_social_media_sync"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -349,6 +387,16 @@ export const insertCompanySchema = createInsertSchema(companies).omit({
 
 export const insertContactSchema = createInsertSchema(contacts).omit({
   id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertClientSchema = createInsertSchema(clients).omit({
+  id: true,
+  totalOrders: true,
+  totalSpent: true,
+  lastOrderDate: true,
+  lastSocialMediaSync: true,
   createdAt: true,
   updatedAt: true,
 });
@@ -865,6 +913,8 @@ export type Company = typeof companies.$inferSelect;
 export type InsertCompany = z.infer<typeof insertCompanySchema>;
 export type Contact = typeof contacts.$inferSelect;
 export type InsertContact = z.infer<typeof insertContactSchema>;
+export type Client = typeof clients.$inferSelect;
+export type InsertClient = z.infer<typeof insertClientSchema>;
 export type Supplier = typeof suppliers.$inferSelect;
 export type InsertSupplier = z.infer<typeof insertSupplierSchema>;
 export type Product = typeof products.$inferSelect;

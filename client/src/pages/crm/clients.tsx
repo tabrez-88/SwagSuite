@@ -50,7 +50,16 @@ import {
   Star,
   FileText,
   Activity,
-  CreditCard
+  CreditCard,
+  Linkedin,
+  Twitter,
+  Facebook,
+  Instagram,
+  ExternalLink,
+  Clock,
+  AlertCircle,
+  Eye,
+  MessageSquare
 } from "lucide-react";
 
 interface Client {
@@ -77,6 +86,22 @@ interface Client {
   accountManager?: string;
   creditLimit?: number;
   paymentTerms?: string;
+  // Social media integration
+  socialMediaLinks?: {
+    linkedin?: string;
+    twitter?: string;
+    facebook?: string;
+    instagram?: string;
+    other?: string;
+  };
+  socialMediaPosts?: Array<{
+    platform: string;
+    content: string;
+    timestamp: string;
+    url: string;
+    isExcitingNews?: boolean;
+  }>;
+  lastSocialMediaSync?: string;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -101,6 +126,12 @@ const clientFormSchema = z.object({
   notes: z.string().optional(),
   creditLimit: z.string().optional().transform((val) => val ? parseFloat(val) : undefined),
   paymentTerms: z.string().optional(),
+  // Social media links
+  linkedinUrl: z.string().url().optional().or(z.literal("")),
+  twitterUrl: z.string().url().optional().or(z.literal("")),
+  facebookUrl: z.string().url().optional().or(z.literal("")),
+  instagramUrl: z.string().url().optional().or(z.literal("")),
+  otherSocialUrl: z.string().url().optional().or(z.literal("")),
 });
 
 type ClientFormData = z.infer<typeof clientFormSchema>;
@@ -147,6 +178,12 @@ export default function Clients() {
       notes: "",
       creditLimit: "",
       paymentTerms: "",
+      // Social media links
+      linkedinUrl: "",
+      twitterUrl: "",
+      facebookUrl: "",
+      instagramUrl: "",
+      otherSocialUrl: "",
     },
   });
 
@@ -527,6 +564,101 @@ export default function Clients() {
                     )}
                   />
 
+                  {/* Social Media Links Section */}
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-2 pt-4">
+                      <MessageSquare className="w-4 h-4" />
+                      <h3 className="font-medium">Social Media Links</h3>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-4">
+                      <FormField
+                        control={form.control}
+                        name="linkedinUrl"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="flex items-center gap-2">
+                              <Linkedin className="w-4 h-4" />
+                              LinkedIn URL
+                            </FormLabel>
+                            <FormControl>
+                              <Input placeholder="https://linkedin.com/company/..." {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="twitterUrl"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="flex items-center gap-2">
+                              <Twitter className="w-4 h-4" />
+                              Twitter URL
+                            </FormLabel>
+                            <FormControl>
+                              <Input placeholder="https://twitter.com/..." {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-4">
+                      <FormField
+                        control={form.control}
+                        name="facebookUrl"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="flex items-center gap-2">
+                              <Facebook className="w-4 h-4" />
+                              Facebook URL
+                            </FormLabel>
+                            <FormControl>
+                              <Input placeholder="https://facebook.com/..." {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="instagramUrl"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="flex items-center gap-2">
+                              <Instagram className="w-4 h-4" />
+                              Instagram URL
+                            </FormLabel>
+                            <FormControl>
+                              <Input placeholder="https://instagram.com/..." {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+                    
+                    <FormField
+                      control={form.control}
+                      name="otherSocialUrl"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="flex items-center gap-2">
+                            <Globe className="w-4 h-4" />
+                            Other Social Media URL
+                          </FormLabel>
+                          <FormControl>
+                            <Input placeholder="https://..." {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+
                   <FormField
                     control={form.control}
                     name="notes"
@@ -710,9 +842,18 @@ export default function Clients() {
                   )}
 
                   <div className="flex items-center justify-between pt-2">
+                    <Button 
+                      variant="default" 
+                      size="sm"
+                      onClick={() => window.location.href = `/crm/clients/${client.id}`}
+                      className="bg-swag-primary hover:bg-swag-primary/90"
+                    >
+                      <Eye className="mr-1" size={12} />
+                      View Details
+                    </Button>
                     <Button variant="outline" size="sm">
                       <FileText className="mr-1" size={12} />
-                      View Orders
+                      Orders
                     </Button>
                     <Button variant="outline" size="sm">
                       <Activity className="mr-1" size={12} />

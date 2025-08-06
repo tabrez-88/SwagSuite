@@ -8,6 +8,7 @@ import { setupAuth, isAuthenticated } from "./replitAuth";
 import { 
   insertCompanySchema, 
   insertContactSchema, 
+  insertClientSchema,
   insertSupplierSchema,
   insertProductSchema,
   insertOrderSchema,
@@ -764,105 +765,81 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Client routes
   app.get('/api/clients', isAuthenticated, async (req, res) => {
     try {
-      // Mock clients data - replace with actual database query
-      const mockClients = [
-        {
-          id: "client_1",
-          firstName: "Michael",
-          lastName: "Thompson",
-          email: "michael.thompson@acmecorp.com",
-          phone: "(555) 234-5678",
-          company: "ACME Corporation",
-          title: "Operations Manager",
-          industry: "Manufacturing",
-          address: "123 Business Ave",
-          city: "Chicago",
-          state: "IL",
-          zipCode: "60601",
-          website: "https://acmecorp.com",
-          preferredContact: "Email",
-          clientType: "Corporate",
-          status: "active",
-          totalOrders: 15,
-          totalSpent: 45000,
-          lastOrderDate: "2024-01-15",
-          creditLimit: 50000,
-          paymentTerms: "Net 30",
-          notes: "Long-term client, prefers bulk orders for quarterly campaigns",
-          createdAt: new Date().toISOString(),
-        },
-        {
-          id: "client_2",
-          firstName: "Lisa",
-          lastName: "Rodriguez",
-          email: "lisa.rodriguez@nonprofit.org",
-          phone: "(555) 345-6789",
-          company: "Community Helpers",
-          title: "Development Director",
-          industry: "Non-Profit",
-          address: "456 Charity Ln",
-          city: "Portland",
-          state: "OR",
-          zipCode: "97201",
-          website: "https://communityhelpers.org",
-          preferredContact: "Phone",
-          clientType: "Non-Profit",
-          status: "active",
-          totalOrders: 8,
-          totalSpent: 12000,
-          lastOrderDate: "2024-01-28",
-          creditLimit: 15000,
-          paymentTerms: "Net 15",
-          notes: "Budget-conscious, focuses on eco-friendly products",
-          createdAt: new Date().toISOString(),
-        },
-        {
-          id: "client_3",
-          firstName: "David",
-          lastName: "Chen",
-          email: "d.chen@techstartup.com",
-          phone: "(555) 456-7890",
-          company: "Tech Innovations LLC",
-          title: "Marketing Lead",
-          industry: "Technology",
-          address: "789 Innovation Dr",
-          city: "Austin",
-          state: "TX",
-          zipCode: "73301",
-          website: "https://techinnovations.com",
-          preferredContact: "Email",
-          clientType: "Small Business",
-          status: "prospect",
-          creditLimit: 25000,
-          paymentTerms: "Credit Card",
-          notes: "Interested in branded tech accessories for conferences",
-          createdAt: new Date().toISOString(),
-        }
-      ];
-      res.json(mockClients);
+      const clients = await storage.getClients();
+      res.json(clients);
     } catch (error) {
       console.error("Error fetching clients:", error);
       res.status(500).json({ message: "Failed to fetch clients" });
     }
   });
 
-  app.post('/api/clients', isAuthenticated, async (req, res) => {
+  app.get('/api/clients/:id', isAuthenticated, async (req, res) => {
     try {
-      const clientData = req.body;
+      const client = await storage.getClient(req.params.id);
+      if (!client) {
+        return res.status(404).json({ message: "Client not found" });
+      }
       
-      // Validate required fields
-      if (!clientData.firstName || !clientData.lastName) {
-        return res.status(400).json({ message: "First name and last name are required" });
+      // Generate mock social media posts with exciting news detection
+      const socialMediaPosts = [];
+      if (client.socialMediaLinks) {
+        const samplePosts = [
+          {
+            platform: "linkedin",
+            content: "We're excited to announce our new partnership with TechCorp! This exciting news will revolutionize our industry approach.",
+            timestamp: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+            url: "https://linkedin.com/posts/sample1",
+            isExcitingNews: true
+          },
+          {
+            platform: "twitter",
+            content: "Just wrapped up an amazing quarter! Thanks to all our partners and customers for making it possible.",
+            timestamp: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
+            url: "https://twitter.com/sample/status/123",
+            isExcitingNews: false
+          },
+          {
+            platform: "facebook",
+            content: "Thrilled to share some exciting news - we've just opened our third location! Growth continues!",
+            timestamp: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
+            url: "https://facebook.com/posts/sample3",
+            isExcitingNews: true
+          },
+          {
+            platform: "instagram",
+            content: "Behind the scenes at our latest product photoshoot. Can't wait to share what's coming next!",
+            timestamp: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(),
+            url: "https://instagram.com/p/sample4",
+            isExcitingNews: false
+          }
+        ];
+        
+        // Add posts for platforms that have links
+        Object.keys(client.socialMediaLinks).forEach(platform => {
+          if (client.socialMediaLinks![platform as keyof typeof client.socialMediaLinks]) {
+            const relevantPosts = samplePosts.filter(post => post.platform === platform);
+            socialMediaPosts.push(...relevantPosts);
+          }
+        });
       }
 
-      // Mock client creation - replace with actual database insertion
-      const newClient = {
-        id: `client_${Date.now()}`,
-        ...clientData,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+      const clientWithPosts = {
+        ...client,
+        socialMediaPosts,
+        lastSocialMediaSync: new Date().toISOString()
       };
+      
+      res.json(clientWithPosts);
+    } catch (error) {
+      console.error("Error fetching client:", error);
+      res.status(500).json({ message: "Failed to fetch client" });
+    }
+  });
 
+  app.post('/api/clients', isAuthenticated, async (req, res) => {
+    try {
+      const clientData = insertClientSchema.parse(req.body);
+      const newClient = await storage.createClient(clientData);
       res.status(201).json(newClient);
     } catch (error) {
       console.error("Error creating client:", error);
@@ -870,17 +847,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.put('/api/clients/:id', isAuthenticated, async (req, res) => {
+    try {
+      const updatedClient = await storage.updateClient(req.params.id, req.body);
+      res.json(updatedClient);
+    } catch (error) {
+      console.error("Error updating client:", error);
+      res.status(500).json({ message: "Failed to update client" });
+    }
+  });
+
   app.delete('/api/clients/:id', isAuthenticated, async (req, res) => {
     try {
-      const { id } = req.params;
-      
-      // Mock client deletion - replace with actual database deletion
-      res.json({ message: "Client deleted successfully", id });
+      await storage.deleteClient(req.params.id);
+      res.json({ message: "Client deleted successfully" });
     } catch (error) {
       console.error("Error deleting client:", error);
       res.status(500).json({ message: "Failed to delete client" });
     }
   });
+
+
 
   // Order routes
   app.get('/api/orders', isAuthenticated, async (req, res) => {
