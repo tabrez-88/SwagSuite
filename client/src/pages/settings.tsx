@@ -23,6 +23,13 @@ import {
   TabsList,
   TabsTrigger,
 } from "@/components/ui/tabs";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
 import { 
   Settings as SettingsIcon, 
@@ -287,6 +294,72 @@ export default function Settings() {
     shipmateConnected: false
   });
 
+  // Custom integrations that can be added dynamically
+  const [customIntegrations, setCustomIntegrations] = useState([
+    {
+      id: 'zapier',
+      name: 'Zapier',
+      description: 'Automate workflows with 5000+ apps',
+      icon: Zap,
+      status: 'available',
+      fields: [
+        { key: 'webhook_url', label: 'Webhook URL', type: 'url', required: true },
+        { key: 'api_key', label: 'API Key', type: 'password', required: true }
+      ]
+    },
+    {
+      id: 'mailchimp',
+      name: 'Mailchimp',
+      description: 'Email marketing and automation',
+      icon: Mail,
+      status: 'available',
+      fields: [
+        { key: 'api_key', label: 'API Key', type: 'password', required: true },
+        { key: 'server_prefix', label: 'Server Prefix', type: 'text', required: true }
+      ]
+    },
+    {
+      id: 'shopify',
+      name: 'Shopify',
+      description: 'E-commerce platform integration',
+      icon: ShoppingCart,
+      status: 'available',
+      fields: [
+        { key: 'shop_domain', label: 'Shop Domain', type: 'text', required: true },
+        { key: 'access_token', label: 'Access Token', type: 'password', required: true },
+        { key: 'api_version', label: 'API Version', type: 'text', required: false, placeholder: '2023-10' }
+      ]
+    },
+    {
+      id: 'quickbooks',
+      name: 'QuickBooks Online',
+      description: 'Accounting and financial management',
+      icon: FileSpreadsheet,
+      status: 'available',
+      fields: [
+        { key: 'company_id', label: 'Company ID', type: 'text', required: true },
+        { key: 'client_id', label: 'Client ID', type: 'text', required: true },
+        { key: 'client_secret', label: 'Client Secret', type: 'password', required: true }
+      ]
+    },
+    {
+      id: 'stripe',
+      name: 'Stripe',
+      description: 'Payment processing and billing',
+      icon: Globe,
+      status: 'available',
+      fields: [
+        { key: 'publishable_key', label: 'Publishable Key', type: 'text', required: true },
+        { key: 'secret_key', label: 'Secret Key', type: 'password', required: true },
+        { key: 'webhook_secret', label: 'Webhook Secret', type: 'password', required: false }
+      ]
+    }
+  ]);
+
+  const [configuredIntegrations, setConfiguredIntegrations] = useState([]);
+  const [showAddIntegration, setShowAddIntegration] = useState(false);
+  const [selectedIntegrationType, setSelectedIntegrationType] = useState(null);
+
   const isAdmin = user?.role === 'admin' || user?.email === 'bgoltzman@liquidscreendesign.com';
 
   const toggleFeature = (featureId: string) => {
@@ -324,6 +397,37 @@ export default function Settings() {
     toast({
       title: "Settings Saved",
       description: `${section} settings have been saved successfully.`,
+    });
+  };
+
+  const addIntegration = (integrationType: any, config: any) => {
+    const newIntegration = {
+      id: `${integrationType.id}_${Date.now()}`,
+      type: integrationType.id,
+      name: integrationType.name,
+      description: integrationType.description,
+      icon: integrationType.icon,
+      status: 'connected',
+      config: config,
+      connectedAt: new Date().toISOString()
+    };
+    
+    setConfiguredIntegrations(prev => [...prev, newIntegration]);
+    setShowAddIntegration(false);
+    setSelectedIntegrationType(null);
+    
+    toast({
+      title: "Integration Added",
+      description: `${integrationType.name} has been successfully configured.`,
+    });
+  };
+
+  const removeIntegration = (integrationId: string) => {
+    setConfiguredIntegrations(prev => prev.filter(int => int.id !== integrationId));
+    
+    toast({
+      title: "Integration Removed",
+      description: "Integration has been successfully removed.",
     });
   };
 
@@ -367,6 +471,111 @@ export default function Settings() {
           </div>
         </CardContent>
       </Card>
+    );
+  };
+
+  const AddIntegrationModal = () => {
+    const [configData, setConfigData] = useState({});
+    
+    const handleFieldChange = (key: string, value: string) => {
+      setConfigData(prev => ({ ...prev, [key]: value }));
+    };
+
+    const handleSubmit = () => {
+      if (!selectedIntegrationType) return;
+      
+      // Validate required fields
+      const requiredFields = selectedIntegrationType.fields.filter(field => field.required);
+      const missingFields = requiredFields.filter(field => !configData[field.key]);
+      
+      if (missingFields.length > 0) {
+        toast({
+          title: "Missing Required Fields",
+          description: `Please fill in: ${missingFields.map(f => f.label).join(', ')}`,
+          variant: "destructive"
+        });
+        return;
+      }
+      
+      addIntegration(selectedIntegrationType, configData);
+      setConfigData({});
+    };
+
+    return (
+      <Dialog open={showAddIntegration} onOpenChange={setShowAddIntegration}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Add New Integration</DialogTitle>
+          </DialogHeader>
+          
+          {!selectedIntegrationType ? (
+            <div className="space-y-4">
+              <p className="text-sm text-gray-600">Choose an integration to configure:</p>
+              <div className="grid grid-cols-2 gap-3">
+                {customIntegrations.map(integration => {
+                  const Icon = integration.icon;
+                  return (
+                    <div
+                      key={integration.id}
+                      className="p-4 border rounded-lg cursor-pointer hover:border-primary transition-colors"
+                      onClick={() => setSelectedIntegrationType(integration)}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 bg-primary/10 rounded-lg">
+                          <Icon className="w-5 h-5 text-primary" />
+                        </div>
+                        <div>
+                          <h4 className="font-medium text-sm">{integration.name}</h4>
+                          <p className="text-xs text-gray-600">{integration.description}</p>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="flex items-center gap-3 p-4 bg-gray-50 rounded-lg">
+                <selectedIntegrationType.icon className="w-6 h-6 text-primary" />
+                <div>
+                  <h3 className="font-medium">{selectedIntegrationType.name}</h3>
+                  <p className="text-sm text-gray-600">{selectedIntegrationType.description}</p>
+                </div>
+              </div>
+              
+              <div className="space-y-4">
+                {selectedIntegrationType.fields.map(field => (
+                  <div key={field.key} className="space-y-2">
+                    <Label htmlFor={field.key}>
+                      {field.label}
+                      {field.required && <span className="text-red-500 ml-1">*</span>}
+                    </Label>
+                    <Input
+                      id={field.key}
+                      type={field.type}
+                      placeholder={field.placeholder || `Enter ${field.label.toLowerCase()}`}
+                      value={configData[field.key] || ''}
+                      onChange={(e) => handleFieldChange(field.key, e.target.value)}
+                      required={field.required}
+                    />
+                  </div>
+                ))}
+              </div>
+              
+              <div className="flex justify-end gap-3 pt-4">
+                <Button variant="outline" onClick={() => setSelectedIntegrationType(null)}>
+                  Back
+                </Button>
+                <Button onClick={handleSubmit}>
+                  <CheckCircle className="w-4 h-4 mr-2" />
+                  Connect Integration
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     );
   };
 
@@ -636,86 +845,146 @@ export default function Settings() {
         <TabsContent value="integrations" className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Globe className="w-5 h-5" />
-                External Integrations
+              <CardTitle className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Globe className="w-5 h-5" />
+                  External Integrations
+                </div>
+                <Button onClick={() => setShowAddIntegration(true)} size="sm">
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add Integration
+                </Button>
               </CardTitle>
+              <p className="text-sm text-gray-600">
+                Manage external service integrations and API connections.
+              </p>
             </CardHeader>
             <CardContent className="space-y-6">
-              {/* S&S Activewear */}
-              <div className="p-4 border rounded-lg">
-                <div className="flex items-center gap-2 mb-3">
-                  <Package className="w-5 h-5 text-primary" />
-                  <h3 className="font-medium">S&S Activewear</h3>
-                  <Badge variant="default">Connected</Badge>
+              {/* Core Integrations */}
+              <div className="space-y-4">
+                <h3 className="font-medium text-sm text-gray-900">Core Integrations</h3>
+                
+                {/* S&S Activewear */}
+                <div className="p-4 border rounded-lg">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <Package className="w-5 h-5 text-primary" />
+                      <h4 className="font-medium">S&S Activewear</h4>
+                      <Badge variant="default">Connected</Badge>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="ssAccount">Account Number</Label>
+                      <Input
+                        id="ssAccount"
+                        value={integrations.ssActivewearAccount}
+                        onChange={(e) => setIntegrations(prev => ({ ...prev, ssActivewearAccount: e.target.value }))}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="ssApiKey">API Key</Label>
+                      <Input
+                        id="ssApiKey"
+                        type="password"
+                        value={integrations.ssActivewearApiKey}
+                        onChange={(e) => setIntegrations(prev => ({ ...prev, ssActivewearApiKey: e.target.value }))}
+                      />
+                    </div>
+                  </div>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="ssAccount">Account Number</Label>
-                    <Input
-                      id="ssAccount"
-                      value={integrations.ssActivewearAccount}
-                      onChange={(e) => setIntegrations(prev => ({ ...prev, ssActivewearAccount: e.target.value }))}
-                    />
+
+                {/* Slack */}
+                <div className="p-4 border rounded-lg">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <Slack className="w-5 h-5 text-primary" />
+                      <h4 className="font-medium">Slack Integration</h4>
+                      <Badge variant="secondary">Configured</Badge>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="slackToken">Bot Token</Label>
+                      <Input
+                        id="slackToken"
+                        type="password"
+                        value={integrations.slackBotToken}
+                        onChange={(e) => setIntegrations(prev => ({ ...prev, slackBotToken: e.target.value }))}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="slackChannel">Channel ID</Label>
+                      <Input
+                        id="slackChannel"
+                        value={integrations.slackChannelId}
+                        onChange={(e) => setIntegrations(prev => ({ ...prev, slackChannelId: e.target.value }))}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* HubSpot */}
+                <div className="p-4 border rounded-lg">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <Users className="w-5 h-5 text-gray-400" />
+                      <h4 className="font-medium">HubSpot CRM</h4>
+                      <Badge variant="outline">Not Connected</Badge>
+                    </div>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="ssApiKey">API Key</Label>
+                    <Label htmlFor="hubspotApi">API Key</Label>
                     <Input
-                      id="ssApiKey"
+                      id="hubspotApi"
                       type="password"
-                      value={integrations.ssActivewearApiKey}
-                      onChange={(e) => setIntegrations(prev => ({ ...prev, ssActivewearApiKey: e.target.value }))}
+                      placeholder="Enter HubSpot API key"
+                      value={integrations.hubspotApiKey}
+                      onChange={(e) => setIntegrations(prev => ({ ...prev, hubspotApiKey: e.target.value }))}
                     />
                   </div>
                 </div>
               </div>
 
-              {/* Slack */}
-              <div className="p-4 border rounded-lg">
-                <div className="flex items-center gap-2 mb-3">
-                  <Slack className="w-5 h-5 text-primary" />
-                  <h3 className="font-medium">Slack Integration</h3>
-                  <Badge variant="secondary">Configured</Badge>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="slackToken">Bot Token</Label>
-                    <Input
-                      id="slackToken"
-                      type="password"
-                      value={integrations.slackBotToken}
-                      onChange={(e) => setIntegrations(prev => ({ ...prev, slackBotToken: e.target.value }))}
-                    />
+              {/* Custom Integrations */}
+              {configuredIntegrations.length > 0 && (
+                <div className="space-y-4">
+                  <h3 className="font-medium text-sm text-gray-900">Custom Integrations</h3>
+                  <div className="space-y-3">
+                    {configuredIntegrations.map(integration => {
+                      const Icon = integration.icon;
+                      return (
+                        <div key={integration.id} className="p-4 border rounded-lg">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              <div className="p-2 bg-primary/10 rounded-lg">
+                                <Icon className="w-5 h-5 text-primary" />
+                              </div>
+                              <div>
+                                <h4 className="font-medium text-sm">{integration.name}</h4>
+                                <p className="text-xs text-gray-600">{integration.description}</p>
+                                <p className="text-xs text-gray-500">
+                                  Connected: {new Date(integration.connectedAt).toLocaleDateString()}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Badge variant="default">Connected</Badge>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => removeIntegration(integration.id)}
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="slackChannel">Channel ID</Label>
-                    <Input
-                      id="slackChannel"
-                      value={integrations.slackChannelId}
-                      onChange={(e) => setIntegrations(prev => ({ ...prev, slackChannelId: e.target.value }))}
-                    />
-                  </div>
                 </div>
-              </div>
-
-              {/* HubSpot */}
-              <div className="p-4 border rounded-lg">
-                <div className="flex items-center gap-2 mb-3">
-                  <Users className="w-5 h-5 text-gray-400" />
-                  <h3 className="font-medium">HubSpot CRM</h3>
-                  <Badge variant="outline">Not Connected</Badge>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="hubspotApi">API Key</Label>
-                  <Input
-                    id="hubspotApi"
-                    type="password"
-                    placeholder="Enter HubSpot API key"
-                    value={integrations.hubspotApiKey}
-                    onChange={(e) => setIntegrations(prev => ({ ...prev, hubspotApiKey: e.target.value }))}
-                  />
-                </div>
-              </div>
+              )}
 
               <Button onClick={() => saveSettings('Integration')} className="w-full">
                 <Save className="w-4 h-4 mr-2" />
@@ -723,6 +992,8 @@ export default function Settings() {
               </Button>
             </CardContent>
           </Card>
+          
+          <AddIntegrationModal />
         </TabsContent>
       </Tabs>
     </div>
