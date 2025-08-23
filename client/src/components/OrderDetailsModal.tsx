@@ -24,7 +24,9 @@ import {
   Send,
   AtSign,
   ExternalLink,
-  Tag
+  Tag,
+  AlertTriangle,
+  Zap
 } from "lucide-react";
 import type { Order } from "@shared/schema";
 import { useState, useRef } from "react";
@@ -89,6 +91,10 @@ export function OrderDetailsModal({ open, onOpenChange, order, companyName }: Or
 
   const statusClass = statusColorMap[order.status as keyof typeof statusColorMap] || "bg-gray-100 text-gray-800";
   const statusLabel = statusDisplayMap[order.status as keyof typeof statusDisplayMap] || order.status;
+
+  // Check if this is a rush order based on in hands date
+  const isRushOrder = order.inHandsDate ? 
+    new Date(order.inHandsDate).getTime() - new Date().getTime() < 7 * 24 * 60 * 60 * 1000 : false;
 
   const handleViewProject = () => {
     setLocation(`/project/${order.id}`);
@@ -159,6 +165,12 @@ export function OrderDetailsModal({ open, onOpenChange, order, companyName }: Or
             <Badge className={statusClass}>
               {statusLabel}
             </Badge>
+            {isRushOrder && (
+              <Badge variant="destructive" className="flex items-center gap-1">
+                <Zap className="w-3 h-3" />
+                RUSH ORDER
+              </Badge>
+            )}
             <Button
               variant="outline"
               size="sm"
@@ -263,14 +275,64 @@ export function OrderDetailsModal({ open, onOpenChange, order, companyName }: Or
                       ${(Number(order.total || 0) * 0.5).toLocaleString()}
                     </span>
                   </div>
+                </div>
+              </CardContent>
+            </Card>
 
-                  {order.inHandsDate && (
+              {/* Rush Order & Timeline Information */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Calendar className="w-5 h-5" />
+                    Timeline & Priority
+                    {isRushOrder && (
+                      <Badge variant="destructive" className="flex items-center gap-1 ml-2">
+                        <AlertTriangle className="w-3 h-3" />
+                        RUSH
+                      </Badge>
+                    )}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {order.inHandsDate ? (
                     <div className="flex items-center gap-2">
                       <Calendar className="w-4 h-4 text-gray-500" />
-                      <span className="text-sm font-medium">In-Hands Date: </span>
-                      <span className="text-sm">
+                      <span className="text-sm font-medium">In Hands Date: </span>
+                      <span className={`text-sm font-medium ${isRushOrder ? 'text-red-600' : 'text-gray-900'}`}>
                         {new Date(order.inHandsDate).toLocaleDateString()}
                       </span>
+                      {isRushOrder && (
+                        <Badge variant="outline" className="text-xs text-red-600 border-red-200">
+                          {Math.ceil((new Date(order.inHandsDate).getTime() - new Date().getTime()) / (24 * 60 * 60 * 1000))} days
+                        </Badge>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <Calendar className="w-4 h-4 text-gray-400" />
+                      <span className="text-sm text-gray-500">No in-hands date specified</span>
+                    </div>
+                  )}
+
+                  {order.createdAt && (
+                    <div className="flex items-center gap-2">
+                      <Clock className="w-4 h-4 text-gray-500" />
+                      <span className="text-sm font-medium">Order Created: </span>
+                      <span className="text-sm">
+                        {new Date(order.createdAt).toLocaleDateString()}
+                      </span>
+                    </div>
+                  )}
+
+                  {isRushOrder && (
+                    <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Zap className="w-4 h-4 text-red-600" />
+                        <span className="text-sm font-medium text-red-800">Rush Order Alert</span>
+                      </div>
+                      <p className="text-xs text-red-700">
+                        This order has a tight deadline. Coordinate with vendors for expedited production.
+                      </p>
                     </div>
                   )}
 
@@ -283,9 +345,9 @@ export function OrderDetailsModal({ open, onOpenChange, order, companyName }: Or
                       </span>
                     </div>
                   )}
-                </div>
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+            </div>
           </div>
 
           {/* Right Column - Additional Information */}
@@ -373,7 +435,6 @@ export function OrderDetailsModal({ open, onOpenChange, order, companyName }: Or
               </Button>
             </div>
           </div>
-        </div>
           </TabsContent>
 
           <TabsContent value="communication" className="mt-6">
