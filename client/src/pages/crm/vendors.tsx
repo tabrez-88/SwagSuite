@@ -117,7 +117,13 @@ const vendorFormSchema = z.object({
   contactPerson: z.string().optional(),
   paymentTerms: z.string().optional(),
   notes: z.string().optional(),
-  isPreferred: z.boolean().optional(),
+  isPreferred: z.boolean().default(false),
+  eqpPricing: z.number().optional(),
+  rebatePercentage: z.number().optional(),
+  freeSetups: z.boolean().default(false),
+  freeSpecSamples: z.boolean().default(false),
+  freeSelfPromo: z.boolean().default(false),
+  reducedSpecSamples: z.boolean().default(false),
 });
 
 type VendorFormData = z.infer<typeof vendorFormSchema>;
@@ -146,6 +152,12 @@ export default function Vendors() {
       paymentTerms: "",
       notes: "",
       isPreferred: false,
+      eqpPricing: undefined,
+      rebatePercentage: undefined,
+      freeSetups: false,
+      freeSpecSamples: false,
+      freeSelfPromo: false,
+      reducedSpecSamples: false,
     },
   });
 
@@ -230,10 +242,7 @@ export default function Vendors() {
   // Toggle preferred vendor status
   const togglePreferredMutation = useMutation({
     mutationFn: async ({ vendorId, isPreferred }: { vendorId: string; isPreferred: boolean }) => {
-      return apiRequest(`/api/suppliers/${vendorId}`, {
-        method: "PATCH",
-        body: { isPreferred }
-      });
+      return apiRequest(`/api/suppliers/${vendorId}`, "PATCH", { isPreferred });
     },
     onSuccess: () => {
       toast({
