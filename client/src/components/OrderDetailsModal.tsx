@@ -70,6 +70,9 @@ export function OrderDetailsModal({ open, onOpenChange, order, companyName }: Or
   const [emailTo, setEmailTo] = useState("");
   const [emailSubject, setEmailSubject] = useState("");
   const [emailBody, setEmailBody] = useState("");
+  const [vendorEmailTo, setVendorEmailTo] = useState("");
+  const [vendorEmailSubject, setVendorEmailSubject] = useState("");
+  const [vendorEmailBody, setVendorEmailBody] = useState("");
   const [mentionQuery, setMentionQuery] = useState("");
   const [showMentionSuggestions, setShowMentionSuggestions] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -138,6 +141,14 @@ export function OrderDetailsModal({ open, onOpenChange, order, companyName }: Or
     setEmailBody("");
   };
 
+  const handleSendVendorEmail = () => {
+    // In a real app, this would integrate with your email service
+    console.log("Sending vendor email:", { to: vendorEmailTo, subject: vendorEmailSubject, body: vendorEmailBody });
+    setVendorEmailTo("");
+    setVendorEmailSubject("");
+    setVendorEmailBody("");
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-6xl max-h-[95vh] overflow-y-auto">
@@ -164,10 +175,11 @@ export function OrderDetailsModal({ open, onOpenChange, order, companyName }: Or
         </DialogHeader>
 
         <Tabs defaultValue="details" className="w-full">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="details">Order Details</TabsTrigger>
             <TabsTrigger value="communication">Internal Notes</TabsTrigger>
             <TabsTrigger value="email">Client Communication</TabsTrigger>
+            <TabsTrigger value="vendor">Vendor Communication</TabsTrigger>
           </TabsList>
 
           <TabsContent value="details" className="mt-6">
@@ -571,6 +583,208 @@ export function OrderDetailsModal({ open, onOpenChange, order, companyName }: Or
                 </div>
               </CardContent>
             </Card>
+          </TabsContent>
+
+          <TabsContent value="vendor" className="mt-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Vendor Communication */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Truck className="w-5 h-5" />
+                    Vendor Communication
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-1 gap-4">
+                    <div>
+                      <label className="text-sm font-medium">To:</label>
+                      <Input
+                        placeholder="vendor@supplier.com"
+                        value={vendorEmailTo}
+                        onChange={(e) => setVendorEmailTo(e.target.value)}
+                        data-testid="input-vendor-email-to"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium">Subject:</label>
+                      <Input
+                        placeholder={`Production Update - Order #${order.orderNumber}`}
+                        value={vendorEmailSubject}
+                        onChange={(e) => setVendorEmailSubject(e.target.value)}
+                        data-testid="input-vendor-email-subject"
+                      />
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <label className="text-sm font-medium">Message:</label>
+                    <Textarea
+                      placeholder="Compose your message to the vendor..."
+                      value={vendorEmailBody}
+                      onChange={(e) => setVendorEmailBody(e.target.value)}
+                      className="min-h-[150px] mt-1"
+                      data-testid="textarea-vendor-email-body"
+                    />
+                  </div>
+                  
+                  <div className="flex gap-2">
+                    <Button 
+                      onClick={handleSendVendorEmail}
+                      disabled={!vendorEmailTo || !vendorEmailSubject || !vendorEmailBody.trim()}
+                      className="flex-1"
+                      data-testid="button-send-vendor-email"
+                    >
+                      <Send className="w-4 h-4 mr-2" />
+                      Send to Vendor
+                    </Button>
+                    <Button variant="outline">
+                      Save Draft
+                    </Button>
+                  </div>
+
+                  {/* Vendor Email Templates */}
+                  <Separator />
+                  <div className="space-y-3">
+                    <h4 className="text-sm font-medium text-gray-700">Vendor Templates</h4>
+                    <div className="grid grid-cols-1 gap-2">
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => {
+                          setVendorEmailSubject(`Production Start Request - Order #${order.orderNumber}`);
+                          setVendorEmailBody(`Hello,\n\nWe are ready to begin production for order #${order.orderNumber}.\n\nOrder Details:\n- Quantity: [QUANTITY]\n- Product: [PRODUCT]\n- In-Hands Date: ${order.inHandsDate ? new Date(order.inHandsDate).toLocaleDateString() : '[DATE]'}\n\nPlease confirm production timeline and any requirements.\n\nBest regards,\nSwagSuite Team`);
+                        }}
+                      >
+                        Production Start Request
+                      </Button>
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => {
+                          setVendorEmailSubject(`Production Status Check - Order #${order.orderNumber}`);
+                          setVendorEmailBody(`Hello,\n\nCould you please provide a status update on order #${order.orderNumber}?\n\nWe need to confirm the production timeline to meet our delivery commitments.\n\nThank you for your attention to this matter.\n\nBest regards,\nSwagSuite Team`);
+                        }}
+                      >
+                        Status Check
+                      </Button>
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => {
+                          setVendorEmailSubject(`Artwork Files - Order #${order.orderNumber}`);
+                          setVendorEmailBody(`Hello,\n\nPlease find attached the final artwork files for order #${order.orderNumber}.\n\nArtwork has been approved by the client and is ready for production.\n\nPlease confirm receipt and estimated production start date.\n\nBest regards,\nSwagSuite Team`);
+                        }}
+                      >
+                        Send Artwork
+                      </Button>
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => {
+                          setVendorEmailSubject(`Rush Order Request - Order #${order.orderNumber}`);
+                          setVendorEmailBody(`Hello,\n\nWe have a rush request for order #${order.orderNumber}.\n\nRequired in-hands date: ${order.inHandsDate ? new Date(order.inHandsDate).toLocaleDateString() : '[DATE]'}\n\nPlease let us know if this timeline is possible and any additional costs.\n\nThank you for your flexibility.\n\nBest regards,\nSwagSuite Team`);
+                        }}
+                      >
+                        Rush Request
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Vendor Information & Communication History */}
+              <div className="space-y-6">
+                {/* Current Vendor Information */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Building2 className="w-5 h-5" />
+                      Assigned Vendor
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="flex items-center space-x-3">
+                      <UserAvatar name="Promotional Products Co." size="sm" />
+                      <div>
+                        <p className="font-semibold">Promotional Products Co.</p>
+                        <p className="text-sm text-gray-600">Primary Vendor</p>
+                      </div>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <User className="w-4 h-4 text-gray-500" />
+                        <span className="text-sm">Contact: John Smith</span>
+                      </div>
+                      
+                      <div className="flex items-center gap-2">
+                        <Mail className="w-4 h-4 text-gray-500" />
+                        <span className="text-sm">production@promotionalco.com</span>
+                      </div>
+                      
+                      <div className="flex items-center gap-2">
+                        <Phone className="w-4 h-4 text-gray-500" />
+                        <span className="text-sm">(555) 987-6543</span>
+                      </div>
+                    </div>
+
+                    <Separator />
+                    
+                    <div className="space-y-2">
+                      <h4 className="text-sm font-medium text-gray-700">Vendor Performance</h4>
+                      <div className="grid grid-cols-2 gap-4 text-sm">
+                        <div>
+                          <p className="text-gray-500">On-Time Delivery</p>
+                          <p className="font-medium text-green-600">94%</p>
+                        </div>
+                        <div>
+                          <p className="text-gray-500">Quality Rating</p>
+                          <p className="font-medium text-green-600">4.8/5</p>
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Recent Vendor Communications */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Clock className="w-5 h-5" />
+                      Recent Vendor Communications
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <div className="space-y-2">
+                      <div className="p-3 bg-blue-50 rounded-lg border-l-4 border-blue-500">
+                        <div className="flex justify-between items-start mb-1">
+                          <span className="text-sm font-medium">Sent: Production Timeline Request</span>
+                          <span className="text-xs text-gray-500">2 hours ago</span>
+                        </div>
+                        <p className="text-sm text-gray-700">Requested production schedule for current order batch including this order.</p>
+                      </div>
+                      
+                      <div className="p-3 bg-green-50 rounded-lg border-l-4 border-green-500">
+                        <div className="flex justify-between items-start mb-1">
+                          <span className="text-sm font-medium">Received: Timeline Confirmed</span>
+                          <span className="text-xs text-gray-500">Yesterday, 4:30 PM</span>
+                        </div>
+                        <p className="text-sm text-gray-700">Vendor confirmed 5-day production timeline. Ready to start upon artwork approval.</p>
+                      </div>
+                      
+                      <div className="p-3 bg-yellow-50 rounded-lg border-l-4 border-yellow-500">
+                        <div className="flex justify-between items-start mb-1">
+                          <span className="text-sm font-medium">Sent: Artwork Package</span>
+                          <span className="text-xs text-gray-500">2 days ago</span>
+                        </div>
+                        <p className="text-sm text-gray-700">Sent final artwork files and production specifications.</p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            </div>
           </TabsContent>
         </Tabs>
       </DialogContent>
