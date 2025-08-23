@@ -477,7 +477,15 @@ export default function Vendors() {
             {viewMode === 'cards' && (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {filteredVendors.map((vendor: Vendor) => (
-              <Card key={vendor.id} className="hover:shadow-lg transition-shadow">
+              <Card 
+                key={vendor.id} 
+                className="hover:shadow-lg transition-shadow cursor-pointer"
+                onClick={() => {
+                  setSelectedVendor(vendor);
+                  setIsVendorDetailOpen(true);
+                }}
+                data-testid={`vendor-card-${vendor.id}`}
+              >
                 <CardHeader>
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
@@ -495,7 +503,10 @@ export default function Vendors() {
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => handleDeleteVendor(vendor.id)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteVendor(vendor.id);
+                        }}
                         className="text-red-600 hover:text-red-700 hover:bg-red-50"
                       >
                         <Trash2 size={14} />
@@ -714,6 +725,210 @@ export default function Vendors() {
             </CardContent>
           </Card>
         )}
+
+        {/* Vendor Detail Modal */}
+        <Dialog open={isVendorDetailOpen} onOpenChange={setIsVendorDetailOpen}>
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-3">
+                <UserAvatar name={selectedVendor?.name || ""} size="md" />
+                <div>
+                  <div className="flex items-center gap-2">
+                    {selectedVendor?.name}
+                    {selectedVendor?.isPreferred && (
+                      <Star className="h-4 w-4 text-yellow-500 fill-current" />
+                    )}
+                  </div>
+                  {selectedVendor?.contactPerson && (
+                    <p className="text-sm text-muted-foreground font-normal">
+                      Contact: {selectedVendor.contactPerson}
+                    </p>
+                  )}
+                </div>
+              </DialogTitle>
+            </DialogHeader>
+
+            {selectedVendor && (
+              <div className="space-y-6">
+                {/* Basic Information */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Phone className="h-4 w-4" />
+                        Contact Information
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      {selectedVendor.email && (
+                        <div className="flex items-center gap-3">
+                          <Mail className="h-4 w-4 text-muted-foreground" />
+                          <div>
+                            <p className="text-sm font-medium">Email</p>
+                            <a 
+                              href={`mailto:${selectedVendor.email}`}
+                              className="text-swag-primary hover:underline"
+                            >
+                              {selectedVendor.email}
+                            </a>
+                          </div>
+                        </div>
+                      )}
+                      {selectedVendor.phone && (
+                        <div className="flex items-center gap-3">
+                          <Phone className="h-4 w-4 text-muted-foreground" />
+                          <div>
+                            <p className="text-sm font-medium">Phone</p>
+                            <a 
+                              href={`tel:${selectedVendor.phone}`}
+                              className="text-swag-primary hover:underline"
+                            >
+                              {selectedVendor.phone}
+                            </a>
+                          </div>
+                        </div>
+                      )}
+                      {selectedVendor.website && (
+                        <div className="flex items-center gap-3">
+                          <Globe className="h-4 w-4 text-muted-foreground" />
+                          <div>
+                            <p className="text-sm font-medium">Website</p>
+                            <a 
+                              href={selectedVendor.website}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-swag-primary hover:underline"
+                            >
+                              {selectedVendor.website}
+                            </a>
+                          </div>
+                        </div>
+                      )}
+                      {selectedVendor.address && (
+                        <div className="flex items-center gap-3">
+                          <MapPin className="h-4 w-4 text-muted-foreground" />
+                          <div>
+                            <p className="text-sm font-medium">Address</p>
+                            <p className="text-muted-foreground">{selectedVendor.address}</p>
+                          </div>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <DollarSign className="h-4 w-4" />
+                        Financial Information
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      {selectedVendor.paymentTerms && (
+                        <div className="flex items-center gap-3">
+                          <Calendar className="h-4 w-4 text-muted-foreground" />
+                          <div>
+                            <p className="text-sm font-medium">Payment Terms</p>
+                            <Badge variant="secondary">{selectedVendor.paymentTerms}</Badge>
+                          </div>
+                        </div>
+                      )}
+                      {selectedVendor.ytdSpend && (
+                        <div className="flex items-center gap-3">
+                          <DollarSign className="h-4 w-4 text-muted-foreground" />
+                          <div>
+                            <p className="text-sm font-medium">YTD Spend</p>
+                            <p className="text-lg font-semibold text-green-600">
+                              ${selectedVendor.ytdSpend.toLocaleString()}
+                            </p>
+                          </div>
+                        </div>
+                      )}
+                      {selectedVendor.lastYearSpend && (
+                        <div className="flex items-center gap-3">
+                          <DollarSign className="h-4 w-4 text-muted-foreground" />
+                          <div>
+                            <p className="text-sm font-medium">Last Year Spend</p>
+                            <p className="text-lg font-medium text-muted-foreground">
+                              ${selectedVendor.lastYearSpend.toLocaleString()}
+                            </p>
+                          </div>
+                        </div>
+                      )}
+                      {selectedVendor.lastOrderDate && (
+                        <div className="flex items-center gap-3">
+                          <Clock className="h-4 w-4 text-muted-foreground" />
+                          <div>
+                            <p className="text-sm font-medium">Last Order Date</p>
+                            <p className="text-muted-foreground">
+                              {new Date(selectedVendor.lastOrderDate).toLocaleDateString()}
+                            </p>
+                          </div>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* Status and Integration */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Package className="h-4 w-4" />
+                      Vendor Status & Integration
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex flex-wrap gap-3 mb-4">
+                      {selectedVendor.isPreferred && (
+                        <Badge className="bg-yellow-100 text-yellow-800">
+                          <Star className="h-3 w-3 mr-1 fill-current" />
+                          Preferred Vendor
+                        </Badge>
+                      )}
+                      {selectedVendor.doNotOrder && (
+                        <Badge variant="destructive">
+                          Do Not Order
+                        </Badge>
+                      )}
+                      {selectedVendor.apiIntegrationStatus === "active" && (
+                        <Badge className="bg-green-100 text-green-800">
+                          API Connected
+                        </Badge>
+                      )}
+                    </div>
+                    {selectedVendor.notes && (
+                      <div className="mt-4">
+                        <p className="text-sm font-medium mb-2">Notes</p>
+                        <div className="bg-muted p-3 rounded-md">
+                          <p className="text-muted-foreground whitespace-pre-wrap">
+                            {selectedVendor.notes}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+
+                {/* Action Buttons */}
+                <div className="flex justify-end gap-3 pt-4 border-t">
+                  <Button variant="outline" size="sm">
+                    <Edit className="h-4 w-4 mr-2" />
+                    Edit Vendor
+                  </Button>
+                  <Button variant="outline" size="sm">
+                    <Package className="h-4 w-4 mr-2" />
+                    View Orders
+                  </Button>
+                  <Button variant="outline" size="sm">
+                    <Mail className="h-4 w-4 mr-2" />
+                    Send Message
+                  </Button>
+                </div>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
       </div>
   );
 }
