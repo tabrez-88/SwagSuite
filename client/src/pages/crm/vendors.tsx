@@ -37,6 +37,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { isUnauthorizedError } from "@/lib/authUtils";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Separator } from "@/components/ui/separator";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { UserAvatar } from "@/components/UserAvatar";
 import {
   DropdownMenu,
@@ -62,7 +63,12 @@ import {
   MoreHorizontal,
   Eye,
   Clock,
-  MapPin
+  MapPin,
+  Gift,
+  TrendingUp,
+  Target,
+  Award,
+  Percent
 } from "lucide-react";
 import { CRMViewToggle } from "@/components/CRMViewToggle";
 
@@ -84,6 +90,19 @@ interface Vendor {
   apiIntegrationStatus?: string;
   createdAt?: string;
   updatedAt?: string;
+  // Preferred vendor benefits
+  eqpPricing?: number; // percentage discount
+  rebatePercentage?: number;
+  freeSetups?: boolean;
+  reducedSpecSamples?: boolean;
+  freeSpecSamples?: boolean;
+  reducedSelfPromo?: boolean;
+  freeSelfPromo?: boolean;
+  // Preferred vendor tracking
+  ytdEqpSavings?: number;
+  ytdRebates?: number;
+  selfPromosSent?: number;
+  specSamplesSent?: number;
 }
 
 // Form schema for vendor creation
@@ -108,6 +127,7 @@ export default function Vendors() {
   const [viewMode, setViewMode] = useState<'cards' | 'list'>('cards');
   const [selectedVendor, setSelectedVendor] = useState<Vendor | null>(null);
   const [isVendorDetailOpen, setIsVendorDetailOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<string>("all");
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -205,17 +225,24 @@ export default function Vendors() {
     }
   };
 
+  // Filter vendors based on search and tab selection
   const filteredVendors = vendors.filter((vendor: Vendor) => {
-    const matchesSearch = vendor.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    const matchesSearch = !searchQuery || 
+      vendor.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       vendor.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       vendor.contactPerson?.toLowerCase().includes(searchQuery.toLowerCase());
+
+    if (activeTab === "all") {
+      return matchesSearch;
+    } else if (activeTab === "preferred") {
+      return matchesSearch && vendor.isPreferred;
+    }
     
-    const matchesFilter = filterPreferred === "all" || 
-      (filterPreferred === "preferred" && vendor.isPreferred) ||
-      (filterPreferred === "regular" && !vendor.isPreferred);
-    
-    return matchesSearch && matchesFilter;
+    return matchesSearch;
   });
+
+  // Get preferred vendors specifically
+  const preferredVendors = vendors.filter((vendor: Vendor) => vendor.isPreferred);
 
   return (
       <div className="space-y-6">
@@ -371,58 +398,46 @@ export default function Vendors() {
           </Dialog>
         </div>
 
-        {/* Search and Filters */}
-        <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
-          <div className="relative flex-1 max-w-sm">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground" size={16} />
-            <Input
-              placeholder="Search vendors by name, email, or contact person..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10"
-            />
+        {/* Tabs */}
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <div className="flex items-center justify-between mb-6">
+            <TabsList className="grid w-auto grid-cols-2">
+              <TabsTrigger value="all" className="flex items-center gap-2">
+                <Building2 className="h-4 w-4" />
+                All Vendors ({vendors.length})
+              </TabsTrigger>
+              <TabsTrigger value="preferred" className="flex items-center gap-2">
+                <Star className="h-4 w-4" />
+                Preferred ({preferredVendors.length})
+              </TabsTrigger>
+            </TabsList>
           </div>
-          
-          <div className="flex items-center gap-2">
-            {/* View Toggle */}
-            <div className="flex items-center border rounded-md">
-              <Button
-                variant={viewMode === 'cards' ? 'default' : 'ghost'}
-                size="sm"
-                onClick={() => setViewMode('cards')}
-                className="rounded-r-none"
-                data-testid="view-cards"
-              >
-                <Grid className="h-4 w-4" />
-              </Button>
-              <Button
-                variant={viewMode === 'list' ? 'default' : 'ghost'}
-                size="sm"
-                onClick={() => setViewMode('list')}
-                className="rounded-l-none"
-                data-testid="view-list"
-              >
-                <List className="h-4 w-4" />
-              </Button>
+
+          {/* Search and Filters */}
+          <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between mb-6">
+            <div className="flex items-center gap-4 flex-1">
+              <div className="relative max-w-sm">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground" size={16} />
+                <Input
+                  placeholder="Search vendors..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-10"
+                  data-testid="search-vendors"
+                />
+              </div>
             </div>
-
-            <Separator orientation="vertical" className="h-8" />
-
-            <Select value={filterPreferred} onValueChange={setFilterPreferred}>
-              <SelectTrigger className="w-40">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Vendors</SelectItem>
-                <SelectItem value="preferred">Preferred</SelectItem>
-                <SelectItem value="regular">Regular</SelectItem>
-              </SelectContent>
-            </Select>
-            <Badge variant="outline" className="whitespace-nowrap">
-              {filteredVendors.length} vendors
-            </Badge>
+            
+            <div className="flex items-center gap-3">
+              <CRMViewToggle viewMode={viewMode} onViewModeChange={setViewMode} />
+              <Badge variant="outline" className="whitespace-nowrap">
+                {filteredVendors.length} vendors
+              </Badge>
+            </div>
           </div>
-        </div>
+
+          {/* Tab Content - All Vendors */}
+          <TabsContent value="all" className="space-y-6">
 
         {/* Vendors Display */}
         {isLoading ? (
@@ -725,6 +740,296 @@ export default function Vendors() {
             </CardContent>
           </Card>
         )}
+          </TabsContent>
+
+          {/* Tab Content - Preferred Vendors */}
+          <TabsContent value="preferred" className="space-y-6">
+            {/* Preferred Vendors Display */}
+            {isLoading ? (
+              viewMode === 'cards' ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {Array.from({ length: 3 }).map((_, i) => (
+                    <Card key={i}>
+                      <CardHeader>
+                        <Skeleton className="h-4 w-2/3" />
+                        <Skeleton className="h-3 w-1/2" />
+                      </CardHeader>
+                      <CardContent>
+                        <Skeleton className="h-20 w-full mb-2" />
+                        <Skeleton className="h-3 w-1/3" />
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              ) : (
+                <Card>
+                  <CardContent className="p-0">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Preferred Vendor</TableHead>
+                          <TableHead>Benefits</TableHead>
+                          <TableHead>YTD Savings</TableHead>
+                          <TableHead>YTD Rebates</TableHead>
+                          <TableHead>Promos Sent</TableHead>
+                          <TableHead className="w-[100px]">Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {Array.from({ length: 3 }).map((_, i) => (
+                          <TableRow key={i}>
+                            <TableCell><Skeleton className="h-4 w-32" /></TableCell>
+                            <TableCell><Skeleton className="h-4 w-24" /></TableCell>
+                            <TableCell><Skeleton className="h-4 w-20" /></TableCell>
+                            <TableCell><Skeleton className="h-4 w-16" /></TableCell>
+                            <TableCell><Skeleton className="h-4 w-12" /></TableCell>
+                            <TableCell><Skeleton className="h-4 w-8" /></TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </CardContent>
+                </Card>
+              )
+            ) : preferredVendors.length > 0 ? (
+              <>
+                {/* Cards View - Preferred */}
+                {viewMode === 'cards' && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {preferredVendors.map((vendor: Vendor) => (
+                      <Card 
+                        key={vendor.id} 
+                        className="hover:shadow-lg transition-shadow cursor-pointer border-yellow-200 bg-gradient-to-br from-yellow-50 to-amber-50"
+                        onClick={() => {
+                          setSelectedVendor(vendor);
+                          setIsVendorDetailOpen(true);
+                        }}
+                        data-testid={`preferred-vendor-card-${vendor.id}`}
+                      >
+                        <CardHeader>
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2">
+                                <CardTitle className="text-lg text-swag-navy flex items-center gap-2">
+                                  <Star className="h-4 w-4 text-yellow-500 fill-current" />
+                                  {vendor.name}
+                                </CardTitle>
+                              </div>
+                              {vendor.contactPerson && (
+                                <p className="text-sm text-muted-foreground">{vendor.contactPerson}</p>
+                              )}
+                            </div>
+                          </div>
+                        </CardHeader>
+                        <CardContent className="space-y-3">
+                          {/* Benefits Summary */}
+                          <div className="grid grid-cols-2 gap-3">
+                            {vendor.eqpPricing && (
+                              <div className="flex items-center gap-2 text-sm bg-green-100 rounded-md p-2">
+                                <Percent className="h-4 w-4 text-green-600" />
+                                <span className="font-medium">{vendor.eqpPricing}% EQP</span>
+                              </div>
+                            )}
+                            {vendor.rebatePercentage && (
+                              <div className="flex items-center gap-2 text-sm bg-blue-100 rounded-md p-2">
+                                <Gift className="h-4 w-4 text-blue-600" />
+                                <span className="font-medium">{vendor.rebatePercentage}% Rebate</span>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* YTD Tracking */}
+                          <div className="space-y-2 pt-2 border-t">
+                            {vendor.ytdEqpSavings && (
+                              <div className="flex items-center justify-between text-sm">
+                                <span className="text-muted-foreground">YTD EQP Savings:</span>
+                                <span className="font-medium text-green-600">
+                                  ${vendor.ytdEqpSavings.toLocaleString()}
+                                </span>
+                              </div>
+                            )}
+                            {vendor.ytdRebates && (
+                              <div className="flex items-center justify-between text-sm">
+                                <span className="text-muted-foreground">YTD Rebates:</span>
+                                <span className="font-medium text-blue-600">
+                                  ${vendor.ytdRebates.toLocaleString()}
+                                </span>
+                              </div>
+                            )}
+                            {vendor.selfPromosSent !== undefined && (
+                              <div className="flex items-center justify-between text-sm">
+                                <span className="text-muted-foreground">Self Promos:</span>
+                                <span className="font-medium">{vendor.selfPromosSent}</span>
+                              </div>
+                            )}
+                            {vendor.specSamplesSent !== undefined && (
+                              <div className="flex items-center justify-between text-sm">
+                                <span className="text-muted-foreground">Spec Samples:</span>
+                                <span className="font-medium">{vendor.specSamplesSent}</span>
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="flex items-center justify-between pt-2">
+                            <Badge className="bg-yellow-100 text-yellow-800">
+                              <Star className="h-3 w-3 mr-1 fill-current" />
+                              Preferred
+                            </Badge>
+                            {vendor.ytdSpend && (
+                              <span className="text-sm font-medium text-swag-navy">
+                                ${vendor.ytdSpend.toLocaleString()} YTD
+                              </span>
+                            )}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                )}
+
+                {/* List View - Preferred */}
+                {viewMode === 'list' && (
+                  <Card className="border-yellow-200">
+                    <CardContent className="p-0">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Preferred Vendor</TableHead>
+                            <TableHead>Benefits</TableHead>
+                            <TableHead>YTD Savings</TableHead>
+                            <TableHead>YTD Rebates</TableHead>
+                            <TableHead>Promos Sent</TableHead>
+                            <TableHead className="w-[100px]">Actions</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {preferredVendors.map((vendor: Vendor) => (
+                            <TableRow 
+                              key={vendor.id} 
+                              className="hover:bg-yellow-50 cursor-pointer bg-gradient-to-r from-yellow-50/50 to-transparent"
+                              onClick={() => {
+                                setSelectedVendor(vendor);
+                                setIsVendorDetailOpen(true);
+                              }}
+                              data-testid={`preferred-vendor-row-${vendor.id}`}
+                            >
+                              <TableCell>
+                                <div className="flex items-center space-x-3">
+                                  <UserAvatar name={vendor.name} size="sm" />
+                                  <div>
+                                    <div className="font-medium text-swag-navy flex items-center gap-2">
+                                      <Star className="h-3 w-3 text-yellow-500 fill-current" />
+                                      {vendor.name}
+                                    </div>
+                                    {vendor.contactPerson && (
+                                      <div className="text-sm text-muted-foreground">{vendor.contactPerson}</div>
+                                    )}
+                                  </div>
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                <div className="flex flex-wrap gap-1">
+                                  {vendor.eqpPricing && (
+                                    <Badge variant="secondary" className="bg-green-100 text-green-800 text-xs">
+                                      {vendor.eqpPricing}% EQP
+                                    </Badge>
+                                  )}
+                                  {vendor.rebatePercentage && (
+                                    <Badge variant="secondary" className="bg-blue-100 text-blue-800 text-xs">
+                                      {vendor.rebatePercentage}% Rebate
+                                    </Badge>
+                                  )}
+                                  {vendor.freeSetups && (
+                                    <Badge variant="secondary" className="bg-purple-100 text-purple-800 text-xs">
+                                      Free Setups
+                                    </Badge>
+                                  )}
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                {vendor.ytdEqpSavings && (
+                                  <div className="flex items-center gap-1 text-sm font-medium text-green-600">
+                                    <TrendingUp className="h-3 w-3" />
+                                    ${vendor.ytdEqpSavings.toLocaleString()}
+                                  </div>
+                                )}
+                              </TableCell>
+                              <TableCell>
+                                {vendor.ytdRebates && (
+                                  <div className="flex items-center gap-1 text-sm font-medium text-blue-600">
+                                    <Gift className="h-3 w-3" />
+                                    ${vendor.ytdRebates.toLocaleString()}
+                                  </div>
+                                )}
+                              </TableCell>
+                              <TableCell>
+                                <div className="text-sm">
+                                  {vendor.selfPromosSent !== undefined && (
+                                    <div>Self: {vendor.selfPromosSent}</div>
+                                  )}
+                                  {vendor.specSamplesSent !== undefined && (
+                                    <div>Samples: {vendor.specSamplesSent}</div>
+                                  )}
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <Button 
+                                      variant="ghost" 
+                                      size="sm" 
+                                      onClick={(e) => e.stopPropagation()}
+                                      data-testid={`preferred-vendor-actions-${vendor.id}`}
+                                    >
+                                      <MoreHorizontal className="h-4 w-4" />
+                                    </Button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align="end">
+                                    <DropdownMenuItem onClick={(e) => {
+                                      e.stopPropagation();
+                                      setSelectedVendor(vendor);
+                                      setIsVendorDetailOpen(true);
+                                    }}>
+                                      <Eye className="h-4 w-4 mr-2" />
+                                      View Details
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem onClick={(e) => {
+                                      e.stopPropagation();
+                                      // Add edit functionality
+                                    }}>
+                                      <Edit className="h-4 w-4 mr-2" />
+                                      Edit Benefits
+                                    </DropdownMenuItem>
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </CardContent>
+                  </Card>
+                )}
+              </>
+            ) : (
+              <Card>
+                <CardContent className="flex flex-col items-center justify-center py-12 text-center">
+                  <Star className="h-12 w-12 text-muted-foreground mb-4" />
+                  <h3 className="text-lg font-semibold text-muted-foreground mb-2">
+                    No preferred vendors found
+                  </h3>
+                  <p className="text-sm text-muted-foreground mb-4">
+                    Mark vendors as preferred to track special benefits, EQP pricing, and rebates.
+                  </p>
+                  <Button onClick={() => setIsCreateModalOpen(true)} className="bg-swag-primary hover:bg-swag-primary/90">
+                    <Plus className="mr-2" size={16} />
+                    Add Preferred Vendor
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
+          </TabsContent>
+        </Tabs>
 
         {/* Vendor Detail Modal */}
         <Dialog open={isVendorDetailOpen} onOpenChange={setIsVendorDetailOpen}>
@@ -750,6 +1055,120 @@ export default function Vendors() {
 
             {selectedVendor && (
               <div className="space-y-6">
+                {/* Preferred Vendor Benefits (if applicable) */}
+                {selectedVendor.isPreferred && (
+                  <Card className="border-yellow-200 bg-gradient-to-r from-yellow-50 to-amber-50">
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Star className="h-4 w-4 text-yellow-500" />
+                        Preferred Vendor Benefits & Tracking
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {/* Benefits */}
+                        <div className="space-y-4">
+                          <h4 className="font-medium text-sm">Benefits & Pricing</h4>
+                          <div className="space-y-3">
+                            {selectedVendor.eqpPricing && (
+                              <div className="flex items-center gap-3">
+                                <Percent className="h-4 w-4 text-green-600" />
+                                <div>
+                                  <p className="text-sm font-medium">EQP Pricing</p>
+                                  <p className="text-sm text-muted-foreground">{selectedVendor.eqpPricing}% discount</p>
+                                </div>
+                              </div>
+                            )}
+                            {selectedVendor.rebatePercentage && (
+                              <div className="flex items-center gap-3">
+                                <Gift className="h-4 w-4 text-blue-600" />
+                                <div>
+                                  <p className="text-sm font-medium">Rebate Program</p>
+                                  <p className="text-sm text-muted-foreground">{selectedVendor.rebatePercentage}% rebate</p>
+                                </div>
+                              </div>
+                            )}
+                            {selectedVendor.freeSetups && (
+                              <div className="flex items-center gap-3">
+                                <Award className="h-4 w-4 text-purple-600" />
+                                <div>
+                                  <p className="text-sm font-medium">Free Setups</p>
+                                  <p className="text-sm text-muted-foreground">No setup charges</p>
+                                </div>
+                              </div>
+                            )}
+                            {(selectedVendor.freeSpecSamples || selectedVendor.reducedSpecSamples) && (
+                              <div className="flex items-center gap-3">
+                                <Target className="h-4 w-4 text-indigo-600" />
+                                <div>
+                                  <p className="text-sm font-medium">Spec Samples</p>
+                                  <p className="text-sm text-muted-foreground">
+                                    {selectedVendor.freeSpecSamples ? "Free samples" : "Reduced pricing"}
+                                  </p>
+                                </div>
+                              </div>
+                            )}
+                            {(selectedVendor.freeSelfPromo || selectedVendor.reducedSelfPromo) && (
+                              <div className="flex items-center gap-3">
+                                <Package className="h-4 w-4 text-teal-600" />
+                                <div>
+                                  <p className="text-sm font-medium">Self Promo</p>
+                                  <p className="text-sm text-muted-foreground">
+                                    {selectedVendor.freeSelfPromo ? "Free self promo" : "Reduced pricing"}
+                                  </p>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* YTD Tracking */}
+                        <div className="space-y-4">
+                          <h4 className="font-medium text-sm">Year-to-Date Tracking</h4>
+                          <div className="space-y-3">
+                            {selectedVendor.ytdEqpSavings && (
+                              <div className="flex items-center justify-between">
+                                <span className="text-sm text-muted-foreground">EQP Savings:</span>
+                                <span className="text-sm font-semibold text-green-600">
+                                  ${selectedVendor.ytdEqpSavings.toLocaleString()}
+                                </span>
+                              </div>
+                            )}
+                            {selectedVendor.ytdRebates && (
+                              <div className="flex items-center justify-between">
+                                <span className="text-sm text-muted-foreground">Rebates Earned:</span>
+                                <span className="text-sm font-semibold text-blue-600">
+                                  ${selectedVendor.ytdRebates.toLocaleString()}
+                                </span>
+                              </div>
+                            )}
+                            {selectedVendor.selfPromosSent !== undefined && (
+                              <div className="flex items-center justify-between">
+                                <span className="text-sm text-muted-foreground">Self Promos Sent:</span>
+                                <span className="text-sm font-medium">{selectedVendor.selfPromosSent}</span>
+                              </div>
+                            )}
+                            {selectedVendor.specSamplesSent !== undefined && (
+                              <div className="flex items-center justify-between">
+                                <span className="text-sm text-muted-foreground">Spec Samples Sent:</span>
+                                <span className="text-sm font-medium">{selectedVendor.specSamplesSent}</span>
+                              </div>
+                            )}
+                            {selectedVendor.ytdSpend && (
+                              <div className="flex items-center justify-between pt-2 border-t">
+                                <span className="text-sm text-muted-foreground">Total YTD Spend:</span>
+                                <span className="text-sm font-semibold text-swag-navy">
+                                  ${selectedVendor.ytdSpend.toLocaleString()}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
                 {/* Basic Information */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <Card>
