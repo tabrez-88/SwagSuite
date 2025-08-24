@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { Button } from "@/components/ui/button";
@@ -42,7 +42,12 @@ import {
   Package,
   CreditCard,
   Truck,
-  MapPin
+  MapPin,
+  LayoutGrid,
+  List,
+  ChevronDown,
+  ChevronUp,
+  ExternalLink
 } from "lucide-react";
 import { UserAvatar } from "@/components/UserAvatar";
 import { format, addDays } from "date-fns";
@@ -100,12 +105,14 @@ export default function ProductionReport() {
   const [filterPriority, setFilterPriority] = useState('all');
   const [editingStageData, setEditingStageData] = useState<Record<string, any>>({});
   const [stageInputs, setStageInputs] = useState<Record<string, string>>({});
+  const [viewMode, setViewMode] = useState<'expanded' | 'list'>('expanded');
+  const [expandedOrders, setExpandedOrders] = useState<Set<string>>(new Set());
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
   // Fetch production orders from API
-  const { data: productionOrders = [], isLoading } = useQuery({
+  const { data: productionOrders = [], isLoading } = useQuery<ProductionOrder[]>({
     queryKey: ["/api/production/orders"],
   });
 
@@ -379,7 +386,8 @@ export default function ProductionReport() {
       name: newStage.name,
       order: stages.length + 1,
       color: newStage.color,
-      description: newStage.description
+      description: newStage.description,
+      icon: 'Package' // Default icon for custom stages
     };
     
     setStages([...stages, stage]);
@@ -403,6 +411,27 @@ export default function ProductionReport() {
 
   const uniqueAssignees = Array.from(new Set(ordersToDisplay.map(o => o.assignedTo).filter(Boolean)));
 
+  // Helper functions for view modes
+  const toggleOrderExpansion = (orderId: string) => {
+    const newExpanded = new Set(expandedOrders);
+    if (newExpanded.has(orderId)) {
+      newExpanded.delete(orderId);
+    } else {
+      newExpanded.add(orderId);
+    }
+    setExpandedOrders(newExpanded);
+  };
+
+  const openOrderDetail = (order: ProductionOrder) => {
+    setSelectedOrder(order);
+    setIsOrderModalOpen(true);
+  };
+
+  const openProjectPage = (order: ProductionOrder) => {
+    // Navigation to project page would go here
+    window.open(`/project/${order.id}`, '_blank');
+  };
+
   return (
     <div className="space-y-6 p-6">
         {/* Header */}
@@ -416,6 +445,29 @@ export default function ProductionReport() {
           </div>
           
           <div className="flex gap-3">
+            {/* View Mode Toggle */}
+            <div className="flex bg-gray-100 rounded-lg p-1">
+              <Button
+                variant={viewMode === 'expanded' ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => setViewMode('expanded')}
+                className="px-3"
+                data-testid="button-expanded-view"
+              >
+                <LayoutGrid className="h-4 w-4 mr-1" />
+                Cards
+              </Button>
+              <Button
+                variant={viewMode === 'list' ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => setViewMode('list')}
+                className="px-3"
+                data-testid="button-list-view"
+              >
+                <List className="h-4 w-4 mr-1" />
+                List
+              </Button>
+            </div>
             <Dialog open={isStageModalOpen} onOpenChange={setIsStageModalOpen}>
               <DialogTrigger asChild>
                 <Button variant="outline">
@@ -546,18 +598,202 @@ export default function ProductionReport() {
         </Card>
 
         {/* Production Pipeline */}
-        <div className="space-y-4">
-          {filteredOrders.map((order) => (
-            <Card 
-              key={order.id} 
-              className="hover:shadow-md transition-shadow cursor-pointer"
-              onClick={() => handleOrderClick(order)}
-            >
+        {viewMode === 'list' ? (
+          /* List View */
+          <Card>
+            <CardHeader>
+              <CardTitle>Production Orders - List View</CardTitle>
+            </CardHeader>
+            <CardContent className="p-0">
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Order</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Company</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Product</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stage</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Progress</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Assignee</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Value</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200">
+                    {filteredOrders.map((order) => {
+                      const currentStage = stages.find(s => s.id === order.currentStage);
+                      const StageIcon = currentStage ? getStageIcon(currentStage.icon) : ShoppingCart;
+                      const isExpanded = expandedOrders.has(order.id);
+                      
+                      return (
+                        <React.Fragment key={order.id}>
+                          <tr className="hover:bg-gray-50" data-testid={`row-order-${order.id}`}>
+                            <td className="px-4 py-4">
+                              <div className="flex items-center space-x-2">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => toggleOrderExpansion(order.id)}
+                                  className="p-1"
+                                  data-testid={`button-toggle-${order.id}`}
+                                >
+                                  {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                                </Button>
+                                <div>
+                                  <div className="font-semibold">{order.orderNumber}</div>
+                                  <Badge className={getPriorityColor(order.priority)} variant="outline">
+                                    {order.priority}
+                                  </Badge>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="px-4 py-4">
+                              <div className="flex items-center space-x-2">
+                                <UserAvatar name={order.companyName} size="sm" />
+                                <span className="text-sm text-gray-900">{order.companyName}</span>
+                              </div>
+                            </td>
+                            <td className="px-4 py-4">
+                              <div className="text-sm text-gray-900">{order.productName}</div>
+                              <div className="text-xs text-gray-500">Qty: {order.quantity}</div>
+                            </td>
+                            <td className="px-4 py-4">
+                              <div className="flex items-center space-x-2">
+                                <div className={`w-6 h-6 rounded-full flex items-center justify-center ${
+                                  order.stagesCompleted.includes(order.currentStage) ? 'bg-green-500 text-white' : 'bg-swag-primary text-white'
+                                }`}>
+                                  <StageIcon className="h-3 w-3" />
+                                </div>
+                                <span className="text-xs text-gray-700">{currentStage?.name}</span>
+                              </div>
+                            </td>
+                            <td className="px-4 py-4">
+                              <div className="flex items-center space-x-2">
+                                <div className="w-16 bg-gray-200 rounded-full h-2">
+                                  <div 
+                                    className="bg-swag-primary h-2 rounded-full"
+                                    style={{ width: `${getProgressPercentage(order)}%` }}
+                                  ></div>
+                                </div>
+                                <span className="text-xs text-gray-600">{getProgressPercentage(order)}%</span>
+                              </div>
+                            </td>
+                            <td className="px-4 py-4">
+                              <div className="flex items-center space-x-2">
+                                <UserAvatar name={order.assignedTo} size="sm" />
+                                <span className="text-sm text-gray-700">{order.assignedTo}</span>
+                              </div>
+                            </td>
+                            <td className="px-4 py-4">
+                              <div className="text-sm font-semibold">${order.orderValue.toLocaleString()}</div>
+                              <div className="text-xs text-gray-500">Due: {order.dueDate ? format(new Date(order.dueDate), 'MMM dd') : 'TBD'}</div>
+                            </td>
+                            <td className="px-4 py-4">
+                              <div className="flex items-center space-x-1">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => openOrderDetail(order)}
+                                  className="p-1"
+                                  data-testid={`button-order-detail-${order.id}`}
+                                >
+                                  <Edit className="h-3 w-3" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => openProjectPage(order)}
+                                  className="p-1"
+                                  data-testid={`button-project-page-${order.id}`}
+                                >
+                                  <ExternalLink className="h-3 w-3" />
+                                </Button>
+                              </div>
+                            </td>
+                          </tr>
+                          {/* Expanded Details */}
+                          {isExpanded && (
+                            <tr>
+                              <td colSpan={8} className="px-4 py-4 bg-gray-50">
+                                <div className="space-y-3">
+                                  {/* Stage Pipeline in List */}
+                                  <div className="flex items-center space-x-2 overflow-x-auto">
+                                    {stages.map((stage, index) => {
+                                      const isCompleted = order.stagesCompleted.includes(stage.id);
+                                      const isCurrent = order.currentStage === stage.id;
+                                      const StageIcon = getStageIcon(stage.icon);
+                                      
+                                      return (
+                                        <div key={stage.id} className="flex items-center space-x-2 flex-shrink-0">
+                                          <div className={`
+                                            w-6 h-6 rounded-full flex items-center justify-center text-xs
+                                            ${isCompleted ? 'bg-green-500 text-white' : 
+                                              isCurrent ? 'bg-swag-primary text-white' : 'bg-gray-200 text-gray-600'}
+                                          `}>
+                                            <StageIcon className="h-3 w-3" />
+                                          </div>
+                                          {index < stages.length - 1 && (
+                                            <ArrowRight className="h-3 w-3 text-gray-400" />
+                                          )}
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+
+                                  {/* Next Action */}
+                                  {order.nextActionNotes && (
+                                    <div className="flex items-start space-x-2 text-sm">
+                                      <Clock className="h-4 w-4 text-orange-500 mt-0.5" />
+                                      <div>
+                                        <span className="font-medium text-orange-800">Next Action: </span>
+                                        <span className="text-orange-700">{order.nextActionNotes}</span>
+                                        <span className="text-xs text-orange-600 ml-2">
+                                          Due: {order.nextActionDate ? format(new Date(order.nextActionDate), 'MMM dd') : 'Not set'}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {/* Stage Information */}
+                                  {order.stageData && order.stageData[order.currentStage] && (
+                                    <div className="text-sm">
+                                      <span className="font-medium text-blue-800">Stage Info: </span>
+                                      {Object.entries(order.stageData?.[order.currentStage] || {}).map(([key, value], index) => (
+                                        <span key={key} className="text-blue-600">
+                                          {key.replace(/([A-Z])/g, ' $1')}: {value as string}
+                                          {index < Object.entries(order.stageData?.[order.currentStage] || {}).length - 1 && ' • '}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </React.Fragment>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
+        ) : (
+          /* Expanded Card View */
+          <div className="space-y-4">
+            {filteredOrders.map((order) => (
+              <Card 
+                key={order.id} 
+                className="hover:shadow-md transition-shadow"
+                data-testid={`card-order-${order.id}`}
+              >
               <CardContent className="p-6">
                 <div className="flex items-start justify-between mb-4">
                   <div>
                     <div className="flex items-center space-x-3 mb-2">
-                      <h3 className="font-semibold text-lg">{order.orderNumber}</h3>
+                      <h3 className="font-semibold text-lg cursor-pointer hover:text-swag-primary" onClick={() => openOrderDetail(order)}>
+                        {order.orderNumber}
+                      </h3>
                       <Badge className={getPriorityColor(order.priority)}>
                         {order.priority.toUpperCase()}
                       </Badge>
@@ -584,6 +820,26 @@ export default function ProductionReport() {
                     </div>
                   </div>
                   <div className="text-right">
+                    <div className="flex items-center space-x-2 mb-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => openOrderDetail(order)}
+                        data-testid={`button-edit-order-${order.id}`}
+                      >
+                        <Edit className="h-3 w-3 mr-1" />
+                        Edit
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => openProjectPage(order)}
+                        data-testid={`button-view-project-${order.id}`}
+                      >
+                        <ExternalLink className="h-3 w-3 mr-1" />
+                        Project
+                      </Button>
+                    </div>
                     <p className="font-semibold">${order.orderValue.toLocaleString()}</p>
                     <p className="text-sm text-gray-500">Due: {order.dueDate ? format(new Date(order.dueDate), 'MMM dd') : 'TBD'}</p>
                   </div>
@@ -721,6 +977,7 @@ export default function ProductionReport() {
             </Card>
           ))}
         </div>
+        )}
 
         {/* Order Detail Modal */}
         <Dialog open={isOrderModalOpen} onOpenChange={setIsOrderModalOpen}>
