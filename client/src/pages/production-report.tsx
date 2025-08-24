@@ -100,6 +100,8 @@ export default function ProductionReport() {
   const [selectedOrder, setSelectedOrder] = useState<ProductionOrder | null>(null);
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
   const [isStageModalOpen, setIsStageModalOpen] = useState(false);
+  const [selectedStage, setSelectedStage] = useState<{ order: ProductionOrder; stage: ProductionStage } | null>(null);
+  const [stageActionModal, setStageActionModal] = useState(false);
   const [newStage, setNewStage] = useState({ name: '', description: '', color: 'bg-gray-100 text-gray-800' });
   const [filterAssignee, setFilterAssignee] = useState('all');
   const [filterPriority, setFilterPriority] = useState('all');
@@ -427,6 +429,14 @@ export default function ProductionReport() {
     setIsOrderModalOpen(true);
   };
 
+  const openStageAction = (order: ProductionOrder, stageId: string) => {
+    const stage = stages.find(s => s.id === stageId);
+    if (stage) {
+      setSelectedStage({ order, stage });
+      setStageActionModal(true);
+    }
+  };
+
   const openProjectPage = (order: ProductionOrder) => {
     // Navigation to project page would go here
     window.open(`/project/${order.id}`, '_blank');
@@ -666,9 +676,15 @@ export default function ProductionReport() {
                             </td>
                             <td className="px-4 py-4">
                               <div className="flex items-center space-x-2">
-                                <div className={`w-6 h-6 rounded-full flex items-center justify-center ${
-                                  order.stagesCompleted.includes(order.currentStage) ? 'bg-green-500 text-white' : 'bg-swag-primary text-white'
-                                }`}>
+                                <div 
+                                  className={`w-6 h-6 rounded-full flex items-center justify-center cursor-pointer hover:scale-110 transition-transform ${
+                                    order.stagesCompleted.includes(order.currentStage) ? 'bg-green-500 text-white' : 'bg-swag-primary text-white'
+                                  }`}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    openStageAction(order, order.currentStage);
+                                  }}
+                                >
                                   <StageIcon className="h-3 w-3" />
                                 </div>
                                 <span className="text-xs text-gray-700">{currentStage?.name}</span>
@@ -888,11 +904,17 @@ export default function ProductionReport() {
                     return (
                       <div key={stage.id} className="flex items-center space-x-2 flex-shrink-0">
                         <div className="relative">
-                          <div className={`
-                            w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium
-                            ${isCompleted ? 'bg-green-500 text-white' : 
-                              isCurrent ? 'bg-swag-primary text-white' : 'bg-gray-200 text-gray-600'}
-                          `}>
+                          <div 
+                            className={`
+                              w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium cursor-pointer hover:scale-110 transition-transform
+                              ${isCompleted ? 'bg-green-500 text-white' : 
+                                isCurrent ? 'bg-swag-primary text-white' : 'bg-gray-200 text-gray-600'}
+                            `}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openStageAction(order, stage.id);
+                            }}
+                          >
                             {(() => {
                               const StageIcon = getStageIcon(stage.icon);
                               return <StageIcon className="h-4 w-4" />;
@@ -1280,6 +1302,180 @@ export default function ProductionReport() {
                   </Button>
                   <Button className="bg-swag-primary hover:bg-swag-primary/90">
                     Save Changes
+                  </Button>
+                </div>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
+
+        {/* Stage Action Modal */}
+        <Dialog open={stageActionModal} onOpenChange={setStageActionModal}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>
+                {selectedStage?.stage.name} - {selectedStage?.order.orderNumber}
+              </DialogTitle>
+            </DialogHeader>
+            {selectedStage && (
+              <div className="space-y-6">
+                {/* Stage Information */}
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  <h3 className="font-medium mb-3">Stage Details</h3>
+                  <div className="space-y-2 text-sm">
+                    <p><span className="font-medium">Order:</span> {selectedStage.order.orderNumber}</p>
+                    <p><span className="font-medium">Company:</span> {selectedStage.order.companyName}</p>
+                    <p><span className="font-medium">Product:</span> {selectedStage.order.productName}</p>
+                    <p><span className="font-medium">Stage:</span> {selectedStage.stage.name}</p>
+                    <p><span className="font-medium">Status:</span> 
+                      <Badge className={selectedStage.order.stagesCompleted.includes(selectedStage.stage.id) ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}>
+                        {selectedStage.order.stagesCompleted.includes(selectedStage.stage.id) ? 'Completed' : 'In Progress'}
+                      </Badge>
+                    </p>
+                  </div>
+                </div>
+
+                {/* Stage-specific Data Entry/Display */}
+                <div className="space-y-4">
+                  <h3 className="font-medium">Stage Information & Actions</h3>
+                  
+                  {/* Existing Stage Data */}
+                  {selectedStage.order.stageData?.[selectedStage.stage.id] && (
+                    <div className="bg-blue-50 p-4 rounded-lg">
+                      <h4 className="font-medium text-blue-800 mb-2">Current Information</h4>
+                      <div className="grid grid-cols-2 gap-2">
+                        {Object.entries(selectedStage.order.stageData[selectedStage.stage.id]).map(([key, value]) => (
+                          <div key={key} className="text-sm">
+                            <span className="font-medium text-blue-700 capitalize">{key.replace(/([A-Z])/g, ' $1')}: </span>
+                            <span className="text-blue-600">{value as string}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Stage-specific Forms */}
+                  {selectedStage.stage.id === 'po-placed' && (
+                    <div className="space-y-3">
+                      <Label>Purchase Order Number</Label>
+                      <Input 
+                        placeholder="Enter PO number"
+                        value={stageInputs[`${selectedStage.order.id}-po-number`] || ''}
+                        onChange={(e) => setStageInputs({...stageInputs, [`${selectedStage.order.id}-po-number`]: e.target.value})}
+                      />
+                      <Label>Vendor</Label>
+                      <Input 
+                        placeholder="Enter vendor name"
+                        value={stageInputs[`${selectedStage.order.id}-vendor`] || ''}
+                        onChange={(e) => setStageInputs({...stageInputs, [`${selectedStage.order.id}-vendor`]: e.target.value})}
+                      />
+                    </div>
+                  )}
+
+                  {selectedStage.stage.id === 'proof-received' && (
+                    <div className="space-y-3">
+                      <Label>Proof File URL</Label>
+                      <Input 
+                        placeholder="Enter proof file URL or upload path"
+                        value={stageInputs[`${selectedStage.order.id}-proof-url`] || ''}
+                        onChange={(e) => setStageInputs({...stageInputs, [`${selectedStage.order.id}-proof-url`]: e.target.value})}
+                      />
+                      <Label>Proof Notes</Label>
+                      <Textarea 
+                        placeholder="Any notes about the proof"
+                        value={stageInputs[`${selectedStage.order.id}-proof-notes`] || ''}
+                        onChange={(e) => setStageInputs({...stageInputs, [`${selectedStage.order.id}-proof-notes`]: e.target.value})}
+                      />
+                    </div>
+                  )}
+
+                  {selectedStage.stage.id === 'invoice-paid' && (
+                    <div className="space-y-3">
+                      <Label>Payment Amount</Label>
+                      <Input 
+                        type="number"
+                        placeholder="Enter payment amount"
+                        value={stageInputs[`${selectedStage.order.id}-payment-amount`] || ''}
+                        onChange={(e) => setStageInputs({...stageInputs, [`${selectedStage.order.id}-payment-amount`]: e.target.value})}
+                      />
+                      <Label>Payment Date</Label>
+                      <Input 
+                        type="date"
+                        value={stageInputs[`${selectedStage.order.id}-payment-date`] || ''}
+                        onChange={(e) => setStageInputs({...stageInputs, [`${selectedStage.order.id}-payment-date`]: e.target.value})}
+                      />
+                    </div>
+                  )}
+
+                  {selectedStage.stage.id === 'shipped' && (
+                    <div className="space-y-3">
+                      <Label>Tracking Number</Label>
+                      <Input 
+                        placeholder="Enter tracking number"
+                        value={stageInputs[`${selectedStage.order.id}-tracking`] || selectedStage.order.trackingNumber || ''}
+                        onChange={(e) => setStageInputs({...stageInputs, [`${selectedStage.order.id}-tracking`]: e.target.value})}
+                      />
+                      <Label>Ship Date</Label>
+                      <Input 
+                        type="date"
+                        value={stageInputs[`${selectedStage.order.id}-ship-date`] || ''}
+                        onChange={(e) => setStageInputs({...stageInputs, [`${selectedStage.order.id}-ship-date`]: e.target.value})}
+                      />
+                      <Label>Carrier</Label>
+                      <Select value={stageInputs[`${selectedStage.order.id}-carrier`] || ''} onValueChange={(value) => setStageInputs({...stageInputs, [`${selectedStage.order.id}-carrier`]: value})}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select carrier" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="fedex">FedEx</SelectItem>
+                          <SelectItem value="ups">UPS</SelectItem>
+                          <SelectItem value="usps">USPS</SelectItem>
+                          <SelectItem value="dhl">DHL</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+
+                  {/* Generic notes field for all stages */}
+                  <div className="space-y-3">
+                    <Label>Stage Notes</Label>
+                    <Textarea 
+                      placeholder="Add notes for this stage"
+                      value={stageInputs[`${selectedStage.order.id}-notes`] || selectedStage.order.customNotes?.[selectedStage.stage.id] || ''}
+                      onChange={(e) => setStageInputs({...stageInputs, [`${selectedStage.order.id}-notes`]: e.target.value})}
+                    />
+                  </div>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex justify-between">
+                  <div className="space-x-2">
+                    {!selectedStage.order.stagesCompleted.includes(selectedStage.stage.id) && (
+                      <Button 
+                        onClick={() => {
+                          // TODO: Implement mark stage complete
+                          toast({ title: "Stage marked as complete" });
+                          setStageActionModal(false);
+                        }}
+                        className="bg-green-600 hover:bg-green-700"
+                      >
+                        <CheckCircle className="mr-2 h-4 w-4" />
+                        Mark Complete
+                      </Button>
+                    )}
+                    <Button 
+                      variant="outline"
+                      onClick={() => {
+                        // TODO: Implement save stage data
+                        toast({ title: "Stage information saved" });
+                        setStageActionModal(false);
+                      }}
+                    >
+                      Save Information
+                    </Button>
+                  </div>
+                  <Button variant="outline" onClick={() => setStageActionModal(false)}>
+                    Close
                   </Button>
                 </div>
               </div>
