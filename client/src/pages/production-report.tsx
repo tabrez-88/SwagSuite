@@ -627,13 +627,20 @@ export default function ProductionReport() {
                       
                       return (
                         <React.Fragment key={order.id}>
-                          <tr className="hover:bg-gray-50" data-testid={`row-order-${order.id}`}>
+                          <tr 
+                            className="hover:bg-gray-50 cursor-pointer" 
+                            data-testid={`row-order-${order.id}`}
+                            onClick={() => openOrderDetail(order)}
+                          >
                             <td className="px-4 py-4">
                               <div className="flex items-center space-x-2">
                                 <Button
                                   variant="ghost"
                                   size="sm"
-                                  onClick={() => toggleOrderExpansion(order.id)}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    toggleOrderExpansion(order.id);
+                                  }}
                                   className="p-1"
                                   data-testid={`button-toggle-${order.id}`}
                                 >
@@ -693,7 +700,10 @@ export default function ProductionReport() {
                                 <Button
                                   variant="ghost"
                                   size="sm"
-                                  onClick={() => openOrderDetail(order)}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    openOrderDetail(order);
+                                  }}
                                   className="p-1"
                                   data-testid={`button-order-detail-${order.id}`}
                                 >
@@ -702,7 +712,10 @@ export default function ProductionReport() {
                                 <Button
                                   variant="ghost"
                                   size="sm"
-                                  onClick={() => openProjectPage(order)}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    openProjectPage(order);
+                                  }}
                                   className="p-1"
                                   data-testid={`button-project-page-${order.id}`}
                                 >
@@ -784,14 +797,15 @@ export default function ProductionReport() {
             {filteredOrders.map((order) => (
               <Card 
                 key={order.id} 
-                className="hover:shadow-md transition-shadow"
+                className="hover:shadow-md transition-shadow cursor-pointer"
                 data-testid={`card-order-${order.id}`}
+                onClick={() => openOrderDetail(order)}
               >
               <CardContent className="p-6">
                 <div className="flex items-start justify-between mb-4">
                   <div>
                     <div className="flex items-center space-x-3 mb-2">
-                      <h3 className="font-semibold text-lg cursor-pointer hover:text-swag-primary" onClick={() => openOrderDetail(order)}>
+                      <h3 className="font-semibold text-lg hover:text-swag-primary">
                         {order.orderNumber}
                       </h3>
                       <Badge className={getPriorityColor(order.priority)}>
@@ -824,7 +838,10 @@ export default function ProductionReport() {
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => openOrderDetail(order)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openOrderDetail(order);
+                        }}
                         data-testid={`button-edit-order-${order.id}`}
                       >
                         <Edit className="h-3 w-3 mr-1" />
@@ -833,7 +850,10 @@ export default function ProductionReport() {
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => openProjectPage(order)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openProjectPage(order);
+                        }}
                         data-testid={`button-view-project-${order.id}`}
                       >
                         <ExternalLink className="h-3 w-3 mr-1" />
