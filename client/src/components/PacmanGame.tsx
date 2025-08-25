@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Dialog, DialogContent } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import lsdLogoPath from "@assets/Circle only_1756152840165.png";
 
 interface Position {
   x: number;
@@ -12,6 +13,7 @@ interface Enemy {
   x: number;
   y: number;
   direction: 'up' | 'down' | 'left' | 'right';
+  isVulnerable: boolean;
 }
 
 const GRID_SIZE = 20;
@@ -19,10 +21,10 @@ const CELL_SIZE = 20;
 const GAME_WIDTH = 400;
 const GAME_HEIGHT = 400;
 
-// Simple maze layout (1 = wall, 0 = path, 2 = dot)
+// Simple maze layout (1 = wall, 0 = path, 2 = small dot, 3 = power pellet)
 const MAZE_LEVEL_1 = [
   [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
-  [1,2,2,2,2,2,2,2,2,1,1,2,2,2,2,2,2,2,2,1],
+  [1,3,2,2,2,2,2,2,2,1,1,2,2,2,2,2,2,2,3,1],
   [1,2,1,1,2,1,1,1,2,1,1,2,1,1,1,2,1,1,2,1],
   [1,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,1],
   [1,2,1,1,2,1,2,1,1,1,1,1,1,2,1,2,1,1,2,1],
@@ -39,13 +41,13 @@ const MAZE_LEVEL_1 = [
   [1,2,2,1,2,2,2,2,2,2,2,2,2,2,2,2,1,2,2,1],
   [1,1,2,1,2,1,2,1,1,1,1,1,1,2,1,2,1,2,1,1],
   [1,2,2,2,2,1,2,2,2,1,1,2,2,2,1,2,2,2,2,1],
-  [1,2,1,1,1,1,1,1,2,1,1,2,1,1,1,1,1,1,2,1],
+  [1,3,1,1,1,1,1,1,2,1,1,2,1,1,1,1,1,1,3,1],
   [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
 ];
 
 const MAZE_LEVEL_2 = [
   [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
-  [1,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,1],
+  [1,3,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,3,1],
   [1,2,1,1,1,2,1,1,1,1,1,1,1,1,2,1,1,1,2,1],
   [1,2,2,2,1,2,2,2,2,1,1,2,2,2,2,1,2,2,2,1],
   [1,1,1,2,1,1,1,1,2,1,1,2,1,1,1,1,2,1,1,1],
@@ -62,7 +64,7 @@ const MAZE_LEVEL_2 = [
   [1,2,2,2,1,2,2,2,2,1,1,2,2,2,2,1,2,2,2,1],
   [1,2,1,1,1,2,1,1,1,1,1,1,1,1,2,1,1,1,2,1],
   [1,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,1],
-  [1,2,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,2,1],
+  [1,3,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,3,1],
   [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
 ];
 
@@ -80,17 +82,19 @@ export function PacmanGame({ isOpen, onClose }: PacmanGameProps) {
   const [gameState, setGameState] = useState<'playing' | 'gameOver' | 'levelComplete' | 'allComplete'>('playing');
   const [maze, setMaze] = useState(MAZE_LEVEL_1);
   const [dotsEaten, setDotsEaten] = useState(0);
+  const [powerMode, setPowerMode] = useState(false);
+  const [powerModeTimer, setPowerModeTimer] = useState(0);
   
-  const totalDots = maze.flat().filter(cell => cell === 2).length;
+  const totalDots = maze.flat().filter(cell => cell === 2 || cell === 3).length;
 
   // Initialize enemies
   useEffect(() => {
     if (isOpen) {
       const initialEnemies: Enemy[] = [
-        { id: 1, x: 9, y: 9, direction: 'up' },
-        { id: 2, x: 10, y: 9, direction: 'down' },
-        { id: 3, x: 9, y: 10, direction: 'left' },
-        { id: 4, x: 10, y: 10, direction: 'right' }
+        { id: 1, x: 9, y: 9, direction: 'up', isVulnerable: false },
+        { id: 2, x: 10, y: 9, direction: 'down', isVulnerable: false },
+        { id: 3, x: 9, y: 10, direction: 'left', isVulnerable: false },
+        { id: 4, x: 10, y: 10, direction: 'right', isVulnerable: false }
       ];
       setEnemies(initialEnemies);
     }
@@ -106,6 +110,8 @@ export function PacmanGame({ isOpen, onClose }: PacmanGameProps) {
       setGameState('playing');
       setMaze(MAZE_LEVEL_1);
       setDotsEaten(0);
+      setPowerMode(false);
+      setPowerModeTimer(0);
     }
   }, [isOpen]);
 
@@ -113,22 +119,33 @@ export function PacmanGame({ isOpen, onClose }: PacmanGameProps) {
   useEffect(() => {
     if (gameState !== 'playing') return;
 
-    const collision = enemies.some(enemy => 
+    const collidingEnemy = enemies.find(enemy => 
       enemy.x === pacman.x && enemy.y === pacman.y
     );
 
-    if (collision) {
-      const newLives = lives - 1;
-      setLives(newLives);
-      
-      if (newLives <= 0) {
-        setGameState('gameOver');
-      } else {
-        // Reset pacman position
-        setPacman({ x: 1, y: 1 });
+    if (collidingEnemy) {
+      if (powerMode && collidingEnemy.isVulnerable) {
+        // Eat the enemy!
+        setScore(prev => prev + 200);
+        setEnemies(prev => prev.map(enemy => 
+          enemy.id === collidingEnemy.id 
+            ? { ...enemy, x: 9, y: 9, isVulnerable: false } // Reset enemy position
+            : enemy
+        ));
+      } else if (!collidingEnemy.isVulnerable) {
+        // Pacman dies
+        const newLives = lives - 1;
+        setLives(newLives);
+        
+        if (newLives <= 0) {
+          setGameState('gameOver');
+        } else {
+          // Reset pacman position
+          setPacman({ x: 1, y: 1 });
+        }
       }
     }
-  }, [pacman, enemies, lives, gameState]);
+  }, [pacman, enemies, lives, gameState, powerMode]);
 
   // Check for level completion
   useEffect(() => {
@@ -231,7 +248,7 @@ export function PacmanGame({ isOpen, onClose }: PacmanGameProps) {
     if (maze[newY] && maze[newY][newX] !== 1) {
       setPacman({ x: newX, y: newY });
 
-      // Check if eating a dot
+      // Check if eating a dot or power pellet
       if (maze[newY][newX] === 2) {
         setScore(prev => prev + 10);
         setDotsEaten(prev => prev + 1);
@@ -241,9 +258,41 @@ export function PacmanGame({ isOpen, onClose }: PacmanGameProps) {
           newMaze[newY][newX] = 0;
           return newMaze;
         });
+      } else if (maze[newY][newX] === 3) {
+        // Power pellet!
+        setScore(prev => prev + 50);
+        setDotsEaten(prev => prev + 1);
+        setPowerMode(true);
+        setPowerModeTimer(100); // 10 seconds at 10fps
+        // Make all enemies vulnerable
+        setEnemies(prev => prev.map(enemy => ({ ...enemy, isVulnerable: true })));
+        // Remove the power pellet from the maze
+        setMaze(prevMaze => {
+          const newMaze = prevMaze.map(row => [...row]);
+          newMaze[newY][newX] = 0;
+          return newMaze;
+        });
       }
     }
   }, [pacman, gameState, maze]);
+
+  // Handle power mode timer
+  useEffect(() => {
+    if (!powerMode || gameState !== 'playing') return;
+
+    const interval = setInterval(() => {
+      setPowerModeTimer(prev => {
+        if (prev <= 1) {
+          setPowerMode(false);
+          setEnemies(prevEnemies => prevEnemies.map(enemy => ({ ...enemy, isVulnerable: false })));
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 100);
+
+    return () => clearInterval(interval);
+  }, [powerMode, gameState]);
 
   useEffect(() => {
     if (isOpen) {
@@ -268,6 +317,10 @@ export function PacmanGame({ isOpen, onClose }: PacmanGameProps) {
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-md p-4" data-testid="pacman-game-modal">
+        <DialogHeader className="sr-only">
+          <DialogTitle>SwagMan Game</DialogTitle>
+          <DialogDescription>A Pacman-style game featuring the LSD logo collecting dots while avoiding t-shirt enemies</DialogDescription>
+        </DialogHeader>
         <div className="text-center space-y-4">
           <h2 className="text-2xl font-bold">SwagMan Game! 👻</h2>
           
@@ -275,6 +328,7 @@ export function PacmanGame({ isOpen, onClose }: PacmanGameProps) {
             <span>Lives: {'❤️'.repeat(lives)}</span>
             <span>Score: {score}</span>
             <span>Level: {level}</span>
+            {powerMode && <span className="text-yellow-400 animate-pulse">POWER MODE!</span>}
           </div>
 
           <div 
@@ -288,44 +342,79 @@ export function PacmanGame({ isOpen, onClose }: PacmanGameProps) {
                 <div
                   key={`${x}-${y}`}
                   className={`absolute ${
-                    cell === 1 ? 'bg-blue-600' : 
-                    cell === 2 ? 'bg-yellow-300' : 'bg-transparent'
+                    cell === 1 ? 'bg-blue-600' : 'bg-transparent'
                   }`}
                   style={{
                     left: x * CELL_SIZE,
                     top: y * CELL_SIZE,
                     width: CELL_SIZE,
-                    height: CELL_SIZE,
-                    borderRadius: cell === 2 ? '50%' : '0'
+                    height: CELL_SIZE
                   }}
-                />
+                >
+                  {/* Small white dots */}
+                  {cell === 2 && (
+                    <div 
+                      className="bg-white rounded-full"
+                      style={{
+                        width: '4px',
+                        height: '4px',
+                        position: 'absolute',
+                        left: '50%',
+                        top: '50%',
+                        transform: 'translate(-50%, -50%)'
+                      }}
+                    />
+                  )}
+                  {/* Large white power pellets */}
+                  {cell === 3 && (
+                    <div 
+                      className="bg-white rounded-full animate-pulse"
+                      style={{
+                        width: '12px',
+                        height: '12px',
+                        position: 'absolute',
+                        left: '50%',
+                        top: '50%',
+                        transform: 'translate(-50%, -50%)'
+                      }}
+                    />
+                  )}
+                </div>
               ))
             )}
 
-            {/* Render Pacman */}
+            {/* Render LSD Logo as Pacman */}
             <div
-              className="absolute bg-yellow-400 rounded-full border-2 border-yellow-600 flex items-center justify-center text-xs"
+              className="absolute flex items-center justify-center"
               style={{
-                left: pacman.x * CELL_SIZE,
-                top: pacman.y * CELL_SIZE,
-                width: CELL_SIZE,
-                height: CELL_SIZE
+                left: pacman.x * CELL_SIZE + 2,
+                top: pacman.y * CELL_SIZE + 2,
+                width: CELL_SIZE - 4,
+                height: CELL_SIZE - 4
               }}
               data-testid="pacman"
             >
-              😮
+              <img 
+                src={lsdLogoPath} 
+                alt="LSD Logo" 
+                className="w-full h-full object-contain rounded-full"
+                style={{ filter: 'invert(1)' }}
+              />
             </div>
 
             {/* Render T-shirt enemies */}
             {enemies.map(enemy => (
               <div
                 key={enemy.id}
-                className="absolute flex items-center justify-center text-lg"
+                className={`absolute flex items-center justify-center text-lg transition-all duration-200 ${
+                  enemy.isVulnerable ? 'animate-pulse' : ''
+                }`}
                 style={{
                   left: enemy.x * CELL_SIZE,
                   top: enemy.y * CELL_SIZE,
                   width: CELL_SIZE,
-                  height: CELL_SIZE
+                  height: CELL_SIZE,
+                  filter: enemy.isVulnerable ? 'hue-rotate(180deg) brightness(0.7)' : 'none'
                 }}
                 data-testid={`enemy-${enemy.id}`}
               >
