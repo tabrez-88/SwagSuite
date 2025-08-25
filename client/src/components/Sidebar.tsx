@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Link, useLocation } from "wouter";
 import { 
   Ungroup, 
@@ -18,6 +19,7 @@ import {
   AlertCircle
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { PacmanGame } from "./PacmanGame";
 
 const navigation = [
   { name: "Dashboard", href: "/", icon: Gauge },
@@ -39,12 +41,17 @@ const navigation = [
 
 export default function Sidebar() {
   const [location] = useLocation();
+  const [isPacmanOpen, setIsPacmanOpen] = useState(false);
 
   return (
     <div className="w-64 bg-swag-dark text-white flex-shrink-0 transition-all duration-300">
       {/* Logo Section */}
       <div className="p-6 border-b border-gray-700">
-        <div className="flex items-center space-x-3">
+        <div 
+          className="flex items-center space-x-3 cursor-pointer hover:bg-gray-700/50 rounded-lg p-2 -m-2 transition-colors"
+          onClick={() => setIsPacmanOpen(true)}
+          data-testid="swagsuite-logo"
+        >
           <div className="w-10 h-10 bg-swag-primary rounded-lg flex items-center justify-center">
             <Ungroup className="text-white" size={24} />
           </div>
@@ -76,6 +83,12 @@ export default function Sidebar() {
           );
         })}
       </nav>
+
+      {/* Pacman Game Modal */}
+      <PacmanGame 
+        isOpen={isPacmanOpen} 
+        onClose={() => setIsPacmanOpen(false)} 
+      />
     </div>
   );
 }
