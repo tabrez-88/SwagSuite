@@ -49,14 +49,26 @@ interface ProjectActivity {
 interface Order {
   id: string;
   orderNumber: string;
-  companyName: string;
-  productName: string;
-  quantity: number;
-  orderValue: number;
+  companyId: string | null;
+  contactId: string | null;
+  assignedUserId: string | null;
   status: string;
-  assignedTo: string;
-  dueDate?: string;
+  orderType: string;
+  subtotal: string;
+  tax: string;
+  shipping: string;
+  total: string;
+  margin: string;
+  inHandsDate: string | null;
+  eventDate: string | null;
+  supplierInHandsDate: string | null;
+  isFirm: boolean;
+  notes: string | null;
+  customerNotes: string | null;
+  internalNotes: string | null;
+  trackingNumber: string | null;
   createdAt: string;
+  updatedAt: string;
 }
 
 interface TeamMember {
@@ -108,6 +120,17 @@ export default function ProjectPage() {
   const { data: teamMembers = [] } = useQuery<TeamMember[]>({
     queryKey: ["/api/users/team"],
   });
+
+  // Fetch companies to get company name
+  const { data: companies = [] } = useQuery<any[]>({
+    queryKey: ["/api/companies"],
+  });
+
+  const getCompanyName = (companyId: string | null) => {
+    if (!companyId) return "Unknown Company";
+    const company = companies?.find((c: any) => c.id === companyId);
+    return company?.name || "Unknown Company";
+  };
 
   // Add new activity mutation
   const addActivityMutation = useMutation({
@@ -219,22 +242,23 @@ export default function ProjectPage() {
     <div className="space-y-6 p-6">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 items-center gap-4">
           <Button
             variant="outline"
             size="sm"
             onClick={() => setLocation('/orders')}
             data-testid="button-back-orders"
+            className="w-fit"
           >
             <ArrowLeft className="w-4 h-4 mr-2" />
             Back to Orders
           </Button>
           <div>
-            <h1 className="text-3xl font-bold text-swag-navy">
+            <h1 className="text-2xl md:text-3xl font-bold text-swag-navy">
               Project: {order.orderNumber}
             </h1>
             <p className="text-muted-foreground">
-              {order.companyName} • {order.productName} • Qty: {order.quantity}
+              {getCompanyName(order.companyId)}
             </p>
           </div>
         </div>
@@ -256,21 +280,21 @@ export default function ProjectPage() {
             <CardContent className="space-y-4">
               <div>
                 <p className="text-sm text-gray-500">Order Value</p>
-                <p className="font-semibold">${order.orderValue}</p>
+                <p className="font-semibold">${Number(order.total).toLocaleString()}</p>
               </div>
               <div>
-                <p className="text-sm text-gray-500">Assigned To</p>
+                <p className="text-sm text-gray-500">Company</p>
                 <div className="flex items-center space-x-2 mt-1">
-                  <UserAvatar name={order.assignedTo} size="sm" />
-                  <span className="text-sm">{order.assignedTo}</span>
+                  <UserAvatar name={getCompanyName(order.companyId)} size="sm" />
+                  <span className="text-sm">{getCompanyName(order.companyId)}</span>
                 </div>
               </div>
-              {order.dueDate && (
+              {order.inHandsDate && (
                 <div>
-                  <p className="text-sm text-gray-500">Due Date</p>
+                  <p className="text-sm text-gray-500">In-Hands Date</p>
                   <p className="text-sm flex items-center gap-1">
                     <Calendar className="w-4 h-4" />
-                    {format(new Date(order.dueDate), 'MMM dd, yyyy')}
+                    {format(new Date(order.inHandsDate), 'MMM dd, yyyy')}
                   </p>
                 </div>
               )}

@@ -160,9 +160,9 @@ export function OrderDetailsModal({ open, onOpenChange, order, companyName }: Or
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-6xl max-h-[95vh] overflow-y-auto">
+        <DialogContent className="max-w-6xl p-4 max-h-[95vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-3">
+            <DialogTitle className="flex items-center pt-3 gap-3">
               <FileText className="w-6 h-6" />
               Order #{order.orderNumber}
               <Badge className={statusClass}>
@@ -180,7 +180,7 @@ export function OrderDetailsModal({ open, onOpenChange, order, companyName }: Or
                 onClick={handleViewProject}
                 className="ml-auto"
               >
-                <ExternalLink className="w-4 h-4 mr-2" />
+                <ExternalLink className="w-4 h-4" />
                 View Full Project
               </Button>
             </DialogTitle>
@@ -190,7 +190,7 @@ export function OrderDetailsModal({ open, onOpenChange, order, companyName }: Or
           </DialogHeader>
 
           <Tabs defaultValue="details" className="w-full">
-            <TabsList className="grid w-full grid-cols-4">
+            <TabsList className="grid w-full h-fit gap-2 grid-cols-2 md:grid-cols-4">
               <TabsTrigger value="details">Order Details</TabsTrigger>
               <TabsTrigger value="communication">Internal Notes</TabsTrigger>
               <TabsTrigger value="email">Client Communication</TabsTrigger>
@@ -198,163 +198,155 @@ export function OrderDetailsModal({ open, onOpenChange, order, companyName }: Or
             </TabsList>
 
             <TabsContent value="details" className="mt-6">
-
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Left Column - Order Information */}
-                <div className="space-y-6">
-                  {/* Company & Contact Information */}
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <Building2 className="w-5 h-5" />
-                        Company Information
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      <div className="flex items-center space-x-3">
-                        <UserAvatar name={companyName} size="sm" />
-                        <div>
-                          <p className="font-semibold">{companyName}</p>
-                          <p className="text-sm text-gray-600">Primary Client</p>
-                        </div>
+                {/* Company & Contact Information */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Building2 className="w-5 h-5" />
+                      Company Information
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="flex items-center space-x-3">
+                      <UserAvatar name={companyName} size="sm" />
+                      <div>
+                        <p className="font-semibold">{companyName}</p>
+                        <p className="text-sm text-gray-600">Primary Client</p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <User className="w-4 h-4 text-gray-500" />
+                      <span className="text-sm">Primary Contact</span>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <Mail className="w-4 h-4 text-gray-500" />
+                      <span className="text-sm">contact@company.com</span>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <Phone className="w-4 h-4 text-gray-500" />
+                      <span className="text-sm">(555) 123-4567</span>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Order Details */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Package className="w-5 h-5" />
+                      Order Details
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <p className="text-sm font-medium text-gray-500">Order Type</p>
+                        <Badge variant="outline" className="mt-1">
+                          {order.orderType?.replace('_', ' ').toUpperCase() || 'QUOTE'}
+                        </Badge>
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-gray-500">Priority</p>
+                        <Badge variant="secondary" className="mt-1">
+                          NORMAL
+                        </Badge>
+                      </div>
+                    </div>
+
+                    <Separator />
+
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-2">
+                        <DollarSign className="w-4 h-4 text-gray-500" />
+                        <span className="text-sm font-medium">Total: </span>
+                        <span className="text-lg font-bold text-green-600">
+                          ${Number(order.total || 0).toLocaleString()}
+                        </span>
                       </div>
 
                       <div className="flex items-center gap-2">
-                        <User className="w-4 h-4 text-gray-500" />
-                        <span className="text-sm">Primary Contact</span>
+                        <CheckCircle className="w-4 h-4 text-gray-500" />
+                        <span className="text-sm font-medium">Deposit: </span>
+                        <span className="text-sm">
+                          ${(Number(order.total || 0) * 0.5).toLocaleString()}
+                        </span>
                       </div>
+                    </div>
+                  </CardContent>
+                </Card>
 
+                {/* Rush Order & Timeline Information */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Calendar className="w-5 h-5" />
+                      Timeline & Priority
+                      {isRushOrder && (
+                        <Badge variant="destructive" className="flex items-center gap-1 ml-2">
+                          <AlertTriangle className="w-3 h-3" />
+                          RUSH
+                        </Badge>
+                      )}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    {order.inHandsDate ? (
                       <div className="flex items-center gap-2">
-                        <Mail className="w-4 h-4 text-gray-500" />
-                        <span className="text-sm">contact@company.com</span>
-                      </div>
-
-                      <div className="flex items-center gap-2">
-                        <Phone className="w-4 h-4 text-gray-500" />
-                        <span className="text-sm">(555) 123-4567</span>
-                      </div>
-                    </CardContent>
-                  </Card>
-
-                  {/* Order Details */}
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <Package className="w-5 h-5" />
-                        Order Details
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <p className="text-sm font-medium text-gray-500">Order Type</p>
-                          <Badge variant="outline" className="mt-1">
-                            {order.orderType?.replace('_', ' ').toUpperCase() || 'QUOTE'}
-                          </Badge>
-                        </div>
-                        <div>
-                          <p className="text-sm font-medium text-gray-500">Priority</p>
-                          <Badge variant="secondary" className="mt-1">
-                            NORMAL
-                          </Badge>
-                        </div>
-                      </div>
-
-                      <Separator />
-
-                      <div className="space-y-3">
-                        <div className="flex items-center gap-2">
-                          <DollarSign className="w-4 h-4 text-gray-500" />
-                          <span className="text-sm font-medium">Total: </span>
-                          <span className="text-lg font-bold text-green-600">
-                            ${Number(order.total || 0).toLocaleString()}
-                          </span>
-                        </div>
-
-                        <div className="flex items-center gap-2">
-                          <CheckCircle className="w-4 h-4 text-gray-500" />
-                          <span className="text-sm font-medium">Deposit: </span>
-                          <span className="text-sm">
-                            ${(Number(order.total || 0) * 0.5).toLocaleString()}
-                          </span>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-
-                  {/* Rush Order & Timeline Information */}
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <Calendar className="w-5 h-5" />
-                        Timeline & Priority
+                        <Calendar className="w-4 h-4 text-gray-500" />
+                        <span className="text-sm font-medium">In Hands Date: </span>
+                        <span className={`text-sm font-medium ${isRushOrder ? 'text-red-600' : 'text-gray-900'}`}>
+                          {new Date(order.inHandsDate).toLocaleDateString()}
+                        </span>
                         {isRushOrder && (
-                          <Badge variant="destructive" className="flex items-center gap-1 ml-2">
-                            <AlertTriangle className="w-3 h-3" />
-                            RUSH
+                          <Badge variant="outline" className="text-xs text-red-600 border-red-200">
+                            {Math.ceil((new Date(order.inHandsDate).getTime() - new Date().getTime()) / (24 * 60 * 60 * 1000))} days
                           </Badge>
                         )}
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-3">
-                      {order.inHandsDate ? (
-                        <div className="flex items-center gap-2">
-                          <Calendar className="w-4 h-4 text-gray-500" />
-                          <span className="text-sm font-medium">In Hands Date: </span>
-                          <span className={`text-sm font-medium ${isRushOrder ? 'text-red-600' : 'text-gray-900'}`}>
-                            {new Date(order.inHandsDate).toLocaleDateString()}
-                          </span>
-                          {isRushOrder && (
-                            <Badge variant="outline" className="text-xs text-red-600 border-red-200">
-                              {Math.ceil((new Date(order.inHandsDate).getTime() - new Date().getTime()) / (24 * 60 * 60 * 1000))} days
-                            </Badge>
-                          )}
-                        </div>
-                      ) : (
-                        <div className="flex items-center gap-2">
-                          <Calendar className="w-4 h-4 text-gray-400" />
-                          <span className="text-sm text-gray-500">No in-hands date specified</span>
-                        </div>
-                      )}
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <Calendar className="w-4 h-4 text-gray-400" />
+                        <span className="text-sm text-gray-500">No in-hands date specified</span>
+                      </div>
+                    )}
 
-                      {order.createdAt && (
-                        <div className="flex items-center gap-2">
-                          <Clock className="w-4 h-4 text-gray-500" />
-                          <span className="text-sm font-medium">Order Created: </span>
-                          <span className="text-sm">
-                            {new Date(order.createdAt).toLocaleDateString()}
-                          </span>
-                        </div>
-                      )}
+                    {order.createdAt && (
+                      <div className="flex items-center gap-2">
+                        <Clock className="w-4 h-4 text-gray-500" />
+                        <span className="text-sm font-medium">Order Created: </span>
+                        <span className="text-sm">
+                          {new Date(order.createdAt).toLocaleDateString()}
+                        </span>
+                      </div>
+                    )}
 
-                      {isRushOrder && (
-                        <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
-                          <div className="flex items-center gap-2 mb-1">
-                            <Zap className="w-4 h-4 text-red-600" />
-                            <span className="text-sm font-medium text-red-800">Rush Order Alert</span>
-                          </div>
-                          <p className="text-xs text-red-700">
-                            This order has a tight deadline. Coordinate with vendors for expedited production.
-                          </p>
+                    {isRushOrder && (
+                      <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+                        <div className="flex items-center gap-2 mb-1">
+                          <Zap className="w-4 h-4 text-red-600" />
+                          <span className="text-sm font-medium text-red-800">Rush Order Alert</span>
                         </div>
-                      )}
+                        <p className="text-xs text-red-700">
+                          This order has a tight deadline. Coordinate with vendors for expedited production.
+                        </p>
+                      </div>
+                    )}
 
-                      {order.eventDate && (
-                        <div className="flex items-center gap-2">
-                          <Clock className="w-4 h-4 text-gray-500" />
-                          <span className="text-sm font-medium">Event Date: </span>
-                          <span className="text-sm">
-                            {new Date(order.eventDate).toLocaleDateString()}
-                          </span>
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
-                </div>
-              </div>
-
-              {/* Right Column - Additional Information */}
-              <div className="space-y-6">
+                    {order.eventDate && (
+                      <div className="flex items-center gap-2">
+                        <Clock className="w-4 h-4 text-gray-500" />
+                        <span className="text-sm font-medium">Event Date: </span>
+                        <span className="text-sm">
+                          {new Date(order.eventDate).toLocaleDateString()}
+                        </span>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
                 {/* Shipping Information */}
                 <Card>
                   <CardHeader>
@@ -426,21 +418,21 @@ export function OrderDetailsModal({ open, onOpenChange, order, companyName }: Or
                     )}
                   </CardContent>
                 </Card>
+              </div>
 
-                {/* Action Buttons */}
-                <div className="flex gap-3">
-                  <Button variant="default" className="flex-1" onClick={handleViewProject}>
-                    <ExternalLink className="w-4 h-4 mr-2" />
-                    View Full Project
-                  </Button>
-                  <Button
-                    variant="outline"
-                    className="flex-1"
-                    onClick={() => setIsEditModalOpen(true)}
-                  >
-                    Edit Order
-                  </Button>
-                </div>
+              {/* Action Buttons */}
+              <div className="flex gap-3 mt-6">
+                <Button variant="default" className="flex-1" onClick={handleViewProject}>
+                  <ExternalLink className="w-4 h-4 mr-2" />
+                  View Full Project
+                </Button>
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  onClick={() => setIsEditModalOpen(true)}
+                >
+                  Edit Order
+                </Button>
               </div>
             </TabsContent>
 
@@ -856,7 +848,7 @@ export function OrderDetailsModal({ open, onOpenChange, order, companyName }: Or
             </TabsContent>
           </Tabs>
         </DialogContent>
-      </Dialog>
+      </Dialog >
       <OrderModal
         open={isEditModalOpen}
         onOpenChange={setIsEditModalOpen}

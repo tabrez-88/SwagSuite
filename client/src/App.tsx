@@ -29,6 +29,7 @@ import SsActivewearPage from "@/pages/ss-activewear";
 import ErrorsPage from "@/pages/errors";
 import NotFound from "@/pages/not-found";
 import { SlackSidebar } from "@/components/SlackSidebar";
+import { SidebarProvider } from "@/hooks/useSidebar";
 import { useState } from 'react';
 
 // Layout component for authenticated pages
@@ -36,19 +37,21 @@ function AuthenticatedLayout({ children }: { children: React.ReactNode }) {
   const [isSlackMinimized, setIsSlackMinimized] = useState(true);
 
   return (
-    <div className="flex h-screen bg-gray-50">
-      <Sidebar />
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <TopBar />
-        <main className="flex-1 overflow-auto">
-          {children}
-        </main>
+    <SidebarProvider>
+      <div className="flex h-screen bg-gray-50">
+        <Sidebar />
+        <div className="flex-1 flex flex-col overflow-hidden">
+          <TopBar />
+          <main className="flex-1 overflow-auto">
+            {children}
+          </main>
+        </div>
+        <SlackSidebar
+          isMinimized={isSlackMinimized}
+          onToggleMinimize={() => setIsSlackMinimized(!isSlackMinimized)}
+        />
       </div>
-      <SlackSidebar 
-        isMinimized={isSlackMinimized} 
-        onToggleMinimize={() => setIsSlackMinimized(!isSlackMinimized)} 
-      />
-    </div>
+    </SidebarProvider>
   );
 }
 
@@ -76,7 +79,7 @@ function Router() {
             <Route path="/" component={Home} />
             <Route path="/crm" component={CRM} />
             <Route path="/crm/clients/:id" component={ClientDetail} />
-        <Route path="/crm/companies/:id" component={CompanyDetail} />
+            <Route path="/crm/companies/:id" component={CompanyDetail} />
             <Route path="/orders" component={Orders} />
             <Route path="/production-report" component={ProductionReport} />
             <Route path="/products" component={Products} />

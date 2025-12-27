@@ -57,7 +57,7 @@ export function UserAvatar({ user, name, imageUrl, size = "md", className = "" }
   // Show initials if we have a name, otherwise show user icon
   if (displayName) {
     return (
-      <div className={`${sizeClasses[size]} ${className} rounded-full bg-blue-100 flex items-center justify-center`}>
+      <div className={`${sizeClasses[size]} ${className} rounded-full bg-gray-200 flex items-center justify-center`}>
         <span className="font-medium text-blue-800">{getInitials(displayName)}</span>
       </div>
     );

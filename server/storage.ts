@@ -83,6 +83,15 @@ import {
   type InsertSequenceAnalytics,
   type Error,
   type InsertError,
+  newsletterSubscribers,
+  newsletterCampaigns,
+  newsletterTemplates,
+  type NewsletterSubscriber,
+  type InsertNewsletterSubscriber,
+  type NewsletterCampaign,
+  type InsertNewsletterCampaign,
+  type NewsletterTemplate,
+  type InsertNewsletterTemplate,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, like, and, gte, lte, sql, or, ilike } from "drizzle-orm";
@@ -139,7 +148,7 @@ export interface IStorage {
   getOrdersByCompany(companyId: string): Promise<Order[]>;
   getOrdersByStatus(status: string): Promise<Order[]>;
   getProductionOrders(): Promise<any[]>;
-  
+
   // Data Upload operations
   createDataUpload(upload: InsertDataUpload): Promise<DataUpload>;
   getDataUploads(): Promise<DataUpload[]>;
@@ -178,6 +187,7 @@ export interface IStorage {
   getArtworkCards(): Promise<any[]>;
   createArtworkCard(card: InsertArtworkCard): Promise<ArtworkCard>;
   moveArtworkCard(cardId: string, columnId: string, position: number): Promise<ArtworkCard>;
+  updateArtworkCard(id: string, card: Partial<InsertArtworkCard>): Promise<ArtworkCard>;
 
   // Search functionality
   searchCompanies(query: string): Promise<Company[]>;
@@ -189,17 +199,17 @@ export interface IStorage {
   createPresentation(presentation: InsertPresentation): Promise<Presentation>;
   updatePresentation(id: string, presentation: Partial<InsertPresentation>): Promise<Presentation>;
   deletePresentation(id: string): Promise<void>;
-  
+
   createPresentationFile(file: InsertPresentationFile): Promise<PresentationFile>;
   getPresentationFiles(presentationId: string): Promise<PresentationFile[]>;
-  
+
   createPresentationProduct(product: InsertPresentationProduct): Promise<PresentationProduct>;
   getPresentationProducts(presentationId: string): Promise<PresentationProduct[]>;
-  
+
   // Slack Message operations
   getSlackMessages(): Promise<SlackMessage[]>;
   createSlackMessage(message: InsertSlackMessage): Promise<SlackMessage>;
-  
+
   // S&S Activewear operations
   getSsActivewearProducts(): Promise<SsActivewearProduct[]>;
   getSsActivewearProductBySku(sku: string): Promise<SsActivewearProduct | undefined>;
@@ -207,7 +217,7 @@ export interface IStorage {
   updateSsActivewearProduct(id: string, product: Partial<InsertSsActivewearProduct>): Promise<SsActivewearProduct>;
   deleteSsActivewearProduct(id: string): Promise<void>;
   searchSsActivewearProducts(query: string): Promise<SsActivewearProduct[]>;
-  
+
   // S&S Activewear Import Job operations
   getSsActivewearImportJobs(userId?: string): Promise<SsActivewearImportJob[]>;
   getSsActivewearImportJob(id: string): Promise<SsActivewearImportJob | undefined>;
@@ -231,18 +241,18 @@ export interface IStorage {
   createSequence(sequence: InsertSequence): Promise<Sequence>;
   updateSequence(id: string, sequence: Partial<InsertSequence>): Promise<Sequence>;
   deleteSequence(id: string): Promise<void>;
-  
+
   // Sequence Step operations
   getSequenceSteps(sequenceId: string): Promise<SequenceStep[]>;
   createSequenceStep(step: InsertSequenceStep): Promise<SequenceStep>;
   updateSequenceStep(id: string, step: Partial<InsertSequenceStep>): Promise<SequenceStep>;
   deleteSequenceStep(id: string): Promise<void>;
-  
+
   // Sequence Enrollment operations
   getSequenceEnrollments(sequenceId?: string): Promise<SequenceEnrollment[]>;
   createSequenceEnrollment(enrollment: InsertSequenceEnrollment): Promise<SequenceEnrollment>;
   updateSequenceEnrollment(id: string, enrollment: Partial<InsertSequenceEnrollment>): Promise<SequenceEnrollment>;
-  
+
   // Sequence Analytics operations
   getSequenceAnalytics(sequenceId: string): Promise<SequenceAnalytics[]>;
   createSequenceAnalytics(analytics: InsertSequenceAnalytics): Promise<SequenceAnalytics>;
@@ -265,6 +275,14 @@ export interface IStorage {
     errorsByType: { [key: string]: number };
     errorsByResponsibleParty: { [key: string]: number };
   }>;
+
+  // Newsletter operations
+  getNewsletterSubscribers(): Promise<NewsletterSubscriber[]>;
+  createNewsletterSubscriber(subscriber: InsertNewsletterSubscriber): Promise<NewsletterSubscriber>;
+  getNewsletterCampaigns(): Promise<NewsletterCampaign[]>;
+  createNewsletterCampaign(campaign: InsertNewsletterCampaign): Promise<NewsletterCampaign>;
+  getNewsletterTemplates(): Promise<NewsletterTemplate[]>;
+  createNewsletterTemplate(template: InsertNewsletterTemplate): Promise<NewsletterTemplate>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -380,7 +398,7 @@ export class DatabaseStorage implements IStorage {
       .set({ ...clientData, updatedAt: new Date() })
       .where(eq(clients.id, id))
       .returning();
-    
+
     return updatedClient;
   }
 
@@ -480,10 +498,14 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createOrder(order: InsertOrder): Promise<Order> {
-    // Generate order number
-    const orderCount = await db.select({ count: sql`count(*)` }).from(orders);
-    const orderNumber = `ORD-${new Date().getFullYear()}-${String(Number(orderCount[0].count) + 1).padStart(3, '0')}`;
-    
+    // Generate order number if not provided
+    let orderNumber = order.orderNumber;
+
+    if (!orderNumber) {
+      const orderCount = await db.select({ count: sql`count(*)` }).from(orders);
+      orderNumber = `ORD-${new Date().getFullYear()}-${String(Number(orderCount[0].count) + 1).padStart(3, '0')}`;
+    }
+
     const [newOrder] = await db
       .insert(orders)
       .values({ ...order, orderNumber })
@@ -540,7 +562,7 @@ export class DatabaseStorage implements IStorage {
       .leftJoin(companies, eq(orders.companyId, companies.id))
       .leftJoin(users, eq(orders.assignedUserId, users.id))
       .orderBy(desc(orders.createdAt));
-    
+
     return results;
   }
 
@@ -573,7 +595,7 @@ export class DatabaseStorage implements IStorage {
   // Artwork operations
   async getArtworkFiles(orderId?: string, companyId?: string): Promise<ArtworkFile[]> {
     const query = db.select().from(artworkFiles);
-    
+
     if (orderId && companyId) {
       return await query.where(
         and(eq(artworkFiles.orderId, orderId), eq(artworkFiles.companyId, companyId))
@@ -583,7 +605,7 @@ export class DatabaseStorage implements IStorage {
     } else if (companyId) {
       return await query.where(eq(artworkFiles.companyId, companyId));
     }
-    
+
     return await query.orderBy(desc(artworkFiles.createdAt));
   }
 
@@ -599,7 +621,7 @@ export class DatabaseStorage implements IStorage {
   // Activity operations
   async getActivities(entityType?: string, entityId?: string): Promise<Activity[]> {
     const query = db.select().from(activities);
-    
+
     if (entityType && entityId) {
       return await query.where(
         and(eq(activities.entityType, entityType), eq(activities.entityId, entityId))
@@ -608,7 +630,7 @@ export class DatabaseStorage implements IStorage {
       return await query.where(eq(activities.entityType, entityType))
         .orderBy(desc(activities.createdAt));
     }
-    
+
     return await query.orderBy(desc(activities.createdAt)).limit(50);
   }
 
@@ -718,7 +740,7 @@ export class DatabaseStorage implements IStorage {
       color: col.color,
       isDefault: col.isDefault
     }));
-    
+
     return await db.insert(artworkColumns).values(insertColumns).returning();
   }
 
@@ -769,6 +791,15 @@ export class DatabaseStorage implements IStorage {
       .update(artworkCards)
       .set({ columnId, position, updatedAt: new Date() })
       .where(eq(artworkCards.id, cardId))
+      .returning();
+    return updatedCard;
+  }
+
+  async updateArtworkCard(id: string, card: Partial<InsertArtworkCard>): Promise<ArtworkCard> {
+    const [updatedCard] = await db
+      .update(artworkCards)
+      .set({ ...card, updatedAt: new Date() })
+      .where(eq(artworkCards.id, id))
       .returning();
     return updatedCard;
   }
@@ -1196,7 +1227,7 @@ export class DatabaseStorage implements IStorage {
 
     // Insert companies
     const insertedCompanies = await db.insert(companies).values(sampleCompanies).onConflictDoNothing().returning();
-    
+
     // Insert suppliers
     const insertedSuppliers = await db.insert(suppliers).values(sampleSuppliers).onConflictDoNothing().returning();
 
@@ -1410,12 +1441,12 @@ export class DatabaseStorage implements IStorage {
     // Create sample orders with different statuses and values
     const orderStatuses = ['quote', 'pending_approval', 'approved', 'in_production', 'shipped', 'delivered'] as const;
     const sampleOrders = [];
-    
+
     for (let i = 0; i < 18; i++) {
       const company = insertedCompanies[i % insertedCompanies.length];
       const status = orderStatuses[i % orderStatuses.length];
       const orderValue = 500 + (i * 150) + Math.random() * 1000;
-      
+
       sampleOrders.push({
         orderNumber: `ORD-2025-${String(1001 + i).padStart(4, '0')}`,
         companyId: company?.id || 'default-company',
@@ -1445,7 +1476,7 @@ export class DatabaseStorage implements IStorage {
         const product = insertedProducts[Math.floor(Math.random() * insertedProducts.length)];
         const quantity = 25 + Math.floor(Math.random() * 475); // 25-500 quantity
         const unitPrice = Number(product?.unitPrice) || 10;
-        
+
         sampleOrderItems.push({
           orderId: order.id,
           productId: product?.id || 'default-product',
@@ -1514,7 +1545,7 @@ export class DatabaseStorage implements IStorage {
       const column = artworkColumns[columnIndex];
       const company = insertedCompanies[index % insertedCompanies.length];
       const order = insertedOrders[index % insertedOrders.length];
-      
+
       sampleArtworkCards.push({
         title,
         description: `Custom artwork design for ${company?.name || 'client'} - ${title.toLowerCase()}`,
@@ -1692,11 +1723,11 @@ export class DatabaseStorage implements IStorage {
   // S&S Activewear Import Job operations
   async getSsActivewearImportJobs(userId?: string): Promise<SsActivewearImportJob[]> {
     const query = db.select().from(ssActivewearImportJobs);
-    
+
     if (userId) {
       query.where(eq(ssActivewearImportJobs.userId, userId));
     }
-    
+
     return await query.orderBy(desc(ssActivewearImportJobs.createdAt));
   }
 
@@ -1799,7 +1830,7 @@ export class DatabaseStorage implements IStorage {
   async deleteSequence(id: string): Promise<void> {
     await db.delete(sequences).where(eq(sequences.id, id));
   }
-  
+
   // Sequence Step operations
   async getSequenceSteps(sequenceId: string): Promise<SequenceStep[]> {
     return await db.select().from(sequenceSteps)
@@ -1825,7 +1856,7 @@ export class DatabaseStorage implements IStorage {
   async deleteSequenceStep(id: string): Promise<void> {
     await db.delete(sequenceSteps).where(eq(sequenceSteps.id, id));
   }
-  
+
   // Sequence Enrollment operations
   async getSequenceEnrollments(sequenceId?: string): Promise<SequenceEnrollment[]> {
     const query = db.select().from(sequenceEnrollments);
@@ -1849,7 +1880,7 @@ export class DatabaseStorage implements IStorage {
       .returning();
     return updatedEnrollment;
   }
-  
+
   // Sequence Analytics operations
   async getSequenceAnalytics(sequenceId: string): Promise<SequenceAnalytics[]> {
     return await db.select().from(sequenceAnalytics)
@@ -1939,20 +1970,20 @@ export class DatabaseStorage implements IStorage {
     errorsByResponsibleParty: { [key: string]: number };
   }> {
     const allErrors = await this.getErrors();
-    
+
     const totalErrors = allErrors.length;
     const resolvedErrors = allErrors.filter(e => e.isResolved).length;
     const unresolvedErrors = totalErrors - resolvedErrors;
     const costToLsd = allErrors.reduce((sum, e) => sum + parseFloat(e.costToLsd || '0'), 0);
-    
+
     const errorsByType: { [key: string]: number } = {};
     const errorsByResponsibleParty: { [key: string]: number } = {};
-    
+
     allErrors.forEach(error => {
       errorsByType[error.errorType] = (errorsByType[error.errorType] || 0) + 1;
       errorsByResponsibleParty[error.responsibleParty] = (errorsByResponsibleParty[error.responsibleParty] || 0) + 1;
     });
-    
+
     return {
       totalErrors,
       resolvedErrors,
@@ -1961,6 +1992,33 @@ export class DatabaseStorage implements IStorage {
       errorsByType,
       errorsByResponsibleParty,
     };
+  }
+  // Newsletter operations
+  async getNewsletterSubscribers(): Promise<NewsletterSubscriber[]> {
+    return await db.select().from(newsletterSubscribers).orderBy(desc(newsletterSubscribers.createdAt));
+  }
+
+  async createNewsletterSubscriber(subscriber: InsertNewsletterSubscriber): Promise<NewsletterSubscriber> {
+    const [newSubscriber] = await db.insert(newsletterSubscribers).values(subscriber).returning();
+    return newSubscriber;
+  }
+
+  async getNewsletterCampaigns(): Promise<NewsletterCampaign[]> {
+    return await db.select().from(newsletterCampaigns).orderBy(desc(newsletterCampaigns.createdAt));
+  }
+
+  async createNewsletterCampaign(campaign: InsertNewsletterCampaign): Promise<NewsletterCampaign> {
+    const [newCampaign] = await db.insert(newsletterCampaigns).values(campaign).returning();
+    return newCampaign;
+  }
+
+  async getNewsletterTemplates(): Promise<NewsletterTemplate[]> {
+    return await db.select().from(newsletterTemplates).orderBy(desc(newsletterTemplates.createdAt));
+  }
+
+  async createNewsletterTemplate(template: InsertNewsletterTemplate): Promise<NewsletterTemplate> {
+    const [newTemplate] = await db.insert(newsletterTemplates).values(template).returning();
+    return newTemplate;
   }
 }
 

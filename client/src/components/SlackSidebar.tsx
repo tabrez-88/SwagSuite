@@ -1,11 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { 
-  MessageSquare, 
-  Send, 
-  Minimize2, 
-  Maximize2, 
-  Users, 
+import {
+  MessageSquare,
+  Send,
+  Minimize2,
+  Maximize2,
+  Users,
   Clock,
   RefreshCw,
   Hash
@@ -40,7 +40,7 @@ export function SlackSidebar({ isMinimized, onToggleMinimize }: SlackSidebarProp
   const queryClient = useQueryClient();
 
   // Fetch Slack messages
-  const { data: messages = [], isLoading, refetch } = useQuery({
+  const { data: messages = [], isLoading, refetch } = useQuery<SlackMessage[]>({
     queryKey: ['/api/slack/messages'],
     refetchInterval: 5000, // Refresh every 5 seconds
     enabled: !isMinimized, // Only fetch when not minimized
@@ -82,13 +82,13 @@ export function SlackSidebar({ isMinimized, onToggleMinimize }: SlackSidebarProp
 
   if (isMinimized) {
     return (
-      <div className="fixed right-4 top-1/2 transform -translate-y-1/2 z-50">
+      <div className="fixed right-6 bottom-0 transform -translate-y-1/2 z-50">
         <Button
           onClick={onToggleMinimize}
           className="bg-[#4A154B] hover:bg-[#4A154B]/90 text-white rounded-full w-12 h-12 p-0 shadow-lg"
           title="Open Slack"
         >
-          <MessageSquare size={20} />
+          <MessageSquare size={28} />
         </Button>
         {messages.length > 0 && (
           <Badge className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs">
@@ -138,7 +138,7 @@ export function SlackSidebar({ isMinimized, onToggleMinimize }: SlackSidebarProp
               <span className="ml-2 text-gray-500">Loading messages...</span>
             </div>
           )}
-          
+
           {messages.length === 0 && !isLoading && (
             <div className="text-center py-8 text-gray-500">
               <MessageSquare size={32} className="mx-auto mb-2 opacity-50" />

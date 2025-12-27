@@ -1,13 +1,14 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
+import "./types"; // Import type definitions for Express.User
 import multer from "multer";
 import path from "path";
 import fs from "fs";
 import { setupAuth, isAuthenticated } from "./replitAuth";
-import { 
-  insertCompanySchema, 
-  insertContactSchema, 
+import {
+  insertCompanySchema,
+  insertContactSchema,
   insertClientSchema,
   insertSupplierSchema,
   insertProductSchema,
@@ -21,11 +22,23 @@ import {
   insertSequenceStepSchema,
   insertSequenceEnrollmentSchema,
   insertSequenceAnalyticsSchema,
-  insertErrorSchema
+  insertErrorSchema,
+  insertNewsletterSubscriberSchema,
+  insertNewsletterCampaignSchema,
+  insertNewsletterTemplateSchema
 } from "@shared/schema";
 import Anthropic from '@anthropic-ai/sdk';
 import { sendSlackMessage } from "../shared/slack";
 import { SsActivewearService } from "./ssActivewearService";
+
+// Type definitions
+interface SocialMediaPost {
+  platform: string;
+  content: string;
+  timestamp: string;
+  url: string;
+  isExcitingNews: boolean;
+}
 
 // Configure multer for file uploads
 const uploadDir = path.join(process.cwd(), 'uploads');
@@ -51,15 +64,15 @@ const upload = multer({
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // .docx
       'application/msword' // .doc
     ];
-    
-    if (allowedTypes.includes(file.mimetype) || 
-        file.originalname.toLowerCase().endsWith('.ai') ||
-        file.originalname.toLowerCase().endsWith('.eps') ||
-        file.originalname.toLowerCase().endsWith('.csv') ||
-        file.originalname.toLowerCase().endsWith('.xlsx') ||
-        file.originalname.toLowerCase().endsWith('.xls') ||
-        file.originalname.toLowerCase().endsWith('.docx') ||
-        file.originalname.toLowerCase().endsWith('.doc')) {
+
+    if (allowedTypes.includes(file.mimetype) ||
+      file.originalname.toLowerCase().endsWith('.ai') ||
+      file.originalname.toLowerCase().endsWith('.eps') ||
+      file.originalname.toLowerCase().endsWith('.csv') ||
+      file.originalname.toLowerCase().endsWith('.xlsx') ||
+      file.originalname.toLowerCase().endsWith('.xls') ||
+      file.originalname.toLowerCase().endsWith('.docx') ||
+      file.originalname.toLowerCase().endsWith('.doc')) {
       cb(null, true);
     } else {
       cb(new Error('Invalid file type. Only images, PDF, AI, EPS, Excel, CSV, and Word files are allowed.'));
@@ -96,14 +109,14 @@ async function generatePresentationWithAI(presentationId: string, dealNotes: str
 
     if (!anthropic) {
       console.log('Anthropic API key not configured, using fallback suggestions');
-      
+
       // Fallback product suggestions when AI is not available
       const products = await storage.getProducts();
       const fallbackSuggestions = products.slice(0, 4).map((product, index) => ({
         productName: product.name,
         suggestedQuantity: [250, 500, 1000, 750][index] || 500,
-        suggestedPrice: product.price,
-        reasoning: `Popular ${product.category?.toLowerCase() || 'promotional'} item suitable for corporate campaigns. Great for brand visibility and customer engagement.`
+        suggestedPrice: product.basePrice,
+        reasoning: `Popular promotional item suitable for corporate campaigns. Great for brand visibility and customer engagement.`
       }));
 
       await storage.updatePresentation(presentationId, {
@@ -127,8 +140,8 @@ async function generatePresentationWithAI(presentationId: string, dealNotes: str
 
     // Get available products for suggestions
     const products = await storage.getProducts();
-    const productContext = products.slice(0, 20).map(p => 
-      `${p.name} - $${p.price} - ${p.category} - ${p.description || 'No description'}`
+    const productContext = products.slice(0, 20).map(p =>
+      `${p.name} - $${p.basePrice} - Promotional Product - ${p.description || 'No description'}`
     ).join('\n');
 
     // AI prompt for product suggestions
@@ -167,7 +180,11 @@ Return your response as a JSON object with this structure:
       messages: [{ role: 'user', content: prompt }]
     });
 
-    const aiResponse = JSON.parse(response.content[0].text);
+    const contentBlock = response.content[0];
+    if (contentBlock.type !== 'text') {
+      throw new Error('Unexpected response type from AI');
+    }
+    const aiResponse = JSON.parse(contentBlock.text);
 
     // Update presentation with AI suggestions
     await storage.updatePresentation(presentationId, {
@@ -259,7 +276,7 @@ Return a JSON response with this structure:
 
     const aiResponse = response.content[0]?.type === 'text' ? response.content[0].text : 'Unable to process AI response';
     let processedData;
-    
+
     try {
       processedData = JSON.parse(aiResponse);
     } catch (parseError) {
@@ -296,7 +313,7 @@ Return a JSON response with this structure:
         // Find matching company
         const companies = await storage.searchCompanies(orderData.companyName || '');
         const company = companies[0];
-        
+
         if (company) {
           const order = await storage.createOrder({
             companyId: company.id,
@@ -381,7 +398,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/search/ai", isAuthenticated, async (req, res) => {
     try {
       const { query } = req.body;
-      
+
       if (!query || query.trim().length === 0) {
         return res.json([]);
       }
@@ -389,24 +406,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const searchTerm = query.toLowerCase();
       const results = [];
 
+      // Fetch companies for lookup
+      const companies = await storage.getCompanies();
+      const companyMap = new Map(companies.map(c => [c.id, c.name]));
+
       // Search orders
       const orders = await storage.getOrders();
       const matchingOrders = orders.filter(order => {
-        return order.customerName?.toLowerCase().includes(searchTerm) ||
-               order.orderNumber?.toLowerCase().includes(searchTerm) ||
-               order.status?.toLowerCase().includes(searchTerm);
+        const customerName = order.companyId ? companyMap.get(order.companyId) : '';
+        return customerName?.toLowerCase().includes(searchTerm) ||
+          order.orderNumber?.toLowerCase().includes(searchTerm) ||
+          order.status?.toLowerCase().includes(searchTerm);
       }).slice(0, 3);
 
       for (const order of matchingOrders) {
+        const customerName = order.companyId ? companyMap.get(order.companyId) : 'Unknown Customer';
         results.push({
           id: order.id,
           type: "order",
           title: `Order #${order.orderNumber}`,
-          description: `${order.customerName} - ${order.status}`,
+          description: `${customerName} - ${order.status}`,
           metadata: {
-            value: `$${order.totalAmount?.toFixed(2) || '0.00'}`,
-            status: order.status,
-            date: order.orderDate ? new Date(order.orderDate).toLocaleDateString() : ''
+            value: `$${Number(order.total).toFixed(2)}`,
+            status: order.status || 'unknown',
+            date: order.createdAt ? new Date(order.createdAt).toLocaleDateString() : ''
           },
           url: `/orders`
         });
@@ -416,8 +439,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const products = await storage.getProducts();
       const matchingProducts = products.filter(product => {
         return product.name?.toLowerCase().includes(searchTerm) ||
-               product.description?.toLowerCase().includes(searchTerm) ||
-               product.sku?.toLowerCase().includes(searchTerm);
+          product.description?.toLowerCase().includes(searchTerm) ||
+          product.sku?.toLowerCase().includes(searchTerm);
       }).slice(0, 3);
 
       for (const product of matchingProducts) {
@@ -427,19 +450,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
           title: product.name,
           description: product.description || 'No description available',
           metadata: {
-            value: `$${product.price?.toFixed(2) || '0.00'}`,
-            status: product.status
+            value: `$${Number(product.basePrice || 0).toFixed(2)}`,
           },
           url: `/products`
         });
       }
 
       // Search companies
-      const companies = await storage.getCompanies();
+      // Companies already fetched
       const matchingCompanies = companies.filter(company => {
         return company.name?.toLowerCase().includes(searchTerm) ||
-               company.industry?.toLowerCase().includes(searchTerm) ||
-               company.website?.toLowerCase().includes(searchTerm);
+          company.industry?.toLowerCase().includes(searchTerm) ||
+          company.website?.toLowerCase().includes(searchTerm);
       }).slice(0, 3);
 
       for (const company of matchingCompanies) {
@@ -457,21 +479,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Handle natural language queries for margins
       if (searchTerm.includes('margin') && searchTerm.includes('order')) {
-        const ordersWithMargins = orders.filter(order => order.totalAmount && order.totalAmount > 0)
-          .sort((a, b) => new Date(b.orderDate || 0).getTime() - new Date(a.orderDate || 0).getTime())
+        const ordersWithMargins = orders.filter(order => Number(order.total) > 0)
+          .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())
           .slice(0, 3);
 
         for (const order of ordersWithMargins) {
-          const margin = ((order.totalAmount || 0) * 0.25); // Mock 25% margin
+          const total = Number(order.total);
+          const margin = (total * 0.25); // Mock 25% margin
+          const customerName = order.companyId ? companyMap.get(order.companyId) : 'Unknown Customer';
           results.push({
             id: `margin-${order.id}`,
             type: "order",
             title: `Order #${order.orderNumber} (Margin Analysis)`,
-            description: `${order.customerName} - Recent order with margin data`,
+            description: `${customerName} - Recent order with margin data`,
             metadata: {
-              value: `$${order.totalAmount?.toFixed(2) || '0.00'}`,
+              value: `$${total.toFixed(2)}`,
               margin: `$${margin.toFixed(2)} (25%)`,
-              date: order.orderDate ? new Date(order.orderDate).toLocaleDateString() : ''
+              date: order.createdAt ? new Date(order.createdAt).toLocaleDateString() : ''
             },
             url: `/orders`
           });
@@ -538,7 +562,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/companies', isAuthenticated, async (req, res) => {
     try {
       const { linkedinUrl, twitterUrl, facebookUrl, instagramUrl, otherSocialUrl, ...companyData } = req.body;
-      
+
       // Build social media links object if any URLs are provided
       const socialMediaLinks = {
         linkedin: linkedinUrl || undefined,
@@ -555,7 +579,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const validatedData = insertCompanySchema.parse(dataToInsert);
       const company = await storage.createCompany(validatedData);
-      
+
       // Log activity
       await storage.createActivity({
         userId: (req.user as any)?.claims?.sub,
@@ -564,7 +588,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         action: 'created',
         description: `Created company: ${company.name}`,
       });
-      
+
       res.status(201).json(company);
     } catch (error) {
       console.error("Error creating company:", error);
@@ -575,7 +599,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch('/api/companies/:id', isAuthenticated, async (req, res) => {
     try {
       const { linkedinUrl, twitterUrl, facebookUrl, instagramUrl, otherSocialUrl, ...companyData } = req.body;
-      
+
       // Build social media links object if any URLs are provided
       const socialMediaLinks = {
         linkedin: linkedinUrl || undefined,
@@ -592,7 +616,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const validatedData = insertCompanySchema.partial().parse(dataToUpdate);
       const company = await storage.updateCompany(req.params.id, validatedData);
-      
+
       // Log activity
       await storage.createActivity({
         userId: (req.user as any)?.claims?.sub,
@@ -601,7 +625,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         action: 'updated',
         description: `Updated company: ${company.name}`,
       });
-      
+
       res.json(company);
     } catch (error) {
       console.error("Error updating company:", error);
@@ -612,7 +636,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete('/api/companies/:id', isAuthenticated, async (req, res) => {
     try {
       await storage.deleteCompany(req.params.id);
-      
+
       // Log activity
       await storage.createActivity({
         userId: (req.user as any)?.claims?.sub,
@@ -621,7 +645,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         action: 'deleted',
         description: `Deleted company`,
       });
-      
+
       res.status(204).send();
     } catch (error) {
       console.error("Error deleting company:", error);
@@ -787,7 +811,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/leads', isAuthenticated, async (req, res) => {
     try {
       const leadData = req.body;
-      
+
       // Validate required fields
       if (!leadData.firstName || !leadData.lastName) {
         return res.status(400).json({ message: "First name and last name are required" });
@@ -811,7 +835,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete('/api/leads/:id', isAuthenticated, async (req, res) => {
     try {
       const { id } = req.params;
-      
+
       // Mock lead deletion - replace with actual database deletion
       res.json({ message: "Lead deleted successfully", id });
     } catch (error) {
@@ -837,11 +861,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!client) {
         return res.status(404).json({ message: "Client not found" });
       }
-      
+
       // Generate mock social media posts with exciting news detection
-      const socialMediaPosts = [];
+      const socialMediaPosts: SocialMediaPost[] = [];
       if (client.socialMediaLinks) {
-        const samplePosts = [
+        const samplePosts: SocialMediaPost[] = [
           {
             platform: "linkedin",
             content: "We're excited to announce our new partnership with TechCorp! This exciting news will revolutionize our industry approach.",
@@ -871,7 +895,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             isExcitingNews: false
           }
         ];
-        
+
         // Add posts for platforms that have links
         Object.keys(client.socialMediaLinks).forEach(platform => {
           if (client.socialMediaLinks![platform as keyof typeof client.socialMediaLinks]) {
@@ -886,7 +910,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         socialMediaPosts,
         lastSocialMediaSync: new Date().toISOString()
       };
-      
+
       res.json(clientWithPosts);
     } catch (error) {
       console.error("Error fetching client:", error);
@@ -932,7 +956,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const status = req.query.status as string;
       const companyId = req.query.companyId as string;
-      
+
       let orders;
       if (status) {
         orders = await storage.getOrdersByStatus(status);
@@ -941,7 +965,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } else {
         orders = await storage.getOrders();
       }
-      
+
       res.json(orders);
     } catch (error) {
       console.error("Error fetching orders:", error);
@@ -983,9 +1007,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const validatedData = insertOrderSchema.parse(dataToValidate);
-      
+
       const order = await storage.createOrder(validatedData);
-      
+
       // Log activity
       await storage.createActivity({
         userId: (req.user as any)?.claims?.sub,
@@ -994,7 +1018,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         action: 'created',
         description: `Created order: ${order.orderNumber}`,
       });
-      
+
       res.status(201).json(order);
     } catch (error) {
       console.error("Error creating order:", error);
@@ -1006,7 +1030,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const validatedData = insertOrderSchema.partial().parse(req.body);
       const order = await storage.updateOrder(req.params.id, validatedData);
-      
+
       // Log activity
       await storage.createActivity({
         userId: (req.user as any)?.claims?.sub,
@@ -1015,7 +1039,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         action: 'updated',
         description: `Updated order: ${order.orderNumber}`,
       });
-      
+
       res.json(order);
     } catch (error) {
       console.error("Error updating order:", error);
@@ -1056,7 +1080,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const { orderId, companyId } = req.body;
-      
+
       const artworkFile = await storage.createArtworkFile({
         orderId: orderId || null,
         companyId: companyId || null,
@@ -1065,7 +1089,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         fileSize: req.file.size,
         mimeType: req.file.mimetype,
         filePath: req.file.path,
-        uploadedBy: req.user?.claims?.sub,
+        uploadedBy: (req.user as any)?.id,
       });
 
       res.status(201).json(artworkFile);
@@ -1152,7 +1176,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/search/ai', isAuthenticated, async (req, res) => {
     try {
       const { query } = req.body;
-      
+
       if (!query || typeof query !== 'string') {
         return res.status(400).json({ error: 'Query is required' });
       }
@@ -1221,7 +1245,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/products/popular', async (req, res) => {
     try {
       const { period = '7d', productType = 'all' } = req.query;
-      
+
       // Mock popular products data with realistic values
       const products = [
         {
@@ -1381,7 +1405,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Enhanced Integration Routes
-  
+
   // HubSpot Integration Routes
   app.get('/api/integrations/hubspot/status', isAuthenticated, async (req, res) => {
     try {
@@ -1424,14 +1448,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/integrations/slack/config', isAuthenticated, async (req, res) => {
     try {
       const config = req.body;
-      
+
       // Validate required fields
       if (config.enabled && !config.botToken) {
         return res.status(400).json({ message: "Bot token is required when Slack is enabled" });
       }
 
       // Mock config save - would save to database/environment
-      res.json({ 
+      res.json({
         message: 'Slack configuration saved successfully',
         config: {
           ...config,
@@ -1447,7 +1471,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/integrations/slack/test', isAuthenticated, async (req, res) => {
     try {
       const { message, channel } = req.body;
-      
+
       if (!process.env.SLACK_BOT_TOKEN) {
         return res.status(400).json({ message: "Slack bot token not configured" });
       }
@@ -1481,7 +1505,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/integrations/slack/message', isAuthenticated, async (req, res) => {
     try {
       const { message, channel } = req.body;
-      
+
       if (!message || !channel) {
         return res.status(400).json({ message: "Message and channel are required" });
       }
@@ -1631,7 +1655,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Enhanced Dashboard Routes
   app.get('/api/dashboard/enhanced-stats', isAuthenticated, async (req, res) => {
     try {
-      const stats = await storage.getBasicStats();
+      const stats = await storage.getDashboardStats();
       // Enhanced metrics with period comparisons
       res.json({
         ...stats,
@@ -1661,7 +1685,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const unresolvedErrors = totalErrors - resolvedErrors;
       const totalErrorCost = errors.reduce((sum, e) => sum + parseFloat(e.costToLsd || '0'), 0);
       const errorResolutionRate = totalErrors > 0 ? Math.round((resolvedErrors / totalErrors) * 100) : 0;
-      
+
       // Calculate error metrics by responsible party for team insights
       const lsdErrors = errors.filter(e => e.responsibleParty === 'lsd');
       const vendorErrors = errors.filter(e => e.responsibleParty === 'vendor');
@@ -2069,7 +2093,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Calculate date range based on period
       let dateFilter = '';
       const now = new Date();
-      
+
       if (period === 'ytd') {
         const yearStart = new Date(now.getFullYear(), 0, 1);
         dateFilter = `AND o.created_at >= '${yearStart.toISOString()}'`;
@@ -2107,7 +2131,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           totalRevenue: 5625
         },
         {
-          id: '2', 
+          id: '2',
           name: 'Bella+Canvas 3001 Unisex Jersey Tee',
           sku: 'BC3001',
           imageUrl: '/public-objects/products/bella-3001.jpg',
@@ -2121,7 +2145,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           id: '3',
           name: 'Custom Logo Pen',
           sku: 'PEN001',
-          imageUrl: '/public-objects/products/logo-pen.jpg', 
+          imageUrl: '/public-objects/products/logo-pen.jpg',
           productType: 'hard_goods',
           totalQuantity: 2500,
           orderCount: 15,
@@ -2485,7 +2509,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/admin/suggested-products', isAuthenticated, async (req, res) => {
     try {
       const { name, sku, imageUrl, productType, avgPresentationPrice, discount, adminNote } = req.body;
-      
+
       // In production, this would save to database
       const newSuggestedProduct = {
         id: `admin-${Date.now()}`,
@@ -2548,7 +2572,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { id } = req.params;
       const { discount, adminNote } = req.body;
-      
+
       // In production, this would update the database record
       res.json({ success: true, message: 'Product updated successfully' });
     } catch (error) {
@@ -2560,7 +2584,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete('/api/admin/suggested-products/:id', isAuthenticated, async (req, res) => {
     try {
       const { id } = req.params;
-      
+
       // In production, this would delete from database
       res.json({ success: true, message: 'Product removed successfully' });
     } catch (error) {
@@ -2671,12 +2695,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // ESP/ASI/SAGE Product Integration Routes
-  
+
   // ESP Product Search and Integration
   app.get('/api/integrations/esp/products', isAuthenticated, async (req, res) => {
     try {
       const { search, category, minPrice, maxPrice, asiNumber } = req.query;
-      
+
       // Mock ESP product search - would integrate with actual ESP API
       const mockProducts = [
         {
@@ -2765,22 +2789,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Filter products based on search criteria
       let filteredProducts = mockProducts;
-      
+
       if (search) {
         const searchTerm = search.toString().toLowerCase();
-        filteredProducts = filteredProducts.filter(p => 
+        filteredProducts = filteredProducts.filter(p =>
           p.productName.toLowerCase().includes(searchTerm) ||
           p.description.toLowerCase().includes(searchTerm) ||
           p.category.toLowerCase().includes(searchTerm)
         );
       }
-      
+
       if (category) {
-        filteredProducts = filteredProducts.filter(p => 
+        filteredProducts = filteredProducts.filter(p =>
           p.category.toLowerCase() === category.toString().toLowerCase()
         );
       }
-      
+
       if (asiNumber) {
         filteredProducts = filteredProducts.filter(p => p.asiNumber === asiNumber);
       }
@@ -2800,7 +2824,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/integrations/sage/products', isAuthenticated, async (req, res) => {
     try {
       const { search, category, eqpLevel, brand } = req.query;
-      
+
       // Mock SAGE product search - would integrate with actual SAGE API
       const mockSageProducts = [
         {
@@ -2897,28 +2921,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Filter SAGE products based on search criteria
       let filteredProducts = mockSageProducts;
-      
+
       if (search) {
         const searchTerm = search.toString().toLowerCase();
-        filteredProducts = filteredProducts.filter(p => 
+        filteredProducts = filteredProducts.filter(p =>
           p.productName.toLowerCase().includes(searchTerm) ||
           p.description.toLowerCase().includes(searchTerm) ||
           p.features.some(f => f.toLowerCase().includes(searchTerm))
         );
       }
-      
+
       if (category) {
-        filteredProducts = filteredProducts.filter(p => 
+        filteredProducts = filteredProducts.filter(p =>
           p.category.toLowerCase() === category.toString().toLowerCase()
         );
       }
-      
+
       if (eqpLevel) {
         filteredProducts = filteredProducts.filter(p => p.eqpLevel === eqpLevel);
       }
-      
+
       if (brand) {
-        filteredProducts = filteredProducts.filter(p => 
+        filteredProducts = filteredProducts.filter(p =>
           p.brand.toLowerCase() === brand.toString().toLowerCase()
         );
       }
@@ -2938,7 +2962,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/integrations/dc/products', isAuthenticated, async (req, res) => {
     try {
       const { search, category, minPrice, maxPrice } = req.query;
-      
+
       // Mock Distributor Central products - would integrate with actual DC API
       const mockDCProducts = [
         {
@@ -2998,7 +3022,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/integrations/products/search', isAuthenticated, async (req, res) => {
     try {
       const { query, source, category, minPrice, maxPrice, limit = 50 } = req.query;
-      
+
       // Mock unified search results - would search across ESP, SAGE, DC databases
       const unifiedResults = [
         {
@@ -3112,10 +3136,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { source } = req.params;
       const { syncType = 'incremental', categories = [] } = req.body;
-      
+
       // Mock sync initiation - would trigger actual sync with ESP/SAGE/DC
       const syncId = `sync_${source}_${Date.now()}`;
-      
+
       res.json({
         syncId,
         status: 'initiated',
@@ -3134,12 +3158,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { id } = req.params;
       const updates = req.body;
-      
+
       // Mock update - would update database configuration
-      res.json({ 
+      res.json({
         id,
         ...updates,
-        message: 'Configuration updated successfully' 
+        message: 'Configuration updated successfully'
       });
     } catch (error) {
       res.status(500).json({ message: "Failed to update integration configuration" });
@@ -3200,14 +3224,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/integrations/credentials', isAuthenticated, async (req, res) => {
     try {
       const credentials = req.body;
-      
+
       // Validate credentials format
       const requiredKeys = ['ASI_API_KEY', 'ASI_USERNAME', 'SAGE_API_KEY', 'SAGE_USERNAME'];
       const missingKeys = requiredKeys.filter(key => !credentials[key]);
-      
+
       if (missingKeys.length > 0) {
-        return res.status(400).json({ 
-          message: `Missing required credentials: ${missingKeys.join(', ')}` 
+        return res.status(400).json({
+          message: `Missing required credentials: ${missingKeys.join(', ')}`
         });
       }
 
@@ -3222,7 +3246,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/integrations/:integration/test', isAuthenticated, async (req, res) => {
     try {
       const integration = req.params.integration;
-      
+
       // Mock connection tests
       const connectionTests = {
         asi: () => ({
@@ -3232,7 +3256,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }),
         sage: () => ({
           success: true,
-          message: 'Successfully connected to SAGE World API', 
+          message: 'Successfully connected to SAGE World API',
           details: 'Authentication successful, product database accessible'
         }),
         distributorcentral: () => ({
@@ -3290,7 +3314,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           orderValue: 4800
         }
       ];
-      
+
       res.json(productionOrders);
     } catch (error) {
       console.error('Error fetching production orders:', error);
@@ -3312,7 +3336,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         { id: 'shipping-scheduled', name: 'Shipping Scheduled', order: 8, color: 'bg-cyan-100 text-cyan-800' },
         { id: 'shipped', name: 'Shipped', order: 9, color: 'bg-emerald-100 text-emerald-800' },
       ];
-      
+
       res.json(stages);
     } catch (error) {
       console.error('Error fetching production stages:', error);
@@ -3324,11 +3348,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/search', isAuthenticated, async (req, res) => {
     try {
       const { q } = req.query;
-      
+
       if (!q || typeof q !== 'string' || q.length < 3) {
         return res.json([]);
       }
-      
+
       // Mock search results across different entities
       const searchResults = [
         {
@@ -3355,11 +3379,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           url: '/products?id=1',
           metadata: { category: 'Apparel', supplier: 'ABC Textiles' }
         }
-      ].filter(result => 
+      ].filter(result =>
         result.title.toLowerCase().includes(q.toLowerCase()) ||
         result.description.toLowerCase().includes(q.toLowerCase())
       );
-      
+
       res.json(searchResults);
     } catch (error) {
       console.error('Error performing search:', error);
@@ -3419,7 +3443,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(201).json(card);
     } catch (error) {
       console.error("Error creating artwork card:", error);
-      res.status(500).json({ message: "Failed to create artwork card", error: error.message });
+      res.status(500).json({ message: "Failed to create artwork card", error: (error as Error).message });
     }
   });
 
@@ -3470,7 +3494,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         { id: 'sent-to-client', name: 'Sent to Client', position: 7, color: '#10B981', isDefault: true },
         { id: 'completed', name: 'Completed', position: 8, color: '#22C55E', isDefault: true }
       ];
-      
+
       const columns = await storage.initializeArtworkColumns(defaultColumns);
       res.json(columns);
     } catch (error) {
@@ -3517,7 +3541,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/mockup-builder/products/search', isAuthenticated, async (req, res) => {
     try {
       const { query } = req.query;
-      
+
       // Mock product search from ESP/ASI/SAGE systems
       const mockProducts = [
         {
@@ -3533,7 +3557,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           minQuantity: 24
         },
         {
-          id: "2", 
+          id: "2",
           name: "Ceramic Coffee Mug",
           number: "MUG-101",
           image: "https://images.unsplash.com/photo-1514228742587-6b1558fcf93a?w=400&h=400&fit=crop",
@@ -3558,11 +3582,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       ];
 
-      const filtered = query 
-        ? mockProducts.filter(product => 
-            product.name.toLowerCase().includes(query.toString().toLowerCase()) ||
-            product.number.toLowerCase().includes(query.toString().toLowerCase())
-          )
+      const filtered = query
+        ? mockProducts.filter(product =>
+          product.name.toLowerCase().includes(query.toString().toLowerCase()) ||
+          product.number.toLowerCase().includes(query.toString().toLowerCase())
+        )
         : mockProducts;
 
       res.json(filtered);
@@ -3606,7 +3630,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/mockup-builder/templates', isAuthenticated, async (req, res) => {
     try {
       const templateData = req.body;
-      
+
       // Mock template creation
       const newTemplate = {
         id: `template_${Date.now()}`,
@@ -3625,7 +3649,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/mockup-builder/generate-ai-templates', isAuthenticated, async (req, res) => {
     try {
       const { customerInfo, preferences } = req.body;
-      
+
       // Mock AI template generation
       setTimeout(() => {
         const aiTemplates = [
@@ -3641,14 +3665,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
           {
             id: `ai_template_${Date.now()}_2`,
             name: `${customerInfo?.name || 'Customer'} Modern`,
-            type: "customer", 
+            type: "customer",
             header: `Modern Branding for ${customerInfo?.name || 'Your Business'}`,
             footer: "Innovation Meets Promotion",
             aiGenerated: true,
             confidence: 0.88
           }
         ];
-        
+
         res.json({ templates: aiTemplates, generated: aiTemplates.length });
       }, 2000);
     } catch (error) {
@@ -3660,11 +3684,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/mockup-builder/mockups/download', isAuthenticated, async (req, res) => {
     try {
       const { mockupData, format = 'png' } = req.body;
-      
+
       // Mock mockup download preparation
       const downloadUrl = `https://mock-storage.example.com/mockups/${Date.now()}.${format}`;
-      
-      res.json({ 
+
+      res.json({
         downloadUrl,
         expiresAt: new Date(Date.now() + 3600000).toISOString(), // 1 hour
         format,
@@ -3679,9 +3703,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/mockup-builder/mockups/email', isAuthenticated, async (req, res) => {
     try {
       const { mockupData, emailData } = req.body;
-      
+
       // Mock email sending
-      res.json({ 
+      res.json({
         success: true,
         messageId: `email_${Date.now()}`,
         sentTo: emailData.recipients,
@@ -3696,14 +3720,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Enhanced AI search endpoint for natural language queries
   app.get('/api/search/ai', async (req, res) => {
     const query = req.query.query as string;
-    
+
     if (!query) {
       return res.status(400).json({ message: 'Query parameter is required' });
     }
 
     try {
       const startTime = Date.now();
-      
+
       // Simulate AI processing of natural language query
       let answer = '';
       let results = [];
@@ -3711,7 +3735,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Parse common query types and generate appropriate responses
       const lowerQuery = query.toLowerCase();
-      
+
       if (lowerQuery.includes('last') && lowerQuery.includes('order')) {
         answer = 'Based on recent order data, here are the last three orders: Order #12347 ($2,450 - 35% margin), Order #12346 ($1,890 - 42% margin), and Order #12345 ($3,200 - 28% margin). The average margin for these orders is 35%.';
         results = [
@@ -3878,7 +3902,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
     } catch (error) {
       console.error('AI search error:', error);
-      res.status(500).json({ 
+      res.status(500).json({
         message: 'AI search failed',
         query,
         answer: 'Sorry, I encountered an error while searching. Please try again.',
@@ -3898,8 +3922,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ message: 'Dummy data seeded successfully!' });
     } catch (error) {
       console.error("Error seeding dummy data:", error);
-      console.error("Error stack:", error.stack);
-      res.status(500).json({ message: "Failed to seed dummy data", error: error.message });
+      console.error("Error stack:", (error as Error).stack);
+      res.status(500).json({ message: "Failed to seed dummy data", error: (error as Error).message });
     }
   });
 
@@ -3907,33 +3931,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/test-presentation-generation', isAuthenticated, async (req, res) => {
     try {
       console.log("Testing presentation generation with fallback...");
-      
+
       // Create a test presentation
       const testPresentation = await storage.createPresentation({
         title: 'Test Presentation - Corporate Event Campaign',
         description: 'Test presentation for Q1 corporate events',
         dealNotes: 'Looking for branded apparel, tech accessories, and drinkware for corporate events. Budget $25k, quantities 500-1000 units per item.',
-        userId: req.user.claims.sub,
+        userId: req.user!.claims.sub,
         status: 'draft'
       });
 
       // Generate suggestions immediately
       await generatePresentationWithAI(testPresentation.id, testPresentation.dealNotes || '');
-      
-      res.json({ 
+
+      res.json({
         message: 'Test presentation created and generated successfully!',
-        presentationId: testPresentation.id 
+        presentationId: testPresentation.id
       });
     } catch (error) {
       console.error("Error testing presentation generation:", error);
-      res.status(500).json({ message: "Failed to test presentation generation", error: error.message });
+      res.status(500).json({ message: "Failed to test presentation generation", error: (error as Error).message });
     }
   });
 
   // AI Presentation Builder routes
   app.get('/api/presentations', isAuthenticated, async (req, res) => {
     try {
-      const presentations = await storage.getPresentations(req.user.claims.sub);
+      const presentations = await storage.getPresentations(req.user!.claims.sub);
       res.json(presentations);
     } catch (error) {
       console.error("Error fetching presentations:", error);
@@ -3944,7 +3968,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/presentations', isAuthenticated, presentationUpload.array('files', 10), async (req, res) => {
     try {
       const { title, description, dealNotes } = req.body;
-      
+
       if (!title?.trim()) {
         return res.status(400).json({ message: "Title is required" });
       }
@@ -3954,7 +3978,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         title: title.trim(),
         description: description?.trim() || null,
         dealNotes: dealNotes?.trim() || null,
-        userId: req.user.claims.sub,
+        userId: req.user!.claims.sub,
         status: 'draft'
       });
 
@@ -3986,7 +4010,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/presentations/import-hubspot', isAuthenticated, async (req, res) => {
     try {
       const { hubspotDealId } = req.body;
-      
+
       if (!hubspotDealId?.trim()) {
         return res.status(400).json({ message: "HubSpot Deal ID is required" });
       }
@@ -4004,7 +4028,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         description: `Imported from HubSpot Deal - ${mockDealData.company}`,
         dealNotes: mockDealData.description,
         hubspotDealId: hubspotDealId.trim(),
-        userId: req.user.claims.sub,
+        userId: req.user!.claims.sub,
         status: 'draft'
       });
 
@@ -4022,14 +4046,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const presentationId = req.params.id;
       const presentation = await storage.getPresentation(presentationId);
-      
-      if (!presentation || presentation.userId !== req.user.claims.sub) {
+
+      if (!presentation || presentation.userId !== req.user!.claims.sub) {
         return res.status(404).json({ message: "Presentation not found" });
       }
 
       // Update status to generating
       await storage.updatePresentation(presentationId, { status: 'generating' });
-      
+
       res.json({ message: "Generation started" });
 
       // Start AI generation in background
@@ -4044,8 +4068,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const presentationId = req.params.id;
       const presentation = await storage.getPresentation(presentationId);
-      
-      if (!presentation || presentation.userId !== req.user.claims.sub) {
+
+      if (!presentation || presentation.userId !== req.user!.claims.sub) {
         return res.status(404).json({ message: "Presentation not found" });
       }
 
@@ -4087,7 +4111,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const message = await storage.createSlackMessage({
         channelId: process.env.SLACK_CHANNEL_ID!,
         messageId: messageResponse || 'sent',
-        userId: req.user.claims.sub,
+        userId: req.user!.claims.sub,
         content: content.trim()
       });
 
@@ -4112,14 +4136,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/ss-activewear/test-connection', isAuthenticated, async (req, res) => {
     try {
       const { accountNumber, apiKey } = req.body;
-      
+
       if (!accountNumber || !apiKey) {
         return res.status(400).json({ message: "Account number and API key are required" });
       }
 
       const ssService = new SsActivewearService({ accountNumber, apiKey });
       const isConnected = await ssService.testConnection();
-      
+
       res.json({ connected: isConnected });
     } catch (error) {
       console.error("Error testing S&S Activewear connection:", error);
@@ -4131,16 +4155,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/ss-activewear/product/:sku', isAuthenticated, async (req, res) => {
     try {
       const { sku } = req.params;
-      const service = new SsActivewearService({ 
-        accountNumber: '52733', 
-        apiKey: '1812622b-59cd-4863-8a9f-ad64eee5cd22' 
+      const service = new SsActivewearService({
+        accountNumber: '52733',
+        apiKey: '1812622b-59cd-4863-8a9f-ad64eee5cd22'
       });
       const product = await service.getProductBySku(sku);
-      
+
       if (!product) {
         return res.status(404).json({ error: 'Product not found' });
       }
-      
+
       res.json(product);
     } catch (error) {
       console.error('Error fetching S&S Activewear product:', error);
@@ -4152,17 +4176,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/ss-activewear/search', isAuthenticated, async (req, res) => {
     try {
       const { query } = req.query;
-      
+
       if (!query || typeof query !== 'string') {
         return res.status(400).json({ error: 'Search query is required' });
       }
-      
-      const service = new SsActivewearService({ 
-        accountNumber: '52733', 
-        apiKey: '1812622b-59cd-4863-8a9f-ad64eee5cd22' 
+
+      const service = new SsActivewearService({
+        accountNumber: '52733',
+        apiKey: '1812622b-59cd-4863-8a9f-ad64eee5cd22'
       });
       const products = await service.searchProducts(query);
-      
+
       res.json(products);
     } catch (error) {
       console.error('Error searching S&S Activewear products:', error);
@@ -4173,14 +4197,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/ss-activewear/import', isAuthenticated, async (req, res) => {
     try {
       const { accountNumber, apiKey, styleFilter } = req.body;
-      
+
       if (!accountNumber || !apiKey) {
         return res.status(400).json({ message: "Account number and API key are required" });
       }
 
       const ssService = new SsActivewearService({ accountNumber, apiKey });
-      const jobId = await ssService.importProducts(req.user.claims.sub, styleFilter);
-      
+      const jobId = await ssService.importProducts(req.user!.claims.sub, styleFilter);
+
       res.json({ jobId, message: "Import started" });
     } catch (error) {
       console.error("Error starting S&S Activewear import:", error);
@@ -4190,7 +4214,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get('/api/ss-activewear/import-jobs', isAuthenticated, async (req, res) => {
     try {
-      const jobs = await storage.getSsActivewearImportJobs(req.user.claims.sub);
+      const jobs = await storage.getSsActivewearImportJobs(req.user?.claims?.sub);
       res.json(jobs);
     } catch (error) {
       console.error("Error fetching import jobs:", error);
@@ -4201,11 +4225,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/ss-activewear/import-jobs/:id', isAuthenticated, async (req, res) => {
     try {
       const job = await storage.getSsActivewearImportJob(req.params.id);
-      
-      if (!job || job.userId !== req.user.claims.sub) {
+
+      if (!job || job.userId !== req.user?.claims?.sub) {
         return res.status(404).json({ message: "Import job not found" });
       }
-      
+
       res.json(job);
     } catch (error) {
       console.error("Error fetching import job:", error);
@@ -4216,7 +4240,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/ss-activewear/search', isAuthenticated, async (req, res) => {
     try {
       const { q } = req.query;
-      
+
       if (!q || typeof q !== 'string') {
         return res.status(400).json({ message: "Search query is required" });
       }
@@ -4339,27 +4363,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/weekly-reports/generate", isAuthenticated, async (req, res) => {
     try {
       const userId = req.user?.claims?.sub;
-      
+
+      if (!userId) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+
       // Calculate date range for this week
       const now = new Date();
       const weekStart = new Date(now.setDate(now.getDate() - now.getDay()));
       const weekEnd = new Date(weekStart);
       weekEnd.setDate(weekEnd.getDate() + 6);
-      
+
       // Get active report configurations
       const configs = await storage.getWeeklyReportConfigs();
       const activeConfigs = configs.filter(config => config.isActive);
-      
+
       // Calculate metrics (basic implementation)
       const metricsData: Record<string, any> = {};
-      
+
       for (const config of activeConfigs) {
         let value = 0;
-        
+
         switch (config.dataSource) {
           case 'orders':
             const orders = await storage.getOrdersByStatus('approved');
-            value = orders.filter(order => 
+            value = orders.filter(order =>
               order.createdAt && order.createdAt >= weekStart && order.createdAt <= weekEnd
             ).length;
             break;
@@ -4381,14 +4409,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
             break;
           case 'stores':
             const companies = await storage.getCompanies();
-            value = companies.filter(company => 
+            value = companies.filter(company =>
               company.createdAt && company.createdAt >= weekStart && company.createdAt <= weekEnd
             ).length;
             break;
           default:
             value = 0;
         }
-        
+
         metricsData[config.metricName] = {
           displayName: config.displayName,
           value,
@@ -4396,7 +4424,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           description: config.description
         };
       }
-      
+
       // Create report log
       const reportLog = await storage.createWeeklyReportLog({
         userId,
@@ -4405,13 +4433,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         metricsData,
         emailStatus: 'pending'
       });
-      
+
       res.json({
         success: true,
         reportLog,
         message: "Weekly report generated successfully. Email functionality will be available when SendGrid is configured."
       });
-      
+
     } catch (error) {
       console.error("Error generating weekly report:", error);
       res.status(500).json({ message: "Failed to generate weekly report" });
@@ -4447,12 +4475,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const validatedData = insertSequenceSchema.parse(req.body);
       const userId = req.user?.claims?.sub;
-      
+
       const sequenceData = {
         ...validatedData,
         userId: userId || validatedData.userId
       };
-      
+
       const sequence = await storage.createSequence(sequenceData);
       res.status(201).json(sequence);
     } catch (error) {
@@ -4499,7 +4527,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ...validatedData,
         sequenceId: req.params.sequenceId
       };
-      
+
       const step = await storage.createSequenceStep(stepData);
       res.status(201).json(step);
     } catch (error) {
@@ -4549,7 +4577,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ...validatedData,
         sequenceId: req.params.sequenceId
       };
-      
+
       const analytics = await storage.createSequenceAnalytics(analyticsData);
       res.status(201).json(analytics);
     } catch (error) {
@@ -4562,7 +4590,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/projects/:orderId/activities", async (req, res) => {
     try {
       const { orderId } = req.params;
-      
+
       // Mock data for project activities
       const activities = [
         {
@@ -4583,7 +4611,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         },
         {
-          id: "2", 
+          id: "2",
           orderId: orderId,
           userId: "user2",
           activityType: "status_change",
@@ -4617,7 +4645,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         }
       ];
-      
+
       res.json(activities);
     } catch (error) {
       console.error("Error fetching project activities:", error);
@@ -4629,7 +4657,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { orderId } = req.params;
       const { activityType, content, mentionedUsers } = req.body;
-      
+
       // In a real app, you would save to database here
       const newActivity = {
         id: Date.now().toString(),
@@ -4648,7 +4676,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           email: "user@swag.com"
         }
       };
-      
+
       res.json(newActivity);
     } catch (error) {
       console.error("Error creating project activity:", error);
@@ -4667,7 +4695,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         { id: "user5", firstName: "David", lastName: "Wilson", email: "david@swag.com" },
         { id: "user6", firstName: "Lisa", lastName: "Thompson", email: "lisa@swag.com" }
       ];
-      
+
       res.json(teamMembers);
     } catch (error) {
       console.error("Error fetching team members:", error);
@@ -4750,7 +4778,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         createdBy: (req.user as any)?.claims?.sub,
       });
       const newError = await storage.createError(validatedData);
-      
+
       // Log activity
       await storage.createActivity({
         userId: (req.user as any)?.claims?.sub,
@@ -4759,7 +4787,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         action: 'created',
         description: `Created error: ${newError.errorType} for client ${newError.clientName}`,
       });
-      
+
       res.status(201).json(newError);
     } catch (error) {
       console.error("Error creating error:", error);
@@ -4771,7 +4799,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const validatedData = insertErrorSchema.partial().parse(req.body);
       const updatedError = await storage.updateError(req.params.id, validatedData);
-      
+
       // Log activity
       await storage.createActivity({
         userId: (req.user as any)?.claims?.sub,
@@ -4780,7 +4808,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         action: 'updated',
         description: `Updated error: ${updatedError.errorType}`,
       });
-      
+
       res.json(updatedError);
     } catch (error) {
       console.error("Error updating error:", error);
@@ -4791,7 +4819,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/errors/:id/resolve', isAuthenticated, async (req, res) => {
     try {
       const resolvedError = await storage.resolveError(req.params.id, (req.user as any)?.claims?.sub);
-      
+
       // Log activity
       await storage.createActivity({
         userId: (req.user as any)?.claims?.sub,
@@ -4800,7 +4828,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         action: 'resolved',
         description: `Resolved error: ${resolvedError.errorType}`,
       });
-      
+
       res.json(resolvedError);
     } catch (error) {
       console.error("Error resolving error:", error);
@@ -4811,7 +4839,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete('/api/errors/:id', isAuthenticated, async (req, res) => {
     try {
       await storage.deleteError(req.params.id);
-      
+
       // Log activity
       await storage.createActivity({
         userId: (req.user as any)?.claims?.sub,
@@ -4820,7 +4848,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         action: 'deleted',
         description: `Deleted error`,
       });
-      
+
       res.status(204).send();
     } catch (error) {
       console.error("Error deleting error:", error);
@@ -4841,7 +4869,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/newsletter/subscribers", isAuthenticated, async (req, res) => {
     try {
-      const subscriber = await storage.createNewsletterSubscriber(req.body);
+      const validatedData = insertNewsletterSubscriberSchema.parse(req.body);
+      const subscriber = await storage.createNewsletterSubscriber(validatedData);
       res.json(subscriber);
     } catch (error) {
       console.error("Error creating newsletter subscriber:", error);
@@ -4861,7 +4890,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/newsletter/campaigns", isAuthenticated, async (req, res) => {
     try {
-      const campaign = await storage.createNewsletterCampaign(req.body);
+      const validatedData = insertNewsletterCampaignSchema.parse(req.body);
+      const campaign = await storage.createNewsletterCampaign(validatedData);
       res.json(campaign);
     } catch (error) {
       console.error("Error creating newsletter campaign:", error);
@@ -4881,7 +4911,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/newsletter/templates", isAuthenticated, async (req, res) => {
     try {
-      const template = await storage.createNewsletterTemplate(req.body);
+      const validatedData = insertNewsletterTemplateSchema.parse(req.body);
+      const template = await storage.createNewsletterTemplate(validatedData);
       res.json(template);
     } catch (error) {
       console.error("Error creating newsletter template:", error);

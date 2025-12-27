@@ -1,4 +1,4 @@
-import { Bell, Settings, User } from "lucide-react";
+import { Bell, LogOut, Settings, User, Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { UserAvatar } from "@/components/UserAvatar";
 import {
@@ -11,23 +11,38 @@ import {
 } from "@/components/ui/dropdown-menu";
 import GlobalSearch from "./GlobalSearch";
 import { useAuth } from "@/hooks/useAuth";
+import { useSidebar } from "@/hooks/useSidebar";
 
 export default function TopBar() {
   const { user } = useAuth();
+  const { toggleSidebar } = useSidebar();
 
   return (
-    <div className="h-16 bg-white border-b border-gray-200 px-6 flex items-center justify-between">
-      {/* Left side - Search */}
-      <div className="flex-1 max-w-2xl">
-        <GlobalSearch />
+    <div className="h-16 bg-white border-b gap-2 border-gray-200 px-4 flex items-center justify-between">
+      {/* Left side - Menu Button (mobile) + Search */}
+      <div className="flex items-center gap-2 md:gap-4 flex-1 max-w-2xl">
+        {/* Hamburger Menu Button - Only visible on mobile */}
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={toggleSidebar}
+          className="lg:hidden"
+          aria-label="Toggle menu"
+        >
+          <Menu size={24} />
+        </Button>
+
+        <div className="flex-1">
+          <GlobalSearch />
+        </div>
       </div>
 
       {/* Right side - Notifications and User Menu */}
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-2 md:gap-4">
         {/* Notifications */}
         <Button variant="ghost" size="sm" className="relative">
           <Bell size={20} />
-          <span className="absolute top-0 right-0 h-2 w-2 bg-red-500 rounded-full"></span>
+          <span className="absolute top-1 right-2 h-2 w-2 bg-red-500 rounded-full"></span>
         </Button>
 
         {/* Settings */}
@@ -38,14 +53,13 @@ export default function TopBar() {
         {/* User Menu */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="relative h-8 w-8 rounded-full">
-              <UserAvatar 
-                name={(user as any)?.firstName && (user as any)?.lastName 
+            <Button variant="ghost" size="icon" className="relative h-8 w-8 rounded-full">
+              <UserAvatar
+                name={(user as any)?.firstName && (user as any)?.lastName
                   ? `${(user as any).firstName} ${(user as any).lastName}`
                   : (user as any)?.email || 'User'
                 }
-                imageUrl={(user as any)?.profileImageUrl}
-                size="sm"
+                size="md"
               />
             </Button>
           </DropdownMenuTrigger>
@@ -53,7 +67,7 @@ export default function TopBar() {
             <DropdownMenuLabel className="font-normal">
               <div className="flex flex-col space-y-1">
                 <p className="text-sm font-medium leading-none">
-                  {(user as any)?.firstName && (user as any)?.lastName 
+                  {(user as any)?.firstName && (user as any)?.lastName
                     ? `${(user as any).firstName} ${(user as any).lastName}`
                     : (user as any)?.email || 'User'
                   }
@@ -73,11 +87,12 @@ export default function TopBar() {
               <span>Settings</span>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem 
+            <DropdownMenuItem
               onClick={() => window.location.href = '/api/logout'}
               className="text-red-600"
             >
-              Log out
+              <LogOut className="mr-2 h-4 w-4" />
+              <span>Log out</span>
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
