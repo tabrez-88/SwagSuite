@@ -250,64 +250,92 @@ export default function ProductionReport() {
     setIsOrderModalOpen(true);
   };
 
-  const handleStageUpdate = (orderId: string, newStage: string, stageData?: any) => {
-    // Update order stage logic would go here
-    const updatedOrder = {
-      ...selectedOrder,
-      currentStage: newStage,
-      stageData: {
-        ...selectedOrder?.stageData,
-        [newStage]: stageData || {}
+  const updateOrderProductionMutation = useMutation({
+    mutationFn: async ({ orderId, data }: { orderId: string, data: any }) => {
+      const response = await apiRequest("PATCH", `/api/orders/${orderId}/production`, data);
+      return response.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/production/orders"] });
+      if (selectedOrder && selectedOrder.id === data.id) {
+        setSelectedOrder({
+          ...selectedOrder,
+          ...data,
+          orderValue: parseFloat(data.total)
+        });
       }
+      toast({
+        title: "Success",
+        description: "Order production information updated successfully.",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: "Failed to update production information.",
+        variant: "destructive",
+      });
+    }
+  });
+
+  const handleStageUpdate = (orderId: string, newStage: string) => {
+    // Basic mapping of stages to order statuses for cross-compatibility
+    const statusMap: Record<string, string> = {
+      'sales-booked': 'quote',
+      'po-placed': 'pending_approval',
+      'confirmation-received': 'pending_approval',
+      'proof-received': 'approved',
+      'proof-approved': 'approved',
+      'order-placed': 'in_production',
+      'invoice-paid': 'in_production',
+      'shipping-scheduled': 'in_production',
+      'shipped': 'shipped'
     };
 
-    setSelectedOrder(updatedOrder as ProductionOrder);
-
-    toast({
-      title: "Stage Updated",
-      description: "Order stage has been updated successfully.",
+    updateOrderProductionMutation.mutate({
+      orderId,
+      data: {
+        currentStage: newStage,
+        status: statusMap[newStage] || 'approved'
+      }
     });
   };
 
   const handleStageDataSave = (stageId: string, data: any) => {
     if (!selectedOrder) return;
 
-    const updatedOrder = {
-      ...selectedOrder,
-      stageData: {
-        ...selectedOrder.stageData,
-        [stageId]: data
-      },
-      ...(stageId === 'shipped' && data.trackingNumber ? { trackingNumber: data.trackingNumber } : {})
+    const updatedStageData = {
+      ...(selectedOrder.stageData || {}),
+      [stageId]: data
     };
 
-    setSelectedOrder(updatedOrder);
-    setEditingStageData({});
-
-    toast({
-      title: "Stage Data Saved",
-      description: "Stage information has been updated successfully.",
+    updateOrderProductionMutation.mutate({
+      orderId: selectedOrder.id,
+      data: {
+        stageData: updatedStageData,
+        ...(stageId === 'shipped' && data.trackingNumber ? { trackingNumber: data.trackingNumber } : {})
+      }
     });
+
+    setEditingStageData({});
   };
 
   const handleCustomNotesSave = (stageId: string, notes: string) => {
     if (!selectedOrder) return;
 
-    const updatedOrder = {
-      ...selectedOrder,
-      customNotes: {
-        ...selectedOrder.customNotes,
-        [stageId]: notes
-      }
+    const updatedCustomNotes = {
+      ...(selectedOrder.customNotes || {}),
+      [stageId]: notes
     };
 
-    setSelectedOrder(updatedOrder);
-    setStageInputs({});
-
-    toast({
-      title: "Notes Saved",
-      description: "Custom notes have been updated successfully.",
+    updateOrderProductionMutation.mutate({
+      orderId: selectedOrder.id,
+      data: {
+        customNotes: updatedCustomNotes
+      }
     });
+
+    setStageInputs({});
   };
 
   const getStageIcon = (iconName: string) => {
@@ -1457,8 +1485,18 @@ export default function ProductionReport() {
                   {!selectedStage.order.stagesCompleted.includes(selectedStage.stage.id) && (
                     <Button
                       onClick={() => {
-                        // TODO: Implement mark stage complete
-                        toast({ title: "Stage marked as complete" });
+                        const currentIdx = stages.findIndex(s => s.id === selectedStage.stage.id);
+                        const nextStage = currentIdx < stages.length - 1 ? stages[currentIdx + 1].id : selectedStage.stage.id;
+
+                        const updatedStagesCompleted = Array.from(new Set([...selectedStage.order.stagesCompleted, selectedStage.stage.id]));
+
+                        updateOrderProductionMutation.mutate({
+                          orderId: selectedStage.order.id,
+                          data: {
+                            stagesCompleted: updatedStagesCompleted,
+                            currentStage: nextStage
+                          }
+                        });
                         setStageActionModal(false);
                       }}
                       className="bg-green-600 hover:bg-green-700"
@@ -1470,8 +1508,33 @@ export default function ProductionReport() {
                   <Button
                     variant="outline"
                     onClick={() => {
-                      // TODO: Implement save stage data
-                      toast({ title: "Stage information saved" });
+                      const stageDataFields = getStageInputFields(selectedStage.stage.id);
+                      const stageDataToSave = { ...(selectedStage.order.stageData?.[selectedStage.stage.id] || {}) };
+
+                      stageDataFields.forEach(field => {
+                        const val = stageInputs[`${selectedStage.order.id}-${field.key}`];
+                        if (val !== undefined) stageDataToSave[field.key] = val;
+                      });
+
+                      const updatedStageData = {
+                        ...(selectedStage.order.stageData || {}),
+                        [selectedStage.stage.id]: stageDataToSave
+                      };
+
+                      const customNotes = stageInputs[`${selectedStage.order.id}-notes`];
+                      const updatedCustomNotes = {
+                        ...(selectedStage.order.customNotes || {}),
+                        [selectedStage.stage.id]: customNotes || selectedStage.order.customNotes?.[selectedStage.stage.id] || ''
+                      };
+
+                      updateOrderProductionMutation.mutate({
+                        orderId: selectedStage.order.id,
+                        data: {
+                          stageData: updatedStageData,
+                          customNotes: updatedCustomNotes,
+                          ...(selectedStage.stage.id === 'shipped' && stageDataToSave.trackingNumber ? { trackingNumber: stageDataToSave.trackingNumber } : {})
+                        }
+                      });
                       setStageActionModal(false);
                     }}
                   >

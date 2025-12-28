@@ -360,13 +360,15 @@ export function OrderDetailsModal({ open, onOpenChange, order, companyName }: Or
                       <MapPin className="w-4 h-4 text-gray-500 mt-0.5" />
                       <div className="text-sm">
                         <p className="font-medium">Shipping Address:</p>
-                        <p className="text-gray-600">123 Business Ave<br />Suite 100<br />City, ST 12345</p>
+                        <p className="text-gray-600 whitespace-pre-line">
+                          {(order as any).shippingAddress || "No shipping address provided"}
+                        </p>
                       </div>
                     </div>
 
                     <div>
-                      <p className="text-sm font-medium text-gray-500">Shipping Method</p>
-                      <p className="text-sm">UPS Ground</p>
+                      <p className="text-sm font-medium text-gray-500">Tracking Number</p>
+                      <p className="text-sm font-mono">{(order as any).trackingNumber || "Not available"}</p>
                     </div>
                   </CardContent>
                 </Card>

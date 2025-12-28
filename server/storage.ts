@@ -513,12 +513,14 @@ export class DatabaseStorage implements IStorage {
     return newOrder;
   }
 
-  async updateOrder(id: string, order: Partial<InsertOrder>): Promise<Order> {
+  async updateOrder(id: string, orderData: Partial<InsertOrder>): Promise<Order> {
+    console.log(`Storage: Updating order ${id} with:`, orderData);
     const [updatedOrder] = await db
       .update(orders)
-      .set({ ...order, updatedAt: new Date() })
+      .set({ ...orderData, updatedAt: new Date() })
       .where(eq(orders.id, id))
       .returning();
+    console.log(`Storage: Order ${id} updated result total:`, updatedOrder.total);
     return updatedOrder;
   }
 

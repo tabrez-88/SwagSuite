@@ -9,6 +9,10 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { UserAvatar } from "@/components/UserAvatar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useToast } from "@/hooks/use-toast";
 import {
   ArrowLeft,
   Send,
@@ -21,7 +25,18 @@ import {
   Bell,
   AtSign,
   Clock,
-  Activity
+  Activity,
+  Package,
+  Plus,
+  Trash2,
+  Factory,
+  ShoppingCart,
+  Eye,
+  ThumbsUp,
+  CreditCard,
+  Truck,
+  MapPin,
+  CheckCircle
 } from "lucide-react";
 import { format } from "date-fns";
 import { apiRequest } from "@/lib/queryClient";
@@ -67,8 +82,34 @@ interface Order {
   customerNotes: string | null;
   internalNotes: string | null;
   trackingNumber: string | null;
+  currentStage: string;
+  stagesCompleted: string[];
+  stageData: Record<string, any>;
+  customNotes?: Record<string, string>;
   createdAt: string;
   updatedAt: string;
+}
+
+interface OrderItem {
+  id: string;
+  orderId: string;
+  productId: string;
+  quantity: number;
+  unitPrice: string;
+  totalPrice: string;
+  color?: string | null;
+  size?: string | null;
+  imprintLocation?: string | null;
+  imprintMethod?: string | null;
+  createdAt: string;
+}
+
+interface Product {
+  id: string;
+  name: string;
+  sku: string | null;
+  description: string | null;
+  basePrice?: string | null;
 }
 
 interface TeamMember {
@@ -101,13 +142,35 @@ export default function ProjectPage() {
   const [showMentionSuggestions, setShowMentionSuggestions] = useState(false);
   const [mentionQuery, setMentionQuery] = useState("");
   const [selectedMentions, setSelectedMentions] = useState<TeamMember[]>([]);
+  const [isAddProductDialogOpen, setIsAddProductDialogOpen] = useState(false);
+  const [newProductForm, setNewProductForm] = useState({
+    productId: "",
+    quantity: "1",
+    unitPrice: "0",
+    color: "",
+    size: "",
+    imprintLocation: "",
+    imprintMethod: "",
+  });
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const queryClient = useQueryClient();
+  const { toast } = useToast();
 
   // Fetch order details
   const { data: order, isLoading: orderLoading } = useQuery<Order>({
     queryKey: [`/api/orders/${orderId}`],
     enabled: !!orderId,
+  });
+
+  // Fetch order items
+  const { data: orderItems = [], isLoading: orderItemsLoading } = useQuery<OrderItem[]>({
+    queryKey: [`/api/orders/${orderId}/items`],
+    enabled: !!orderId,
+  });
+
+  // Fetch products
+  const { data: products = [] } = useQuery<Product[]>({
+    queryKey: ["/api/products"],
   });
 
   // Fetch project activities
@@ -130,6 +193,11 @@ export default function ProjectPage() {
     if (!companyId) return "Unknown Company";
     const company = companies?.find((c: any) => c.id === companyId);
     return company?.name || "Unknown Company";
+  };
+
+  const getProductName = (productId: string) => {
+    const product = products.find(p => p.id === productId);
+    return product?.name || "Unknown Product";
   };
 
   // Add new activity mutation
@@ -155,6 +223,112 @@ export default function ProjectPage() {
       setSelectedMentions([]);
     },
   });
+
+  const updateStageMutation = useMutation({
+    mutationFn: async (data: any) => {
+      const response = await apiRequest("PATCH", `/api/orders/${orderId}/production`, data);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/orders/${orderId}`] });
+      toast({
+        title: "Stage Updated",
+        description: "Production stage has been updated successfully.",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to update production stage.",
+        variant: "destructive",
+      });
+    }
+  });
+
+  // Add order item mutation
+  const addOrderItemMutation = useMutation({
+    mutationFn: async (data: typeof newProductForm) => {
+      const response = await apiRequest("POST", `/api/orders/${orderId}/items`, {
+        productId: data.productId,
+        quantity: parseInt(data.quantity),
+        unitPrice: parseFloat(data.unitPrice),
+        totalPrice: (parseInt(data.quantity) * parseFloat(data.unitPrice)).toFixed(2),
+        color: data.color || null,
+        size: data.size || null,
+        imprintLocation: data.imprintLocation || null,
+        imprintMethod: data.imprintMethod || null,
+      });
+      return response.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Product Added",
+        description: "Product has been added to the order successfully.",
+      });
+      queryClient.invalidateQueries({ queryKey: [`/api/orders/${orderId}/items`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/orders/${orderId}`] }); // Refresh order to get updated total
+      setIsAddProductDialogOpen(false);
+      setNewProductForm({
+        productId: "",
+        quantity: "1",
+        unitPrice: "0",
+        color: "",
+        size: "",
+        imprintLocation: "",
+        imprintMethod: "",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to add product to order.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Delete order item mutation
+  const deleteOrderItemMutation = useMutation({
+    mutationFn: async (itemId: string) => {
+      const response = await apiRequest("DELETE", `/api/orders/${orderId}/items/${itemId}`, {});
+      return response.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Product Removed",
+        description: "Product has been removed from the order.",
+      });
+      queryClient.invalidateQueries({ queryKey: [`/api/orders/${orderId}/items`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/orders/${orderId}`] }); // Refresh order to get updated total
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to remove product from order.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleProductChange = (productId: string) => {
+    setNewProductForm(prev => ({ ...prev, productId }));
+    const product = products.find(p => p.id === productId);
+    if (product?.basePrice) {
+      setNewProductForm(prev => ({ ...prev, unitPrice: product.basePrice || "0" }));
+    }
+  };
+
+  const handleAddProduct = () => {
+    if (!newProductForm.productId || !newProductForm.quantity) {
+      toast({
+        title: "Missing Information",
+        description: "Please select a product and enter quantity.",
+        variant: "destructive",
+      });
+      return;
+    }
+    addOrderItemMutation.mutate(newProductForm);
+  };
 
   const handleCommentSubmit = () => {
     if (!newComment.trim()) return;
@@ -336,6 +510,8 @@ export default function ProjectPage() {
           <Tabs defaultValue="overview" className="space-y-4">
             <TabsList>
               <TabsTrigger value="overview">Overview</TabsTrigger>
+              <TabsTrigger value="products">Products</TabsTrigger>
+              <TabsTrigger value="production">Production</TabsTrigger>
               <TabsTrigger value="files">Files</TabsTrigger>
               <TabsTrigger value="timeline">Full Timeline</TabsTrigger>
             </TabsList>
@@ -472,6 +648,234 @@ export default function ProjectPage() {
               </div>
             </TabsContent>
 
+            <TabsContent value="products" className="space-y-6">
+              {/* Products Header */}
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-semibold flex items-center gap-2">
+                  <Package className="w-5 h-5" />
+                  Order Products ({orderItems.length})
+                </h3>
+                <Button onClick={() => setIsAddProductDialogOpen(true)} size="sm">
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add Product
+                </Button>
+              </div>
+
+              {/* Products Table */}
+              {orderItemsLoading ? (
+                <Card>
+                  <CardContent className="p-8">
+                    <div className="animate-pulse space-y-3">
+                      {[1, 2, 3].map((i) => (
+                        <div key={i} className="bg-gray-100 rounded h-16"></div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              ) : orderItems.length === 0 ? (
+                <Card>
+                  <CardContent className="p-8 text-center">
+                    <Package className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                    <p className="text-gray-500 mb-4">No products in this order yet</p>
+                    <Button onClick={() => setIsAddProductDialogOpen(true)} variant="outline">
+                      <Plus className="w-4 h-4 mr-2" />
+                      Add First Product
+                    </Button>
+                  </CardContent>
+                </Card>
+              ) : (
+                <Card>
+                  <CardContent className="p-0">
+                    <div className="overflow-x-auto">
+                      <table className="w-full">
+                        <thead className="bg-gray-50 border-b">
+                          <tr>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Product</th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Quantity</th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Unit Price</th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Total</th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Details</th>
+                            <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-200">
+                          {orderItems.map((item) => (
+                            <tr key={item.id} className="hover:bg-gray-50">
+                              <td className="px-4 py-4">
+                                <div>
+                                  <p className="font-medium text-sm">{getProductName(item.productId)}</p>
+                                  {item.color && (
+                                    <p className="text-xs text-gray-500">Color: {item.color}</p>
+                                  )}
+                                </div>
+                              </td>
+                              <td className="px-4 py-4 text-sm">{item.quantity}</td>
+                              <td className="px-4 py-4 text-sm">${Number(item.unitPrice).toFixed(2)}</td>
+                              <td className="px-4 py-4 text-sm font-semibold">${Number(item.totalPrice).toFixed(2)}</td>
+                              <td className="px-4 py-4 text-xs text-gray-500">
+                                <div className="space-y-1">
+                                  {item.size && <div>Size: {item.size}</div>}
+                                  {item.imprintLocation && <div>Location: {item.imprintLocation}</div>}
+                                  {item.imprintMethod && <div>Method: {item.imprintMethod}</div>}
+                                </div>
+                              </td>
+                              <td className="px-4 py-4 text-right">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => {
+                                    if (confirm("Are you sure you want to remove this product?")) {
+                                      deleteOrderItemMutation.mutate(item.id);
+                                    }
+                                  }}
+                                  disabled={deleteOrderItemMutation.isPending}
+                                >
+                                  <Trash2 className="w-4 h-4 text-red-500" />
+                                </Button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                        <tfoot className="bg-gray-50 border-t">
+                          <tr>
+                            <td colSpan={3} className="px-4 py-3 text-right font-semibold">Total:</td>
+                            <td className="px-4 py-3 font-bold text-lg">
+                              ${orderItems.reduce((sum, item) => sum + Number(item.totalPrice), 0).toFixed(2)}
+                            </td>
+                            <td colSpan={2}></td>
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+            </TabsContent>
+
+            <TabsContent value="production" className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Factory className="w-5 h-5 text-swag-primary" />
+                    Production Status
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-8">
+                    {/* Progress Bar */}
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center text-sm">
+                        <span className="font-medium">Overall Progress</span>
+                        <span className="text-gray-500">
+                          {Math.round(((order.stagesCompleted?.length || 0) / 9) * 100)}%
+                        </span>
+                      </div>
+                      <div className="w-full bg-gray-100 rounded-full h-3">
+                        <div
+                          className="bg-swag-primary h-3 rounded-full transition-all duration-500"
+                          style={{ width: `${Math.round(((order.stagesCompleted?.length || 0) / 9) * 100)}%` }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Stages list */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {[
+                        { id: 'sales-booked', name: 'Order Booked', icon: ShoppingCart, color: 'blue' },
+                        { id: 'po-placed', name: 'PO Placed', icon: FileText, color: 'purple' },
+                        { id: 'confirmation-received', name: 'Confirmation', icon: MessageSquare, color: 'indigo' },
+                        { id: 'proof-received', name: 'Proof Received', icon: Eye, color: 'yellow' },
+                        { id: 'proof-approved', name: 'Proof Approved', icon: ThumbsUp, color: 'orange' },
+                        { id: 'order-placed', name: 'Order Placed', icon: Package, color: 'teal' },
+                        { id: 'invoice-paid', name: 'Invoice Paid', icon: CreditCard, color: 'green' },
+                        { id: 'shipping-scheduled', name: 'Ship Scheduled', icon: Truck, color: 'cyan' },
+                        { id: 'shipped', name: 'Shipped', icon: MapPin, color: 'emerald' },
+                      ].map((stage, index) => {
+                        const isCompleted = order.stagesCompleted?.includes(stage.id);
+                        const isCurrent = order.currentStage === stage.id;
+                        const StageIcon = stage.icon || Package;
+
+                        return (
+                          <div
+                            key={stage.id}
+                            className={`p-4 rounded-lg border-2 transition-all cursor-pointer hover:border-swag-primary/50 ${isCurrent ? 'border-swag-primary bg-swag-primary/5 shadow-md' :
+                              isCompleted ? 'border-green-200 bg-green-50/30' : 'border-gray-100 bg-white'
+                              }`}
+                            onClick={() => {
+                              if (!isCompleted) {
+                                const statusMap: Record<string, string> = {
+                                  'sales-booked': 'quote',
+                                  'po-placed': 'pending_approval',
+                                  'confirmation-received': 'pending_approval',
+                                  'proof-received': 'approved',
+                                  'proof-approved': 'approved',
+                                  'order-placed': 'in_production',
+                                  'invoice-paid': 'in_production',
+                                  'shipping-scheduled': 'in_production',
+                                  'shipped': 'shipped'
+                                };
+                                updateStageMutation.mutate({
+                                  currentStage: stage.id,
+                                  status: statusMap[stage.id] || order.status
+                                });
+                              }
+                            }}
+                          >
+                            <div className="flex items-center gap-3">
+                              <div className={`w-10 h-10 rounded-full flex items-center justify-center ${isCompleted ? 'bg-green-500 text-white' :
+                                isCurrent ? 'bg-swag-primary text-white' : 'bg-gray-100 text-gray-400'
+                                }`}>
+                                <StageIcon className="w-5 h-5" />
+                              </div>
+                              <div>
+                                <h4 className="font-semibold text-sm">{stage.name}</h4>
+                                <div className="flex items-center gap-2 mt-1">
+                                  {isCompleted ? (
+                                    <Badge className="bg-green-500 text-[10px] h-4">Completed</Badge>
+                                  ) : isCurrent ? (
+                                    <Badge className="bg-swag-primary text-[10px] h-4">Current</Badge>
+                                  ) : (
+                                    <span className="text-[10px] text-gray-400">Step {index + 1}</span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+
+                            {isCurrent && (
+                              <div className="mt-3 pt-3 border-t border-swag-primary/10">
+                                <Button
+                                  size="sm"
+                                  className="w-full bg-green-600 hover:bg-green-700 h-7 text-xs"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    const nextStages = [
+                                      'sales-booked', 'po-placed', 'confirmation-received',
+                                      'proof-received', 'proof-approved', 'order-placed',
+                                      'invoice-paid', 'shipping-scheduled', 'shipped'
+                                    ];
+                                    const nextIdx = nextStages.indexOf(stage.id) + 1;
+                                    const nextStage = nextIdx < nextStages.length ? nextStages[nextIdx] : stage.id;
+
+                                    const updatedCompleted = Array.from(new Set([...(order.stagesCompleted || []), stage.id]));
+                                    updateStageMutation.mutate({
+                                      stagesCompleted: updatedCompleted,
+                                      currentStage: nextStage
+                                    });
+                                  }}
+                                >
+                                  Mark as Completed
+                                </Button>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
             <TabsContent value="files">
               <Card>
                 <CardContent className="p-8 text-center">
@@ -496,6 +900,131 @@ export default function ProjectPage() {
           </Tabs>
         </div>
       </div>
+
+      {/* Add Product Dialog */}
+      <Dialog open={isAddProductDialogOpen} onOpenChange={setIsAddProductDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Add Product to Order</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="product">Product *</Label>
+                <Select
+                  value={newProductForm.productId}
+                  onValueChange={handleProductChange}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a product..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {products.map((product) => (
+                      <SelectItem key={product.id} value={product.id}>
+                        {product.name} {product.sku && `(${product.sku})`}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label htmlFor="quantity">Quantity *</Label>
+                <Input
+                  id="quantity"
+                  type="number"
+                  min="1"
+                  value={newProductForm.quantity}
+                  onChange={(e) => setNewProductForm(prev => ({ ...prev, quantity: e.target.value }))}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="unitPrice">Unit Price *</Label>
+                <Input
+                  id="unitPrice"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={newProductForm.unitPrice}
+                  onChange={(e) => setNewProductForm(prev => ({ ...prev, unitPrice: e.target.value }))}
+                />
+              </div>
+
+              <div>
+                <Label>Total Price</Label>
+                <Input
+                  type="text"
+                  value={`$${(parseFloat(newProductForm.quantity) * parseFloat(newProductForm.unitPrice)).toFixed(2)}`}
+                  disabled
+                  className="bg-gray-50"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="color">Color</Label>
+                <Input
+                  id="color"
+                  placeholder="e.g., Navy Blue"
+                  value={newProductForm.color}
+                  onChange={(e) => setNewProductForm(prev => ({ ...prev, color: e.target.value }))}
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="size">Size</Label>
+                <Input
+                  id="size"
+                  placeholder="e.g., Large"
+                  value={newProductForm.size}
+                  onChange={(e) => setNewProductForm(prev => ({ ...prev, size: e.target.value }))}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="imprintLocation">Imprint Location</Label>
+                <Input
+                  id="imprintLocation"
+                  placeholder="e.g., Front Center"
+                  value={newProductForm.imprintLocation}
+                  onChange={(e) => setNewProductForm(prev => ({ ...prev, imprintLocation: e.target.value }))}
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="imprintMethod">Imprint Method</Label>
+                <Input
+                  id="imprintMethod"
+                  placeholder="e.g., Screen Print"
+                  value={newProductForm.imprintMethod}
+                  onChange={(e) => setNewProductForm(prev => ({ ...prev, imprintMethod: e.target.value }))}
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-4">
+              <Button
+                variant="outline"
+                onClick={() => setIsAddProductDialogOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleAddProduct}
+                disabled={addOrderItemMutation.isPending}
+              >
+                {addOrderItemMutation.isPending ? "Adding..." : "Add Product"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -216,7 +216,13 @@ export const orders = pgTable("orders", {
   notes: text("notes"),
   customerNotes: text("customer_notes"), // visible to customer
   internalNotes: text("internal_notes"), // internal only
+  shippingAddress: text("shipping_address"),
+  billingAddress: text("billing_address"),
   trackingNumber: varchar("tracking_number"),
+  currentStage: varchar("current_stage").notNull().default("sales-booked"),
+  stagesCompleted: jsonb("stages_completed").notNull().default(sql`'["sales-booked"]'::jsonb`),
+  stageData: jsonb("stage_data").notNull().default(sql`'{}'::jsonb`),
+  customNotes: jsonb("custom_notes").notNull().default(sql`'{}'::jsonb`),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -457,10 +463,25 @@ export const insertOrderSchema = createInsertSchema(orders).omit({
   orderNumber: z.string().optional(),
 });
 
-export const insertOrderItemSchema = createInsertSchema(orderItems).omit({
+const baseOrderItemSchema = createInsertSchema(orderItems).omit({
   id: true,
   createdAt: true,
 });
+
+export const insertOrderItemSchema = z.preprocess(
+  (input: any) => {
+    // Transform numeric price fields to strings for decimal type compatibility
+    if (input && typeof input === 'object') {
+      return {
+        ...input,
+        unitPrice: input.unitPrice != null ? String(input.unitPrice) : input.unitPrice,
+        totalPrice: input.totalPrice != null ? String(input.totalPrice) : input.totalPrice,
+      };
+    }
+    return input;
+  },
+  baseOrderItemSchema
+);
 
 export const insertArtworkFileSchema = createInsertSchema(artworkFiles).omit({
   id: true,
