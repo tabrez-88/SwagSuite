@@ -1047,6 +1047,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Recalculate order total from items
+  app.post('/api/orders/:id/recalculate-total', isAuthenticated, async (req, res) => {
+    try {
+      const allItems = await storage.getOrderItems(req.params.id);
+      const subtotal = allItems.reduce((sum, item) => {
+        return sum + parseFloat(item.totalPrice);
+      }, 0);
+
+      console.log(`Manual recalculation for order ${req.params.id}:`, {
+        itemCount: allItems.length,
+        subtotal: subtotal.toFixed(2),
+      });
+
+      const updatedOrder = await storage.updateOrder(req.params.id, {
+        subtotal: subtotal.toFixed(2),
+        total: subtotal.toFixed(2),
+      });
+
+      res.json({
+        message: "Order total recalculated successfully",
+        order: updatedOrder,
+      });
+    } catch (error) {
+      console.error("Error recalculating order total:", error);
+      res.status(500).json({ message: "Failed to recalculate order total" });
+    }
+  });
+
   // Order items routes
   app.get('/api/orders/:orderId/items', isAuthenticated, async (req, res) => {
     try {
@@ -1064,11 +1092,55 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ...req.body,
         orderId: req.params.orderId,
       });
+
       const item = await storage.createOrderItem(validatedData);
+
+      // Recalculate order totals after adding item
+      const allItems = await storage.getOrderItems(req.params.orderId);
+      const subtotal = allItems.reduce((sum, item) => {
+        return sum + parseFloat(item.totalPrice);
+      }, 0);
+
+      console.log(`Recalculating order ${req.params.orderId} total:`, {
+        itemCount: allItems.length,
+        subtotal: subtotal.toFixed(2),
+      });
+
+      // Update order with new totals
+      const updatedOrder = await storage.updateOrder(req.params.orderId, {
+        subtotal: subtotal.toFixed(2),
+        total: subtotal.toFixed(2), // Can add tax/shipping calculation here later
+      });
+
+      console.log('Order updated:', updatedOrder);
+
       res.status(201).json(item);
     } catch (error) {
       console.error("Error creating order item:", error);
       res.status(500).json({ message: "Failed to create order item" });
+    }
+  });
+
+  app.delete('/api/orders/:orderId/items/:itemId', isAuthenticated, async (req, res) => {
+    try {
+      await storage.deleteOrderItem(req.params.itemId);
+
+      // Recalculate order totals after deleting item
+      const allItems = await storage.getOrderItems(req.params.orderId);
+      const subtotal = allItems.reduce((sum, item) => {
+        return sum + parseFloat(item.totalPrice);
+      }, 0);
+
+      // Update order with new totals
+      await storage.updateOrder(req.params.orderId, {
+        subtotal: subtotal.toFixed(2),
+        total: subtotal.toFixed(2), // Can add tax/shipping calculation here later
+      });
+
+      res.json({ message: "Order item deleted successfully" });
+    } catch (error) {
+      console.error("Error deleting order item:", error);
+      res.status(500).json({ message: "Failed to delete order item" });
     }
   });
 
@@ -1238,6 +1310,48 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('AI Search error:', error);
       res.status(500).json({ error: 'AI search failed' });
+    }
+  });
+
+  // Production Report Route
+  app.get('/api/production/orders', isAuthenticated, async (req, res) => {
+    try {
+      const orders = await storage.getOrders();
+
+      const productionOrders = await Promise.all(orders.map(async (order) => {
+        const company = order.companyId ? await storage.getCompany(order.companyId) : null;
+        const items = await storage.getOrderItems(order.id);
+        const user = order.assignedUserId ? await storage.getUser(order.assignedUserId) : null;
+
+        // Calculate total quantity and primary product
+        const totalQuantity = items.reduce((sum, item) => sum + item.quantity, 0);
+        const primaryProduct = items.length > 0
+          ? (await storage.getProduct(items[0].productId))?.name ?? "Unknown Product"
+          : "No Products";
+        const productName = items.length > 1 ? `${primaryProduct} + ${items.length - 1} more` : primaryProduct;
+
+        return {
+          id: order.id,
+          orderNumber: order.orderNumber,
+          companyName: company?.name || "Unknown Company",
+          productName: productName,
+          quantity: totalQuantity,
+          currentStage: (order as any).currentStage || 'sales-booked',
+          assignedTo: user ? `${user.firstName} ${user.lastName}` : "Unassigned",
+          nextActionDate: order.inHandsDate ? order.inHandsDate.toISOString() : undefined,
+          stagesCompleted: (order as any).stagesCompleted || ['sales-booked'],
+          priority: (order as any).priority || 'medium', // Note: Check priority column if exists
+          dueDate: order.inHandsDate ? order.inHandsDate.toISOString() : undefined,
+          orderValue: parseFloat(order.total),
+          stageData: (order as any).stageData || {},
+          trackingNumber: order.trackingNumber || undefined
+        };
+      }));
+
+      res.json(productionOrders);
+    } catch (error) {
+      console.error("Error fetching production orders:", error);
+      res.status(500).json({ message: "Failed to fetch production orders" });
     }
   });
 
@@ -3317,8 +3431,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json(productionOrders);
     } catch (error) {
-      console.error('Error fetching production orders:', error);
-      res.status(500).json({ message: 'Failed to fetch production orders' });
+      console.error('Error in /api/production/orders:', error);
+      res.status(500).json({ error: 'Failed to fetch production orders' });
+    }
+  });
+
+  app.patch('/api/orders/:id/production', isAuthenticated, async (req, res) => {
+    try {
+      const { currentStage, stagesCompleted, stageData, status, trackingNumber } = req.body;
+
+      const updateData: any = {};
+      if (currentStage) updateData.currentStage = currentStage;
+      if (stagesCompleted) updateData.stagesCompleted = stagesCompleted;
+      if (stageData) updateData.stageData = stageData;
+      if (status) updateData.status = status;
+      if (trackingNumber) updateData.trackingNumber = trackingNumber;
+
+      const order = await storage.updateOrder(req.params.id, updateData);
+
+      // Log activity
+      await storage.createActivity({
+        userId: (req.user as any)?.id,
+        entityType: 'order',
+        entityId: order.id,
+        action: 'stage_updated',
+        description: `Updated production stage to: ${currentStage || order.status}`,
+      });
+
+      res.json(order);
+    } catch (error) {
+      console.error('Error updating order stage:', error);
+      res.status(500).json({ error: 'Failed to update order stage' });
     }
   });
 

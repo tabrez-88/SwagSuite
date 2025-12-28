@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Dialog,
   DialogContent,
@@ -16,6 +16,7 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { isUnauthorizedError } from "@/lib/authUtils";
 import { Loader2, Search } from "lucide-react";
+import type { Supplier } from "@shared/schema";
 
 interface ProductModalProps {
   open: boolean;
@@ -52,7 +53,7 @@ export default function ProductModal({ open, onOpenChange }: ProductModalProps) 
     name: "",
     description: "",
     price: "",
-    supplier: "S&S Activewear",
+    supplierId: "",
     category: "",
     brand: "",
     style: "",
@@ -68,34 +69,43 @@ export default function ProductModal({ open, onOpenChange }: ProductModalProps) 
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
+  const { data: suppliers = [] } = useQuery<Supplier[]>({
+    queryKey: ["/api/suppliers"],
+    enabled: open,
+  });
+
   const searchProductMutation = useMutation({
     mutationFn: async (query: string) => {
       const response = await fetch(`/api/ss-activewear/search?query=${encodeURIComponent(query)}`, {
         credentials: "include",
       });
-      
+
       if (!response.ok) {
         if (response.status === 404) {
           throw new Error("No products found in S&S Activewear catalog");
         }
         throw new Error("Failed to search products");
       }
-      
+
       return response.json() as Promise<SsActivewearProduct[]>;
     },
     onSuccess: (products) => {
       setSearchResults(products);
       setSearchError("");
-      
+
       if (products.length === 1) {
         // If only one product found, auto-populate the form
         const product = products[0];
+
+        // Try to find S&S Activewear in the suppliers list to auto-select
+        const ssSupplier = suppliers.find(s => s.name.toLowerCase().includes("s&s activewear") || s.name.toLowerCase().includes("ss activewear"));
+
         setFormData({
           sku: product.sku,
           name: `${product.brandName} ${product.styleName} - ${product.colorName}`,
           description: `${product.brandName} ${product.styleName} in ${product.colorName}, Size: ${product.sizeName}`,
           price: product.piecePrice?.toString() || "",
-          supplier: "S&S Activewear",
+          supplierId: ssSupplier ? ssSupplier.id : "",
           category: "",
           brand: product.brandName,
           style: product.styleName,
@@ -126,7 +136,7 @@ export default function ProductModal({ open, onOpenChange }: ProductModalProps) 
         }, 500);
         return;
       }
-      
+
       setSearchError(error.message);
       toast({
         title: "Product Not Found",
@@ -176,7 +186,7 @@ export default function ProductModal({ open, onOpenChange }: ProductModalProps) 
       name: "",
       description: "",
       price: "",
-      supplier: "S&S Activewear",
+      supplierId: "",
       category: "",
       brand: "",
       style: "",
@@ -194,7 +204,7 @@ export default function ProductModal({ open, onOpenChange }: ProductModalProps) 
       setSearchError("Please enter a search query");
       return;
     }
-    
+
     setIsSearching(true);
     searchProductMutation.mutate(searchQuery.trim(), {
       onSettled: () => setIsSearching(false),
@@ -202,12 +212,15 @@ export default function ProductModal({ open, onOpenChange }: ProductModalProps) 
   };
 
   const selectProduct = (product: SsActivewearProduct) => {
+    // Try to find S&S Activewear in the suppliers list to auto-select
+    const ssSupplier = suppliers.find(s => s.name.toLowerCase().includes("s&s activewear") || s.name.toLowerCase().includes("ss activewear"));
+
     setFormData({
       sku: product.sku,
       name: `${product.brandName} ${product.styleName} - ${product.colorName}`,
       description: `${product.brandName} ${product.styleName} in ${product.colorName}, Size: ${product.sizeName}`,
       price: product.piecePrice?.toString() || "",
-      supplier: "S&S Activewear",
+      supplierId: ssSupplier ? ssSupplier.id : "",
       category: "",
       brand: product.brandName,
       style: product.styleName,
@@ -221,15 +234,18 @@ export default function ProductModal({ open, onOpenChange }: ProductModalProps) 
       title: "Product Selected",
       description: `Selected ${product.brandName} ${product.styleName}`,
     });
-  };;
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (!formData.name || !formData.sku) {
+
+    // Check if any suppliers exist, if not, we might need to handle it
+    const finalSupplierId = formData.supplierId || (suppliers.length > 0 ? suppliers[0].id : null);
+
+    if (!formData.name || !formData.sku || !finalSupplierId) {
       toast({
         title: "Missing Information",
-        description: "Please search for a product first or enter product details manually",
+        description: "Please search for a product first or enter details manually. Make sure a name, SKU, and supplier are provided.",
         variant: "destructive",
       });
       return;
@@ -239,13 +255,10 @@ export default function ProductModal({ open, onOpenChange }: ProductModalProps) 
       sku: formData.sku,
       name: formData.name,
       description: formData.description,
-      price: parseFloat(formData.price) || 0,
-      supplierId: "s-s-activewear", // Default supplier ID for S&S Activewear
-      category: formData.category,
-      brand: formData.brand,
-      style: formData.style,
-      color: formData.color,
-      size: formData.size,
+      basePrice: (parseFloat(formData.price) || 0).toString(),
+      supplierId: finalSupplierId,
+      // Note: categoryId would need a real ID, but for now we might leave it null 
+      // since the form is sending a string name for category
     });
   };
 
@@ -265,7 +278,7 @@ export default function ProductModal({ open, onOpenChange }: ProductModalProps) 
             <h3 className="font-medium text-blue-900 dark:text-blue-100">
               S&S Activewear Product Lookup
             </h3>
-            
+
             <div className="space-y-3">
               <div className="flex gap-2">
                 <div className="flex-1">
@@ -308,7 +321,7 @@ export default function ProductModal({ open, onOpenChange }: ProductModalProps) 
                 Universal search across SKU numbers, style codes, and product names. Try "3001" or "Gildan".
               </p>
             </div>
-            
+
             {searchError && (
               <p className="text-sm text-red-600 dark:text-red-400">{searchError}</p>
             )}
@@ -446,12 +459,21 @@ export default function ProductModal({ open, onOpenChange }: ProductModalProps) 
 
             <div>
               <Label htmlFor="supplier">Supplier</Label>
-              <Input
-                id="supplier"
-                value={formData.supplier}
-                onChange={(e) => setFormData({ ...formData, supplier: e.target.value })}
-                placeholder="Supplier name"
-              />
+              <Select
+                value={formData.supplierId}
+                onValueChange={(value) => setFormData({ ...formData, supplierId: value })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select supplier" />
+                </SelectTrigger>
+                <SelectContent>
+                  {suppliers.map((supplier) => (
+                    <SelectItem key={supplier.id} value={supplier.id}>
+                      {supplier.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
 

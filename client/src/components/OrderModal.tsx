@@ -21,7 +21,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { isUnauthorizedError } from "@/lib/authUtils";
-import type { Order } from "@shared/schema";
+import type { Company, Order } from "@shared/schema";
 
 interface OrderModalProps {
   open: boolean;
@@ -37,6 +37,8 @@ export default function OrderModal({ open, onOpenChange, order }: OrderModalProp
     inHandsDate: "",
     eventDate: "",
     notes: "",
+    shippingAddress: "",
+    billingAddress: "",
   });
 
   const { toast } = useToast();
@@ -52,6 +54,8 @@ export default function OrderModal({ open, onOpenChange, order }: OrderModalProp
           inHandsDate: order.inHandsDate ? new Date(order.inHandsDate).toISOString().split('T')[0] : "",
           eventDate: order.eventDate ? new Date(order.eventDate).toISOString().split('T')[0] : "",
           notes: order.notes || "",
+          shippingAddress: (order as any).shippingAddress || "",
+          billingAddress: (order as any).billingAddress || "",
         });
       } else {
         setFormData({
@@ -60,12 +64,19 @@ export default function OrderModal({ open, onOpenChange, order }: OrderModalProp
           inHandsDate: "",
           eventDate: "",
           notes: "",
+          shippingAddress: "",
+          billingAddress: "",
         });
       }
     }
-  }, [open, order]);
+  }, [open, order]); // depend on open and order
 
-  const { data: companies = [] } = useQuery({
+  // Helper to update specific fields
+  const handleFieldChange = (field: string, value: any) => {
+    setFormData((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const { data: companies = [] } = useQuery<Company[]>({
     queryKey: ["/api/companies"],
     enabled: open,
   });
@@ -162,7 +173,7 @@ export default function OrderModal({ open, onOpenChange, order }: OrderModalProp
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl max-h-screen overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Create New Order</DialogTitle>
+          <DialogTitle>{order ? `Edit Order ${order.orderNumber || ''}` : "Create New Order"}</DialogTitle>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-6">
@@ -172,13 +183,13 @@ export default function OrderModal({ open, onOpenChange, order }: OrderModalProp
               <Label htmlFor="customer">Customer</Label>
               <Select
                 value={formData.companyId}
-                onValueChange={(value) => setFormData(prev => ({ ...prev, companyId: value }))}
+                onValueChange={(value) => handleFieldChange("companyId", value)}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Select customer..." />
                 </SelectTrigger>
                 <SelectContent>
-                  {companies?.map((company: any) => (
+                  {companies?.map((company) => (
                     <SelectItem key={company.id} value={company.id}>
                       {company.name}
                     </SelectItem>
@@ -190,7 +201,7 @@ export default function OrderModal({ open, onOpenChange, order }: OrderModalProp
               <Label htmlFor="orderType">Order Type</Label>
               <Select
                 value={formData.orderType}
-                onValueChange={(value) => setFormData(prev => ({ ...prev, orderType: value }))}
+                onValueChange={(value) => handleFieldChange("orderType", value)}
               >
                 <SelectTrigger>
                   <SelectValue />
@@ -204,44 +215,50 @@ export default function OrderModal({ open, onOpenChange, order }: OrderModalProp
             </div>
           </div>
 
-          {/* Product Search Placeholder */}
-          <div>
-            <Label htmlFor="productSearch">Product Search</Label>
-            <div className="relative">
-              <Input
-                placeholder="Search products from ASI, ESP, SAGE databases..."
-                className="pr-10"
-              />
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="absolute right-2 top-1/2 transform -translate-y-1/2"
-              >
-                🔍
-              </Button>
-            </div>
-            <p className="text-xs text-gray-500 mt-1">
-              Product integration with ASI/ESP/SAGE will be implemented
-            </p>
-          </div>
+          
 
           {/* Order Details */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
               <Label htmlFor="inHandsDate">In-Hands Date</Label>
               <Input
+                id="inHandsDate"
                 type="date"
                 value={formData.inHandsDate}
-                onChange={(e) => setFormData(prev => ({ ...prev, inHandsDate: e.target.value }))}
+                onChange={(e) => handleFieldChange("inHandsDate", e.target.value)}
               />
             </div>
             <div>
               <Label htmlFor="eventDate">Event Date</Label>
               <Input
+                id="eventDate"
                 type="date"
                 value={formData.eventDate}
-                onChange={(e) => setFormData(prev => ({ ...prev, eventDate: e.target.value }))}
+                onChange={(e) => handleFieldChange("eventDate", e.target.value)}
+              />
+            </div>
+          </div>
+
+          {/* Addresses */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <Label htmlFor="shippingAddress">Shipping Address</Label>
+              <Textarea
+                id="shippingAddress"
+                placeholder="Enter shipping address..."
+                value={formData.shippingAddress}
+                onChange={(e) => handleFieldChange("shippingAddress", e.target.value)}
+                rows={3}
+              />
+            </div>
+            <div>
+              <Label htmlFor="billingAddress">Billing Address</Label>
+              <Textarea
+                id="billingAddress"
+                placeholder="Enter billing address..."
+                value={formData.billingAddress}
+                onChange={(e) => handleFieldChange("billingAddress", e.target.value)}
+                rows={3}
               />
             </div>
           </div>
@@ -250,13 +267,14 @@ export default function OrderModal({ open, onOpenChange, order }: OrderModalProp
           <div>
             <Label htmlFor="notes">Notes</Label>
             <Textarea
+              id="notes"
               placeholder="Additional order information..."
               value={formData.notes}
-              onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
+              onChange={(e) => handleFieldChange("notes", e.target.value)}
               rows={3}
             />
           </div>
-
+                  
           {/* Artwork Upload Placeholder */}
           <div>
             <Label>Artwork Files</Label>
