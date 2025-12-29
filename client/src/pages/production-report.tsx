@@ -47,13 +47,15 @@ import {
   List,
   ChevronDown,
   ChevronUp,
-  ExternalLink
+  ExternalLink,
+  Search
 } from "lucide-react";
 import { UserAvatar } from "@/components/UserAvatar";
 import { format, addDays } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { isUnauthorizedError } from "@/lib/authUtils";
+import { useLocation } from "wouter";
 
 interface ProductionStage {
   id: string;
@@ -105,12 +107,15 @@ export default function ProductionReport() {
   const [newStage, setNewStage] = useState({ name: '', description: '', color: 'bg-gray-100 text-gray-800' });
   const [filterAssignee, setFilterAssignee] = useState('all');
   const [filterPriority, setFilterPriority] = useState('all');
+  const [filterStage, setFilterStage] = useState('all');
+  const [searchQuery, setSearchQuery] = useState('');
   const [editingStageData, setEditingStageData] = useState<Record<string, any>>({});
   const [stageInputs, setStageInputs] = useState<Record<string, string>>({});
   const [viewMode, setViewMode] = useState<'expanded' | 'list'>('expanded');
   const [expandedOrders, setExpandedOrders] = useState<Set<string>>(new Set());
   const [nextActionDate, setNextActionDate] = useState<string>('');
   const [nextActionNotes, setNextActionNotes] = useState<string>('');
+  const [, setLocation] = useLocation();
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -429,6 +434,15 @@ export default function ProductionReport() {
   const filteredOrders = ordersToDisplay.filter((order: ProductionOrder) => {
     if (filterAssignee !== 'all' && order.assignedTo !== filterAssignee) return false;
     if (filterPriority !== 'all' && order.priority !== filterPriority) return false;
+    if (filterStage !== 'all' && order.currentStage !== filterStage) return false;
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      const matchesOrderNumber = order.orderNumber.toLowerCase().includes(query);
+      const matchesCompany = order.companyName.toLowerCase().includes(query);
+      const matchesProduct = order.productName.toLowerCase().includes(query);
+      const matchesAssignee = order.assignedTo?.toLowerCase().includes(query);
+      if (!matchesOrderNumber && !matchesCompany && !matchesProduct && !matchesAssignee) return false;
+    }
     return true;
   });
 
@@ -460,7 +474,7 @@ export default function ProductionReport() {
 
   const openProjectPage = (order: ProductionOrder) => {
     // Navigation to project page would go here
-    window.open(`/project/${order.id}`, '_blank');
+    setLocation(`/project/${order.id}`);
   };
 
   return (
@@ -591,11 +605,45 @@ export default function ProductionReport() {
       {/* Filters */}
       <Card>
         <CardContent className="p-4">
-          <div className="flex gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+            {/* Search */}
+            <div className="lg:col-span-2">
+              <Label htmlFor="searchQuery">Search Orders:</Label>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                <Input
+                  id="searchQuery"
+                  placeholder="Search by order, company, product..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+            </div>
+
+            {/* Stage Filter */}
+            <div>
+              <Label htmlFor="stageFilter">Filter by Stage:</Label>
+              <Select value={filterStage} onValueChange={setFilterStage}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Stages</SelectItem>
+                  {stages.map((stage) => (
+                    <SelectItem key={stage.id} value={stage.id}>
+                      {stage.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Assignee Filter */}
             <div>
               <Label htmlFor="assigneeFilter">Filter by Assignee:</Label>
               <Select value={filterAssignee} onValueChange={setFilterAssignee}>
-                <SelectTrigger className="w-fit">
+                <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -608,10 +656,12 @@ export default function ProductionReport() {
                 </SelectContent>
               </Select>
             </div>
+
+            {/* Priority Filter */}
             <div>
               <Label htmlFor="priorityFilter">Filter by Priority:</Label>
               <Select value={filterPriority} onValueChange={setFilterPriority}>
-                <SelectTrigger className="w-fit">
+                <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -623,6 +673,63 @@ export default function ProductionReport() {
                 </SelectContent>
               </Select>
             </div>
+          </div>
+
+          {/* Active Filters Summary */}
+          {(searchQuery || filterStage !== 'all' || filterAssignee !== 'all' || filterPriority !== 'all') && (
+            <div className="flex items-center gap-2 mt-3 pt-3 border-t">
+              <span className="text-sm text-gray-600">Active filters:</span>
+              {searchQuery && (
+                <Badge variant="secondary" className="gap-1">
+                  Search: {searchQuery}
+                  <button onClick={() => setSearchQuery('')} className="ml-1 hover:text-red-600">
+                    ×
+                  </button>
+                </Badge>
+              )}
+              {filterStage !== 'all' && (
+                <Badge variant="secondary" className="gap-1">
+                  Stage: {stages.find(s => s.id === filterStage)?.name}
+                  <button onClick={() => setFilterStage('all')} className="ml-1 hover:text-red-600">
+                    ×
+                  </button>
+                </Badge>
+              )}
+              {filterAssignee !== 'all' && (
+                <Badge variant="secondary" className="gap-1">
+                  Assignee: {filterAssignee}
+                  <button onClick={() => setFilterAssignee('all')} className="ml-1 hover:text-red-600">
+                    ×
+                  </button>
+                </Badge>
+              )}
+              {filterPriority !== 'all' && (
+                <Badge variant="secondary" className="gap-1">
+                  Priority: {filterPriority}
+                  <button onClick={() => setFilterPriority('all')} className="ml-1 hover:text-red-600">
+                    ×
+                  </button>
+                </Badge>
+              )}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setSearchQuery('');
+                  setFilterStage('all');
+                  setFilterAssignee('all');
+                  setFilterPriority('all');
+                }}
+                className="text-xs"
+              >
+                Clear all
+              </Button>
+            </div>
+          )}
+
+          {/* Results Count */}
+          <div className="mt-3 text-sm text-gray-600">
+            Showing {filteredOrders.length} of {ordersToDisplay.length} orders
           </div>
         </CardContent>
       </Card>

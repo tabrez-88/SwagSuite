@@ -52,7 +52,8 @@ export default function GlobalSearch() {
   // AI-powered search mutation
   const searchMutation = useMutation({
     mutationFn: async (searchQuery: string) => {
-      return apiRequest("POST", "/api/search/ai", { query: searchQuery });
+      const response = await apiRequest("POST", "/api/search/ai", { query: searchQuery });
+      return await response.json();
     },
     onSuccess: (data: SearchResult[]) => {
       setResults(data || []);

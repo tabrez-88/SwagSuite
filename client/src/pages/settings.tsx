@@ -94,7 +94,7 @@ export default function Settings() {
   // Load admin settings from backend
   const { data: adminSettings, isLoading: settingsLoading } = useQuery({
     queryKey: ['/api/admin/settings'],
-    enabled: user?.role === 'admin'
+    enabled: (user as any)?.role === 'admin'
   });
 
   // Load integration settings
@@ -103,13 +103,37 @@ export default function Settings() {
     staleTime: 1000 * 60 * 5, // Cache for 5 minutes
   });
 
+  // Load users from backend
+  const { data: usersData, isLoading: usersLoading } = useQuery({
+    queryKey: ['/api/users'],
+    enabled: (user as any)?.role === 'admin',
+  });
+
+  // Update user role mutation
+  const updateUserRoleMutation = useMutation({
+    mutationFn: async ({ userId, role }: { userId: string; role: 'admin' | 'manager' | 'user' }) => {
+      return await apiRequest('PATCH', `/api/users/${userId}/role`, { role });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/users'] });
+      toast({
+        title: "User Role Updated",
+        description: "User permissions have been updated successfully.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update user role.",
+        variant: "destructive"
+      });
+    }
+  });
+
   // Feature toggle mutation
   const featureToggleMutation = useMutation({
     mutationFn: async ({ featureId, enabled }: { featureId: string; enabled: boolean }) => {
-      return await apiRequest('/api/admin/settings/features', {
-        method: 'PUT',
-        body: { featureId, enabled }
-      });
+      return await apiRequest('PUT', '/api/admin/settings/features', { featureId, enabled });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/admin/settings'] });
@@ -230,34 +254,6 @@ export default function Settings() {
     }
   ]);
 
-  // User Management State
-  const [users, setUsers] = useState<UserPermission[]>([
-    {
-      id: '1',
-      name: 'Brandon Goltzman',
-      email: 'bgoltzman@liquidscreendesign.com',
-      role: 'admin',
-      permissions: ['all'],
-      lastActive: '2025-01-06T18:00:00Z'
-    },
-    {
-      id: '2', 
-      name: 'Mike Davis',
-      email: 'mike@liquidscreendesign.com',
-      role: 'manager',
-      permissions: ['orders', 'customers', 'products', 'reports'],
-      lastActive: '2025-01-06T16:30:00Z'
-    },
-    {
-      id: '3',
-      name: 'Sarah Johnson',
-      email: 'sarah@liquidscreendesign.com', 
-      role: 'user',
-      permissions: ['orders', 'customers'],
-      lastActive: '2025-01-06T15:45:00Z'
-    }
-  ]);
-
   // General Settings State
   const [generalSettings, setGeneralSettings] = useState({
     companyName: "Liquid Screen Design",
@@ -306,15 +302,16 @@ export default function Settings() {
   // Update integrations when data is loaded
   useEffect(() => {
     if (integrationSettings) {
+      const settings = integrationSettings as any;
       setIntegrations({
-        ssActivewearAccount: integrationSettings.ssActivewearAccount || "",
-        ssActivewearApiKey: integrationSettings.ssActivewearApiKey || "",
-        hubspotApiKey: integrationSettings.hubspotApiKey || "",
-        slackBotToken: integrationSettings.slackBotToken || "",
-        slackChannelId: integrationSettings.slackChannelId || "",
-        quickbooksConnected: integrationSettings.quickbooksConnected || false,
-        stripeConnected: integrationSettings.stripeConnected || false,
-        shipmateConnected: integrationSettings.shipmateConnected || false
+        ssActivewearAccount: settings.ssActivewearAccount || "",
+        ssActivewearApiKey: settings.ssActivewearApiKey || "",
+        hubspotApiKey: settings.hubspotApiKey || "",
+        slackBotToken: settings.slackBotToken || "",
+        slackChannelId: settings.slackChannelId || "",
+        quickbooksConnected: settings.quickbooksConnected || false,
+        stripeConnected: settings.stripeConnected || false,
+        shipmateConnected: settings.shipmateConnected || false
       });
     }
   }, [integrationSettings]);
@@ -381,9 +378,9 @@ export default function Settings() {
     }
   ]);
 
-  const [configuredIntegrations, setConfiguredIntegrations] = useState([]);
+  const [configuredIntegrations, setConfiguredIntegrations] = useState<any[]>([]);
   const [showAddIntegration, setShowAddIntegration] = useState(false);
-  const [selectedIntegrationType, setSelectedIntegrationType] = useState(null);
+  const [selectedIntegrationType, setSelectedIntegrationType] = useState<any>(null);
 
   // System Configuration State
   const [systemConfig, setSystemConfig] = useState({
@@ -419,15 +416,16 @@ export default function Settings() {
     },
     dataImport: {
       processing: false,
-      lastImport: null,
+      lastImport: null as string | null,
       supportedFormats: ['CSV', 'Excel', 'JSON', 'XML']
     }
   });
 
   const [showDataImport, setShowDataImport] = useState(false);
-  const [importFile, setImportFile] = useState(null);
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [configData, setConfigData] = useState<any>({});
 
-  const isAdmin = user?.role === 'admin' || user?.email === 'bgoltzman@liquidscreendesign.com';
+  const isAdmin = (user as any)?.role === 'admin' || (user as any)?.email === 'bgoltzman@liquidscreendesign.com';
 
   const toggleFeature = (featureId: string) => {
     const currentFeature = features.find(f => f.id === featureId);
@@ -447,16 +445,7 @@ export default function Settings() {
   };
 
   const updateUserRole = (userId: string, newRole: 'admin' | 'manager' | 'user') => {
-    setUsers(prev => prev.map(user =>
-      user.id === userId
-        ? { ...user, role: newRole }
-        : user
-    ));
-    
-    toast({
-      title: "User Role Updated",
-      description: "User permissions have been updated successfully.",
-    });
+    updateUserRoleMutation.mutate({ userId, role: newRole });
   };
 
   const saveSettings = async (section: string) => {
@@ -553,7 +542,7 @@ export default function Settings() {
       ...prev,
       formFields: {
         ...prev.formFields,
-        [formType]: prev.formFields[formType].map(field =>
+        [formType]: (prev.formFields as any)[formType].map((field: any) =>
           field.id === fieldId ? { ...field, enabled: !field.enabled } : field
         )
       }
@@ -644,13 +633,13 @@ export default function Settings() {
       if (!selectedIntegrationType) return;
       
       // Validate required fields
-      const requiredFields = selectedIntegrationType.fields.filter(field => field.required);
-      const missingFields = requiredFields.filter(field => !configData[field.key]);
+      const requiredFields = selectedIntegrationType.fields.filter((field: any) => field.required);
+      const missingFields = requiredFields.filter((field: any) => !(configData as any)[field.key]);
       
       if (missingFields.length > 0) {
         toast({
           title: "Missing Required Fields",
-          description: `Please fill in: ${missingFields.map(f => f.label).join(', ')}`,
+          description: `Please fill in: ${missingFields.map((f: any) => f.label).join(', ')}`,
           variant: "destructive"
         });
         return;
@@ -704,7 +693,7 @@ export default function Settings() {
               </div>
               
               <div className="space-y-4">
-                {selectedIntegrationType.fields.map(field => (
+                {selectedIntegrationType.fields.map((field : any) => (
                   <div key={field.key} className="space-y-2">
                     <Label htmlFor={field.key}>
                       {field.label}
@@ -714,7 +703,7 @@ export default function Settings() {
                       id={field.key}
                       type={field.type}
                       placeholder={field.placeholder || `Enter ${field.label.toLowerCase()}`}
-                      value={configData[field.key] || ''}
+                      value={(configData as any)[field.key] || ''}
                       onChange={(e) => handleFieldChange(field.key, e.target.value)}
                       required={field.required}
                     />
@@ -857,42 +846,56 @@ export default function Settings() {
               </p>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                {users.map(user => (
-                  <div key={user.id} className="flex items-center justify-between p-4 border rounded-lg">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center">
-                        <User className="w-5 h-5 text-primary" />
+              {usersLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Settings2 className="w-6 h-6 text-gray-400 animate-spin mr-2" />
+                  <span className="text-gray-600">Loading users...</span>
+                </div>
+              ) : usersData && Array.isArray(usersData) && usersData.length > 0 ? (
+                <div className="space-y-4">
+                  {usersData.map((userItem: any) => (
+                    <div key={userItem.id} className="flex items-center justify-between p-4 border rounded-lg">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center">
+                          <User className="w-5 h-5 text-primary" />
+                        </div>
+                        <div>
+                          <h4 className="font-medium text-sm">
+                            {userItem.firstName} {userItem.lastName}
+                          </h4>
+                          <p className="text-xs text-gray-600">{userItem.email}</p>
+                          <p className="text-xs text-gray-500">
+                            Last active: {userItem.updatedAt ? new Date(userItem.updatedAt).toLocaleDateString() : 'Never'}
+                          </p>
+                        </div>
                       </div>
-                      <div>
-                        <h4 className="font-medium text-sm">{user.name}</h4>
-                        <p className="text-xs text-gray-600">{user.email}</p>
-                        <p className="text-xs text-gray-500">
-                          Last active: {new Date(user.lastActive).toLocaleDateString()}
-                        </p>
+                      <div className="flex items-center gap-3">
+                        <Select
+                          value={userItem.role || 'user'}
+                          onValueChange={(value: 'admin' | 'manager' | 'user') => updateUserRole(userItem.id, value)}
+                          disabled={updateUserRoleMutation.isPending}
+                        >
+                          <SelectTrigger className="w-32">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="admin">Admin</SelectItem>
+                            <SelectItem value="manager">Manager</SelectItem>
+                            <SelectItem value="user">User</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <Badge variant={userItem.role === 'admin' ? 'default' : userItem.role === 'manager' ? 'secondary' : 'outline'}>
+                          {userItem.role || 'user'}
+                        </Badge>
                       </div>
                     </div>
-                    <div className="flex items-center gap-3">
-                      <Select
-                        value={user.role}
-                        onValueChange={(value: 'admin' | 'manager' | 'user') => updateUserRole(user.id, value)}
-                      >
-                        <SelectTrigger className="w-32">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="admin">Admin</SelectItem>
-                          <SelectItem value="manager">Manager</SelectItem>
-                          <SelectItem value="user">User</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <Badge variant={user.role === 'admin' ? 'default' : user.role === 'manager' ? 'secondary' : 'outline'}>
-                        {user.role}
-                      </Badge>
-                    </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8 text-gray-500">
+                  No users found
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>

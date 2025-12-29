@@ -64,12 +64,21 @@ function updateUserSession(
 async function upsertUser(
   claims: any,
 ) {
+  // Check if this is the first user (make them admin automatically)
+  const { db } = await import("./db");
+  const { users } = await import("@shared/schema");
+  const { sql } = await import("drizzle-orm");
+  
+  const userCount = await db.select({ count: sql<number>`count(*)` }).from(users);
+  const isFirstUser = Number(userCount[0].count) === 0;
+  
   await storage.upsertUser({
     id: claims["sub"],
     email: claims["email"],
     firstName: claims["first_name"],
     lastName: claims["last_name"],
     profileImageUrl: claims["profile_image_url"],
+    role: isFirstUser ? "admin" : undefined, // First user becomes admin
   });
 }
 
@@ -131,14 +140,14 @@ export async function setupAuth(app: Express) {
             exp: Math.floor(Date.now() / 1000) + (24 * 60 * 60)
           },
           expires_at: Math.floor(Date.now() / 1000) + (24 * 60 * 60)
-        }, async (err) => {
+        } as any, async (err) => {
           if (err) { return res.status(500).send("Login failed"); }
           await upsertUser({
-             sub: "dev-user-id",
-             email: "dev@example.com",
-             first_name: "Developer",
-             last_name: "Local",
-             profile_image_url: "https://via.placeholder.com/150"
+            sub: "dev-user-id",
+            email: "dev@example.com",
+            first_name: "Developer",
+            last_name: "Local",
+            profile_image_url: "https://via.placeholder.com/150"
           });
           return res.redirect("/");
        });
@@ -152,7 +161,7 @@ export async function setupAuth(app: Express) {
       tokens: client.TokenEndpointResponse & client.TokenEndpointResponseHelpers,
       verified: passport.AuthenticateCallback
     ) => {
-      const user = {};
+      const user: any = {};
       updateUserSession(user, tokens);
       await upsertUser(tokens.claims());
       verified(null, user);

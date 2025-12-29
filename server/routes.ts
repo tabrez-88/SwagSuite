@@ -369,6 +369,67 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Users Management API
+  app.get('/api/users', isAuthenticated, async (req, res) => {
+    try {
+      const { db } = await import("./db");
+      const { users } = await import("@shared/schema");
+      const { desc } = await import("drizzle-orm");
+
+      const allUsers = await db.select().from(users).orderBy(desc(users.updatedAt));
+      res.json(allUsers);
+    } catch (error) {
+      console.error("Error fetching users:", error);
+      res.status(500).json({ message: "Failed to fetch users" });
+    }
+  });
+
+  app.patch('/api/users/:id/role', isAuthenticated, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { role } = req.body;
+
+      // Check if current user is admin
+      const currentUser = await storage.getUser((req as any).user.claims.sub);
+      if (currentUser?.role !== 'admin') {
+        return res.status(403).json({ message: "Only administrators can update user roles" });
+      }
+
+      // Validate role
+      if (!['admin', 'manager', 'user'].includes(role)) {
+        return res.status(400).json({ message: "Invalid role" });
+      }
+
+      const { db } = await import("./db");
+      const { users } = await import("@shared/schema");
+      const { eq } = await import("drizzle-orm");
+
+      const [updatedUser] = await db
+        .update(users)
+        .set({ role, updatedAt: new Date() })
+        .where(eq(users.id, id))
+        .returning();
+
+      if (!updatedUser) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      // Log activity
+      await storage.createActivity({
+        userId: (req as any).user.claims.sub,
+        entityType: 'user',
+        entityId: id,
+        action: 'updated',
+        description: `Updated user role to ${role}`,
+      });
+
+      res.json(updatedUser);
+    } catch (error) {
+      console.error("Error updating user role:", error);
+      res.status(500).json({ message: "Failed to update user role" });
+    }
+  });
+
   // Dashboard routes
   app.get('/api/dashboard/stats', isAuthenticated, async (req, res) => {
     try {
@@ -4284,10 +4345,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Fetch messages from Slack channel and sync with database
   app.get('/api/slack/sync-messages', isAuthenticated, async (req, res) => {
     try {
-      // Get Slack credentials from database or env vars
-      const credentials = await storage.getIntegrationSettings();
-      const botToken = credentials?.slackBotToken || process.env.SLACK_BOT_TOKEN;
-      const channelId = credentials?.slackChannelId || process.env.SLACK_CHANNEL_ID;
+      // Get Slack credentials from env vars only
+      // TODO: Future - enable database config by uncommenting below
+      // const credentials = await storage.getIntegrationSettings();
+      // const botToken = credentials?.slackBotToken || process.env.SLACK_BOT_TOKEN;
+      // const channelId = credentials?.slackChannelId || process.env.SLACK_CHANNEL_ID;
+      const botToken = process.env.SLACK_BOT_TOKEN;
+      const channelId = process.env.SLACK_CHANNEL_ID;
 
       if (!botToken || !channelId) {
         return res.status(503).json({ 
@@ -4370,10 +4434,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { threadTs } = req.params;
       
-      // Get Slack credentials from database or env vars
-      const credentials = await storage.getIntegrationSettings();
-      const botToken = credentials?.slackBotToken || process.env.SLACK_BOT_TOKEN;
-      const channelId = credentials?.slackChannelId || process.env.SLACK_CHANNEL_ID;
+      // Get Slack credentials from env vars only
+      // TODO: Future - enable database config by uncommenting below
+      // const credentials = await storage.getIntegrationSettings();
+      // const botToken = credentials?.slackBotToken || process.env.SLACK_BOT_TOKEN;
+      // const channelId = credentials?.slackChannelId || process.env.SLACK_CHANNEL_ID;
+      const botToken = process.env.SLACK_BOT_TOKEN;
+      const channelId = process.env.SLACK_CHANNEL_ID;
 
       if (!botToken || !channelId) {
         return res.status(503).json({ 
@@ -4445,10 +4512,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Message content is required" });
       }
 
-      // Get Slack credentials from database or env vars
-      const credentials = await storage.getIntegrationSettings();
-      const botToken = credentials?.slackBotToken || process.env.SLACK_BOT_TOKEN;
-      const channelId = credentials?.slackChannelId || process.env.SLACK_CHANNEL_ID;
+      // Get Slack credentials from env vars only
+      // TODO: Future - enable database config by uncommenting below
+      // const credentials = await storage.getIntegrationSettings();
+      // const botToken = credentials?.slackBotToken || process.env.SLACK_BOT_TOKEN;
+      // const channelId = credentials?.slackChannelId || process.env.SLACK_CHANNEL_ID;
+      const botToken = process.env.SLACK_BOT_TOKEN;
+      const channelId = process.env.SLACK_CHANNEL_ID;
 
       if (!botToken || !channelId) {
         return res.status(503).json({ 

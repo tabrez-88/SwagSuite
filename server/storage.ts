@@ -296,12 +296,20 @@ export class DatabaseStorage implements IStorage {
   async upsertUser(userData: UpsertUser): Promise<User> {
     const [user] = await db
       .insert(users)
-      .values(userData)
+      .values({
+        ...userData,
+        updatedAt: new Date(), // Set updatedAt as lastActive
+      })
       .onConflictDoUpdate({
         target: users.id,
         set: {
-          ...userData,
-          updatedAt: new Date(),
+          email: userData.email,
+          firstName: userData.firstName,
+          lastName: userData.lastName,
+          profileImageUrl: userData.profileImageUrl,
+          // Only update role if explicitly provided (for first-time setup)
+          ...(userData.role && { role: userData.role }),
+          updatedAt: new Date(), // Update on every login
         },
       })
       .returning();
