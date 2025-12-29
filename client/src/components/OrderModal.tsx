@@ -51,7 +51,7 @@ export default function OrderModal({ open, onOpenChange, order, initialCompanyId
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  // Reset or populate form when opening
+  // Reset or populate form when opening 
   useEffect(() => {
     if (open) {
       if (order) {
@@ -210,20 +210,20 @@ export default function OrderModal({ open, onOpenChange, order, initialCompanyId
     mutationFn: async (data: any) => {
       // Only send fields that are being updated
       const payload: any = { ...data };
-      
+
       // Convert date strings to Date objects, or set to null if empty
       if (payload.inHandsDate) {
         payload.inHandsDate = new Date(payload.inHandsDate);
       } else if (payload.inHandsDate === "") {
         payload.inHandsDate = null;
       }
-      
+
       if (payload.eventDate) {
         payload.eventDate = new Date(payload.eventDate);
       } else if (payload.eventDate === "") {
         payload.eventDate = null;
       }
-      
+
       const response = await apiRequest("PATCH", `/api/orders/${order?.id}`, payload);
       return response.json();
     },
@@ -262,14 +262,14 @@ export default function OrderModal({ open, onOpenChange, order, initialCompanyId
       subtotal: subtotal.toFixed(2),
       total: total.toFixed(2),
     };
-    
+
     // Convert date strings to Date objects or null
     if (formData.inHandsDate) {
       payload.inHandsDate = new Date(formData.inHandsDate);
     } else {
       payload.inHandsDate = null;
     }
-    
+
     if (formData.eventDate) {
       payload.eventDate = new Date(formData.eventDate);
     } else {
@@ -486,7 +486,7 @@ export default function OrderModal({ open, onOpenChange, order, initialCompanyId
             </div>
           )}
 
-          
+
 
           {/* Order Details */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -555,7 +555,7 @@ export default function OrderModal({ open, onOpenChange, order, initialCompanyId
               rows={3}
             />
           </div>
-                  
+
           {/* Artwork Upload Placeholder */}
           <div>
             <Label>Artwork Files</Label>
@@ -583,9 +583,9 @@ export default function OrderModal({ open, onOpenChange, order, initialCompanyId
               disabled={createOrderMutation.isPending || updateOrderMutation.isPending}
             >
               {order ? (
-              updateOrderMutation.isPending ? "Updating..." : "Update Order"
+                updateOrderMutation.isPending ? "Updating..." : "Update Order"
               ) : (
-              createOrderMutation.isPending ? "Creating..." : "Create Order"
+                createOrderMutation.isPending ? "Creating..." : "Create Order"
               )}
             </Button>
           </div>

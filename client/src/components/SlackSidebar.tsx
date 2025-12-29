@@ -57,7 +57,7 @@ export function SlackSidebar({ isMinimized, onToggleMinimize }: SlackSidebarProp
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const queryClient = useQueryClient();
 
-  // Fetch Slack messages from channel history (live sync)
+  // Fetch Slack messages from channel history (live sync) 
   const { data: slackResponse, isLoading: isLoadingSlack, refetch: refetchSlack } = useQuery<{ messages: SlackMessage[] }>({
     queryKey: ['/api/slack/sync-messages'],
     refetchInterval: 10000, // Refresh every 10 seconds to get new replies from Slack
@@ -214,8 +214,8 @@ export function SlackSidebar({ isMinimized, onToggleMinimize }: SlackSidebarProp
               <div key={message.id}>
                 <div
                   className={`rounded-lg p-3 ${isFromBot
-                      ? 'bg-blue-50 dark:bg-blue-900/20 ml-4'
-                      : 'bg-gray-50 dark:bg-gray-800 mr-4'
+                    ? 'bg-blue-50 dark:bg-blue-900/20 ml-4'
+                    : 'bg-gray-50 dark:bg-gray-800 mr-4'
                     }`}
                 >
                   <div className="flex items-start justify-between mb-1">
@@ -351,8 +351,8 @@ function ThreadReplies({
           <div
             key={reply.id}
             className={`rounded p-2 text-sm ${isFromBot
-                ? 'bg-blue-100 dark:bg-blue-900/30'
-                : 'bg-gray-100 dark:bg-gray-800'
+              ? 'bg-blue-100 dark:bg-blue-900/30'
+              : 'bg-gray-100 dark:bg-gray-800'
               }`}
           >
             <div className="flex items-center justify-between mb-1">

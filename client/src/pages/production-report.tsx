@@ -120,7 +120,7 @@ export default function ProductionReport() {
     queryKey: ["/api/orders"],
   });
 
-  // Fetch companies for names
+  // Fetch companies for names 
   const { data: companies = [] } = useQuery<any[]>({
     queryKey: ["/api/companies"],
   });
@@ -136,7 +136,7 @@ export default function ProductionReport() {
     .map((order: any) => {
       const company = companies.find((c: any) => c.id === order.companyId);
       const assignedUser = users.find((u: any) => u.id === order.assignedUserId);
-      
+
       return {
         id: order.id,
         orderNumber: order.orderNumber,
@@ -172,16 +172,16 @@ export default function ProductionReport() {
   const getProgressPercentage = (order: ProductionOrder) => {
     const totalStages = stages.length;
     const completedStages = order.stagesCompleted.length;
-    
+
     // If all stages are completed, return 100%
     if (completedStages >= totalStages) {
       return 100;
     }
-    
+
     // If current stage is already in completed stages, don't add extra percentage
     const isCurrentStageCompleted = order.stagesCompleted.includes(order.currentStage);
     const currentStageBonus = isCurrentStageCompleted ? 0 : 0.5;
-    
+
     return Math.round(((completedStages + currentStageBonus) / totalStages) * 100);
   };
 
@@ -1327,7 +1327,7 @@ export default function ProductionReport() {
                 <Button variant="outline" onClick={() => setIsOrderModalOpen(false)}>
                   Close
                 </Button>
-                <Button 
+                <Button
                   className="bg-swag-primary hover:bg-swag-primary/90"
                   onClick={() => {
                     if (selectedOrder) {

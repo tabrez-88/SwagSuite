@@ -328,7 +328,7 @@ export default function ProductModal({ open, onOpenChange, product }: ProductMod
         <DialogHeader>
           <DialogTitle>{product ? 'Edit Product' : 'Add New Product'}</DialogTitle>
           <DialogDescription>
-            {product 
+            {product
               ? 'Update product information below.'
               : 'Enter a product number/SKU to automatically fetch details from S&S Activewear, or add product information manually.'
             }
@@ -338,96 +338,96 @@ export default function ProductModal({ open, onOpenChange, product }: ProductMod
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Product Search Section - Only show when creating new product */}
           {!product && (
-          <div className="space-y-4 p-4 bg-blue-50 dark:bg-blue-950/20 rounded-lg border">
-            <h3 className="font-medium text-blue-900 dark:text-blue-100">
-              S&S Activewear Product Lookup
-            </h3>
+            <div className="space-y-4 p-4 bg-blue-50 dark:bg-blue-950/20 rounded-lg border">
+              <h3 className="font-medium text-blue-900 dark:text-blue-100">
+                S&S Activewear Product Lookup
+              </h3>
 
-            <div className="space-y-3">
-              <div className="flex gap-2">
-                <div className="flex-1">
-                  <Label htmlFor="searchQuery">Product Search</Label>
-                  <Input
-                    id="searchQuery"
-                    placeholder="Enter SKU, style code, or product name (e.g., 3001, B00760033, Gildan)"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    onKeyPress={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        handleSearch();
-                      }
-                    }}
-                  />
-                </div>
-                <div className="flex items-end">
-                  <Button
-                    type="button"
-                    onClick={handleSearch}
-                    disabled={isSearching || !searchQuery.trim()}
-                    className="whitespace-nowrap"
-                  >
-                    {isSearching ? (
-                      <>
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        Searching...
-                      </>
-                    ) : (
-                      <>
-                        <Search className="w-4 h-4 mr-2" />
-                        Search
-                      </>
-                    )}
-                  </Button>
-                </div>
-              </div>
-              <p className="text-xs text-gray-600 dark:text-gray-400">
-                Universal search across SKU numbers, style codes, and product names. Try "3001" or "Gildan".
-              </p>
-            </div>
-
-            {searchError && (
-              <p className="text-sm text-red-600 dark:text-red-400">{searchError}</p>
-            )}
-
-            {/* Search Results */}
-            {searchResults.length > 1 && (
-              <div className="space-y-2">
-                <Label>Search Results ({searchResults.length} found)</Label>
-                <div className="max-h-48 overflow-y-auto space-y-2 border rounded-lg p-2">
-                  {searchResults.map((product) => (
-                    <div
-                      key={product.sku}
-                      className="flex items-center gap-3 p-2 border rounded hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer"
-                      onClick={() => selectProduct(product)}
+              <div className="space-y-3">
+                <div className="flex gap-2">
+                  <div className="flex-1">
+                    <Label htmlFor="searchQuery">Product Search</Label>
+                    <Input
+                      id="searchQuery"
+                      placeholder="Enter SKU, style code, or product name (e.g., 3001, B00760033, Gildan)"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      onKeyPress={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleSearch();
+                        }
+                      }}
+                    />
+                  </div>
+                  <div className="flex items-end">
+                    <Button
+                      type="button"
+                      onClick={handleSearch}
+                      disabled={isSearching || !searchQuery.trim()}
+                      className="whitespace-nowrap"
                     >
-                      {product.colorFrontImage && (
-                        <img
-                          src={product.colorFrontImage}
-                          alt={`${product.brandName} ${product.styleName}`}
-                          className="w-12 h-12 object-cover rounded border"
-                          onError={(e) => {
-                            e.currentTarget.style.display = 'none';
-                          }}
-                        />
+                      {isSearching ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          Searching...
+                        </>
+                      ) : (
+                        <>
+                          <Search className="w-4 h-4 mr-2" />
+                          Search
+                        </>
                       )}
-                      <div className="flex-1">
-                        <div className="font-medium text-sm">
-                          {product.brandName} {product.styleName} - {product.colorName}
-                        </div>
-                        <div className="text-xs text-gray-500">
-                          SKU: {product.sku} | Size: {product.sizeName} | ${product.piecePrice}
-                        </div>
-                      </div>
-                      <Button size="sm" variant="outline">
-                        Select
-                      </Button>
-                    </div>
-                  ))}
+                    </Button>
+                  </div>
                 </div>
+                <p className="text-xs text-gray-600 dark:text-gray-400">
+                  Universal search across SKU numbers, style codes, and product names. Try "3001" or "Gildan".
+                </p>
               </div>
-            )}
-          </div>
+
+              {searchError && (
+                <p className="text-sm text-red-600 dark:text-red-400">{searchError}</p>
+              )}
+
+              {/* Search Results */}
+              {searchResults.length > 1 && (
+                <div className="space-y-2">
+                  <Label>Search Results ({searchResults.length} found)</Label>
+                  <div className="max-h-48 overflow-y-auto space-y-2 border rounded-lg p-2">
+                    {searchResults.map((product) => (
+                      <div
+                        key={product.sku}
+                        className="flex items-center gap-3 p-2 border rounded hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer"
+                        onClick={() => selectProduct(product)}
+                      >
+                        {product.colorFrontImage && (
+                          <img
+                            src={product.colorFrontImage}
+                            alt={`${product.brandName} ${product.styleName}`}
+                            className="w-12 h-12 object-cover rounded border"
+                            onError={(e) => {
+                              e.currentTarget.style.display = 'none';
+                            }}
+                          />
+                        )}
+                        <div className="flex-1">
+                          <div className="font-medium text-sm">
+                            {product.brandName} {product.styleName} - {product.colorName}
+                          </div>
+                          <div className="text-xs text-gray-500">
+                            SKU: {product.sku} | Size: {product.sizeName} | ${product.piecePrice}
+                          </div>
+                        </div>
+                        <Button size="sm" variant="outline">
+                          Select
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
           )}
 
           {/* Selected Product Image */}

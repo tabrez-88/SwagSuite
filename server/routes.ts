@@ -1,14 +1,13 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import "./types"; // Import type definitions for Express.User
 import multer from "multer";
 import path from "path";
 import fs from "fs";
 import { setupAuth, isAuthenticated } from "./replitAuth";
-import {
-  insertCompanySchema,
-  insertContactSchema,
+import { 
+  insertCompanySchema, 
+  insertContactSchema, 
   insertClientSchema,
   insertSupplierSchema,
   insertProductSchema,
@@ -191,11 +190,8 @@ Return your response as a JSON object with this structure:
       messages: [{ role: 'user', content: prompt }]
     });
 
-    const contentBlock = response.content[0];
-    if (contentBlock.type !== 'text') {
-      throw new Error('Unexpected response type from AI');
-    }
-    const aiResponse = JSON.parse(contentBlock.text);
+    const textContent = response.content[0]?.type === 'text' ? response.content[0].text : '{}';
+    const aiResponse = JSON.parse(textContent);
 
     // Update presentation with AI suggestions
     await storage.updatePresentation(presentationId, {
