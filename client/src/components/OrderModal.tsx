@@ -234,6 +234,7 @@ export default function OrderModal({ open, onOpenChange, order, initialCompanyId
       });
       queryClient.invalidateQueries({ queryKey: ["/api/orders"] });
       queryClient.invalidateQueries({ queryKey: [`/api/orders/${order?.id}`] });
+      queryClient.invalidateQueries({ queryKey: ["/api/suppliers"] }); // Refresh supplier data
       onOpenChange(false);
     },
     onError: (error: Error) => {

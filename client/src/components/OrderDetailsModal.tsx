@@ -35,7 +35,7 @@ import {
   TrendingUp
 } from "lucide-react";
 import type { Order } from "@shared/schema";
-import { useState, useRef } from "react";
+import { useState, useRef, useMemo } from "react";
 import { useLocation } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import OrderModal from "./OrderModal";
@@ -130,58 +130,65 @@ export function OrderDetailsModal({ open, onOpenChange, order, companyName }: Or
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
+  // Fetch latest order data to keep modal in sync
+  const { data: latestOrder } = useQuery<Order>({
+    queryKey: [`/api/orders/${order?.id}`],
+    enabled: open && !!order?.id,
+  });
+
+  // Use latest order data if available, fallback to prop
+  const currentOrder = latestOrder || order;
+
   // Fetch team members for @ mentions
   const { data: teamMembers = [] } = useQuery<TeamMember[]>({
     queryKey: ["/api/users/team"],
-    enabled: open && !!order,
+    enabled: open && !!currentOrder,
   });
 
   // Fetch suppliers data
   const { data: suppliers = [] } = useQuery<any[]>({
     queryKey: ["/api/suppliers"],
-    enabled: open && !!order,
+    enabled: open && !!currentOrder,
   });
 
-  // Get supplier information (after suppliers data is fetched)
-  const getSupplier = () => {
-    if (!order || !(order as any).supplierId) return null;
-    return suppliers.find((s: any) => s.id === (order as any).supplierId);
-  };
-
-  const supplier = getSupplier();
+  // Get supplier information (memoized to update when order or suppliers change)
+  const supplier = useMemo(() => {
+    if (!currentOrder || !(currentOrder as any).supplierId) return null;
+    return suppliers.find((s: any) => s.id === (currentOrder as any).supplierId);
+  }, [currentOrder, suppliers]);
 
   // Fetch project activities (internal notes)
   const { data: activities = [] } = useQuery<ProjectActivity[]>({
-    queryKey: [`/api/projects/${order?.id}/activities`],
-    enabled: open && !!order,
+    queryKey: [`/api/projects/${currentOrder?.id}/activities`],
+    enabled: open && !!currentOrder,
   });
 
   // Fetch client communications
   const { data: clientCommunications = [] } = useQuery<Communication[]>({
-    queryKey: [`/api/orders/${order?.id}/communications`, { type: "client_email" }],
+    queryKey: [`/api/orders/${currentOrder?.id}/communications`, { type: "client_email" }],
     queryFn: async () => {
-      const response = await fetch(`/api/orders/${order?.id}/communications?type=client_email`);
+      const response = await fetch(`/api/orders/${currentOrder?.id}/communications?type=client_email`);
       if (!response.ok) throw new Error("Failed to fetch client communications");
       return response.json();
     },
-    enabled: open && !!order,
+    enabled: open && !!currentOrder,
   });
 
   // Fetch vendor communications
   const { data: vendorCommunications = [] } = useQuery<Communication[]>({
-    queryKey: [`/api/orders/${order?.id}/communications`, { type: "vendor_email" }],
+    queryKey: [`/api/orders/${currentOrder?.id}/communications`, { type: "vendor_email" }],
     queryFn: async () => {
-      const response = await fetch(`/api/orders/${order?.id}/communications?type=vendor_email`);
+      const response = await fetch(`/api/orders/${currentOrder?.id}/communications?type=vendor_email`);
       if (!response.ok) throw new Error("Failed to fetch vendor communications");
       return response.json();
     },
-    enabled: open && !!order,
+    enabled: open && !!currentOrder,
   });
 
   // Mutation for creating internal notes
   const createActivityMutation = useMutation({
     mutationFn: async (data: { activityType: string; content: string; mentionedUsers?: string[] }) => {
-      const response = await fetch(`/api/projects/${order?.id}/activities`, {
+      const response = await fetch(`/api/projects/${currentOrder?.id}/activities`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
@@ -190,7 +197,7 @@ export function OrderDetailsModal({ open, onOpenChange, order, companyName }: Or
       return response.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/projects/${order?.id}/activities`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/projects/${currentOrder?.id}/activities`] });
       toast({
         title: "Note sent",
         description: "Internal note has been added successfully.",
@@ -212,7 +219,7 @@ export function OrderDetailsModal({ open, onOpenChange, order, companyName }: Or
       subject: string;
       body: string;
     }) => {
-      const response = await fetch(`/api/orders/${order?.id}/communications`, {
+      const response = await fetch(`/api/orders/${currentOrder?.id}/communications`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -228,7 +235,7 @@ export function OrderDetailsModal({ open, onOpenChange, order, companyName }: Or
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
-        queryKey: [`/api/orders/${order?.id}/communications`, { type: "client_email" }],
+        queryKey: [`/api/orders/${currentOrder?.id}/communications`, { type: "client_email" }],
       });
       toast({
         title: "Email sent",
@@ -251,7 +258,7 @@ export function OrderDetailsModal({ open, onOpenChange, order, companyName }: Or
       subject: string;
       body: string;
     }) => {
-      const response = await fetch(`/api/orders/${order?.id}/communications`, {
+      const response = await fetch(`/api/orders/${currentOrder?.id}/communications`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -267,7 +274,7 @@ export function OrderDetailsModal({ open, onOpenChange, order, companyName }: Or
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
-        queryKey: [`/api/orders/${order?.id}/communications`, { type: "vendor_email" }],
+        queryKey: [`/api/orders/${currentOrder?.id}/communications`, { type: "vendor_email" }],
       });
       toast({
         title: "Email sent",
@@ -291,17 +298,17 @@ export function OrderDetailsModal({ open, onOpenChange, order, companyName }: Or
     { id: "user4", firstName: "Emily", lastName: "Davis", email: "emily@swag.com" },
   ];
 
-  if (!order) return null;
+  if (!currentOrder) return null;
 
-  const statusClass = statusColorMap[order.status as keyof typeof statusColorMap] || "bg-gray-100 text-gray-800";
-  const statusLabel = statusDisplayMap[order.status as keyof typeof statusDisplayMap] || order.status;
+  const statusClass = statusColorMap[currentOrder.status as keyof typeof statusColorMap] || "bg-gray-100 text-gray-800";
+  const statusLabel = statusDisplayMap[currentOrder.status as keyof typeof statusDisplayMap] || currentOrder.status;
 
   // Check if this is a rush order based on in hands date
-  const isRushOrder = order.inHandsDate ?
-    new Date(order.inHandsDate).getTime() - new Date().getTime() < 7 * 24 * 60 * 60 * 1000 : false;
+  const isRushOrder = currentOrder.inHandsDate ?
+    new Date(currentOrder.inHandsDate).getTime() - new Date().getTime() < 7 * 24 * 60 * 60 * 1000 : false;
 
   const handleViewProject = () => {
-    setLocation(`/project/${order.id}`);
+    setLocation(`/project/${currentOrder.id}`);
     onOpenChange(false);
   };
 
@@ -404,7 +411,7 @@ export function OrderDetailsModal({ open, onOpenChange, order, companyName }: Or
           <DialogHeader>
             <DialogTitle className="flex items-center pt-6 gap-3">
               <FileText className="w-6 h-6" />
-              Order #{order.orderNumber}
+              Order #{currentOrder.orderNumber}
               <Badge className={statusClass}>
                 {statusLabel}
               </Badge>
@@ -493,7 +500,7 @@ export function OrderDetailsModal({ open, onOpenChange, order, companyName }: Or
                       <div>
                         <p className="text-sm font-medium text-gray-500">Order Type</p>
                         <Badge variant="outline" className="mt-1">
-                          {order.orderType?.replace('_', ' ').toUpperCase() || 'QUOTE'}
+                          {currentOrder.orderType?.replace('_', ' ').toUpperCase() || 'QUOTE'}
                         </Badge>
                       </div>
                       <div>
@@ -511,15 +518,15 @@ export function OrderDetailsModal({ open, onOpenChange, order, companyName }: Or
                       <div className="space-y-2 bg-gray-50 p-3 rounded-lg">
                         <div className="flex justify-between text-sm">
                           <span className="text-gray-600">Subtotal:</span>
-                          <span className="font-medium">${Number(order.subtotal || 0).toLocaleString()}</span>
+                          <span className="font-medium">${Number(currentOrder.subtotal || 0).toLocaleString()}</span>
                         </div>
                         <div className="flex justify-between text-sm">
                           <span className="text-gray-600">Tax:</span>
-                          <span className="font-medium">${Number(order.tax || 0).toLocaleString()}</span>
+                          <span className="font-medium">${Number(currentOrder.tax || 0).toLocaleString()}</span>
                         </div>
                         <div className="flex justify-between text-sm">
                           <span className="text-gray-600">Shipping:</span>
-                          <span className="font-medium">${Number(order.shipping || 0).toLocaleString()}</span>
+                          <span className="font-medium">${Number(currentOrder.shipping || 0).toLocaleString()}</span>
                         </div>
                         <Separator />
                         <div className="flex justify-between items-center">
@@ -528,7 +535,7 @@ export function OrderDetailsModal({ open, onOpenChange, order, companyName }: Or
                             <span className="text-sm font-semibold">Total:</span>
                           </div>
                           <span className="text-lg font-bold text-green-600">
-                            ${Number(order.total || 0).toLocaleString()}
+                            ${Number(currentOrder.total || 0).toLocaleString()}
                           </span>
                         </div>
                       </div>
@@ -537,7 +544,7 @@ export function OrderDetailsModal({ open, onOpenChange, order, companyName }: Or
                         <CheckCircle className="w-4 h-4 text-gray-500" />
                         <span className="text-sm font-medium">Deposit (50%): </span>
                         <span className="text-sm font-semibold">
-                          ${(Number(order.total || 0) * 0.5).toLocaleString()}
+                          ${(Number(currentOrder.total || 0) * 0.5).toLocaleString()}
                         </span>
                       </div>
                     </div>
@@ -559,16 +566,16 @@ export function OrderDetailsModal({ open, onOpenChange, order, companyName }: Or
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-3">
-                    {order.inHandsDate ? (
+                    {currentOrder.inHandsDate ? (
                       <div className="flex items-center gap-2">
                         <Calendar className="w-4 h-4 text-gray-500" />
                         <span className="text-sm font-medium">In Hands Date: </span>
                         <span className={`text-sm font-medium ${isRushOrder ? 'text-red-600' : 'text-gray-900'}`}>
-                          {new Date(order.inHandsDate).toLocaleDateString()}
+                          {new Date(currentOrder.inHandsDate).toLocaleDateString()}
                         </span>
                         {isRushOrder && (
                           <Badge variant="outline" className="text-xs text-red-600 border-red-200">
-                            {Math.ceil((new Date(order.inHandsDate).getTime() - new Date().getTime()) / (24 * 60 * 60 * 1000))} days
+                            {Math.ceil((new Date(currentOrder.inHandsDate).getTime() - new Date().getTime()) / (24 * 60 * 60 * 1000))} days
                           </Badge>
                         )}
                       </div>
@@ -579,12 +586,12 @@ export function OrderDetailsModal({ open, onOpenChange, order, companyName }: Or
                       </div>
                     )}
 
-                    {order.createdAt && (
+                    {currentOrder.createdAt && (
                       <div className="flex items-center gap-2">
                         <Clock className="w-4 h-4 text-gray-500" />
                         <span className="text-sm font-medium">Order Created: </span>
                         <span className="text-sm">
-                          {new Date(order.createdAt).toLocaleDateString()}
+                          {new Date(currentOrder.createdAt).toLocaleDateString()}
                         </span>
                       </div>
                     )}
@@ -601,12 +608,12 @@ export function OrderDetailsModal({ open, onOpenChange, order, companyName }: Or
                       </div>
                     )}
 
-                    {order.eventDate && (
+                    {currentOrder.eventDate && (
                       <div className="flex items-center gap-2">
                         <Clock className="w-4 h-4 text-gray-500" />
                         <span className="text-sm font-medium">Event Date: </span>
                         <span className="text-sm">
-                          {new Date(order.eventDate).toLocaleDateString()}
+                          {new Date(currentOrder.eventDate).toLocaleDateString()}
                         </span>
                       </div>
                     )}
@@ -626,20 +633,20 @@ export function OrderDetailsModal({ open, onOpenChange, order, companyName }: Or
                       <div className="text-sm">
                         <p className="font-medium">Shipping Address:</p>
                         <p className="text-gray-600 whitespace-pre-line">
-                          {(order as any).shippingAddress || "No shipping address provided"}
+                          {(currentOrder as any).shippingAddress || "No shipping address provided"}
                         </p>
                       </div>
                     </div>
 
                     <div>
                       <p className="text-sm font-medium text-gray-500">Tracking Number</p>
-                      <p className="text-sm font-mono">{(order as any).trackingNumber || "Not available"}</p>
+                      <p className="text-sm font-mono">{(currentOrder as any).trackingNumber || "Not available"}</p>
                     </div>
                   </CardContent>
                 </Card>
 
                 {/* Notes & Special Instructions */}
-                {order.notes && (
+                {currentOrder.notes && (
                   <Card>
                     <CardHeader>
                       <CardTitle className="flex items-center gap-2">
@@ -648,7 +655,7 @@ export function OrderDetailsModal({ open, onOpenChange, order, companyName }: Or
                       </CardTitle>
                     </CardHeader>
                     <CardContent>
-                      <p className="text-sm text-gray-700 whitespace-pre-line">{order.notes}</p>
+                      <p className="text-sm text-gray-700 whitespace-pre-line">{currentOrder.notes}</p>
                     </CardContent>
                   </Card>
                 )}
@@ -667,18 +674,18 @@ export function OrderDetailsModal({ open, onOpenChange, order, companyName }: Or
                       <div className="text-sm">
                         <p className="font-medium">Order Created</p>
                         <p className="text-gray-500">
-                          {order.createdAt ? new Date(order.createdAt).toLocaleDateString() : 'N/A'}
+                          {currentOrder.createdAt ? new Date(currentOrder.createdAt).toLocaleDateString() : 'N/A'}
                         </p>
                       </div>
                     </div>
 
-                    {order.updatedAt && order.updatedAt !== order.createdAt && (
+                    {currentOrder.updatedAt && currentOrder.updatedAt !== currentOrder.createdAt && (
                       <div className="flex items-center gap-3">
                         <div className="w-2 h-2 bg-green-500 rounded-full"></div>
                         <div className="text-sm">
                           <p className="font-medium">Last Updated</p>
                           <p className="text-gray-500">
-                            {new Date(order.updatedAt).toLocaleDateString()}
+                            {new Date(currentOrder.updatedAt).toLocaleDateString()}
                           </p>
                         </div>
                       </div>
@@ -910,7 +917,7 @@ export function OrderDetailsModal({ open, onOpenChange, order, companyName }: Or
                     <div>
                       <label className="text-sm font-medium">Subject:</label>
                       <Input
-                        placeholder={`Re: Order #${order.orderNumber}`}
+                        placeholder={`Re: Order #${currentOrder.orderNumber}`}
                         value={emailSubject}
                         onChange={(e) => setEmailSubject(e.target.value)}
                         data-testid="input-email-subject"
@@ -953,8 +960,8 @@ export function OrderDetailsModal({ open, onOpenChange, order, companyName }: Or
                         variant="outline"
                         size="sm"
                         onClick={() => {
-                          setEmailSubject(`Order Update - #${order.orderNumber}`);
-                          setEmailBody(`Hi there,\n\nI wanted to provide you with an update on your order #${order.orderNumber}.\n\nBest regards,\nYour SwagSuite Team`);
+                          setEmailSubject(`Order Update - #${currentOrder.orderNumber}`);
+                          setEmailBody(`Hi there,\n\nI wanted to provide you with an update on your order #${currentOrder.orderNumber}.\n\nBest regards,\nYour SwagSuite Team`);
                         }}
                       >
                         Order Update
@@ -963,8 +970,8 @@ export function OrderDetailsModal({ open, onOpenChange, order, companyName }: Or
                         variant="outline"
                         size="sm"
                         onClick={() => {
-                          setEmailSubject(`Artwork Approval Required - #${order.orderNumber}`);
-                          setEmailBody(`Hi there,\n\nWe need your approval on the artwork for order #${order.orderNumber} before we can proceed to production.\n\nPlease review and let us know if you have any changes.\n\nBest regards,\nYour SwagSuite Team`);
+                          setEmailSubject(`Artwork Approval Required - #${currentOrder.orderNumber}`);
+                          setEmailBody(`Hi there,\n\nWe need your approval on the artwork for order #${currentOrder.orderNumber} before we can proceed to production.\n\nPlease review and let us know if you have any changes.\n\nBest regards,\nYour SwagSuite Team`);
                         }}
                       >
                         Artwork Approval
@@ -973,8 +980,8 @@ export function OrderDetailsModal({ open, onOpenChange, order, companyName }: Or
                         variant="outline"
                         size="sm"
                         onClick={() => {
-                          setEmailSubject(`Order Shipped - #${order.orderNumber}`);
-                          setEmailBody(`Great news!\n\nYour order #${order.orderNumber} has been shipped and is on its way to you.\n\nTracking information will be provided separately.\n\nBest regards,\nYour SwagSuite Team`);
+                          setEmailSubject(`Order Shipped - #${currentOrder.orderNumber}`);
+                          setEmailBody(`Great news!\n\nYour order #${currentOrder.orderNumber} has been shipped and is on its way to you.\n\nTracking information will be provided separately.\n\nBest regards,\nYour SwagSuite Team`);
                         }}
                       >
                         Order Shipped
@@ -983,8 +990,8 @@ export function OrderDetailsModal({ open, onOpenChange, order, companyName }: Or
                         variant="outline"
                         size="sm"
                         onClick={() => {
-                          setEmailSubject(`Invoice - #${order.orderNumber}`);
-                          setEmailBody(`Hi there,\n\nPlease find attached the invoice for order #${order.orderNumber}.\n\nPayment is due within 30 days.\n\nBest regards,\nYour SwagSuite Team`);
+                          setEmailSubject(`Invoice - #${currentOrder.orderNumber}`);
+                          setEmailBody(`Hi there,\n\nPlease find attached the invoice for order #${currentOrder.orderNumber}.\n\nPayment is due within 30 days.\n\nBest regards,\nYour SwagSuite Team`);
                         }}
                       >
                         Invoice
@@ -1063,7 +1070,7 @@ export function OrderDetailsModal({ open, onOpenChange, order, companyName }: Or
                       <div>
                         <label className="text-sm font-medium">Subject:</label>
                         <Input
-                          placeholder={`Production Update - Order #${order.orderNumber}`}
+                          placeholder={`Production Update - Order #${currentOrder.orderNumber}`}
                           value={vendorEmailSubject}
                           onChange={(e) => setVendorEmailSubject(e.target.value)}
                           data-testid="input-vendor-email-subject"
@@ -1106,8 +1113,8 @@ export function OrderDetailsModal({ open, onOpenChange, order, companyName }: Or
                           variant="outline"
                           size="sm"
                           onClick={() => {
-                            setVendorEmailSubject(`Production Start Request - Order #${order.orderNumber}`);
-                            setVendorEmailBody(`Hello,\n\nWe are ready to begin production for order #${order.orderNumber}.\n\nOrder Details:\n- Quantity: [QUANTITY]\n- Product: [PRODUCT]\n- In-Hands Date: ${order.inHandsDate ? new Date(order.inHandsDate).toLocaleDateString() : '[DATE]'}\n\nPlease confirm production timeline and any requirements.\n\nBest regards,\nSwagSuite Team`);
+                            setVendorEmailSubject(`Production Start Request - Order #${currentOrder.orderNumber}`);
+                            setVendorEmailBody(`Hello,\n\nWe are ready to begin production for order #${currentOrder.orderNumber}.\n\nOrder Details:\n- Quantity: [QUANTITY]\n- Product: [PRODUCT]\n- In-Hands Date: ${currentOrder.inHandsDate ? new Date(currentOrder.inHandsDate).toLocaleDateString() : '[DATE]'}\n\nPlease confirm production timeline and any requirements.\n\nBest regards,\nSwagSuite Team`);
                           }}
                         >
                           Production Start Request
@@ -1116,8 +1123,8 @@ export function OrderDetailsModal({ open, onOpenChange, order, companyName }: Or
                           variant="outline"
                           size="sm"
                           onClick={() => {
-                            setVendorEmailSubject(`Production Status Check - Order #${order.orderNumber}`);
-                            setVendorEmailBody(`Hello,\n\nCould you please provide a status update on order #${order.orderNumber}?\n\nWe need to confirm the production timeline to meet our delivery commitments.\n\nThank you for your attention to this matter.\n\nBest regards,\nSwagSuite Team`);
+                            setVendorEmailSubject(`Production Status Check - Order #${currentOrder.orderNumber}`);
+                            setVendorEmailBody(`Hello,\n\nCould you please provide a status update on order #${currentOrder.orderNumber}?\n\nWe need to confirm the production timeline to meet our delivery commitments.\n\nThank you for your attention to this matter.\n\nBest regards,\nSwagSuite Team`);
                           }}
                         >
                           Status Check
@@ -1126,8 +1133,8 @@ export function OrderDetailsModal({ open, onOpenChange, order, companyName }: Or
                           variant="outline"
                           size="sm"
                           onClick={() => {
-                            setVendorEmailSubject(`Artwork Files - Order #${order.orderNumber}`);
-                            setVendorEmailBody(`Hello,\n\nPlease find attached the final artwork files for order #${order.orderNumber}.\n\nArtwork has been approved by the client and is ready for production.\n\nPlease confirm receipt and estimated production start date.\n\nBest regards,\nSwagSuite Team`);
+                            setVendorEmailSubject(`Artwork Files - Order #${currentOrder.orderNumber}`);
+                            setVendorEmailBody(`Hello,\n\nPlease find attached the final artwork files for order #${currentOrder.orderNumber}.\n\nArtwork has been approved by the client and is ready for production.\n\nPlease confirm receipt and estimated production start date.\n\nBest regards,\nSwagSuite Team`);
                           }}
                         >
                           Send Artwork
@@ -1136,8 +1143,8 @@ export function OrderDetailsModal({ open, onOpenChange, order, companyName }: Or
                           variant="outline"
                           size="sm"
                           onClick={() => {
-                            setVendorEmailSubject(`Rush Order Request - Order #${order.orderNumber}`);
-                            setVendorEmailBody(`Hello,\n\nWe have a rush request for order #${order.orderNumber}.\n\nRequired in-hands date: ${order.inHandsDate ? new Date(order.inHandsDate).toLocaleDateString() : '[DATE]'}\n\nPlease let us know if this timeline is possible and any additional costs.\n\nThank you for your flexibility.\n\nBest regards,\nSwagSuite Team`);
+                            setVendorEmailSubject(`Rush Order Request - Order #${currentOrder.orderNumber}`);
+                            setVendorEmailBody(`Hello,\n\nWe have a rush request for order #${currentOrder.orderNumber}.\n\nRequired in-hands date: ${currentOrder.inHandsDate ? new Date(currentOrder.inHandsDate).toLocaleDateString() : '[DATE]'}\n\nPlease let us know if this timeline is possible and any additional costs.\n\nThank you for your flexibility.\n\nBest regards,\nSwagSuite Team`);
                           }}
                         >
                           Rush Request
