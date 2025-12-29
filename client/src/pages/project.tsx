@@ -243,6 +243,8 @@ export default function ProjectPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/orders/${orderId}`] });
+      queryClient.invalidateQueries({ queryKey: ["/api/orders"] }); // Update production report list
+      queryClient.invalidateQueries({ queryKey: ["/api/dashboard/recent-orders"] }); // Update dashboard
       toast({
         title: "Stage Updated",
         description: "Production stage has been updated successfully.",
@@ -547,8 +549,27 @@ export default function ProjectPage() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div>
-                <p className="text-sm text-gray-500">Order Value</p>
-                <p className="font-semibold">${Number(order.total).toLocaleString()}</p>
+                <p className="text-sm text-gray-500 mb-2">Order Value</p>
+                {/* Price Breakdown */}
+                <div className="space-y-1 bg-gray-50 p-3 rounded-lg text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Subtotal:</span>
+                    <span className="font-medium">${Number(order.subtotal || 0).toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Tax:</span>
+                    <span className="font-medium">${Number(order.tax || 0).toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Shipping:</span>
+                    <span className="font-medium">${Number(order.shipping || 0).toLocaleString()}</span>
+                  </div>
+                  <div className="border-t border-gray-300 my-1"></div>
+                  <div className="flex justify-between font-semibold text-base">
+                    <span>Total:</span>
+                    <span className="text-green-600">${Number(order.total).toLocaleString()}</span>
+                  </div>
+                </div>
               </div>
               <div>
                 <p className="text-sm text-gray-500">Company</p>
@@ -879,9 +900,30 @@ export default function ProjectPage() {
                         </tbody>
                         <tfoot className="bg-gray-50 border-t">
                           <tr>
-                            <td colSpan={3} className="px-4 py-3 text-right font-semibold">Total:</td>
-                            <td className="px-4 py-3 font-bold text-lg">
+                            <td colSpan={3} className="px-4 py-2 text-right text-sm text-gray-600">Subtotal:</td>
+                            <td className="px-4 py-2 font-semibold">
                               ${orderItems.reduce((sum, item) => sum + Number(item.totalPrice), 0).toFixed(2)}
+                            </td>
+                            <td colSpan={2}></td>
+                          </tr>
+                          <tr>
+                            <td colSpan={3} className="px-4 py-2 text-right text-sm text-gray-600">Tax:</td>
+                            <td className="px-4 py-2 font-semibold">
+                              ${Number(order.tax || 0).toFixed(2)}
+                            </td>
+                            <td colSpan={2}></td>
+                          </tr>
+                          <tr>
+                            <td colSpan={3} className="px-4 py-2 text-right text-sm text-gray-600">Shipping:</td>
+                            <td className="px-4 py-2 font-semibold">
+                              ${Number(order.shipping || 0).toFixed(2)}
+                            </td>
+                            <td colSpan={2}></td>
+                          </tr>
+                          <tr className="border-t-2 border-gray-300">
+                            <td colSpan={3} className="px-4 py-3 text-right font-bold">Grand Total:</td>
+                            <td className="px-4 py-3 font-bold text-lg text-green-600">
+                              ${Number(order.total).toFixed(2)}
                             </td>
                             <td colSpan={2}></td>
                           </tr>

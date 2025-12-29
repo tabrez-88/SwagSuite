@@ -136,6 +136,20 @@ export function OrderDetailsModal({ open, onOpenChange, order, companyName }: Or
     enabled: open && !!order,
   });
 
+  // Fetch suppliers data
+  const { data: suppliers = [] } = useQuery<any[]>({
+    queryKey: ["/api/suppliers"],
+    enabled: open && !!order,
+  });
+
+  // Get supplier information (after suppliers data is fetched)
+  const getSupplier = () => {
+    if (!order || !(order as any).supplierId) return null;
+    return suppliers.find((s: any) => s.id === (order as any).supplierId);
+  };
+
+  const supplier = getSupplier();
+
   // Fetch project activities (internal notes)
   const { data: activities = [] } = useQuery<ProjectActivity[]>({
     queryKey: [`/api/projects/${order?.id}/activities`],
@@ -493,18 +507,36 @@ export function OrderDetailsModal({ open, onOpenChange, order, companyName }: Or
                     <Separator />
 
                     <div className="space-y-3">
-                      <div className="flex items-center gap-2">
-                        <DollarSign className="w-4 h-4 text-gray-500" />
-                        <span className="text-sm font-medium">Total: </span>
-                        <span className="text-lg font-bold text-green-600">
-                          ${Number(order.total || 0).toLocaleString()}
-                        </span>
+                      {/* Price Breakdown */}
+                      <div className="space-y-2 bg-gray-50 p-3 rounded-lg">
+                        <div className="flex justify-between text-sm">
+                          <span className="text-gray-600">Subtotal:</span>
+                          <span className="font-medium">${Number(order.subtotal || 0).toLocaleString()}</span>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                          <span className="text-gray-600">Tax:</span>
+                          <span className="font-medium">${Number(order.tax || 0).toLocaleString()}</span>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                          <span className="text-gray-600">Shipping:</span>
+                          <span className="font-medium">${Number(order.shipping || 0).toLocaleString()}</span>
+                        </div>
+                        <Separator />
+                        <div className="flex justify-between items-center">
+                          <div className="flex items-center gap-2">
+                            <DollarSign className="w-4 h-4 text-gray-500" />
+                            <span className="text-sm font-semibold">Total:</span>
+                          </div>
+                          <span className="text-lg font-bold text-green-600">
+                            ${Number(order.total || 0).toLocaleString()}
+                          </span>
+                        </div>
                       </div>
 
                       <div className="flex items-center gap-2">
                         <CheckCircle className="w-4 h-4 text-gray-500" />
-                        <span className="text-sm font-medium">Deposit: </span>
-                        <span className="text-sm">
+                        <span className="text-sm font-medium">Deposit (50%): </span>
+                        <span className="text-sm font-semibold">
                           ${(Number(order.total || 0) * 0.5).toLocaleString()}
                         </span>
                       </div>
@@ -1022,8 +1054,8 @@ export function OrderDetailsModal({ open, onOpenChange, order, companyName }: Or
                       <div>
                         <label className="text-sm font-medium">To:</label>
                         <Input
-                          placeholder="vendor@supplier.com"
-                          value={vendorEmailTo}
+                          placeholder={supplier?.email || "vendor@supplier.com"}
+                          value={vendorEmailTo || supplier?.email || ""}
                           onChange={(e) => setVendorEmailTo(e.target.value)}
                           data-testid="input-vendor-email-to"
                         />
@@ -1126,46 +1158,84 @@ export function OrderDetailsModal({ open, onOpenChange, order, companyName }: Or
                       </CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-4">
-                      <div className="flex items-center space-x-3">
-                        <UserAvatar name="Promotional Products Co." size="sm" />
-                        <div>
-                          <p className="font-semibold">Promotional Products Co.</p>
-                          <p className="text-sm text-gray-600">Primary Vendor</p>
-                        </div>
-                      </div>
-
-                      <div className="space-y-2">
-                        <div className="flex items-center gap-2">
-                          <User className="w-4 h-4 text-gray-500" />
-                          <span className="text-sm">Contact: John Smith</span>
-                        </div>
-
-                        <div className="flex items-center gap-2">
-                          <Mail className="w-4 h-4 text-gray-500" />
-                          <span className="text-sm">production@promotionalco.com</span>
-                        </div>
-
-                        <div className="flex items-center gap-2">
-                          <Phone className="w-4 h-4 text-gray-500" />
-                          <span className="text-sm">(555) 987-6543</span>
-                        </div>
-                      </div>
-
-                      <Separator />
-
-                      <div className="space-y-2">
-                        <h4 className="text-sm font-medium text-gray-700">Vendor Performance</h4>
-                        <div className="grid grid-cols-2 gap-4 text-sm">
-                          <div>
-                            <p className="text-gray-500">On-Time Delivery</p>
-                            <p className="font-medium text-green-600">94%</p>
+                      {supplier ? (
+                        <>
+                          <div className="flex items-center space-x-3">
+                            <UserAvatar name={supplier.name} size="sm" />
+                            <div>
+                              <p className="font-semibold">{supplier.name}</p>
+                              <p className="text-sm text-gray-600">{supplier.isPreferred ? 'Preferred Vendor' : 'Vendor'}</p>
+                            </div>
                           </div>
-                          <div>
-                            <p className="text-gray-500">Quality Rating</p>
-                            <p className="font-medium text-green-600">4.8/5</p>
+
+                          <div className="space-y-2">
+                            {supplier.contactPerson && (
+                              <div className="flex items-center gap-2">
+                                <User className="w-4 h-4 text-gray-500" />
+                                <span className="text-sm">Contact: {supplier.contactPerson}</span>
+                              </div>
+                            )}
+
+                            {supplier.email && (
+                              <div className="flex items-center gap-2">
+                                <Mail className="w-4 h-4 text-gray-500" />
+                                <span className="text-sm">{supplier.email}</span>
+                              </div>
+                            )}
+
+                            {supplier.phone && (
+                              <div className="flex items-center gap-2">
+                                <Phone className="w-4 h-4 text-gray-500" />
+                                <span className="text-sm">{supplier.phone}</span>
+                              </div>
+                            )}
+
+                            {supplier.website && (
+                              <div className="flex items-center gap-2">
+                                <ExternalLink className="w-4 h-4 text-gray-500" />
+                                <a href={supplier.website} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-600 hover:underline">
+                                  {supplier.website}
+                                </a>
+                              </div>
+                            )}
+
+                            {supplier.address && (
+                              <div className="flex items-center gap-2">
+                                <MapPin className="w-4 h-4 text-gray-500" />
+                                <span className="text-sm">{supplier.address}</span>
+                              </div>
+                            )}
+
+                            {supplier.paymentTerms && (
+                              <div className="flex items-center gap-2">
+                                <CreditCard className="w-4 h-4 text-gray-500" />
+                                <span className="text-sm">Terms: {supplier.paymentTerms}</span>
+                              </div>
+                            )}
                           </div>
+
+                          <Separator />
+
+                          <div className="space-y-2">
+                            <h4 className="text-sm font-medium text-gray-700">Vendor Performance</h4>
+                            <div className="grid grid-cols-2 gap-4 text-sm">
+                              <div>
+                                <p className="text-gray-500">On-Time Delivery</p>
+                                <p className="font-medium text-green-600">94%</p>
+                              </div>
+                              <div>
+                                <p className="text-gray-500">Quality Rating</p>
+                                <p className="font-medium text-green-600">4.8/5</p>
+                              </div>
+                            </div>
+                          </div>
+                        </>
+                      ) : (
+                        <div className="text-center py-4">
+                          <p className="text-sm text-gray-500">No vendor assigned to this order</p>
+                          <p className="text-xs text-gray-400 mt-1">Assign a vendor in the order details</p>
                         </div>
-                      </div>
+                      )}
                     </CardContent>
                   </Card>
 

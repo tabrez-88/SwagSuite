@@ -80,6 +80,9 @@ interface ProductionOrder {
   priority: 'low' | 'medium' | 'high' | 'urgent';
   dueDate?: string;
   orderValue: number;
+  subtotal?: number;
+  tax?: number;
+  shipping?: number;
   stageData?: Record<string, any>; // Custom data for each stage
   trackingNumber?: string;
   customNotes?: Record<string, string>; // Custom notes per stage
@@ -156,6 +159,9 @@ export default function ProductionReport() {
         priority: order.inHandsDate && new Date(order.inHandsDate) <= addDays(new Date(), 7) ? 'high' : 'medium',
         dueDate: order.inHandsDate,
         orderValue: Number(order.total || 0),
+        subtotal: Number(order.subtotal || 0),
+        tax: Number(order.tax || 0),
+        shipping: Number(order.shipping || 0),
         stageData: order.stageData || {},
         trackingNumber: order.trackingNumber,
         customNotes: order.customNotes || {},
@@ -248,6 +254,9 @@ export default function ProductionReport() {
           stageData: data.stageData,
           customNotes: data.customNotes,
           orderValue: parseFloat(data.total),
+          subtotal: parseFloat(data.subtotal || 0),
+          tax: parseFloat(data.tax || 0),
+          shipping: parseFloat(data.shipping || 0),
           companyName: company?.name || selectedOrder.companyName,
         });
       }
@@ -1171,7 +1180,26 @@ export default function ProductionReport() {
                     <p><span className="font-medium">Company:</span> {selectedOrder.companyName}</p>
                     <p><span className="font-medium">Product:</span> {selectedOrder.productName}</p>
                     <p><span className="font-medium">Quantity:</span> {selectedOrder.quantity}</p>
-                    <p><span className="font-medium">Value:</span> ${selectedOrder.orderValue.toLocaleString()}</p>
+                    
+                    {/* Price Breakdown */}
+                    <div className="mt-3 pt-3 border-t space-y-1">
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Subtotal:</span>
+                        <span>${((selectedOrder as any).subtotal || 0).toLocaleString()}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Tax:</span>
+                        <span>${((selectedOrder as any).tax || 0).toLocaleString()}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Shipping:</span>
+                        <span>${((selectedOrder as any).shipping || 0).toLocaleString()}</span>
+                      </div>
+                      <div className="flex justify-between font-semibold pt-1 border-t">
+                        <span>Total:</span>
+                        <span className="text-green-600">${selectedOrder.orderValue.toLocaleString()}</span>
+                      </div>
+                    </div>
                   </div>
                 </div>
                 <div>
