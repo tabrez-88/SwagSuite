@@ -78,7 +78,7 @@
 **What Exists:**
 
 - ✅ S&S Activewear - FULLY FUNCTIONAL
-- ❌ ESP - NOT IMPLEMENTED
+- ❌ ESP/SAGE - NOT IMPLEMENTED
 - ❌ SanMar - NOT IMPLEMENTED
 
 **Impact:** HIGH - Only 33% of required product sources available
@@ -117,7 +117,7 @@
 
 | Integration        | Document Requirement | Current Status      | Gap                        |
 | ------------------ | -------------------- | ------------------- | -------------------------- |
-| **ESP**            | Day 1 (explicit)     | ❌ Not implemented  | Full integration needed    |
+| **ESP/SAGE**            | Day 1 (explicit)     | ❌ Not implemented  | Full integration needed    |
 | **S&S Activewear** | Day 1 (explicit)     | ✅ Fully functional | None                       |
 | **SanMar**         | Day 1 (explicit)     | ❌ Not implemented  | Full integration needed    |
 | **Stripe**         | Day 1 (explicit)     | ❌ Not implemented  | Full integration needed    |

@@ -58,7 +58,8 @@ export function IntegrationSettings() {
   // Update configuration mutation
   const updateConfigMutation = useMutation({
     mutationFn: async ({ id, updates }: { id: string; updates: Partial<IntegrationConfig> }) => {
-      return await apiRequest(`/api/integrations/configurations/${id}`, 'PATCH', updates);
+      const response = await apiRequest('PATCH', `/api/integrations/configurations/${id}`, updates);
+      return await response.json();
     },
     onSuccess: () => {
       toast({
@@ -79,7 +80,8 @@ export function IntegrationSettings() {
   // Save credentials mutation
   const saveCredentialsMutation = useMutation({
     mutationFn: async (credentialData: Record<string, string>) => {
-      return await apiRequest('/api/integrations/credentials', 'POST', credentialData);
+      const response = await apiRequest('POST', '/api/integrations/credentials', credentialData);
+      return await response.json();
     },
     onSuccess: () => {
       toast({
@@ -101,7 +103,8 @@ export function IntegrationSettings() {
   // Test connection mutation
   const testConnectionMutation = useMutation({
     mutationFn: async (integration: string) => {
-      return await apiRequest(`/api/integrations/${integration}/test`, 'POST');
+      const response = await apiRequest('POST', `/api/integrations/${integration}/test`);
+      return await response.json();
     },
     onSuccess: (data: any) => {
       toast({

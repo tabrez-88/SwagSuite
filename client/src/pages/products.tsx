@@ -13,6 +13,7 @@ import { Box, Search, Plus, DollarSign, Package, Database, ShoppingCart, Trash2,
 import ProductModal from "@/components/ProductModal";
 import { ProductIntegrations } from "@/components/integrations/ProductIntegrations";
 import { SsActivewearIntegration } from "@/components/integrations/SsActivewearIntegration";
+import { SageIntegration } from "@/components/integrations/SageIntegration";
 import { PopularProducts } from "@/components/PopularProducts";
 import { ProductDetailModal } from "@/components/ProductDetailModal";
 
@@ -160,7 +161,7 @@ export default function Products() {
 
       {/* Main Content */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="my-catalog" className="flex items-center gap-2">
             <Package size={16} />
             My Catalog
@@ -173,9 +174,13 @@ export default function Products() {
             <ShoppingCart size={16} />
             S&S Activewear
           </TabsTrigger>
+          <TabsTrigger value="sage" className="flex items-center gap-2">
+            <Database size={16} />
+            SAGE
+          </TabsTrigger>
           <TabsTrigger value="integrations" className="flex items-center gap-2">
             <Database size={16} />
-            ESP/ASI/SAGE Search
+            Other Integrations
           </TabsTrigger>
         </TabsList>
 
@@ -354,6 +359,11 @@ export default function Products() {
           <SsActivewearIntegration />
         </TabsContent>
 
+        {/* SAGE Integration Tab */}
+        <TabsContent value="sage">
+          <SageIntegration />
+        </TabsContent>
+
         {/* ESP/ASI/SAGE Integration Tab */}
         <TabsContent value="integrations">
           <Card className="mb-4">
@@ -363,7 +373,7 @@ export default function Products() {
                 <div>
                   <h4 className="font-semibold text-blue-900">API Integration Required</h4>
                   <p className="text-sm text-blue-700">
-                    To search ESP/ASI/SAGE databases, please configure your API credentials in the Settings → Integrations tab.
+                    To search ESP/ASI databases, please configure your API credentials in the Settings → Integrations tab.
                   </p>
                 </div>
               </div>

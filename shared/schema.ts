@@ -671,6 +671,10 @@ export const integrationSettings = pgTable("integration_settings", {
   slackChannelId: varchar("slack_channel_id"),
   // HubSpot Integration
   hubspotApiKey: text("hubspot_api_key"),
+  // SAGE Integration
+  sageAcctId: varchar("sage_acct_id"),
+  sageLoginId: varchar("sage_login_id"),
+  sageApiKey: text("sage_api_key"),
   // Connection status flags
   quickbooksConnected: boolean("quickbooks_connected").default(false),
   stripeConnected: boolean("stripe_connected").default(false),
@@ -777,7 +781,7 @@ export const sageProducts = pgTable("sage_products", {
   features: text("features").array(),
   materials: text("materials").array(),
   dimensions: varchar("dimensions"),
-  weight: decimal("weight"),
+  weight: decimal("weight", { precision: 10, scale: 4 }),
   eqpLevel: varchar("eqp_level"), // SAGE EQP rating
   pricingStructure: jsonb("pricing_structure"),
   quantityBreaks: jsonb("quantity_breaks"),
@@ -1278,6 +1282,7 @@ export type InsertDataUpload = z.infer<typeof insertDataUploadSchema>;
 // ESP/ASI/SAGE Integration Types
 export type EspProduct = typeof espProducts.$inferSelect;
 export type SageProduct = typeof sageProducts.$inferSelect;
+export type InsertSageProduct = typeof sageProducts.$inferInsert;
 export type DistributorCentralProduct = typeof distributorCentralProducts.$inferSelect;
 export type ProductSearchResult = typeof productSearchIndex.$inferSelect;
 export type IntegrationConfig = typeof integrationConfigurations.$inferSelect;

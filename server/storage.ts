@@ -80,6 +80,9 @@ import {
   ssActivewearImportJobs,
   type SsActivewearProduct,
   ssActivewearProducts,
+  type SageProduct,
+  sageProducts,
+  type InsertSageProduct,
   type Supplier,
   suppliers,
   type UpsertUser,
@@ -193,6 +196,14 @@ export interface IStorage {
   // Integration Settings operations
   getIntegrationSettings(): Promise<IntegrationSettings | undefined>;
   upsertIntegrationSettings(settings: Partial<InsertIntegrationSettings>, userId?: string): Promise<IntegrationSettings>;
+
+  // SAGE Product operations
+  getSageProductBySageId(sageId: string): Promise<SageProduct | undefined>;
+  getSageProducts(limit?: number): Promise<SageProduct[]>;
+  searchSageProducts(query: string): Promise<SageProduct[]>;
+  createSageProduct(product: InsertSageProduct): Promise<string>;
+  updateSageProduct(id: string, product: Partial<InsertSageProduct>): Promise<SageProduct>;
+  getSupplierBySageId(sageId: string): Promise<Supplier | undefined>;
 
   // AI Presentation Builder operations
   getPresentations(userId: string): Promise<Presentation[]>;
@@ -2064,6 +2075,70 @@ export class DatabaseStorage implements IStorage {
         .returning();
       return created;
     }
+  }
+
+  // SAGE Product operations
+  async getSageProductBySageId(sageId: string): Promise<SageProduct | undefined> {
+    const [product] = await db
+      .select()
+      .from(sageProducts)
+      .where(eq(sageProducts.sageId, sageId))
+      .limit(1);
+    return product;
+  }
+
+  async getSageProducts(limit: number = 100): Promise<SageProduct[]> {
+    return db
+      .select()
+      .from(sageProducts)
+      .where(eq(sageProducts.syncStatus, 'active'))
+      .limit(limit)
+      .orderBy(desc(sageProducts.lastSyncedAt));
+  }
+
+  async searchSageProducts(query: string): Promise<SageProduct[]> {
+    return db
+      .select()
+      .from(sageProducts)
+      .where(
+        or(
+          ilike(sageProducts.productName, `%${query}%`),
+          ilike(sageProducts.productNumber, `%${query}%`),
+          ilike(sageProducts.brand, `%${query}%`),
+          ilike(sageProducts.category, `%${query}%`)
+        )
+      )
+      .limit(50)
+      .orderBy(desc(sageProducts.lastSyncedAt));
+  }
+
+  async createSageProduct(product: InsertSageProduct): Promise<string> {
+    const [newProduct] = await db
+      .insert(sageProducts)
+      .values(product as any)
+      .returning({ id: sageProducts.id });
+    return newProduct.id;
+  }
+
+  async updateSageProduct(id: string, product: Partial<InsertSageProduct>): Promise<SageProduct> {
+    const [updated] = await db
+      .update(sageProducts)
+      .set({
+        ...product,
+        updatedAt: new Date()
+      } as any)
+      .where(eq(sageProducts.id, id))
+      .returning();
+    return updated;
+  }
+
+  async getSupplierBySageId(sageId: string): Promise<Supplier | undefined> {
+    const [supplier] = await db
+      .select()
+      .from(suppliers)
+      .where(eq(suppliers.sageId, sageId))
+      .limit(1);
+    return supplier;
   }
 }
 

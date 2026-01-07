@@ -25,6 +25,7 @@ import path from "path";
 import { sendSlackMessage } from "../shared/slack";
 import { isAuthenticated, setupAuth } from "./replitAuth";
 import { SsActivewearService } from "./ssActivewearService";
+import { SageService, getSageCredentials } from "./sageService";
 import { storage } from "./storage";
 
 // Helper function to get S&S Activewear credentials
@@ -3929,46 +3930,63 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // API Credentials management
   app.get('/api/integrations/credentials', isAuthenticated, async (req, res) => {
     try {
+      // Get current settings from database
+      const currentSettings = await storage.getIntegrationSettings();
+      
       const credentials = [
         {
-          integration: 'asi',
-          keyName: 'ASI_API_KEY',
-          displayName: 'ASI API Key',
-          isRequired: true,
-          isSecret: true,
-          description: 'Your ASI ESP Direct Connect API key from developers.asicentral.com'
+          integration: 'ssactivewear',
+          keyName: 'ssActivewearAccount',
+          displayName: 'S&S Activewear Account',
+          isRequired: false,
+          isSecret: false,
+          value: currentSettings?.ssActivewearAccount || '',
+          description: 'Your S&S Activewear account number'
         },
         {
-          integration: 'asi',
-          keyName: 'ASI_USERNAME',
-          displayName: 'ASI Username',
-          isRequired: true,
-          isSecret: false,
-          description: 'Your ASI member username'
+          integration: 'ssactivewear',
+          keyName: 'ssActivewearApiKey',
+          displayName: 'S&S Activewear API Key',
+          isRequired: false,
+          isSecret: true,
+          value: currentSettings?.ssActivewearApiKey ? '••••••••' : '',
+          description: 'Your S&S Activewear API key'
         },
         {
           integration: 'sage',
-          keyName: 'SAGE_API_KEY',
+          keyName: 'sageAcctId',
+          displayName: 'SAGE Account ID',
+          isRequired: true,
+          isSecret: false,
+          value: currentSettings?.sageAcctId || '',
+          description: 'Your SAGE Connect account number'
+        },
+        {
+          integration: 'sage',
+          keyName: 'sageLoginId',
+          displayName: 'SAGE Login ID',
+          isRequired: true,
+          isSecret: false,
+          value: currentSettings?.sageLoginId || '',
+          description: 'Your SAGE Connect login ID/username'
+        },
+        {
+          integration: 'sage',
+          keyName: 'sageApiKey',
           displayName: 'SAGE API Key',
           isRequired: true,
           isSecret: true,
-          description: 'Your SAGE World API key (contact SAGE customer service)'
+          value: currentSettings?.sageApiKey ? '••••••••' : '',
+          description: 'Your SAGE Connect API authentication key'
         },
         {
-          integration: 'sage',
-          keyName: 'SAGE_USERNAME',
-          displayName: 'SAGE Username',
-          isRequired: true,
-          isSecret: false,
-          description: 'Your SAGE account username'
-        },
-        {
-          integration: 'distributorcentral',
-          keyName: 'DISTRIBUTORCENTRAL_API_KEY',
-          displayName: 'Distributor Central API Key',
+          integration: 'hubspot',
+          keyName: 'hubspotApiKey',
+          displayName: 'HubSpot API Key',
           isRequired: false,
           isSecret: true,
-          description: 'Your Distributor Central API key (optional)'
+          value: currentSettings?.hubspotApiKey ? '••••••••' : '',
+          description: 'Your HubSpot API key (optional)'
         }
       ];
       res.json(credentials);
@@ -3980,21 +3998,192 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/integrations/credentials', isAuthenticated, async (req, res) => {
     try {
       const credentials = req.body;
+      const userId = (req as any).user.claims.sub;
 
-      // Validate credentials format
-      const requiredKeys = ['ASI_API_KEY', 'ASI_USERNAME', 'SAGE_API_KEY', 'SAGE_USERNAME'];
-      const missingKeys = requiredKeys.filter(key => !credentials[key]);
+      // Get current settings
+      const currentSettings = await storage.getIntegrationSettings() || {};
 
-      if (missingKeys.length > 0) {
-        return res.status(400).json({
-          message: `Missing required credentials: ${missingKeys.join(', ')}`
+      // Prepare update object with only provided credentials
+      const updates: any = {};
+      
+      // S&S Activewear
+      if (credentials.ssActivewearAccount) updates.ssActivewearAccount = credentials.ssActivewearAccount;
+      if (credentials.ssActivewearApiKey) updates.ssActivewearApiKey = credentials.ssActivewearApiKey;
+      
+      // SAGE
+      if (credentials.sageAcctId) updates.sageAcctId = credentials.sageAcctId;
+      if (credentials.sageLoginId) updates.sageLoginId = credentials.sageLoginId;
+      if (credentials.sageApiKey) updates.sageApiKey = credentials.sageApiKey;
+      
+      // HubSpot
+      if (credentials.hubspotApiKey) updates.hubspotApiKey = credentials.hubspotApiKey;
+      
+      // Slack
+      if (credentials.slackBotToken) updates.slackBotToken = credentials.slackBotToken;
+      if (credentials.slackChannelId) updates.slackChannelId = credentials.slackChannelId;
+
+      // Save to database
+      await storage.upsertIntegrationSettings(updates, userId);
+
+      res.json({ message: 'Credentials saved successfully' });
+    } catch (error) {
+      console.error('Error saving credentials:', error);
+      res.status(500).json({ message: "Failed to save credentials" });
+    }
+  });
+
+  // SAGE Integration Routes
+  app.post('/api/integrations/sage/test', isAuthenticated, async (req, res) => {
+    try {
+      const credentials = await getSageCredentials();
+      
+      if (!credentials) {
+        return res.status(400).json({ 
+          message: 'SAGE credentials not configured. Please add your SAGE API credentials in settings.' 
         });
       }
 
-      // Mock credential storage - in production would save to secure environment
-      res.json({ message: 'Credentials saved successfully' });
+      const sageService = new SageService(credentials);
+      const isConnected = await sageService.testConnection();
+
+      if (isConnected) {
+        res.json({ 
+          message: 'Successfully connected to SAGE API',
+          status: 'connected'
+        });
+      } else {
+        res.status(400).json({ 
+          message: 'Failed to connect to SAGE API. Please check your credentials.',
+          status: 'failed'
+        });
+      }
     } catch (error) {
-      res.status(500).json({ message: "Failed to save credentials" });
+      console.error('Error testing SAGE connection:', error);
+      res.status(500).json({ 
+        message: 'Error testing SAGE connection',
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+
+  app.post('/api/integrations/sage/search', isAuthenticated, async (req, res) => {
+    try {
+      const { searchTerm, categoryId, supplierId, maxResults } = req.body;
+
+      if (!searchTerm) {
+        return res.status(400).json({ message: 'Search term is required' });
+      }
+
+      const credentials = await getSageCredentials();
+      if (!credentials) {
+        return res.status(400).json({ 
+          message: 'SAGE credentials not configured' 
+        });
+      }
+
+      const sageService = new SageService(credentials);
+      const products = await sageService.searchProducts(searchTerm, {
+        categoryId,
+        supplierId,
+        maxResults: maxResults || 50
+      });
+
+      res.json({ 
+        products,
+        total: products.length
+      });
+    } catch (error) {
+      console.error('Error searching SAGE products:', error);
+      res.status(500).json({ 
+        message: 'Failed to search SAGE products',
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+
+  app.post('/api/integrations/sage/products/sync', isAuthenticated, async (req, res) => {
+    try {
+      const { products } = req.body;
+
+      if (!products || !Array.isArray(products)) {
+        return res.status(400).json({ message: 'Products array is required' });
+      }
+
+      const credentials = await getSageCredentials();
+      if (!credentials) {
+        return res.status(400).json({ 
+          message: 'SAGE credentials not configured' 
+        });
+      }
+
+      const sageService = new SageService(credentials);
+      
+      // Sync products to database
+      const syncResults = {
+        success: 0,
+        failed: 0,
+        errors: [] as string[]
+      };
+
+      for (const product of products) {
+        try {
+          await sageService.syncProductToDatabase(product);
+          syncResults.success++;
+        } catch (error) {
+          syncResults.failed++;
+          syncResults.errors.push(`Failed to sync ${product.productId || 'unknown'}: ${error}`);
+        }
+      }
+
+      res.json({
+        message: `Synced ${syncResults.success} products successfully`,
+        ...syncResults
+      });
+    } catch (error) {
+      console.error('Error syncing SAGE products:', error);
+      res.status(500).json({ 
+        message: 'Failed to sync SAGE products',
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+
+  app.get('/api/sage/products', isAuthenticated, async (req, res) => {
+    try {
+      const { search, limit } = req.query;
+      
+      let products;
+      if (search) {
+        products = await storage.searchSageProducts(search as string);
+      } else {
+        products = await storage.getSageProducts(parseInt(limit as string) || 100);
+      }
+
+      res.json(products);
+    } catch (error) {
+      console.error('Error fetching SAGE products:', error);
+      res.status(500).json({ 
+        message: 'Failed to fetch SAGE products',
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+
+  app.get('/api/sage/products/:id', isAuthenticated, async (req, res) => {
+    try {
+      const product = await storage.getSageProductBySageId(req.params.id);
+      
+      if (!product) {
+        return res.status(404).json({ message: 'Product not found' });
+      }
+
+      res.json(product);
+    } catch (error) {
+      console.error('Error fetching SAGE product:', error);
+      res.status(500).json({ 
+        message: 'Failed to fetch SAGE product',
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
     }
   });
 
@@ -4003,17 +4192,50 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const integration = req.params.integration;
 
-      // Mock connection tests
+      // Handle SAGE real connection test
+      if (integration === 'sage') {
+        const credentials = await getSageCredentials();
+        
+        if (!credentials) {
+          return res.status(400).json({ 
+            success: false,
+            message: 'SAGE credentials not configured. Please add your SAGE API credentials in settings.' 
+          });
+        }
+
+        try {
+          const sageService = new SageService(credentials);
+          const isConnected = await sageService.testConnection();
+
+          if (isConnected) {
+            return res.json({ 
+              success: true,
+              message: 'Successfully connected to SAGE API',
+              details: 'Authentication successful, product database accessible'
+            });
+          } else {
+            return res.status(400).json({ 
+              success: false,
+              message: 'Failed to connect to SAGE API. Please check your credentials.',
+              details: 'Authentication failed'
+            });
+          }
+        } catch (error) {
+          console.error('Error testing SAGE connection:', error);
+          return res.status(500).json({ 
+            success: false,
+            message: 'Error testing SAGE connection',
+            details: error instanceof Error ? error.message : 'Unknown error'
+          });
+        }
+      }
+
+      // Mock connection tests for other integrations
       const connectionTests = {
         asi: () => ({
           success: true,
           message: 'Successfully connected to ASI ESP Direct Connect API',
           details: 'API key validated, ready for product searches'
-        }),
-        sage: () => ({
-          success: true,
-          message: 'Successfully connected to SAGE World API',
-          details: 'Authentication successful, product database accessible'
         }),
         distributorcentral: () => ({
           success: true,
