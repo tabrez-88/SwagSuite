@@ -1,16 +1,16 @@
-import { useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { apiRequest } from '@/lib/queryClient';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { Progress } from '@/components/ui/progress';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, CheckCircle, AlertCircle, Download, Search, Package } from 'lucide-react';
-import type { SsActivewearImportJob, SsActivewearProduct } from '@shared/schema';
+import { apiRequest } from '@/lib/queryClient';
+import type { SsActivewearProduct } from '@shared/schema';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { AlertCircle, Box, CheckCircle, Download, Loader2, Package, Search, ShoppingCart, Weight } from 'lucide-react';
+import { useState } from 'react';
 
 export function SsActivewearIntegration() {
   const [accountNumber, setAccountNumber] = useState('');
@@ -18,25 +18,84 @@ export function SsActivewearIntegration() {
   const [styleFilter, setStyleFilter] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [isTestingConnection, setIsTestingConnection] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState<SsActivewearProduct | null>(null);
+  const [detailModalOpen, setDetailModalOpen] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  // Fetch import jobs
-  const { data: importJobs, isLoading: loadingJobs } = useQuery<SsActivewearImportJob[]>({
-    queryKey: ['/api/ss-activewear/import-jobs'],
-    refetchInterval: 5000, // Refresh every 5 seconds
+  // Fetch brands from S&S API
+  const { data: brands, isLoading: loadingBrands, error: brandsError } = useQuery<{ id: string; name: string }[]>({
+    queryKey: ['/api/ss-activewear/brands'],
+    staleTime: 1000 * 60 * 60, // Cache for 1 hour
+    retry: false,
   });
 
-  // Fetch products
-  const { data: products, isLoading: loadingProducts } = useQuery<SsActivewearProduct[]>({
-    queryKey: ['/api/ss-activewear/products'],
+  // Search products from API
+  const searchMutation = useMutation({
+    mutationFn: async (query: string) => {
+      const response = await apiRequest('GET', `/api/ss-activewear/search?q=${encodeURIComponent(query)}`);
+      const data = await response.json();
+      console.log('S&S Search Response:', data);
+      console.log('Is Array?', Array.isArray(data));
+      return data as SsActivewearProduct[];
+    },
+    onSuccess: (data) => {
+      console.log('Search successful, products:', data);
+    },
+    onError: (error) => {
+      console.error('Search error:', error);
+    },
   });
 
-  // Search products
-  const { data: searchResults, isLoading: searching } = useQuery<SsActivewearProduct[]>({
-    queryKey: ['/api/ss-activewear/search', { q: searchQuery }],
-    enabled: searchQuery.length > 2,
+  // Sync products to catalog
+  const syncProductMutation = useMutation({
+    mutationFn: async (products: SsActivewearProduct[]) => {
+      const response = await apiRequest('POST', '/api/ss-activewear/products/sync', { products });
+      const data = await response.json();
+      return data;
+    },
+    onSuccess: (data: any) => {
+      toast({
+        title: "Products Added",
+        description: `${data.count || 1} product(s) successfully added to catalog`,
+      });
+      queryClient.invalidateQueries({ queryKey: ['/api/products'] });
+    },
+    onError: (error) => {
+      toast({
+        title: "Sync Failed",
+        description: "Failed to add products to catalog",
+        variant: "destructive",
+      });
+    },
   });
+
+  const handleSearch = async () => {
+    if (!searchQuery.trim() || searchQuery.length < 2) {
+      toast({
+        title: "Invalid Search",
+        description: "Please enter at least 2 characters to search",
+        variant: "destructive",
+      });
+      return;
+    }
+    searchMutation.mutate(searchQuery);
+  };
+
+  const handleViewDetail = (product: SsActivewearProduct) => {
+    setSelectedProduct(product);
+    setDetailModalOpen(true);
+  };
+
+  const handleAddToCatalog = (product: SsActivewearProduct) => {
+    syncProductMutation.mutate([product]);
+  };
+
+  const formatCurrency = (value: string | number | null) => {
+    if (!value) return 'N/A';
+    const num = typeof value === 'string' ? parseFloat(value) : value;
+    return `$${num.toFixed(2)}`;
+  };
 
   // Test connection mutation
   const testConnectionMutation = useMutation({
@@ -126,248 +185,365 @@ export function SsActivewearIntegration() {
     }
   };
 
-  const formatCurrency = (amount: string | null) => {
-    if (!amount) return 'N/A';
-    return `$${parseFloat(amount).toFixed(2)}`;
-  };
-
   return (
     <div className="space-y-6">
       <div>
         <h2 className="text-2xl font-bold mb-2">S&S Activewear Integration</h2>
-        <p className="text-gray-600">Import products from S&S Activewear using your API credentials.</p>
+        <p className="text-gray-600">Search and add apparel products from S&S Activewear to your catalog.</p>
       </div>
 
-      {/* Connection Settings */}
+      {/* Search Section */}
       <Card>
         <CardHeader>
-          <CardTitle>API Configuration</CardTitle>
+          <CardTitle className="flex items-center gap-2">
+            <Search className="w-5 h-5" />
+            Product Search
+          </CardTitle>
           <CardDescription>
-            Enter your S&S Activewear API credentials. You can find these in your S&S account settings or contact api@ssactivewear.com.
+            Search for products by SKU, style number, brand name, or description
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="accountNumber">Account Number</Label>
-              <Input
-                id="accountNumber"
-                type="text"
-                placeholder="Enter your S&S account number"
-                value={accountNumber}
-                onChange={(e) => setAccountNumber(e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="apiKey">API Key</Label>
-              <Input
-                id="apiKey"
-                type="password"
-                placeholder="Enter your API key"
-                value={apiKey}
-                onChange={(e) => setApiKey(e.target.value)}
-              />
-            </div>
-          </div>
-          
-          <div className="space-y-2">
-            <Label htmlFor="styleFilter">Style Filter (Optional)</Label>
-            <Input
-              id="styleFilter"
-              type="text"
-              placeholder="e.g., 00760, Gildan 5000, bella + canvas 3001cvc"
-              value={styleFilter}
-              onChange={(e) => setStyleFilter(e.target.value)}
-            />
-            <p className="text-sm text-gray-500">
-              Filter by style ID, part number, or brand name. Leave empty to import all products.
-            </p>
-          </div>
-
-          <div className="flex gap-3">
-            <Button
-              onClick={handleTestConnection}
-              disabled={testConnectionMutation.isPending}
-              variant="outline"
-            >
-              {testConnectionMutation.isPending ? (
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              ) : (
-                <CheckCircle className="w-4 h-4 mr-2" />
-              )}
-              Test Connection
-            </Button>
-            
-            <Button
-              onClick={handleImport}
-              disabled={importMutation.isPending}
-            >
-              {importMutation.isPending ? (
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              ) : (
-                <Download className="w-4 h-4 mr-2" />
-              )}
-              Start Import
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Import Jobs */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Import History</CardTitle>
-          <CardDescription>Monitor your recent product import jobs.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {loadingJobs ? (
-            <div className="text-center py-4">
-              <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" />
-              <p>Loading import jobs...</p>
-            </div>
-          ) : !importJobs?.length ? (
-            <p className="text-gray-500 text-center py-4">No import jobs found.</p>
-          ) : (
-            <div className="space-y-4">
-              {importJobs.map((job) => (
-                <div key={job.id} className="p-4 border rounded-lg">
-                  <div className="flex justify-between items-start mb-3">
-                    <div>
-                      <div className="flex items-center gap-2 mb-1">
-                        {getStatusBadge(job.status)}
-                        <span className="text-sm text-gray-500">
-                          {job.createdAt ? new Date(job.createdAt).toLocaleString() : 'N/A'}
-                        </span>
-                      </div>
-                      {job.errorMessage && (
-                        <p className="text-sm text-red-600 mt-1">{job.errorMessage}</p>
-                      )}
-                    </div>
-                  </div>
-                  
-                  {job.status === 'running' && job.totalProducts && job.totalProducts > 0 && (
-                    <div className="space-y-2">
-                      <div className="flex justify-between text-sm">
-                        <span>Progress</span>
-                        <span>{job.processedProducts || 0} / {job.totalProducts}</span>
-                      </div>
-                      <Progress 
-                        value={((job.processedProducts || 0) / job.totalProducts) * 100} 
-                        className="h-2"
-                      />
-                    </div>
-                  )}
-                  
-                  {job.status === 'completed' && (
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                      <div>
-                        <p className="text-gray-500">Total Products</p>
-                        <p className="font-medium">{job.totalProducts}</p>
-                      </div>
-                      <div>
-                        <p className="text-gray-500">New Products</p>
-                        <p className="font-medium text-green-600">{job.newProducts}</p>
-                      </div>
-                      <div>
-                        <p className="text-gray-500">Updated Products</p>
-                        <p className="font-medium text-blue-600">{job.updatedProducts}</p>
-                      </div>
-                      <div>
-                        <p className="text-gray-500">Errors</p>
-                        <p className="font-medium text-red-600">{job.errorCount}</p>
-                      </div>
-                    </div>
-                  )}
+          {/* Brands List */}
+          <div>
+            <Label className="mb-2 block">Browse by Brand</Label>
+            {loadingBrands ? (
+              <div className="flex items-center gap-2 text-sm text-gray-500">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Loading brands from S&S Activewear...
+              </div>
+            ) : brandsError ? (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                <p className="text-sm text-red-800">
+                  Failed to load brands. Please check your S&S Activewear credentials in Settings.
+                </p>
+                <p className="text-xs text-red-600 mt-1">Error: {String(brandsError)}</p>
+              </div>
+            ) : brands && brands.length > 0 ? (
+              <>
+                <p className="text-xs text-gray-500 mb-2">{brands.length} brands available</p>
+                <div className="flex flex-wrap gap-2 max-h-40 overflow-y-auto border rounded-lg p-2">
+                  {brands.map((brand) => (
+                    <Button
+                      key={brand.id}
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        setSearchQuery(brand.name);
+                        searchMutation.mutate(brand.name);
+                      }}
+                      disabled={searchMutation.isPending}
+                      className="text-xs"
+                    >
+                      {brand.name}
+                    </Button>
+                  ))}
                 </div>
-              ))}
+              </>
+            ) : (
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                <p className="text-sm text-yellow-800">
+                  Please configure your S&S Activewear credentials in Settings to load available brands.
+                </p>
+              </div>
+            )}
+          </div>
+
+          <Separator />
+
+          <div className="flex gap-2">
+            <Input
+              placeholder="e.g., Gildan 5000, 3001CVC, bella + canvas..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+              className="flex-1"
+            />
+            <Button 
+              onClick={handleSearch}
+              disabled={searchMutation.isPending}
+            >
+              {searchMutation.isPending ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Search className="w-4 h-4" />
+              )}
+            </Button>
+          </div>
+
+          {/* Search Results */}
+          {searchMutation.isPending && (
+            <div className="text-center py-8">
+              <Loader2 className="w-8 h-8 animate-spin mx-auto mb-2 text-blue-500" />
+              <p className="text-gray-600">Searching S&S Activewear catalog...</p>
+            </div>
+          )}
+
+          {searchMutation.isError && (
+            <div className="text-center py-8">
+              <AlertCircle className="w-8 h-8 mx-auto mb-2 text-red-500" />
+              <p className="text-gray-600">Failed to search products. Please check your credentials in Settings.</p>
+              <p className="text-xs text-gray-500 mt-2">Error: {String(searchMutation.error)}</p>
+            </div>
+          )}
+
+          {/* Debug info */}
+          {searchMutation.isSuccess && (
+            <div className="text-xs text-gray-500 mb-2">
+              Status: Success | Data type: {typeof searchMutation.data} | Is Array: {String(Array.isArray(searchMutation.data))} | Length: {Array.isArray(searchMutation.data) ? searchMutation.data.length : 'N/A'}
+            </div>
+          )}
+
+          {searchMutation.isSuccess && searchMutation.data && Array.isArray(searchMutation.data) && searchMutation.data.length > 0 && (
+            <div>
+              <div className="flex items-center justify-between mb-4">
+                <p className="text-sm text-gray-600">
+                  Found <strong>{searchMutation.data.length}</strong> products
+                </p>
+                {searchMutation.data.length > 0 && (
+                  <Button 
+                    size="sm" 
+                    onClick={() => syncProductMutation.mutate(searchMutation.data!)}
+                    disabled={syncProductMutation.isPending}
+                  >
+                    {syncProductMutation.isPending ? (
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    ) : (
+                      <Download className="w-4 h-4 mr-2" />
+                    )}
+                    Add All to Catalog
+                  </Button>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 max-h-[600px] overflow-y-auto">
+                {searchMutation.data.map((product) => (
+                  <Card key={product.sku} className="hover:shadow-lg transition-shadow">
+                    <CardContent className="p-4">
+                      {/* Product Placeholder - S&S blocks CORS for images */}
+                      <div className="mb-3 bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg p-6 flex flex-col items-center justify-center h-32">
+                        <Package className="w-12 h-12 text-blue-400 mb-2" />
+                        <p className="text-xs text-gray-600 text-center">{product.brandName}</p>
+                      </div>
+
+                      {/* Product Info */}
+                      <div className="space-y-2">
+                        <div>
+                          <h3 className="font-semibold text-sm line-clamp-2">
+                            {product.brandName} {product.styleName}
+                          </h3>
+                          <p className="text-xs text-gray-500">{product.sku}</p>
+                        </div>
+
+                        <div className="flex flex-wrap gap-1">
+                          <Badge variant="outline" className="text-xs">
+                            {product.colorName}
+                          </Badge>
+                          <Badge variant="outline" className="text-xs">
+                            {product.sizeName}
+                          </Badge>
+                        </div>
+
+                        {/* Price */}
+                        <div className="bg-green-50 border border-green-200 rounded p-2">
+                          <p className="text-xs text-gray-600">Customer Price</p>
+                          <p className="text-lg font-bold text-green-700">
+                            {formatCurrency(product.customerPrice)}
+                          </p>
+                        </div>
+
+                        {/* Stock */}
+                        {product.qty !== undefined && product.qty !== null && (
+                          <div className="flex items-center gap-1 text-xs">
+                            <Package className="w-3 h-3" />
+                            <span className={product.qty > 0 ? 'text-green-600' : 'text-red-600'}>
+                              {product.qty > 0 ? `${product.qty} in stock` : 'Out of stock'}
+                            </span>
+                          </div>
+                        )}
+
+                        {/* Actions */}
+                        <div className="flex gap-2 pt-2">
+                          <Button 
+                            size="sm" 
+                            variant="outline"
+                            onClick={() => handleViewDetail(product)}
+                            className="flex-1"
+                          >
+                            View Details
+                          </Button>
+                          <Button 
+                            size="sm"
+                            onClick={() => handleAddToCatalog(product)}
+                            disabled={syncProductMutation.isPending}
+                            className="flex-1"
+                          >
+                            {syncProductMutation.isPending ? (
+                              <Loader2 className="w-3 h-3 animate-spin" />
+                            ) : (
+                              'Add to Catalog'
+                            )}
+                          </Button>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
             </div>
           )}
         </CardContent>
       </Card>
 
-      {/* Product Search & Catalog */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Package className="w-5 h-5" />
-            Product Catalog
-            {products?.length && (
-              <Badge variant="secondary">{products.length} products</Badge>
-            )}
-          </CardTitle>
-          <CardDescription>Search and browse imported S&S Activewear products.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-              <Input
-                placeholder="Search products by SKU, brand, style, or color..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10"
-              />
-            </div>
+      {/* Product Detail Modal */}
+      <Dialog open={detailModalOpen} onOpenChange={setDetailModalOpen}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          {selectedProduct && (
+            <>
+              <DialogHeader>
+                <DialogTitle className="text-2xl">
+                  {selectedProduct.brandName} {selectedProduct.styleName}
+                </DialogTitle>
+                <DialogDescription>
+                  SKU: {selectedProduct.sku} | Style ID: {selectedProduct.styleId}
+                </DialogDescription>
+              </DialogHeader>
 
-            {searching && (
-              <div className="text-center py-4">
-                <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" />
-                <p>Searching products...</p>
-              </div>
-            )}
-
-            {searchQuery.length > 2 && searchResults ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {searchResults.map((product) => (
-                  <div key={product.id} className="border rounded-lg p-4">
-                    <div className="flex justify-between items-start mb-2">
-                      <div>
-                        <h4 className="font-medium">{product.brandName} {product.styleName}</h4>
-                        <p className="text-sm text-gray-500">SKU: {product.sku}</p>
-                      </div>
-                      <Badge variant="outline" className="text-xs">
-                        {product.qty || 0} in stock
-                      </Badge>
-                    </div>
-                    
-                    <div className="space-y-1 text-sm">
-                      <p><span className="text-gray-500">Color:</span> {product.colorName}</p>
-                      <p><span className="text-gray-500">Size:</span> {product.sizeName}</p>
-                      <p><span className="text-gray-500">Price:</span> {formatCurrency(product.customerPrice)}</p>
-                    </div>
-                    
-                    {product.colorSwatchImage && (
-                      <div className="mt-3">
-                        <img 
-                          src={`https://www.ssactivewear.com/${product.colorSwatchImage}`}
-                          alt={`${product.colorName} swatch`}
-                          className="w-8 h-8 rounded border"
-                        />
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            ) : (
-              searchQuery.length <= 2 && !loadingProducts && products && products.length > 0 && (
-                <div className="text-center py-8">
-                  <Package className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                  <p className="text-gray-500">
-                    {products.length} products imported. Use the search above to browse them.
+              <div className="space-y-6">
+                {/* Product Visual - Images blocked by CORS */}
+                <div className="bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200 rounded-lg p-8 flex flex-col items-center justify-center">
+                  <Package className="w-16 h-16 text-blue-400 mb-3" />
+                  <p className="text-sm text-gray-700 font-medium">{selectedProduct.brandName} {selectedProduct.styleName}</p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Color: {selectedProduct.colorName} | Size: {selectedProduct.sizeName}
+                  </p>
+                  <p className="text-xs text-gray-400 mt-2">
+                    Images are protected by S&S Activewear
                   </p>
                 </div>
-              )
-            )}
 
-            {!loadingProducts && (!products || products.length === 0) && (
-              <div className="text-center py-8">
-                <Package className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                <p className="text-gray-500">No products imported yet. Start an import to populate the catalog.</p>
+                {/* Pricing Section */}
+                <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                  <h3 className="font-semibold mb-3 flex items-center gap-2">
+                    <ShoppingCart className="w-4 h-4" />
+                    Pricing
+                  </h3>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div>
+                      <p className="text-xs text-gray-600">Piece Price</p>
+                      <p className="text-lg font-bold text-green-700">
+                        {formatCurrency(selectedProduct.piecePrice)}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-600">Dozen Price</p>
+                      <p className="text-lg font-bold text-green-700">
+                        {formatCurrency(selectedProduct.dozenPrice)}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-600">Case Price</p>
+                      <p className="text-lg font-bold text-green-700">
+                        {formatCurrency(selectedProduct.casePrice)}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-600">Customer Price</p>
+                      <p className="text-lg font-bold text-green-700">
+                        {formatCurrency(selectedProduct.customerPrice)}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Product Specifications */}
+                <div>
+                  <h3 className="font-semibold mb-3">Specifications</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="flex items-start gap-2">
+                      <Package className="w-4 h-4 mt-1 text-gray-500" />
+                      <div>
+                        <p className="text-sm font-medium">Color & Size</p>
+                        <p className="text-sm text-gray-600">
+                          {selectedProduct.colorName} ({selectedProduct.colorCode}) - {selectedProduct.sizeName} ({selectedProduct.sizeCode})
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <Weight className="w-4 h-4 mt-1 text-gray-500" />
+                      <div>
+                        <p className="text-sm font-medium">Unit Weight</p>
+                        <p className="text-sm text-gray-600">
+                          {selectedProduct.unitWeight ? `${selectedProduct.unitWeight} oz` : 'N/A'}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <Box className="w-4 h-4 mt-1 text-gray-500" />
+                      <div>
+                        <p className="text-sm font-medium">Case Quantity</p>
+                        <p className="text-sm text-gray-600">
+                          {selectedProduct.caseQty || 'N/A'} units
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <Package className="w-4 h-4 mt-1 text-gray-500" />
+                      <div>
+                        <p className="text-sm font-medium">Stock Quantity</p>
+                        <p className="text-sm text-gray-600">
+                          {selectedProduct.qty !== undefined ? `${selectedProduct.qty} available` : 'N/A'}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Additional Info */}
+                {selectedProduct.countryOfOrigin && (
+                  <div>
+                    <h3 className="font-semibold mb-2">Additional Information</h3>
+                    <p className="text-sm text-gray-600">
+                      <strong>Country of Origin:</strong> {selectedProduct.countryOfOrigin}
+                    </p>
+                  </div>
+                )}
+
+                {/* GTIN */}
+                {selectedProduct.gtin && (
+                  <div>
+                    <p className="text-sm text-gray-600">
+                      <strong>GTIN:</strong> {selectedProduct.gtin}
+                    </p>
+                  </div>
+                )}
+
+                {/* Add to Catalog Button */}
+                <div className="flex gap-2 pt-4">
+                  <Button 
+                    onClick={() => handleAddToCatalog(selectedProduct)}
+                    disabled={syncProductMutation.isPending}
+                    className="flex-1"
+                  >
+                    {syncProductMutation.isPending ? (
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    ) : (
+                      <Download className="w-4 h-4 mr-2" />
+                    )}
+                    Add to Catalog
+                  </Button>
+                  <Button 
+                    variant="outline"
+                    onClick={() => setDetailModalOpen(false)}
+                  >
+                    Close
+                  </Button>
+                </div>
               </div>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

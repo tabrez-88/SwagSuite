@@ -5384,18 +5384,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get S&S Activewear brands list
+  app.get('/api/ss-activewear/brands', isAuthenticated, async (req, res) => {
+    try {
+      const credentials = await getSsActivewearCredentials();
+      
+      if (!credentials.accountNumber || !credentials.apiKey) {
+        return res.status(400).json({ 
+          error: 'S&S Activewear credentials not configured. Please add your account number and API key in Settings.' 
+        });
+      }
+
+      const service = new SsActivewearService(credentials);
+      const brands = await service.getBrands();
+
+      res.json(brands);
+    } catch (error) {
+      console.error('Error fetching S&S Activewear brands:', error);
+      res.status(500).json({ error: 'Failed to fetch brands. Please verify your credentials are correct.' });
+    }
+  });
+
   // S&S Activewear universal product search (searches SKU, style, and name simultaneously)
   app.get('/api/ss-activewear/search', isAuthenticated, async (req, res) => {
     try {
-      const { query } = req.query;
+      const { q } = req.query;
 
-      if (!query || typeof query !== 'string') {
+      if (!q || typeof q !== 'string') {
         return res.status(400).json({ error: 'Search query is required' });
       }
 
       const credentials = await getSsActivewearCredentials();
       const service = new SsActivewearService(credentials);
-      const products = await service.searchProducts(query);
+      const products = await service.searchProducts(q);
 
       res.json(products);
     } catch (error) {
@@ -5404,62 +5425,87 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post('/api/ss-activewear/import', isAuthenticated, async (req, res) => {
+  // Sync S&S Activewear products to catalog
+  app.post('/api/ss-activewear/products/sync', isAuthenticated, async (req, res) => {
     try {
-      const { accountNumber, apiKey, styleFilter } = req.body;
+      const { products } = req.body;
 
-      if (!accountNumber || !apiKey) {
-        return res.status(400).json({ message: "Account number and API key are required" });
+      if (!Array.isArray(products) || products.length === 0) {
+        return res.status(400).json({ message: "Products array is required" });
       }
 
-      const ssService = new SsActivewearService({ accountNumber, apiKey });
-      const jobId = await ssService.importProducts(req.user!.claims.sub, styleFilter);
+      let successCount = 0;
+      const errors = [];
 
-      res.json({ jobId, message: "Import started" });
-    } catch (error) {
-      console.error("Error starting S&S Activewear import:", error);
-      res.status(500).json({ message: "Failed to start import" });
-    }
-  });
+      for (const ssProduct of products) {
+        try {
+          // Build comprehensive description with all available details
+          const descriptionParts = [
+            `${ssProduct.brandName} ${ssProduct.styleName}`,
+            `Color: ${ssProduct.colorName} (${ssProduct.colorCode})`,
+            `Size: ${ssProduct.sizeName} (${ssProduct.sizeCode})`,
+            ssProduct.colorFamily ? `Color Family: ${ssProduct.colorFamily}` : null,
+            ssProduct.colorGroupName ? `Color Group: ${ssProduct.colorGroupName}` : null,
+            ssProduct.countryOfOrigin ? `Made in: ${ssProduct.countryOfOrigin}` : null,
+            ssProduct.unitWeight ? `Weight: ${ssProduct.unitWeight} oz` : null,
+            ssProduct.caseQty ? `Case Quantity: ${ssProduct.caseQty}` : null,
+            ssProduct.gtin ? `GTIN: ${ssProduct.gtin}` : null,
+          ].filter(Boolean);
 
-  app.get('/api/ss-activewear/import-jobs', isAuthenticated, async (req, res) => {
-    try {
-      const jobs = await storage.getSsActivewearImportJobs(req.user?.claims?.sub);
-      res.json(jobs);
-    } catch (error) {
-      console.error("Error fetching import jobs:", error);
-      res.status(500).json({ message: "Failed to fetch import jobs" });
-    }
-  });
+          // Map S&S product to our product schema
+          const product = {
+            name: `${ssProduct.brandName} ${ssProduct.styleName} - ${ssProduct.colorName} ${ssProduct.sizeName}`,
+            description: descriptionParts.join(' | '),
+            sku: ssProduct.sku,
+            supplierSku: ssProduct.sku,
+            basePrice: ssProduct.customerPrice?.toString() || ssProduct.piecePrice?.toString() || '0',
+            minimumQuantity: ssProduct.caseQty || 1,
+            colors: JSON.stringify([{
+              name: ssProduct.colorName,
+              code: ssProduct.colorCode,
+              hex: ssProduct.color1,
+              family: ssProduct.colorFamily,
+              group: ssProduct.colorGroupName
+            }]),
+            sizes: JSON.stringify([{
+              name: ssProduct.sizeName,
+              code: ssProduct.sizeCode,
+              order: ssProduct.sizeOrder
+            }]),
+            imprintMethods: null, // S&S API doesn't provide this
+            leadTime: null, // S&S API doesn't provide this directly
+            imageUrl: ssProduct.colorFrontImage 
+              ? `https://www.ssactivewear.com/${ssProduct.colorFrontImage}`
+              : null,
+            productType: 'apparel',
+          };
 
-  app.get('/api/ss-activewear/import-jobs/:id', isAuthenticated, async (req, res) => {
-    try {
-      const job = await storage.getSsActivewearImportJob(req.params.id);
+          // Check if product already exists
+          const existingProduct = await storage.getProductBySku(ssProduct.sku);
+          
+          if (existingProduct) {
+            // Update existing product
+            await storage.updateProduct(existingProduct.id, product);
+          } else {
+            // Create new product
+            await storage.createProduct(product);
+          }
 
-      if (!job || job.userId !== req.user?.claims?.sub) {
-        return res.status(404).json({ message: "Import job not found" });
+          successCount++;
+        } catch (error) {
+          console.error(`Error syncing product ${ssProduct.sku}:`, error);
+          errors.push({ sku: ssProduct.sku, error: String(error) });
+        }
       }
 
-      res.json(job);
+      res.json({
+        count: successCount,
+        total: products.length,
+        errors: errors.length > 0 ? errors : undefined,
+      });
     } catch (error) {
-      console.error("Error fetching import job:", error);
-      res.status(500).json({ message: "Failed to fetch import job" });
-    }
-  });
-
-  app.get('/api/ss-activewear/search', isAuthenticated, async (req, res) => {
-    try {
-      const { q } = req.query;
-
-      if (!q || typeof q !== 'string') {
-        return res.status(400).json({ message: "Search query is required" });
-      }
-
-      const products = await storage.searchSsActivewearProducts(q);
-      res.json(products);
-    } catch (error) {
-      console.error("Error searching S&S Activewear products:", error);
-      res.status(500).json({ message: "Failed to search products" });
+      console.error("Error syncing S&S Activewear products:", error);
+      res.status(500).json({ message: "Failed to sync products" });
     }
   });
 

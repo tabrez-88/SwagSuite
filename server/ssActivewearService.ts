@@ -59,6 +59,52 @@ export class SsActivewearService {
     }
   }
 
+  async getBrands(): Promise<{ id: string; name: string }[]> {
+    try {
+      console.log('Fetching brands from S&S API...');
+      console.log('Account:', this.config.accountNumber ? `${this.config.accountNumber.substring(0, 3)}***` : 'NOT SET');
+      console.log('API Key:', this.config.apiKey ? `${this.config.apiKey.substring(0, 5)}***` : 'NOT SET');
+      
+      const response = await fetch(`${this.baseUrl}/brands/`, {
+        method: 'GET',
+        headers: this.getAuthHeaders(),
+      });
+
+      console.log('S&S Brands API Response Status:', response.status, response.statusText);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('S&S Brands API Error Response:', errorText.substring(0, 500));
+        throw new Error(`S&S Activewear API error: ${response.status} ${response.statusText}`);
+      }
+
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        const text = await response.text();
+        console.error('S&S API returned non-JSON response:', text.substring(0, 500));
+        throw new Error('S&S API returned invalid response. Please check your credentials.');
+      }
+
+      const brands = await response.json();
+      console.log(`Fetched ${brands.length} brands from S&S API`);
+      console.log('Raw brands sample:', JSON.stringify(brands.slice(0, 2)));
+      
+      // S&S API returns: { brandID, name, image, noeRetailing, activeProducts }
+      const mappedBrands = brands
+        .map((b: any) => ({ 
+          id: String(b.brandID), // Convert to string for consistency
+          name: b.name 
+        }))
+        .sort((a: any, b: any) => a.name.localeCompare(b.name));
+      
+      console.log('Mapped brands sample:', JSON.stringify(mappedBrands.slice(0, 2)));
+      return mappedBrands;
+    } catch (error) {
+      console.error('Error fetching S&S Activewear brands:', error);
+      throw error;
+    }
+  }
+
   async getProducts(styleFilter?: string): Promise<SsActivewearProduct[]> {
     try {
       let url = `${this.baseUrl}/products/`;
@@ -219,30 +265,25 @@ export class SsActivewearService {
 
   private async searchByName(query: string): Promise<SsActivewearProduct[]> {
     try {
-      // Map search terms to actual brand IDs from S&S Activewear API
-      const brandMapping: { [key: string]: string } = {
-        'gildan': '35',
-        'bella': '5',
-        'canvas': '5',
-        'bella+canvas': '5',
-        'bellacanvas': '5',
-        'tultex': '201',
-      };
-
-      const lowerQuery = query.toLowerCase();
-      let brandId = '';
+      // Get all brands from API
+      const brands = await this.getBrands();
+      console.log(`Got ${brands.length} brands from getBrands()`);
+      console.log('First 3 brands:', JSON.stringify(brands.slice(0, 3)));
       
-      // Find matching brand
-      for (const [brand, id] of Object.entries(brandMapping)) {
-        if (lowerQuery.includes(brand)) {
-          brandId = id;
-          break;
-        }
-      }
+      const lowerQuery = query.toLowerCase();
+      
+      // Find matching brand by name (case-insensitive)
+      const matchedBrand = brands.find(b => 
+        b.name.toLowerCase().includes(lowerQuery) || lowerQuery.includes(b.name.toLowerCase())
+      );
 
-      if (brandId) {
-        const brandUrl = `${this.baseUrl}/products/?brandid=${brandId}`;
+      console.log(`Matched brand for "${query}":`, JSON.stringify(matchedBrand));
+
+      if (matchedBrand) {
+        console.log(`Searching products for brand ID: ${matchedBrand.id}`);
+        const brandUrl = `${this.baseUrl}/products/?brandid=${matchedBrand.id}`;
         console.log(`Brand ID search with URL: ${brandUrl}`);
+        console.log(`Searching for brand: ${matchedBrand.name} (ID: ${matchedBrand.id})`);
 
         const response = await fetch(brandUrl, {
           method: 'GET',
@@ -253,25 +294,27 @@ export class SsActivewearService {
           // Check content length to avoid memory issues
           const contentLength = response.headers.get('content-length');
           if (contentLength && parseInt(contentLength) > 5000000) { // 5MB limit
-            console.log(`Response too large for brand ID ${brandId}, limiting results`);
+            console.log(`Response too large for brand ID ${matchedBrand.id}, limiting results`);
             // Try to get just a subset by adding pagination or limiting
             return [];
           }
 
           const products = await response.json();
           if (Array.isArray(products) && products.length > 0) {
-            console.log(`Found ${products.length} products for brand ID ${brandId}`);
+            console.log(`Found ${products.length} products for brand: ${matchedBrand.name}`);
             // Return a limited set of results
-            return products.slice(0, 20);
+            return products.slice(0, 100); // Increase limit to show more results
           }
         } else {
-          console.log(`Brand ID search failed for ${brandId}: ${response.status}`);
+          console.log(`Brand search failed for ${matchedBrand.name}: ${response.status} ${response.statusText}`);
         }
+      } else {
+        console.log(`No brand match found for query: "${query}"`);
       }
 
       return [];
     } catch (error) {
-      console.log('Brand ID search error:', error);
+      console.log('Brand search error:', error);
       return [];
     }
   }
@@ -323,7 +366,7 @@ export class SsActivewearService {
       console.log(`Trying patterns for "${query}": ${Array.from(patterns).join(', ')}`);
 
       // Try each pattern
-      for (const pattern of patterns) {
+      for (const pattern of Array.from(patterns)) {
         try {
           const queryUrl = `${this.baseUrl}/products/?style=${pattern}`;
           console.log(`Pattern search with URL: ${queryUrl}`);
@@ -378,24 +421,6 @@ export class SsActivewearService {
       return await response.json();
     } catch (error) {
       console.error('Error fetching S&S Activewear categories:', error);
-      throw error;
-    }
-  }
-
-  async getBrands(): Promise<any[]> {
-    try {
-      const response = await fetch(`${this.baseUrl}/brands/`, {
-        method: 'GET',
-        headers: this.getAuthHeaders(),
-      });
-
-      if (!response.ok) {
-        throw new Error(`S&S Activewear API error: ${response.status} ${response.statusText}`);
-      }
-
-      return await response.json();
-    } catch (error) {
-      console.error('Error fetching S&S Activewear brands:', error);
       throw error;
     }
   }
@@ -506,7 +531,7 @@ export class SsActivewearService {
     } catch (error) {
       await storage.updateSsActivewearImportJob(jobId, {
         status: 'failed',
-        errorMessage: error.message,
+        errorMessage: error instanceof Error ? error.message : String(error),
         completedAt: new Date(),
       });
       throw error;
