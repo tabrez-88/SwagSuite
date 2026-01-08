@@ -879,6 +879,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.patch('/api/contacts/:id', isAuthenticated, async (req, res) => {
+    try {
+      const { id } = req.params;
+      console.log('PATCH /api/contacts/:id - Updating contact:', id, 'with data:', req.body);
+      
+      if (!id) {
+        return res.status(400).json({ message: "Contact ID is required" });
+      }
+      
+      const contact = await storage.updateContact(id, req.body);
+      
+      if (!contact) {
+        return res.status(404).json({ message: "Contact not found" });
+      }
+      
+      console.log('Contact updated successfully:', contact);
+      res.json(contact);
+    } catch (error) {
+      console.error("Error updating contact:", error);
+      res.status(500).json({ 
+        message: "Failed to update contact",
+        error: error instanceof Error ? error.message : String(error)
+      });
+    }
+  });
+
+  app.delete('/api/contacts/:id', isAuthenticated, async (req, res) => {
+    try {
+      const { id } = req.params;
+      await storage.deleteContact(id);
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting contact:", error);
+      res.status(500).json({ message: "Failed to delete contact" });
+    }
+  });
+
   // Supplier routes
   app.get('/api/suppliers', isAuthenticated, async (req, res) => {
     try {
@@ -3842,48 +3879,69 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Integration Configuration Routes
   app.get('/api/integrations/configurations', isAuthenticated, async (req, res) => {
     try {
-      // Mock integration configurations - would fetch from database
+      // Get current integration settings to determine actual status
+      const currentSettings = await storage.getIntegrationSettings();
+      
+      // Check if SAGE is actually configured
+      const sageConfigured = !!(currentSettings?.sageAcctId && currentSettings?.sageLoginId && currentSettings?.sageApiKey);
+      
       const configurations = [
         {
           id: 'config_esp',
           integration: 'esp',
           displayName: 'ASI ESP+',
+          description: 'Advertising Specialty Institute product database',
           syncEnabled: false,
           syncFrequency: 'daily',
           isHealthy: true,
+          lastSync: null,
           lastHealthCheck: new Date().toISOString(),
           totalSyncs: 0,
           totalRecordsSynced: 0,
-          status: 'Not Configured'
+          status: 'Not Configured',
+          apiEndpoint: 'https://api.asicentral.com',
+          rateLimitPerHour: 1000,
+          maxApiCallsPerHour: 1000
         },
         {
           id: 'config_sage',
           integration: 'sage',
-          displayName: 'SAGE World',
-          syncEnabled: false,
+          displayName: 'SAGE',
+          description: 'SAGE promotional product database',
+          syncEnabled: sageConfigured,
           syncFrequency: 'daily',
-          isHealthy: true,
+          isHealthy: sageConfigured,
+          lastSync: null,
           lastHealthCheck: new Date().toISOString(),
           totalSyncs: 0,
           totalRecordsSynced: 0,
-          status: 'Not Configured'
+          status: sageConfigured ? 'Ready' : 'Not Configured',
+          apiEndpoint: 'https://api.sageworld.com',
+          rateLimitPerHour: 500,
+          maxApiCallsPerHour: 500
         },
         {
           id: 'config_dc',
           integration: 'dc',
           displayName: 'Distributor Central',
+          description: 'Distributor Central product catalog',
           syncEnabled: true,
           syncFrequency: 'daily',
           isHealthy: true,
+          lastSync: new Date(Date.now() - 3600000).toISOString(),
           lastHealthCheck: new Date().toISOString(),
           totalSyncs: 12,
           totalRecordsSynced: 2847,
-          status: 'Active'
+          status: 'Active',
+          apiEndpoint: 'https://api.distributorcentral.com',
+          rateLimitPerHour: 2000,
+          maxApiCallsPerHour: 2000
         }
       ];
 
       res.json(configurations);
     } catch (error) {
+      console.error('Error fetching integration configurations:', error);
       res.status(500).json({ message: "Failed to fetch integration configurations" });
     }
   });
@@ -5552,16 +5610,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Fetch from database
       const dbSettings = await storage.getIntegrationSettings();
       
-      // If no settings in DB, return environment variables or defaults
-      const settings = dbSettings || {
-        ssActivewearAccount: process.env.SS_ACTIVEWEAR_ACCOUNT || "",
-        ssActivewearApiKey: process.env.SS_ACTIVEWEAR_API_KEY || "",
-        hubspotApiKey: process.env.HUBSPOT_API_KEY || "",
-        slackBotToken: process.env.SLACK_BOT_TOKEN || "",
-        slackChannelId: process.env.SLACK_CHANNEL_ID || "",
-        quickbooksConnected: false,
-        stripeConnected: false,
-        shipmateConnected: false
+      // Merge DB settings with environment variables (env as fallback)
+      const settings = {
+        ssActivewearAccount: dbSettings?.ssActivewearAccount || process.env.SS_ACTIVEWEAR_ACCOUNT || "",
+        ssActivewearApiKey: dbSettings?.ssActivewearApiKey || process.env.SS_ACTIVEWEAR_API_KEY || "",
+        hubspotApiKey: dbSettings?.hubspotApiKey || process.env.HUBSPOT_API_KEY || "",
+        slackBotToken: dbSettings?.slackBotToken || process.env.SLACK_BOT_TOKEN || "",
+        slackChannelId: dbSettings?.slackChannelId || process.env.SLACK_CHANNEL_ID || "",
+        sageAcctId: dbSettings?.sageAcctId || process.env.SAGE_ACCT_ID || "",
+        sageLoginId: dbSettings?.sageLoginId || process.env.SAGE_LOGIN_ID || "",
+        sageApiKey: dbSettings?.sageApiKey || process.env.SAGE_API_KEY || "",
+        quickbooksConnected: dbSettings?.quickbooksConnected || false,
+        stripeConnected: dbSettings?.stripeConnected || false,
+        shipmateConnected: dbSettings?.shipmateConnected || false
       };
       
       res.json(settings);

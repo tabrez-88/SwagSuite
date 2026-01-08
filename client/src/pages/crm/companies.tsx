@@ -71,6 +71,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
+import { ContactsManager } from "@/components/ContactsManager";
 
 // Define the Company type based on the schema
 interface Company {
@@ -1553,6 +1554,11 @@ export default function Companies() {
                     </CardContent>
                   </Card>
                 )}
+
+                {/* Contacts Section */}
+                <div className="lg:col-span-2">
+                  <ContactsManager companyId={selectedCompany.id} companyName={selectedCompany.name} />
+                </div>
               </div>
 
               <div className="flex justify-end gap-3 mt-6 pt-6 border-t">

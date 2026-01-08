@@ -31,6 +31,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import OrderModal from "@/components/OrderModal";
+import { ContactsManager } from "@/components/ContactsManager";
 
 // Define the Company type with social media posts
 interface Company {
@@ -236,8 +237,9 @@ export default function CompanyDetail() {
         {/* Main Content Area */}
         <div className="lg:col-span-2">
           <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="grid w-full grid-cols-3">
+            <TabsList className="grid w-full grid-cols-4">
               <TabsTrigger value="overview">Overview</TabsTrigger>
+              <TabsTrigger value="contacts">Contacts</TabsTrigger>
               <TabsTrigger value="social">Social Media</TabsTrigger>
               <TabsTrigger value="activity">Activity</TabsTrigger>
             </TabsList>
@@ -355,6 +357,10 @@ export default function CompanyDetail() {
                   </CardContent>
                 </Card>
               </div>
+            </TabsContent>
+
+            <TabsContent value="contacts" className="space-y-6">
+              <ContactsManager companyId={company.id} companyName={company.name} />
             </TabsContent>
 
             <TabsContent value="social" className="space-y-6">
@@ -543,15 +549,15 @@ export default function CompanyDetail() {
                 <Phone className="h-4 w-4 mr-2" />
                 Call Company
               </Button>
-              <Button 
+              {/* <Button 
                 variant="outline" 
                 size="sm" 
                 className="w-full justify-start"
                 onClick={handleViewContacts}
               >
                 <Users className="h-4 w-4 mr-2" />
-                View Contacts
-              </Button>
+                View Contactsk
+              </Button> */}
               <Button 
                 variant="outline" 
                 size="sm" 

@@ -381,17 +381,59 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createContact(contact: InsertContact): Promise<Contact> {
+    // If creating this contact as primary, unset other primary contacts for the same company
+    if (contact.isPrimary === true && contact.companyId) {
+      await db
+        .update(contacts)
+        .set({ isPrimary: false, updatedAt: new Date() })
+        .where(eq(contacts.companyId, contact.companyId));
+    }
+
     const [newContact] = await db.insert(contacts).values(contact).returning();
     return newContact;
   }
 
   async updateContact(id: string, contact: Partial<InsertContact>): Promise<Contact> {
-    const [updatedContact] = await db
-      .update(contacts)
-      .set({ ...contact, updatedAt: new Date() })
-      .where(eq(contacts.id, id))
-      .returning();
-    return updatedContact;
+    try {
+      console.log('Storage: Updating contact', id, 'with data:', contact);
+      
+      // If setting this contact as primary, unset other primary contacts for the same company
+      if (contact.isPrimary === true) {
+        const [currentContact] = await db.select().from(contacts).where(eq(contacts.id, id));
+        console.log('Current contact:', currentContact);
+        
+        if (currentContact && currentContact.companyId) {
+          // Unset all other primary contacts for this company
+          console.log('Unsetting other primary contacts for company:', currentContact.companyId);
+          await db
+            .update(contacts)
+            .set({ isPrimary: false, updatedAt: new Date() })
+            .where(
+              and(
+                eq(contacts.companyId, currentContact.companyId),
+                sql`${contacts.id} != ${id}`
+              )
+            );
+        }
+      }
+
+      const [updatedContact] = await db
+        .update(contacts)
+        .set({ ...contact, updatedAt: new Date() })
+        .where(eq(contacts.id, id))
+        .returning();
+      
+      console.log('Updated contact:', updatedContact);
+      
+      if (!updatedContact) {
+        throw new Error('Contact not found or update failed');
+      }
+      
+      return updatedContact;
+    } catch (error) {
+      console.error('Error in updateContact:', error);
+      throw error;
+    }
   }
 
   async deleteContact(id: string): Promise<void> {

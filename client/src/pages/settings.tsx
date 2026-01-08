@@ -62,7 +62,8 @@ import {
   Upload,
   User,
   Users,
-  Zap
+  Zap,
+  Database
 } from "lucide-react";
 import { useState, useEffect } from "react";
 
@@ -150,7 +151,7 @@ export default function Settings() {
       });
     }
   });
-  
+
   // Feature Toggles State
   const [features, setFeatures] = useState<FeatureToggle[]>([
     // Core Features
@@ -287,6 +288,9 @@ export default function Settings() {
     hubspotApiKey: "",
     slackBotToken: "",
     slackChannelId: "",
+    sageAcctId: "",
+    sageLoginId: "",
+    sageApiKey: "",
     quickbooksConnected: false,
     stripeConnected: false,
     shipmateConnected: false
@@ -296,7 +300,8 @@ export default function Settings() {
   const [showFields, setShowFields] = useState({
     ssActivewearApiKey: false,
     slackBotToken: false,
-    hubspotApiKey: false
+    hubspotApiKey: false,
+    sageApiKey: false
   });
 
   // Update integrations when data is loaded
@@ -309,6 +314,9 @@ export default function Settings() {
         hubspotApiKey: settings.hubspotApiKey || "",
         slackBotToken: settings.slackBotToken || "",
         slackChannelId: settings.slackChannelId || "",
+        sageAcctId: settings.sageAcctId || "",
+        sageLoginId: settings.sageLoginId || "",
+        sageApiKey: settings.sageApiKey || "",
         quickbooksConnected: settings.quickbooksConnected || false,
         stripeConnected: settings.stripeConnected || false,
         shipmateConnected: settings.shipmateConnected || false
@@ -430,15 +438,15 @@ export default function Settings() {
   const toggleFeature = (featureId: string) => {
     const currentFeature = features.find(f => f.id === featureId);
     if (!currentFeature) return;
-    
+
     featureToggleMutation.mutate({
       featureId,
       enabled: !currentFeature.enabled
     });
-    
+
     // Optimistically update the UI
-    setFeatures(prev => prev.map(feature => 
-      feature.id === featureId 
+    setFeatures(prev => prev.map(feature =>
+      feature.id === featureId
         ? { ...feature, enabled: !feature.enabled }
         : feature
     ));
@@ -454,7 +462,7 @@ export default function Settings() {
         await apiRequest('POST', '/api/settings/integrations', integrations);
         queryClient.invalidateQueries({ queryKey: ['/api/settings/integrations'] });
       }
-      
+
       toast({
         title: "Settings Saved",
         description: `${section} settings have been saved successfully.`,
@@ -479,11 +487,11 @@ export default function Settings() {
       config: config,
       connectedAt: new Date().toISOString()
     };
-    
+
     setConfiguredIntegrations(prev => [...prev, newIntegration]);
     setShowAddIntegration(false);
     setSelectedIntegrationType(null);
-    
+
     toast({
       title: "Integration Added",
       description: `${integrationType.name} has been successfully configured.`,
@@ -492,7 +500,7 @@ export default function Settings() {
 
   const removeIntegration = (integrationId: string) => {
     setConfiguredIntegrations(prev => prev.filter(int => int.id !== integrationId));
-    
+
     toast({
       title: "Integration Removed",
       description: "Integration has been successfully removed.",
@@ -507,7 +515,7 @@ export default function Settings() {
         ...prev,
         logo: { ...prev.logo, uploading: true }
       }));
-      
+
       // Simulate upload process
       setTimeout(() => {
         const logoUrl = URL.createObjectURL(file);
@@ -515,7 +523,7 @@ export default function Settings() {
           ...prev,
           logo: { current: logoUrl, uploading: false }
         }));
-        
+
         toast({
           title: "Logo Updated",
           description: "System logo has been successfully updated.",
@@ -557,7 +565,7 @@ export default function Settings() {
         ...prev,
         dataImport: { ...prev.dataImport, processing: true }
       }));
-      
+
       // Simulate AI processing
       setTimeout(() => {
         setSystemConfig(prev => ({
@@ -570,7 +578,7 @@ export default function Settings() {
         }));
         setShowDataImport(false);
         setImportFile(null);
-        
+
         toast({
           title: "Data Import Complete",
           description: "AI has successfully processed and imported your data. All records have been categorized and organized.",
@@ -582,7 +590,7 @@ export default function Settings() {
   const FeatureCard = ({ feature }: { feature: FeatureToggle }) => {
     const Icon = feature.icon;
     const canToggle = !feature.adminOnly || isAdmin;
-    
+
     return (
       <Card className={`transition-all ${feature.enabled ? 'border-green-200 bg-green-50' : 'border-gray-200'}`}>
         <CardContent className="p-4">
@@ -624,18 +632,18 @@ export default function Settings() {
 
   const AddIntegrationModal = () => {
     const [configData, setConfigData] = useState({});
-    
+
     const handleFieldChange = (key: string, value: string) => {
       setConfigData(prev => ({ ...prev, [key]: value }));
     };
 
     const handleSubmit = () => {
       if (!selectedIntegrationType) return;
-      
+
       // Validate required fields
       const requiredFields = selectedIntegrationType.fields.filter((field: any) => field.required);
       const missingFields = requiredFields.filter((field: any) => !(configData as any)[field.key]);
-      
+
       if (missingFields.length > 0) {
         toast({
           title: "Missing Required Fields",
@@ -644,7 +652,7 @@ export default function Settings() {
         });
         return;
       }
-      
+
       addIntegration(selectedIntegrationType, configData);
       setConfigData({});
     };
@@ -655,7 +663,7 @@ export default function Settings() {
           <DialogHeader>
             <DialogTitle>Add New Integration</DialogTitle>
           </DialogHeader>
-          
+
           {!selectedIntegrationType ? (
             <div className="space-y-4">
               <p className="text-sm text-gray-600">Choose an integration to configure:</p>
@@ -691,9 +699,9 @@ export default function Settings() {
                   <p className="text-sm text-gray-600">{selectedIntegrationType.description}</p>
                 </div>
               </div>
-              
+
               <div className="space-y-4">
-                {selectedIntegrationType.fields.map((field : any) => (
+                {selectedIntegrationType.fields.map((field: any) => (
                   <div key={field.key} className="space-y-2">
                     <Label htmlFor={field.key}>
                       {field.label}
@@ -710,7 +718,7 @@ export default function Settings() {
                   </div>
                 ))}
               </div>
-              
+
               <div className="flex justify-end gap-3 pt-4">
                 <Button variant="outline" onClick={() => setSelectedIntegrationType(null)}>
                   Back
@@ -748,8 +756,8 @@ export default function Settings() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="space-y-4">
+      <div className="flex items-center justify-between p-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">System Settings</h1>
           <p className="text-gray-600">Manage features, users, and system configuration</p>
@@ -761,7 +769,7 @@ export default function Settings() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-10">
+        <TabsList className="grid grid-cols-2 md:flex justify-start flex-wrap gap-2">
           <TabsTrigger value="features" className="flex items-center gap-2">
             <ToggleRight className="w-4 h-4" />
             Features
@@ -929,8 +937,8 @@ export default function Settings() {
                     <div>
                       <h4 className="text-sm font-medium text-blue-900">Email Infrastructure Status</h4>
                       <p className="text-sm text-blue-700 mt-1">
-                        Weekly reporting system is configured and ready. Complete database schema, API routes, 
-                        and metric calculation logic are in place. When SendGrid API key is provided, 
+                        Weekly reporting system is configured and ready. Complete database schema, API routes,
+                        and metric calculation logic are in place. When SendGrid API key is provided,
                         automated email delivery will be activated.
                       </p>
                     </div>
@@ -941,7 +949,7 @@ export default function Settings() {
 
                 <div className="space-y-4">
                   <h3 className="text-sm font-medium">Report Configuration</h3>
-                  
+
                   <div className="grid gap-4 md:grid-cols-2">
                     <div className="space-y-2">
                       <Label htmlFor="report-day" className="text-sm font-medium">Send Day</Label>
@@ -1176,7 +1184,7 @@ export default function Settings() {
                   <Switch
                     id={key}
                     checked={value}
-                    onCheckedChange={(checked) => 
+                    onCheckedChange={(checked) =>
                       setNotifications(prev => ({ ...prev, [key]: checked }))
                     }
                   />
@@ -1211,7 +1219,7 @@ export default function Settings() {
               {/* Core Integrations */}
               <div className="space-y-4">
                 <h3 className="font-medium text-sm text-gray-900">Core Integrations</h3>
-                
+
                 {/* S&S Activewear */}
                 <div className="p-4 border rounded-lg">
                   <div className="flex items-center justify-between mb-3">
@@ -1257,6 +1265,64 @@ export default function Settings() {
                     </div>
                   </div>
                 </div>
+                {/* SAGE */}
+                <div className="p-4 border rounded-lg">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <Database className="w-5 h-5 text-green-600" />
+                      <h4 className="font-medium">SAGE</h4>
+                      <Badge variant={integrations.sageAcctId && integrations.sageLoginId && integrations.sageApiKey ? "default" : "outline"}>
+                        {integrations.sageAcctId && integrations.sageLoginId && integrations.sageApiKey ? "Connected" : "Not Connected"}
+                      </Badge>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="sageAcctId">Account ID</Label>
+                      <Input
+                        id="sageAcctId"
+                        placeholder="Enter SAGE account ID"
+                        value={integrations.sageAcctId}
+                        onChange={(e) => setIntegrations(prev => ({ ...prev, sageAcctId: e.target.value }))}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="sageLoginId">Login ID</Label>
+                      <Input
+                        id="sageLoginId"
+                        placeholder="Enter SAGE login ID"
+                        value={integrations.sageLoginId}
+                        onChange={(e) => setIntegrations(prev => ({ ...prev, sageLoginId: e.target.value }))}
+                      />
+                    </div>
+                    <div className="space-y-2 col-span-2">
+                      <Label htmlFor="sageApiKey">API Key</Label>
+                      <div className="relative">
+                        <Input
+                          id="sageApiKey"
+                          type={showFields.sageApiKey ? "text" : "password"}
+                          placeholder="Enter SAGE API key"
+                          value={integrations.sageApiKey}
+                          onChange={(e) => setIntegrations(prev => ({ ...prev, sageApiKey: e.target.value }))}
+                          className="pr-10"
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
+                          onClick={() => setShowFields(prev => ({ ...prev, sageApiKey: !prev.sageApiKey }))}
+                        >
+                          {showFields.sageApiKey ? (
+                            <EyeOff className="h-4 w-4 text-gray-500" />
+                          ) : (
+                            <Eye className="h-4 w-4 text-gray-500" />
+                          )}
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
 
                 {/* Slack */}
                 <div className="p-4 border rounded-lg">
@@ -1268,6 +1334,14 @@ export default function Settings() {
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="slackChannel">Channel ID</Label>
+                      <Input
+                        id="slackChannel"
+                        value={integrations.slackChannelId}
+                        onChange={(e) => setIntegrations(prev => ({ ...prev, slackChannelId: e.target.value }))}
+                      />
+                    </div>
                     <div className="space-y-2">
                       <Label htmlFor="slackToken">Bot Token</Label>
                       <div className="relative">
@@ -1292,14 +1366,6 @@ export default function Settings() {
                           )}
                         </Button>
                       </div>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="slackChannel">Channel ID</Label>
-                      <Input
-                        id="slackChannel"
-                        value={integrations.slackChannelId}
-                        onChange={(e) => setIntegrations(prev => ({ ...prev, slackChannelId: e.target.value }))}
-                      />
                     </div>
                   </div>
                 </div>
@@ -1340,6 +1406,7 @@ export default function Settings() {
                     </div>
                   </div>
                 </div>
+
               </div>
 
               {/* Custom Integrations */}
@@ -1388,7 +1455,7 @@ export default function Settings() {
               </Button>
             </CardContent>
           </Card>
-          
+
           <AddIntegrationModal />
         </TabsContent>
 
@@ -1410,9 +1477,9 @@ export default function Settings() {
                 <div className="flex items-center gap-4">
                   <div className="w-20 h-20 border rounded-lg flex items-center justify-center overflow-hidden">
                     {systemConfig.logo.current ? (
-                      <img 
-                        src={systemConfig.logo.current} 
-                        alt="System Logo" 
+                      <img
+                        src={systemConfig.logo.current}
+                        alt="System Logo"
                         className="w-full h-full object-contain"
                       />
                     ) : (
@@ -1497,7 +1564,7 @@ export default function Settings() {
                     <div className="flex items-center justify-between">
                       <Label htmlFor="primaryColor">Primary</Label>
                       <div className="flex items-center gap-2">
-                        <div 
+                        <div
                           className="w-8 h-8 rounded border"
                           style={{ backgroundColor: systemConfig.theme.primaryColor }}
                         />
@@ -1513,7 +1580,7 @@ export default function Settings() {
                     <div className="flex items-center justify-between">
                       <Label htmlFor="secondaryColor">Secondary</Label>
                       <div className="flex items-center gap-2">
-                        <div 
+                        <div
                           className="w-8 h-8 rounded border"
                           style={{ backgroundColor: systemConfig.theme.secondaryColor }}
                         />
@@ -1529,7 +1596,7 @@ export default function Settings() {
                     <div className="flex items-center justify-between">
                       <Label htmlFor="accentColor">Accent</Label>
                       <div className="flex items-center gap-2">
-                        <div 
+                        <div
                           className="w-8 h-8 rounded border"
                           style={{ backgroundColor: systemConfig.theme.accentColor }}
                         />
@@ -1550,7 +1617,7 @@ export default function Settings() {
                     <div className="flex items-center justify-between">
                       <Label htmlFor="backgroundColor">Background</Label>
                       <div className="flex items-center gap-2">
-                        <div 
+                        <div
                           className="w-8 h-8 rounded border"
                           style={{ backgroundColor: systemConfig.theme.backgroundColor }}
                         />
@@ -1566,7 +1633,7 @@ export default function Settings() {
                     <div className="flex items-center justify-between">
                       <Label htmlFor="textColor">Text</Label>
                       <div className="flex items-center gap-2">
-                        <div 
+                        <div
                           className="w-8 h-8 rounded border"
                           style={{ backgroundColor: systemConfig.theme.textColor }}
                         />
@@ -1585,7 +1652,7 @@ export default function Settings() {
               <Separator />
               <div className="space-y-4">
                 <Label>Theme Preview</Label>
-                <div 
+                <div
                   className="p-4 rounded-lg border"
                   style={{
                     backgroundColor: systemConfig.theme.backgroundColor,
@@ -1594,16 +1661,16 @@ export default function Settings() {
                   }}
                 >
                   <div className="flex items-center gap-4 mb-3">
-                    <div 
+                    <div
                       className="w-8 h-8 rounded"
                       style={{ backgroundColor: systemConfig.theme.primaryColor }}
                     />
                     <h3 style={{ color: systemConfig.theme.textColor }}>Sample Header</h3>
                   </div>
                   <p className="text-sm mb-2">This is how your theme will look in the application.</p>
-                  <Button 
+                  <Button
                     size="sm"
-                    style={{ 
+                    style={{
                       backgroundColor: systemConfig.theme.accentColor,
                       color: '#ffffff'
                     }}
@@ -1662,9 +1729,9 @@ export default function Settings() {
                     ))}
                   </div>
                 </div>
-                
+
                 <Separator />
-                
+
                 <div className="space-y-4">
                   <h3 className="font-medium flex items-center gap-2">
                     <Package className="w-4 h-4" />
@@ -1694,7 +1761,7 @@ export default function Settings() {
                   </div>
                 </div>
               </div>
-              
+
               <div className="bg-blue-50 p-4 rounded-lg">
                 <div className="flex items-start gap-3">
                   <AlertCircle className="w-5 h-5 text-blue-600 mt-0.5" />
@@ -1707,7 +1774,7 @@ export default function Settings() {
                   </div>
                 </div>
               </div>
-              
+
               <Button onClick={() => saveSettings('Form Fields')} className="w-full">
                 <Save className="w-4 h-4 mr-2" />
                 Save Field Configuration
@@ -1771,9 +1838,9 @@ export default function Settings() {
                   </div>
                 </div>
               </div>
-              
+
               <Separator />
-              
+
               <div className="space-y-4">
                 <Label>Import Data</Label>
                 {systemConfig.dataImport.processing ? (
@@ -1804,7 +1871,7 @@ export default function Settings() {
                   </div>
                 )}
               </div>
-              
+
               {systemConfig.dataImport.lastImport && (
                 <div className="bg-green-50 p-4 rounded-lg">
                   <div className="flex items-start gap-3">
@@ -1818,14 +1885,14 @@ export default function Settings() {
                   </div>
                 </div>
               )}
-              
+
               <div className="bg-amber-50 p-4 rounded-lg">
                 <div className="flex items-start gap-3">
                   <Lightbulb className="w-5 h-5 text-amber-600 mt-0.5" />
                   <div>
                     <h4 className="font-medium text-amber-900">AI Import Process</h4>
                     <p className="text-sm text-amber-700 mt-1">
-                      Our AI will intelligently categorize your data, match customer information, 
+                      Our AI will intelligently categorize your data, match customer information,
                       organize orders by status, and maintain data relationships. Review suggested matches before finalizing.
                     </p>
                   </div>
