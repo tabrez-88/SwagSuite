@@ -95,7 +95,7 @@ export default function Settings() {
   // Load admin settings from backend
   const { data: adminSettings, isLoading: settingsLoading } = useQuery({
     queryKey: ['/api/admin/settings'],
-    enabled: (user as any)?.role === 'admin'
+    enabled: (user as any)?.role === 'admin' || (user as any)?.role === 'manager'
   });
 
   // Load integration settings
@@ -107,7 +107,7 @@ export default function Settings() {
   // Load users from backend
   const { data: usersData, isLoading: usersLoading } = useQuery({
     queryKey: ['/api/users'],
-    enabled: (user as any)?.role === 'admin',
+    enabled: (user as any)?.role === 'admin' || (user as any)?.role === 'manager',
   });
 
   // Update user role mutation
@@ -434,6 +434,8 @@ export default function Settings() {
   const [configData, setConfigData] = useState<any>({});
 
   const isAdmin = (user as any)?.role === 'admin' || (user as any)?.email === 'bgoltzman@liquidscreendesign.com';
+  const isManager = (user as any)?.role === 'manager';
+  const hasAccess = isAdmin || isManager;
 
   const toggleFeature = (featureId: string) => {
     const currentFeature = features.find(f => f.id === featureId);
@@ -745,12 +747,12 @@ export default function Settings() {
     );
   }
 
-  if (!isAdmin) {
+  if (!hasAccess) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[400px] text-center">
         <Shield className="w-12 h-12 text-gray-400 mb-4" />
         <h2 className="text-xl font-semibold text-gray-900 mb-2">Access Restricted</h2>
-        <p className="text-gray-600">You need administrator privileges to access system settings.</p>
+        <p className="text-gray-600">You need administrator or manager privileges to access system settings.</p>
       </div>
     );
   }
@@ -764,7 +766,7 @@ export default function Settings() {
         </div>
         <Badge variant="outline" className="flex items-center gap-2">
           <Shield className="w-4 h-4" />
-          Administrator Access
+          {isAdmin ? 'Administrator' : 'Manager'} Access
         </Badge>
       </div>
 
@@ -844,14 +846,28 @@ export default function Settings() {
 
         <TabsContent value="users" className="space-y-6">
           <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Users className="w-5 h-5" />
-                User Management
-              </CardTitle>
-              <p className="text-sm text-gray-600">
-                Manage user roles and permissions for system access control.
-              </p>
+            <CardHeader className="space-y-4">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <Users className="w-5 h-5" />
+                  User Management
+                </CardTitle>
+                <p className="text-sm text-gray-600">
+                  Manage user roles and permissions for system access control.
+                  {isManager && (
+                    <span className="block mt-1 text-amber-600 font-medium">
+                      👀 Managers can view user roles but only admins can modify them.
+                    </span>
+                  )}
+                </p>
+              </div>
+              <Button 
+                onClick={() => window.location.href = '/settings/users'}
+                className="w-full sm:w-auto"
+              >
+                <Users className="w-4 h-4 mr-2" />
+                Open Full User Management
+              </Button>
             </CardHeader>
             <CardContent>
               {usersLoading ? (
@@ -881,7 +897,7 @@ export default function Settings() {
                         <Select
                           value={userItem.role || 'user'}
                           onValueChange={(value: 'admin' | 'manager' | 'user') => updateUserRole(userItem.id, value)}
-                          disabled={updateUserRoleMutation.isPending}
+                          disabled={updateUserRoleMutation.isPending || !isAdmin}
                         >
                           <SelectTrigger className="w-32">
                             <SelectValue />

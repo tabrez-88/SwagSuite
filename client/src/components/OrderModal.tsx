@@ -18,6 +18,20 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+} from "@/components/ui/command";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Check, ChevronsUpDown } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { isUnauthorizedError } from "@/lib/authUtils";
@@ -47,6 +61,8 @@ export default function OrderModal({ open, onOpenChange, order, initialCompanyId
   });
   const [orderItems, setOrderItems] = useState<any[]>([]);
   const [productSearch, setProductSearch] = useState("");
+  const [openCustomerCombo, setOpenCustomerCombo] = useState(false);
+  const [openSupplierCombo, setOpenSupplierCombo] = useState(false);
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -305,21 +321,47 @@ export default function OrderModal({ open, onOpenChange, order, initialCompanyId
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div>
               <Label htmlFor="customer">Customer</Label>
-              <Select
-                value={formData.companyId}
-                onValueChange={(value) => handleFieldChange("companyId", value)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select customer..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {companies?.map((company) => (
-                    <SelectItem key={company.id} value={company.id}>
-                      {company.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Popover open={openCustomerCombo} onOpenChange={setOpenCustomerCombo}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={openCustomerCombo}
+                    className="w-full justify-between"
+                  >
+                    {formData.companyId
+                      ? companies?.find((company) => company.id === formData.companyId)?.name
+                      : "Select customer..."}
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[400px] p-0">
+                  <Command>
+                    <CommandInput placeholder="Search customer..." />
+                    <CommandEmpty>No customer found.</CommandEmpty>
+                    <CommandGroup className="max-h-64 overflow-auto">
+                      {companies?.map((company) => (
+                        <CommandItem
+                          key={company.id}
+                          value={company.name}
+                          onSelect={() => {
+                            handleFieldChange("companyId", company.id);
+                            setOpenCustomerCombo(false);
+                          }}
+                        >
+                          <Check
+                            className={cn(
+                              "mr-2 h-4 w-4",
+                              formData.companyId === company.id ? "opacity-100" : "opacity-0"
+                            )}
+                          />
+                          {company.name}
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </Command>
+                </PopoverContent>
+              </Popover>
             </div>
             <div>
               <Label htmlFor="orderType">Order Type</Label>
@@ -339,21 +381,47 @@ export default function OrderModal({ open, onOpenChange, order, initialCompanyId
             </div>
             <div>
               <Label htmlFor="supplier">Vendor/Supplier</Label>
-              <Select
-                value={formData.supplierId}
-                onValueChange={(value) => handleFieldChange("supplierId", value)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select vendor..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {suppliers?.map((supplier) => (
-                    <SelectItem key={supplier.id} value={supplier.id}>
-                      {supplier.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Popover open={openSupplierCombo} onOpenChange={setOpenSupplierCombo}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={openSupplierCombo}
+                    className="w-full justify-between"
+                  >
+                    {formData.supplierId
+                      ? suppliers?.find((supplier) => supplier.id === formData.supplierId)?.name
+                      : "Select vendor..."}
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[400px] p-0">
+                  <Command>
+                    <CommandInput placeholder="Search vendor..." />
+                    <CommandEmpty>No vendor found.</CommandEmpty>
+                    <CommandGroup className="max-h-64 overflow-auto">
+                      {suppliers?.map((supplier) => (
+                        <CommandItem
+                          key={supplier.id}
+                          value={supplier.name}
+                          onSelect={() => {
+                            handleFieldChange("supplierId", supplier.id);
+                            setOpenSupplierCombo(false);
+                          }}
+                        >
+                          <Check
+                            className={cn(
+                              "mr-2 h-4 w-4",
+                              formData.supplierId === supplier.id ? "opacity-100" : "opacity-0"
+                            )}
+                          />
+                          {supplier.name}
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </Command>
+                </PopoverContent>
+              </Popover>
             </div>
           </div>
 
