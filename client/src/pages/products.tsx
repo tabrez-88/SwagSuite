@@ -160,13 +160,13 @@ export default function Products() {
       />
 
       {/* Main Content */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="grid w-full grid-cols-5">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-auto">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="my-catalog" className="flex items-center gap-2">
             <Package size={16} />
             My Catalog
           </TabsTrigger>
-          <TabsTrigger value="popular" className="flex items-center gap-2">
+          <TabsTrigger disabled value="popular" className="flex items-center gap-2">
             <TrendingUp size={16} />
             Popular Items
           </TabsTrigger>
@@ -178,10 +178,10 @@ export default function Products() {
             <Database size={16} />
             SAGE
           </TabsTrigger>
-          <TabsTrigger value="integrations" className="flex items-center gap-2">
+          {/* <TabsTrigger value="integrations" className="flex items-center gap-2">
             <Database size={16} />
             Other Integrations
-          </TabsTrigger>
+          </TabsTrigger> */}
         </TabsList>
 
         {/* My Catalog Tab */}

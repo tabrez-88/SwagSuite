@@ -12,10 +12,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectValue, SelectTrigger, SelectContent, SelectItem } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { isUnauthorizedError } from "@/lib/authUtils";
-import { Loader2, Search } from "lucide-react";
+import { Loader2, Search, ShoppingCart, Database, Pencil, CheckCircle2, Package } from "lucide-react";
 import type { Supplier } from "@shared/schema";
 
 interface ProductModalProps {
@@ -48,7 +51,19 @@ interface SsActivewearProduct {
   countryOfOrigin: string;
 }
 
+interface SageProduct {
+  id: string;
+  name: string;
+  description?: string;
+  sku: string;
+  price?: number;
+  imageUrl?: string;
+  brand?: string;
+  category?: string;
+}
+
 export default function ProductModal({ open, onOpenChange, product }: ProductModalProps) {
+  const [activeTab, setActiveTab] = useState("manual");
   const [formData, setFormData] = useState({
     sku: "",
     name: "",
@@ -64,8 +79,11 @@ export default function ProductModal({ open, onOpenChange, product }: ProductMod
   const [isSearching, setIsSearching] = useState(false);
   const [searchError, setSearchError] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
+  const [sageSearchQuery, setSageSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<SsActivewearProduct[]>([]);
+  const [sageSearchResults, setSageSearchResults] = useState<SageProduct[]>([]);
   const [selectedProductImage, setSelectedProductImage] = useState<string>("");
+  const [dataSource, setDataSource] = useState<"manual" | "ss-activewear" | "sage">("manual");
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -139,13 +157,17 @@ export default function ProductModal({ open, onOpenChange, product }: ProductMod
     });
     setSelectedProductImage("");
     setSearchQuery("");
+    setSageSearchQuery("");
     setSearchResults([]);
+    setSageSearchResults([]);
     setSearchError("");
+    setDataSource("manual");
+    setActiveTab("manual");
   };
 
   const searchProductMutation = useMutation({
     mutationFn: async (query: string) => {
-      const response = await fetch(`/api/ss-activewear/search?query=${encodeURIComponent(query)}`, {
+      const response = await fetch(`/api/ss-activewear/search?q=${encodeURIComponent(query)}`, {
         credentials: "include",
       });
 
@@ -153,7 +175,8 @@ export default function ProductModal({ open, onOpenChange, product }: ProductMod
         if (response.status === 404) {
           throw new Error("No products found in S&S Activewear catalog");
         }
-        throw new Error("Failed to search products");
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        throw new Error(errorData.error || "Failed to search products");
       }
 
       return response.json() as Promise<SsActivewearProduct[]>;
@@ -161,6 +184,15 @@ export default function ProductModal({ open, onOpenChange, product }: ProductMod
     onSuccess: (products) => {
       setSearchResults(products);
       setSearchError("");
+
+      if (products.length === 0) {
+        toast({
+          title: "No Results",
+          description: "No products found matching your search",
+          variant: "destructive",
+        });
+        return;
+      }
 
       if (products.length === 1) {
         // If only one product found, auto-populate the form
@@ -182,6 +214,7 @@ export default function ProductModal({ open, onOpenChange, product }: ProductMod
           size: product.sizeName || "",
         });
         setSelectedProductImage(product.colorFrontImage || "");
+        setDataSource("ss-activewear");
         toast({
           title: "Product Found",
           description: `Found ${product.brandName} ${product.styleName} in S&S Activewear catalog`,
@@ -190,6 +223,98 @@ export default function ProductModal({ open, onOpenChange, product }: ProductMod
         toast({
           title: "Search Results",
           description: `Found ${products.length} products matching your search`,
+        });
+      }
+    },
+    onError: (error: Error) => {
+      if (isUnauthorizedError(error)) {
+        toast({
+          title: "Unauthorized",
+          description: "You are logged out. Logging in again...",
+          variant: "destructive",
+        });
+        setTimeout(() => {
+          window.location.href = "/api/login";
+        }, 500);
+        return;
+      }
+
+      setSearchError(error.message);
+      toast({
+        title: "Product Not Found",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const searchSageProductMutation = useMutation({
+    mutationFn: async (query: string) => {
+      const response = await fetch(`/api/sage/products?search=${encodeURIComponent(query)}`, {
+        credentials: "include",
+      });
+
+      if (!response.ok) {
+        if (response.status === 404) {
+          throw new Error("No products found in SAGE catalog");
+        }
+        const errorData = await response.json().catch(() => ({ message: 'Unknown error' }));
+        throw new Error(errorData.message || "Failed to search SAGE products");
+      }
+
+      const products = await response.json();
+      
+      // Transform SAGE products to match expected interface
+      return products.map((p: any) => ({
+        id: p.productId || p.spc || p.SPC || p.id,
+        name: p.productName || p.name,
+        description: p.description,
+        sku: p.productNumber || p.sku || p.productId,
+        price: p.pricingStructure?.minPrice ? parseFloat(p.pricingStructure.minPrice) : undefined,
+        imageUrl: p.imageGallery?.[0] || p.thumbPic,
+        brand: p.supplierName || p.brand,
+        category: p.category,
+      })) as SageProduct[];
+    },
+    onSuccess: (products) => {
+      setSageSearchResults(products);
+      setSearchError("");
+
+      if (products.length === 0) {
+        toast({
+          title: "No Results",
+          description: "No products found in SAGE catalog",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      if (products.length === 1) {
+        const product = products[0];
+        const sageSupplier = suppliers.find(s => s.name.toLowerCase().includes("sage"));
+
+        setFormData({
+          sku: product.sku,
+          name: product.name,
+          description: product.description || "",
+          price: product.price?.toString() || "",
+          supplierId: sageSupplier ? sageSupplier.id : "",
+          category: product.category || "",
+          brand: product.brand || "",
+          style: "",
+          color: "",
+          size: "",
+        });
+        setSelectedProductImage(product.imageUrl || "");
+        setDataSource("sage");
+        toast({
+          title: "Product Found",
+          description: `Found ${product.name} in SAGE catalog`,
+        });
+      } else {
+        toast({
+          title: "Search Results",
+          description: `Found ${products.length} products in SAGE`,
         });
       }
     },
@@ -296,8 +421,19 @@ export default function ProductModal({ open, onOpenChange, product }: ProductMod
     });
   };
 
+  const handleSageSearch = () => {
+    if (!sageSearchQuery.trim()) {
+      setSearchError("Please enter a search query");
+      return;
+    }
+
+    setIsSearching(true);
+    searchSageProductMutation.mutate(sageSearchQuery.trim(), {
+      onSettled: () => setIsSearching(false),
+    });
+  };
+
   const selectProduct = (product: SsActivewearProduct) => {
-    // Try to find S&S Activewear in the suppliers list to auto-select
     const ssSupplier = suppliers.find(s => s.name.toLowerCase().includes("s&s activewear") || s.name.toLowerCase().includes("ss activewear"));
 
     setFormData({
@@ -315,9 +451,37 @@ export default function ProductModal({ open, onOpenChange, product }: ProductMod
     setSelectedProductImage(product.colorFrontImage || "");
     setSearchResults([]);
     setSearchQuery("");
+    setDataSource("ss-activewear");
+    setActiveTab("manual");
     toast({
-      title: "Product Selected",
-      description: `Selected ${product.brandName} ${product.styleName}`,
+      title: "Product Imported",
+      description: `Imported ${product.brandName} ${product.styleName} from S&S Activewear`,
+    });
+  };
+
+  const selectSageProduct = (product: SageProduct) => {
+    const sageSupplier = suppliers.find(s => s.name.toLowerCase().includes("sage"));
+
+    setFormData({
+      sku: product.sku,
+      name: product.name,
+      description: product.description || "",
+      price: product.price?.toString() || "",
+      supplierId: sageSupplier ? sageSupplier.id : "",
+      category: product.category || "",
+      brand: product.brand || "",
+      style: "",
+      color: "",
+      size: "",
+    });
+    setSelectedProductImage(product.imageUrl || "");
+    setSageSearchResults([]);
+    setSageSearchQuery("");
+    setDataSource("sage");
+    setActiveTab("manual");
+    toast({
+      title: "Product Imported",
+      description: `Imported ${product.name} from SAGE`,
     });
   };
 
@@ -360,48 +524,77 @@ export default function ProductModal({ open, onOpenChange, product }: ProductMod
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{product ? 'Edit Product' : 'Add New Product'}</DialogTitle>
+          <DialogTitle className="flex items-center gap-2">
+            {product ? (
+              <>
+                <Pencil className="h-5 w-5" />
+                Edit Product
+              </>
+            ) : (
+              <>
+                <Package className="h-5 w-5" />
+                Add New Product
+              </>
+            )}
+          </DialogTitle>
           <DialogDescription>
             {product
               ? 'Update product information below.'
-              : 'Enter a product number/SKU to automatically fetch details from S&S Activewear, or add product information manually.'
+              : 'Search from S&S Activewear or SAGE catalogs, or enter details manually.'
             }
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Product Search Section - Only show when creating new product */}
-          {!product && (
-            <div className="space-y-4 p-4 bg-blue-50 dark:bg-blue-950/20 rounded-lg border">
-              <h3 className="font-medium text-blue-900 dark:text-blue-100">
-                S&S Activewear Product Lookup
-              </h3>
+        {!product && (
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+            <TabsList className="grid w-full grid-cols-3">
+              <TabsTrigger value="manual" className="flex items-center gap-2">
+                <Pencil className="h-4 w-4" />
+                Manual Entry
+              </TabsTrigger>
+              <TabsTrigger value="ss-activewear" className="flex items-center gap-2">
+                <ShoppingCart className="h-4 w-4" />
+                S&S Activewear
+              </TabsTrigger>
+              <TabsTrigger value="sage" className="flex items-center gap-2">
+                <Database className="h-4 w-4" />
+                SAGE
+              </TabsTrigger>
+            </TabsList>
 
-              <div className="space-y-3">
-                <div className="flex gap-2">
-                  <div className="flex-1">
-                    <Label htmlFor="searchQuery">Product Search</Label>
-                    <Input
-                      id="searchQuery"
-                      placeholder="Enter SKU, style code, or product name (e.g., 3001, B00760033, Gildan)"
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      onKeyPress={(e) => {
-                        if (e.key === 'Enter') {
-                          e.preventDefault();
-                          handleSearch();
-                        }
-                      }}
-                    />
+            {/* S&S Activewear Search Tab */}
+            <TabsContent value="ss-activewear" className="space-y-4 mt-4">
+              <Card>
+                <CardContent className="pt-6 space-y-4">
+                  <div>
+                    <h3 className="font-semibold text-lg mb-2 flex items-center gap-2">
+                      <ShoppingCart className="h-5 w-5 text-blue-600" />
+                      Search S&S Activewear Catalog
+                    </h3>
+                    <p className="text-sm text-muted-foreground">
+                      Enter SKU, style code, or product name to search the S&S Activewear catalog.
+                    </p>
                   </div>
-                  <div className="flex items-end">
+
+                  <div className="flex gap-2">
+                    <div className="flex-1">
+                      <Input
+                        placeholder="Enter SKU, style code, or product name (e.g., 3001, Gildan)"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        onKeyPress={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            handleSearch();
+                          }
+                        }}
+                      />
+                    </div>
                     <Button
-                      type="button"
                       onClick={handleSearch}
                       disabled={isSearching || !searchQuery.trim()}
-                      className="whitespace-nowrap"
                     >
                       {isSearching ? (
                         <>
@@ -416,56 +609,215 @@ export default function ProductModal({ open, onOpenChange, product }: ProductMod
                       )}
                     </Button>
                   </div>
-                </div>
-                <p className="text-xs text-gray-600 dark:text-gray-400">
-                  Universal search across SKU numbers, style codes, and product names. Try "3001" or "Gildan".
-                </p>
-              </div>
 
-              {searchError && (
-                <p className="text-sm text-red-600 dark:text-red-400">{searchError}</p>
-              )}
+                  {searchError && (
+                    <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+                      <p className="text-sm text-red-600">{searchError}</p>
+                    </div>
+                  )}
 
-              {/* Search Results */}
-              {searchResults.length > 1 && (
-                <div className="space-y-2">
-                  <Label>Search Results ({searchResults.length} found)</Label>
-                  <div className="max-h-48 overflow-y-auto space-y-2 border rounded-lg p-2">
-                    {searchResults.map((product) => (
-                      <div
-                        key={product.sku}
-                        className="flex items-center gap-3 p-2 border rounded hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer"
-                        onClick={() => selectProduct(product)}
-                      >
-                        {product.colorFrontImage && (
-                          <img
-                            src={product.colorFrontImage}
-                            alt={`${product.brandName} ${product.styleName}`}
-                            className="w-12 h-12 object-cover rounded border"
-                            onError={(e) => {
-                              e.currentTarget.style.display = 'none';
-                            }}
-                          />
-                        )}
-                        <div className="flex-1">
-                          <div className="font-medium text-sm">
-                            {product.brandName} {product.styleName} - {product.colorName}
-                          </div>
-                          <div className="text-xs text-gray-500">
-                            SKU: {product.sku} | Size: {product.sizeName} | ${product.piecePrice}
-                          </div>
-                        </div>
-                        <Button size="sm" variant="outline">
-                          Select
-                        </Button>
+                  {searchResults.length > 0 && (
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <Label>Search Results</Label>
+                        <Badge variant="secondary">{searchResults.length} found</Badge>
                       </div>
-                    ))}
+                      <div className="max-h-96 overflow-y-auto space-y-2">
+                        {searchResults.map((product) => (
+                          <Card
+                            key={product.sku}
+                            className="cursor-pointer hover:bg-accent transition-colors"
+                            onClick={() => selectProduct(product)}
+                          >
+                            <CardContent className="p-4">
+                              <div className="flex items-center gap-4">
+                                {product.colorFrontImage && (
+                                  <img
+                                    src={product.colorFrontImage}
+                                    alt={`${product.brandName} ${product.styleName}`}
+                                    className="w-20 h-20 object-cover rounded border"
+                                    onError={(e) => {
+                                      e.currentTarget.style.display = 'none';
+                                    }}
+                                  />
+                                )}
+                                <div className="flex-1 min-w-0">
+                                  <div className="font-semibold text-sm truncate">
+                                    {product.brandName} {product.styleName}
+                                  </div>
+                                  <div className="text-sm text-muted-foreground">
+                                    {product.colorName} • Size: {product.sizeName}
+                                  </div>
+                                  <div className="flex items-center gap-2 mt-1">
+                                    <Badge variant="outline" className="text-xs">
+                                      SKU: {product.sku}
+                                    </Badge>
+                                    <Badge className="bg-green-100 text-green-800 text-xs">
+                                      ${product.piecePrice}
+                                    </Badge>
+                                  </div>
+                                </div>
+                                <Button size="sm" variant="default">
+                                  <CheckCircle2 className="h-4 w-4 mr-1" />
+                                  Import
+                                </Button>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* SAGE Search Tab */}
+            <TabsContent value="sage" className="space-y-4 mt-4">
+              <Card>
+                <CardContent className="pt-6 space-y-4">
+                  <div>
+                    <h3 className="font-semibold text-lg mb-2 flex items-center gap-2">
+                      <Database className="h-5 w-5 text-purple-600" />
+                      Search SAGE Catalog
+                    </h3>
+                    <p className="text-sm text-muted-foreground">
+                      Enter product name or SKU to search the SAGE catalog.
+                    </p>
                   </div>
-                </div>
+
+                  <div className="flex gap-2">
+                    <div className="flex-1">
+                      <Input
+                        placeholder="Enter product name or SKU"
+                        value={sageSearchQuery}
+                        onChange={(e) => setSageSearchQuery(e.target.value)}
+                        onKeyPress={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            handleSageSearch();
+                          }
+                        }}
+                      />
+                    </div>
+                    <Button
+                      onClick={handleSageSearch}
+                      disabled={isSearching || !sageSearchQuery.trim()}
+                    >
+                      {isSearching ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          Searching...
+                        </>
+                      ) : (
+                        <>
+                          <Search className="w-4 h-4 mr-2" />
+                          Search
+                        </>
+                      )}
+                    </Button>
+                  </div>
+
+                  {searchError && (
+                    <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+                      <p className="text-sm text-red-600">{searchError}</p>
+                    </div>
+                  )}
+
+                  {sageSearchResults.length > 0 && (
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <Label>Search Results</Label>
+                        <Badge variant="secondary">{sageSearchResults.length} found</Badge>
+                      </div>
+                      <div className="max-h-96 overflow-y-auto space-y-2">
+                        {sageSearchResults.map((product) => (
+                          <Card
+                            key={product.id}
+                            className="cursor-pointer hover:bg-accent transition-colors"
+                            onClick={() => selectSageProduct(product)}
+                          >
+                            <CardContent className="p-4">
+                              <div className="flex items-center gap-4">
+                                {product.imageUrl && (
+                                  <img
+                                    src={product.imageUrl}
+                                    alt={product.name}
+                                    className="w-20 h-20 object-cover rounded border"
+                                    onError={(e) => {
+                                      e.currentTarget.style.display = 'none';
+                                    }}
+                                  />
+                                )}
+                                <div className="flex-1 min-w-0">
+                                  <div className="font-semibold text-sm truncate">
+                                    {product.name}
+                                  </div>
+                                  {product.description && (
+                                    <div className="text-sm text-muted-foreground line-clamp-1">
+                                      {product.description}
+                                    </div>
+                                  )}
+                                  <div className="flex items-center gap-2 mt-1">
+                                    <Badge variant="outline" className="text-xs">
+                                      SKU: {product.sku}
+                                    </Badge>
+                                    {product.price && (
+                                      <Badge className="bg-green-100 text-green-800 text-xs">
+                                        ${product.price}
+                                      </Badge>
+                                    )}
+                                    {product.brand && (
+                                      <Badge variant="secondary" className="text-xs">
+                                        {product.brand}
+                                      </Badge>
+                                    )}
+                                  </div>
+                                </div>
+                                <Button size="sm" variant="default">
+                                  <CheckCircle2 className="h-4 w-4 mr-1" />
+                                  Import
+                                </Button>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="manual" className="mt-4">
+              {/* Form content will be here */}
+            </TabsContent>
+          </Tabs>
+        )}
+
+        <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Data Source Indicator */}
+          {dataSource !== "manual" && !product && (
+            <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-center gap-2">
+              {dataSource === "ss-activewear" ? (
+                <>
+                  <ShoppingCart className="h-5 w-5 text-blue-600" />
+                  <div>
+                    <p className="text-sm font-medium text-blue-900">Imported from S&S Activewear</p>
+                    <p className="text-xs text-blue-700">Review and modify the details below before saving.</p>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <Database className="h-5 w-5 text-purple-600" />
+                  <div>
+                    <p className="text-sm font-medium text-purple-900">Imported from SAGE</p>
+                    <p className="text-xs text-purple-700">Review and modify the details below before saving.</p>
+                  </div>
+                </>
               )}
             </div>
           )}
-
           {/* Selected Product Image */}
           {selectedProductImage && (
             <div className="flex justify-center p-4 bg-gray-50 dark:bg-gray-900 rounded-lg">

@@ -1222,10 +1222,10 @@ export default function Settings() {
                   <Globe className="w-5 h-5" />
                   External Integrations
                 </div>
-                <Button onClick={() => setShowAddIntegration(true)} size="sm">
+                {/* <Button onClick={() => setShowAddIntegration(true)} size="sm">
                   <Plus className="w-4 h-4 mr-2" />
                   Add Integration
-                </Button>
+                </Button> */}
               </CardTitle>
               <p className="text-sm text-gray-600">
                 Manage external service integrations and API connections.
@@ -1387,7 +1387,7 @@ export default function Settings() {
                 </div>
 
                 {/* HubSpot */}
-                <div className="p-4 border rounded-lg">
+                {/* <div className="p-4 border rounded-lg">
                   <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-2">
                       <Users className="w-5 h-5 text-gray-400" />
@@ -1421,7 +1421,7 @@ export default function Settings() {
                       </Button>
                     </div>
                   </div>
-                </div>
+                </div> */}
 
               </div>
 

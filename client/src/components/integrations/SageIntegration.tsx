@@ -69,26 +69,26 @@ function SageIntegrationComponent() {
     },
   });
 
-  // Search SAGE products
+  // Search SAGE products directly from API
   const searchMutation = useMutation({
     mutationFn: async (query: string) => {
       setIsSearching(true);
-      const response = await apiRequest('POST', '/api/integrations/sage/search', { 
-        searchTerm: query,
-        maxResults: 50
+      const response = await fetch(`/api/sage/products?search=${encodeURIComponent(query)}&limit=50`, {
+        credentials: "include",
       });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: 'Unknown error' }));
+        throw new Error(errorData.message || "Failed to search SAGE products");
+      }
+      
       return await response.json();
     },
-    onSuccess: (data: any) => {
-      console.log('Search response data:', data);
-      console.log('Products:', data.products);
-      if (data.products && data.products.length > 0) {
-        console.log('First product:', data.products[0]);
-      }
-      setSearchResults(data.products || []);
+    onSuccess: (products: SageProduct[]) => {
+      setSearchResults(products);
       toast({
         title: "Search Complete",
-        description: `Found ${data.products?.length || 0} products`,
+        description: `Found ${products.length} products from SAGE API`,
       });
     },
     onError: (error: any) => {

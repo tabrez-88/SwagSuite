@@ -4239,14 +4239,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { search, limit } = req.query;
       
-      let products;
       if (search) {
-        products = await storage.searchSageProducts(search as string);
+        // Search directly from SAGE API
+        const credentials = await getSageCredentials();
+        
+        if (!credentials || !credentials.acctId || !credentials.loginId || !credentials.key) {
+          return res.status(400).json({ 
+            message: 'SAGE credentials not configured. Please configure in Settings → Integrations.' 
+          });
+        }
+        
+        const sageService = new SageService({
+          acctId: credentials.acctId,
+          loginId: credentials.loginId,
+          key: credentials.key,
+        });
+        
+        const products = await sageService.searchProducts(search as string, {
+          maxResults: parseInt(limit as string) || 50
+        });
+        
+        res.json(products);
       } else {
-        products = await storage.getSageProducts(parseInt(limit as string) || 100);
+        // If no search query, return from database cache
+        const products = await storage.getSageProducts(parseInt(limit as string) || 100);
+        res.json(products);
       }
-
-      res.json(products);
     } catch (error) {
       console.error('Error fetching SAGE products:', error);
       res.status(500).json({ 
@@ -5502,13 +5520,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const credentials = await getSsActivewearCredentials();
+      
+      if (!credentials.accountNumber || !credentials.apiKey) {
+        return res.status(400).json({ 
+          error: 'S&S Activewear credentials not configured. Please configure in Settings → Integrations.' 
+        });
+      }
+
       const service = new SsActivewearService(credentials);
       const products = await service.searchProducts(q);
 
       res.json(products);
     } catch (error) {
       console.error('Error searching S&S Activewear products:', error);
-      res.status(500).json({ error: 'Failed to search products' });
+      res.status(500).json({ 
+        error: error instanceof Error ? error.message : 'Failed to search products' 
+      });
     }
   });
 
