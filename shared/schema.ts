@@ -76,10 +76,11 @@ export const companies = pgTable("companies", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
-// Contacts within companies
+// Contacts within companies and suppliers
 export const contacts = pgTable("contacts", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   companyId: varchar("company_id").references(() => companies.id),
+  supplierId: varchar("supplier_id").references(() => suppliers.id),
   firstName: varchar("first_name").notNull(),
   lastName: varchar("last_name").notNull(),
   email: varchar("email"),
@@ -334,11 +335,16 @@ export const contactsRelations = relations(contacts, ({ one, many }) => ({
     fields: [contacts.companyId],
     references: [companies.id],
   }),
+  supplier: one(suppliers, {
+    fields: [contacts.supplierId],
+    references: [suppliers.id],
+  }),
   orders: many(orders),
 }));
 
 export const suppliersRelations = relations(suppliers, ({ many }) => ({
   products: many(products),
+  contacts: many(contacts),
 }));
 
 export const productCategoriesRelations = relations(productCategories, ({ many }) => ({

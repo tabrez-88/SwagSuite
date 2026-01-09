@@ -32,6 +32,56 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import OrderModal from "@/components/OrderModal";
 import { ContactsManager } from "@/components/ContactsManager";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import * as z from "zod";
+import { apiRequest } from "@/lib/queryClient";
+
+// Industry options
+const INDUSTRY_OPTIONS = [
+  "Technology",
+  "Healthcare",
+  "Finance",
+  "Education",
+  "Manufacturing",
+  "Retail",
+  "Non-Profit",
+  "Government",
+  "Entertainment",
+  "Real Estate",
+  "Construction",
+  "Transportation",
+  "Food & Beverage",
+  "Professional Services",
+  "Other"
+];
+
+// Form schema for company editing
+const companyFormSchema = z.object({
+  name: z.string().min(1, "Company name is required"),
+  email: z.string().email("Invalid email address").optional().or(z.literal("")),
+  phone: z.string().optional(),
+  website: z.string().url("Invalid website URL").optional().or(z.literal("")),
+  address: z.string().optional(),
+  city: z.string().optional(),
+  state: z.string().optional(),
+  zipCode: z.string().optional(),
+  country: z.string().optional(),
+  industry: z.string().optional(),
+  notes: z.string().optional(),
+  linkedinUrl: z.string().url("Invalid LinkedIn URL").optional().or(z.literal("")),
+  twitterUrl: z.string().url("Invalid Twitter URL").optional().or(z.literal("")),
+  facebookUrl: z.string().url("Invalid Facebook URL").optional().or(z.literal("")),
+  instagramUrl: z.string().url("Invalid Instagram URL").optional().or(z.literal("")),
+  otherSocialUrl: z.string().url("Invalid URL").optional().or(z.literal("")),
+});
+
+type CompanyFormData = z.infer<typeof companyFormSchema>;
 
 // Define the Company type with social media posts
 interface Company {
@@ -82,8 +132,31 @@ export default function CompanyDetail() {
   const [, setLocation] = useLocation();
   const [activeTab, setActiveTab] = useState("overview");
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  const form = useForm<CompanyFormData>({
+    resolver: zodResolver(companyFormSchema),
+    defaultValues: {
+      name: "",
+      email: "",
+      phone: "",
+      website: "",
+      address: "",
+      city: "",
+      state: "",
+      zipCode: "",
+      country: "",
+      industry: "",
+      notes: "",
+      linkedinUrl: "",
+      twitterUrl: "",
+      facebookUrl: "",
+      instagramUrl: "",
+      otherSocialUrl: "",
+    },
+  });
 
   const companyId = params.id;
 
@@ -91,6 +164,71 @@ export default function CompanyDetail() {
     queryKey: ["/api/companies", companyId],
     enabled: !!companyId,
   });
+
+  const updateCompanyMutation = useMutation({
+    mutationFn: async (data: Partial<CompanyFormData>) => {
+      const { linkedinUrl, twitterUrl, facebookUrl, instagramUrl, otherSocialUrl, ...rest } = data;
+      const formattedData = {
+        ...rest,
+        ...(linkedinUrl !== undefined || twitterUrl !== undefined || facebookUrl !== undefined || instagramUrl !== undefined || otherSocialUrl !== undefined ? {
+          socialMediaLinks: {
+            linkedin: linkedinUrl || "",
+            twitter: twitterUrl || "",
+            facebook: facebookUrl || "",
+            instagram: instagramUrl || "",
+            other: otherSocialUrl || ""
+          }
+        } : {})
+      };
+      const response = await apiRequest("PATCH", `/api/companies/${companyId}`, formattedData);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/companies", companyId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/companies"] });
+      setIsEditModalOpen(false);
+      toast({
+        title: "Company updated",
+        description: "The company has been successfully updated.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: `Failed to update company: ${error.message || "Please try again."}`,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleEditCompany = () => {
+    if (!company) return;
+    
+    form.reset({
+      name: company.name,
+      email: "", // No longer editable
+      phone: "", // No longer editable
+      website: company.website || "",
+      address: company.address || "",
+      city: company.city || "",
+      state: company.state || "",
+      zipCode: company.zipCode || "",
+      country: company.country || "",
+      industry: company.industry || "",
+      notes: company.notes || "",
+      linkedinUrl: company.socialMediaLinks?.linkedin || "",
+      twitterUrl: company.socialMediaLinks?.twitter || "",
+      facebookUrl: company.socialMediaLinks?.facebook || "",
+      instagramUrl: company.socialMediaLinks?.instagram || "",
+      otherSocialUrl: company.socialMediaLinks?.other || "",
+    });
+    
+    setIsEditModalOpen(true);
+  };
+
+  const handleUpdateCompany = (data: CompanyFormData) => {
+    updateCompanyMutation.mutate(data);
+  };
 
   const formatCurrency = (amount: string | undefined) => {
     if (!amount) return "$0";
@@ -136,23 +274,6 @@ export default function CompanyDetail() {
         variant: "destructive",
       });
     }
-  };
-
-  const handleCallCompany = () => {
-    if (company?.phone) {
-      window.location.href = `tel:${company.phone}`;
-    } else {
-      toast({
-        title: "No Phone Number Available",
-        description: "This company doesn't have a phone number on file.",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const handleViewContacts = () => {
-    // Navigate to contacts page with company filter
-    setLocation(`/crm/contacts?company=${companyId}`);
   };
 
   const handleCreateQuote = () => {
@@ -224,7 +345,8 @@ export default function CompanyDetail() {
           )}
           <Button 
             size="sm"
-            className="bg-swag-orange hover:bg-swag-orange/90"
+            className="bg-swag-primary hover:bg-swag-primary/90"
+            onClick={handleEditCompany}
           >
             <Edit className="h-4 w-4 mr-2" />
             Edit Company
@@ -250,33 +372,11 @@ export default function CompanyDetail() {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <Building className="h-5 w-5" />
-                    Company Information
+                    Business Information
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {company.email && (
-                      <div className="flex items-center gap-3">
-                        <Mail className="h-4 w-4 text-muted-foreground" />
-                        <div>
-                          <p className="text-sm font-medium">Email</p>
-                          <a href={`mailto:${company.email}`} className="text-sm text-swag-orange hover:underline">
-                            {company.email}
-                          </a>
-                        </div>
-                      </div>
-                    )}
-                    {company.phone && (
-                      <div className="flex items-center gap-3">
-                        <Phone className="h-4 w-4 text-muted-foreground" />
-                        <div>
-                          <p className="text-sm font-medium">Phone</p>
-                          <a href={`tel:${company.phone}`} className="text-sm text-muted-foreground hover:text-swag-orange">
-                            {company.phone}
-                          </a>
-                        </div>
-                      </div>
-                    )}
                     {company.website && (
                       <div className="flex items-center gap-3">
                         <Globe className="h-4 w-4 text-muted-foreground" />
@@ -304,6 +404,31 @@ export default function CompanyDetail() {
                         </div>
                       </div>
                     )}
+                    {company.industry && (
+                      <div className="flex items-center gap-3">
+                        <Building className="h-4 w-4 text-muted-foreground" />
+                        <div>
+                          <p className="text-sm font-medium">Industry</p>
+                          <p className="text-sm text-muted-foreground">{company.industry}</p>
+                        </div>
+                      </div>
+                    )}
+                    {company.country && (
+                      <div className="flex items-center gap-3">
+                        <Globe className="h-4 w-4 text-muted-foreground" />
+                        <div>
+                          <p className="text-sm font-medium">Country</p>
+                          <p className="text-sm text-muted-foreground">{company.country}</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  
+                  {/* Info box about contacts */}
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mt-4">
+                    <p className="text-sm text-blue-900">
+                      <strong>Contact Information:</strong> View and manage all contact persons for this company in the <button onClick={() => setActiveTab("contacts")} className="text-blue-700 underline hover:text-blue-800">Contacts tab</button>.
+                    </p>
                   </div>
 
                   {company.notes && (
@@ -543,25 +668,6 @@ export default function CompanyDetail() {
                 variant="outline" 
                 size="sm" 
                 className="w-full justify-start"
-                onClick={handleCallCompany}
-                disabled={!company.phone}
-              >
-                <Phone className="h-4 w-4 mr-2" />
-                Call Company
-              </Button>
-              {/* <Button 
-                variant="outline" 
-                size="sm" 
-                className="w-full justify-start"
-                onClick={handleViewContacts}
-              >
-                <Users className="h-4 w-4 mr-2" />
-                View Contactsk
-              </Button> */}
-              <Button 
-                variant="outline" 
-                size="sm" 
-                className="w-full justify-start"
                 onClick={handleCreateQuote}
               >
                 <DollarSign className="h-4 w-4 mr-2" />
@@ -579,6 +685,269 @@ export default function CompanyDetail() {
         order={null}
         initialCompanyId={company.id}
       />
+
+      {/* Edit Company Modal */}
+      <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Edit Company</DialogTitle>
+            <DialogDescription>
+              Update the company information in your CRM system.
+            </DialogDescription>
+          </DialogHeader>
+
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(handleUpdateCompany)} className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Company Name *</FormLabel>
+                      <FormControl>
+                        <Input placeholder="ACME Corporation" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="industry"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Industry</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select industry" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {INDUSTRY_OPTIONS.map((industry) => (
+                            <SelectItem key={industry} value={industry}>
+                              {industry}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="website"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Website</FormLabel>
+                      <FormControl>
+                        <Input placeholder="https://company.com" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="country"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Country</FormLabel>
+                      <FormControl>
+                        <Input placeholder="US" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <p className="text-sm text-blue-900 mb-2">
+                  <strong>Contact Management:</strong> Use the Contacts tab to manage all contact persons for this company.
+                </p>
+                <p className="text-xs text-blue-700">
+                  The legacy Email and Phone fields have been moved to the Contacts system for better organization.
+                </p>
+              </div>
+
+              <FormField
+                control={form.control}
+                name="address"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Address</FormLabel>
+                    <FormControl>
+                      <Input placeholder="123 Business Ave" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <FormField
+                  control={form.control}
+                  name="city"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>City</FormLabel>
+                      <FormControl>
+                        <Input placeholder="New York" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="state"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>State</FormLabel>
+                      <FormControl>
+                        <Input placeholder="NY" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="zipCode"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>ZIP Code</FormLabel>
+                      <FormControl>
+                        <Input placeholder="10001" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              {/* Social Media Links */}
+              <div className="space-y-3">
+                <h4 className="font-medium">Social Media Links</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="linkedinUrl"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>LinkedIn</FormLabel>
+                        <FormControl>
+                          <Input placeholder="https://linkedin.com/company/..." {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="twitterUrl"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Twitter</FormLabel>
+                        <FormControl>
+                          <Input placeholder="https://twitter.com/..." {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="facebookUrl"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Facebook</FormLabel>
+                        <FormControl>
+                          <Input placeholder="https://facebook.com/..." {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="instagramUrl"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Instagram</FormLabel>
+                        <FormControl>
+                          <Input placeholder="https://instagram.com/..." {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                <FormField
+                  control={form.control}
+                  name="otherSocialUrl"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Other Social Media</FormLabel>
+                      <FormControl>
+                        <Input placeholder="https://..." {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <FormField
+                control={form.control}
+                name="notes"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Notes</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        placeholder="Additional notes about the company..."
+                        className="min-h-[100px]"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <div className="flex justify-end gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setIsEditModalOpen(false)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={updateCompanyMutation.isPending}
+                  className="bg-swag-primary hover:bg-swag-primary/90"
+                >
+                  {updateCompanyMutation.isPending ? "Updating..." : "Update Company"}
+                </Button>
+              </div>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

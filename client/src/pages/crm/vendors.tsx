@@ -68,7 +68,8 @@ import {
   TrendingUp,
   Target,
   Award,
-  Percent
+  Percent,
+  Users
 } from "lucide-react";
 import { CRMViewToggle } from "@/components/CRMViewToggle";
 import { Switch } from "@/components/ui/switch";
@@ -108,6 +109,31 @@ interface Vendor {
   };
 }
 
+interface VendorContact {
+  id: string;
+  supplierId: string;
+  firstName: string;
+  lastName: string;
+  email?: string;
+  phone?: string;
+  title?: string;
+  isPrimary?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+// Contact form schema
+const contactFormSchema = z.object({
+  firstName: z.string().min(1, "First name is required"),
+  lastName: z.string().min(1, "Last name is required"),
+  email: z.string().email().optional().or(z.literal("")),
+  phone: z.string().optional(),
+  title: z.string().optional(),
+  isPrimary: z.boolean().default(false),
+});
+
+type ContactFormData = z.infer<typeof contactFormSchema>;
+
 // Form schema for vendor creation
 const vendorFormSchema = z.object({
   name: z.string().min(1, "Vendor name is required"),
@@ -137,6 +163,10 @@ export default function Vendors() {
   const [selectedVendor, setSelectedVendor] = useState<Vendor | null>(null);
   const [isVendorDetailOpen, setIsVendorDetailOpen] = useState(false);
   const [isEditBenefitsOpen, setIsEditBenefitsOpen] = useState(false);
+  const [isEditVendorOpen, setIsEditVendorOpen] = useState(false);
+  const [isAddContactOpen, setIsAddContactOpen] = useState(false);
+  const [isEditContactOpen, setIsEditContactOpen] = useState(false);
+  const [selectedContact, setSelectedContact] = useState<VendorContact | null>(null);
 
   // Benefits form state
   const [benefitsForm, setBenefitsForm] = useState({
@@ -169,6 +199,21 @@ export default function Vendors() {
       return data;
     },
   });
+
+  // Fetch contacts for selected vendor
+  const { data: vendorContacts = [], isLoading: isLoadingContacts } = useQuery<VendorContact[]>({
+    queryKey: ["/api/contacts", "vendor", selectedVendor?.id],
+    enabled: !!selectedVendor && isVendorDetailOpen,
+    queryFn: async () => {
+      if (!selectedVendor) return [];
+      const res = await fetch(`/api/contacts?supplierId=${selectedVendor.id}`, {
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("Failed to fetch contacts");
+      return res.json();
+    },
+  });
+
   const [activeTab, setActiveTab] = useState<string>("all");
 
   const { toast } = useToast();
@@ -195,13 +240,26 @@ export default function Vendors() {
     },
   });
 
+  const contactForm = useForm<ContactFormData>({
+    resolver: zodResolver(contactFormSchema),
+    defaultValues: {
+      firstName: "",
+      lastName: "",
+      email: "",
+      phone: "",
+      title: "",
+      isPrimary: false,
+    },
+  });
+
   const { data: vendors = [], isLoading } = useQuery<Vendor[]>({
     queryKey: ["/api/suppliers"],
   });
 
   const createVendorMutation = useMutation({
     mutationFn: async (data: VendorFormData) => {
-      return await apiRequest("/api/suppliers", "POST", data);
+      const response = await apiRequest("POST", "/api/suppliers", data);
+      return response.json();
     },
     onSuccess: () => {
       toast({
@@ -232,9 +290,74 @@ export default function Vendors() {
     },
   });
 
+  const updateVendorMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: Partial<VendorFormData> }) => {
+      // Format data for API, converting benefit fields to preferredBenefits object
+      const apiData: any = {
+        name: data.name,
+        email: data.email,
+        phone: data.phone,
+        website: data.website,
+        address: data.address,
+        contactPerson: data.contactPerson,
+        paymentTerms: data.paymentTerms,
+        notes: data.notes,
+        isPreferred: data.isPreferred,
+      };
+
+      // If vendor is preferred, include benefits
+      if (data.isPreferred) {
+        apiData.preferredBenefits = {
+          eqpPricing: data.eqpPricing || 0,
+          rebatePercentage: data.rebatePercentage || 0,
+          freeSetups: data.freeSetups || false,
+          freeSpecSamples: data.freeSpecSamples || false,
+          reducedSpecSamples: data.reducedSpecSamples || false,
+          freeSelfPromo: data.freeSelfPromo || false,
+          reducedSelfPromo: false, // not in form but keep for consistency
+          ytdEqpSavings: 0,
+          ytdRebates: 0,
+          selfPromosSent: 0,
+          specSamplesSent: 0,
+        };
+      }
+
+      const response = await apiRequest("PATCH", `/api/suppliers/${id}`, apiData);
+      return response.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Success",
+        description: "Vendor updated successfully",
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/suppliers"] });
+      setIsEditVendorOpen(false);
+      setSelectedVendor(null);
+    },
+    onError: (error) => {
+      if (isUnauthorizedError(error)) {
+        toast({
+          title: "Unauthorized",
+          description: "You are logged out. Logging in again...",
+          variant: "destructive",
+        });
+        setTimeout(() => {
+          window.location.href = "/api/login";
+        }, 500);
+        return;
+      }
+      toast({
+        title: "Error",
+        description: "Failed to update vendor. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
   const deleteVendorMutation = useMutation({
     mutationFn: async (vendorId: string) => {
-      return await apiRequest(`/api/suppliers/${vendorId}`, "DELETE");
+      const response = await apiRequest("DELETE", `/api/suppliers/${vendorId}`);
+      return response;
     },
     onSuccess: () => {
       toast({
@@ -265,6 +388,37 @@ export default function Vendors() {
 
   const onSubmit = (data: VendorFormData) => {
     createVendorMutation.mutate(data);
+  };
+
+  const onUpdateSubmit = (data: VendorFormData) => {
+    if (selectedVendor) {
+      updateVendorMutation.mutate({
+        id: selectedVendor.id,
+        data
+      });
+    }
+  };
+
+  const handleEditVendor = (vendor: Vendor) => {
+    setSelectedVendor(vendor);
+    form.reset({
+      name: vendor.name || "",
+      email: "", // No longer editable, use Contacts system
+      phone: "", // No longer editable, use Contacts system
+      website: vendor.website || "",
+      address: vendor.address || "",
+      contactPerson: "", // No longer editable, use Contacts system
+      paymentTerms: vendor.paymentTerms || "",
+      notes: vendor.notes || "",
+      isPreferred: vendor.isPreferred || false,
+      eqpPricing: vendor.preferredBenefits?.eqpPricing || undefined,
+      rebatePercentage: vendor.preferredBenefits?.rebatePercentage || undefined,
+      freeSetups: vendor.preferredBenefits?.freeSetups || false,
+      freeSpecSamples: vendor.preferredBenefits?.freeSpecSamples || false,
+      freeSelfPromo: vendor.preferredBenefits?.freeSelfPromo || false,
+      reducedSpecSamples: vendor.preferredBenefits?.reducedSpecSamples || false,
+    });
+    setIsEditVendorOpen(true);
   };
 
   const handleDeleteVendor = (vendorId: string) => {
@@ -380,6 +534,108 @@ export default function Vendors() {
     },
   });
 
+  // Contact mutations
+  const createContactMutation = useMutation({
+    mutationFn: async (data: ContactFormData & { supplierId: string }) => {
+      const response = await apiRequest("POST", "/api/contacts", data);
+      return response.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Success",
+        description: "Contact added successfully",
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/contacts", "vendor", selectedVendor?.id] });
+      setIsAddContactOpen(false);
+      contactForm.reset();
+    },
+    onError: (error) => {
+      if (isUnauthorizedError(error)) {
+        toast({
+          title: "Unauthorized",
+          description: "You are logged out. Logging in again...",
+          variant: "destructive",
+        });
+        setTimeout(() => {
+          window.location.href = "/api/login";
+        }, 500);
+        return;
+      }
+      toast({
+        title: "Error",
+        description: "Failed to add contact. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const updateContactMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: Partial<ContactFormData> }) => {
+      const response = await apiRequest("PATCH", `/api/contacts/${id}`, data);
+      return response.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Success",
+        description: "Contact updated successfully",
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/contacts", "vendor", selectedVendor?.id] });
+      setIsEditContactOpen(false);
+      setSelectedContact(null);
+      contactForm.reset();
+    },
+    onError: (error) => {
+      if (isUnauthorizedError(error)) {
+        toast({
+          title: "Unauthorized",
+          description: "You are logged out. Logging in again...",
+          variant: "destructive",
+        });
+        setTimeout(() => {
+          window.location.href = "/api/login";
+        }, 500);
+        return;
+      }
+      toast({
+        title: "Error",
+        description: "Failed to update contact. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const deleteContactMutation = useMutation({
+    mutationFn: async (contactId: string) => {
+      const response = await apiRequest("DELETE", `/api/contacts/${contactId}`);
+      return response;
+    },
+    onSuccess: () => {
+      toast({
+        title: "Success",
+        description: "Contact deleted successfully",
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/contacts", "vendor", selectedVendor?.id] });
+    },
+    onError: (error) => {
+      if (isUnauthorizedError(error)) {
+        toast({
+          title: "Unauthorized",
+          description: "You are logged out. Logging in again...",
+          variant: "destructive",
+        });
+        setTimeout(() => {
+          window.location.href = "/api/login";
+        }, 500);
+        return;
+      }
+      toast({
+        title: "Error",
+        description: "Failed to delete contact. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
   // Filter vendors based on search and tab selection
   const filteredVendors = vendors.filter((vendor: Vendor) => {
     const matchesSearch = !searchQuery ||
@@ -422,61 +678,19 @@ export default function Vendors() {
             </DialogHeader>
             <Form {...form}>
               <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="name"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Vendor Name *</FormLabel>
-                        <FormControl>
-                          <Input placeholder="Enter vendor name" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="contactPerson"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Contact Person</FormLabel>
-                        <FormControl>
-                          <Input placeholder="Enter contact person" {...field} />
-                        </FormControl>
-                      </FormItem>
-                    )}
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="email"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Email</FormLabel>
-                        <FormControl>
-                          <Input type="email" placeholder="Enter email" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="phone"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Phone</FormLabel>
-                        <FormControl>
-                          <Input placeholder="Enter phone number" {...field} />
-                        </FormControl>
-                      </FormItem>
-                    )}
-                  />
-                </div>
+                <FormField
+                  control={form.control}
+                  name="name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Vendor Name *</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Enter vendor name" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
                 <FormField
                   control={form.control}
@@ -504,6 +718,15 @@ export default function Vendors() {
                     </FormItem>
                   )}
                 />
+
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <p className="text-sm text-blue-900 mb-2">
+                    <strong>Contact Management:</strong> After creating the vendor, you can add contacts through the vendor details page.
+                  </p>
+                  <p className="text-xs text-blue-700">
+                    Each vendor can have multiple contacts with their own email, phone, and role information.
+                  </p>
+                </div>
 
                 <FormField
                   control={form.control}
@@ -798,13 +1021,7 @@ export default function Vendors() {
                           <div className="flex-1">
                             <div className="flex items-center gap-2">
                               <CardTitle className="text-lg text-swag-navy">{vendor.name}</CardTitle>
-                              {vendor.isPreferred && (
-                                <Star className="h-4 w-4 text-yellow-500 fill-current" />
-                              )}
                             </div>
-                            {vendor.contactPerson && (
-                              <p className="text-sm text-muted-foreground">{vendor.contactPerson}</p>
-                            )}
                           </div>
                           <div className="flex items-center gap-1">
                             <Button
@@ -839,18 +1056,6 @@ export default function Vendors() {
                       </CardHeader>
                       <CardContent className="space-y-3">
                         <div className="space-y-2">
-                          {vendor.email && (
-                            <div className="flex items-center gap-2 text-sm">
-                              <Mail className="h-4 w-4 text-muted-foreground" />
-                              <span className="text-muted-foreground">{vendor.email}</span>
-                            </div>
-                          )}
-                          {vendor.phone && (
-                            <div className="flex items-center gap-2 text-sm">
-                              <Phone className="h-4 w-4 text-muted-foreground" />
-                              <span className="text-muted-foreground">{vendor.phone}</span>
-                            </div>
-                          )}
                           {vendor.website && (
                             <div className="flex items-center gap-2 text-sm">
                               <Globe className="h-4 w-4 text-muted-foreground" />
@@ -862,6 +1067,12 @@ export default function Vendors() {
                               >
                                 Website
                               </a>
+                            </div>
+                          )}
+                          {vendor.address && (
+                            <div className="flex items-center gap-2 text-sm">
+                              <MapPin className="h-4 w-4 text-muted-foreground" />
+                              <span className="text-muted-foreground text-xs truncate">{vendor.address}</span>
                             </div>
                           )}
                         </div>
@@ -1010,9 +1221,9 @@ export default function Vendors() {
                                 <div>
                                   <div className="font-medium text-swag-navy flex items-center gap-2">
                                     {vendor.name}
-                                    {vendor.isPreferred && (
+                                    {/* {vendor.isPreferred && (
                                       <Star className="h-3 w-3 text-yellow-500 fill-current" />
-                                    )}
+                                    )} */}
                                   </div>
                                   {vendor.contactPerson && (
                                     <div className="text-sm text-muted-foreground">{vendor.contactPerson}</div>
@@ -1022,17 +1233,22 @@ export default function Vendors() {
                             </TableCell>
                             <TableCell>
                               <div className="space-y-1">
-                                {vendor.email && (
+                                {vendor.website && (
                                   <div className="flex items-center gap-1 text-sm">
-                                    <Mail className="h-3 w-3 text-muted-foreground" />
-                                    <span className="truncate">{vendor.email}</span>
+                                    <Globe className="h-3 w-3 text-muted-foreground" />
+                                    <a
+                                      href={vendor.website}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="text-blue-600 hover:underline"
+                                      onClick={(e) => e.stopPropagation()}
+                                    >
+                                      Website
+                                    </a>
                                   </div>
                                 )}
-                                {vendor.phone && (
-                                  <div className="flex items-center gap-1 text-sm">
-                                    <Phone className="h-3 w-3 text-muted-foreground" />
-                                    <span>{vendor.phone}</span>
-                                  </div>
+                                {vendor.apiIntegrationStatus === "active" && (
+                                  <Badge className="bg-green-100 text-green-800 text-xs">API Active</Badge>
                                 )}
                               </div>
                             </TableCell>
@@ -1092,7 +1308,7 @@ export default function Vendors() {
                                   </DropdownMenuItem>
                                   <DropdownMenuItem onClick={(e) => {
                                     e.stopPropagation();
-                                    // Add edit functionality
+                                    handleEditVendor(vendor);
                                   }}>
                                     <Edit className="h-4 w-4 mr-2" />
                                     Edit
@@ -1209,13 +1425,9 @@ export default function Vendors() {
                           <div className="flex-1">
                             <div className="flex items-center gap-2">
                               <CardTitle className="text-lg text-swag-navy flex items-center gap-2">
-                                <Star className="h-4 w-4 text-yellow-500 fill-current" />
                                 {vendor.name}
                               </CardTitle>
                             </div>
-                            {vendor.contactPerson && (
-                              <p className="text-sm text-muted-foreground">{vendor.contactPerson}</p>
-                            )}
                           </div>
                         </div>
                       </CardHeader>
@@ -1393,9 +1605,17 @@ export default function Vendors() {
                                   </DropdownMenuItem>
                                   <DropdownMenuItem onClick={(e) => {
                                     e.stopPropagation();
-                                    // Add edit functionality
+                                    handleEditVendor(vendor);
                                   }}>
                                     <Edit className="h-4 w-4 mr-2" />
+                                    Edit Vendor
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedVendor(vendor);
+                                    setIsEditBenefitsOpen(true);
+                                  }}>
+                                    <Star className="h-4 w-4 mr-2" />
                                     Edit Benefits
                                   </DropdownMenuItem>
                                 </DropdownMenuContent>
@@ -1560,39 +1780,11 @@ export default function Vendors() {
                 <Card>
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
-                      <Phone className="h-4 w-4" />
-                      Contact Information
+                      <Building2 className="h-4 w-4" />
+                      Company Information
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-4">
-                    {selectedVendor.email && (
-                      <div className="flex items-center gap-3">
-                        <Mail className="h-4 w-4 text-muted-foreground" />
-                        <div>
-                          <p className="text-sm font-medium">Email</p>
-                          <a
-                            href={`mailto:${selectedVendor.email}`}
-                            className="text-swag-primary hover:underline"
-                          >
-                            {selectedVendor.email}
-                          </a>
-                        </div>
-                      </div>
-                    )}
-                    {selectedVendor.phone && (
-                      <div className="flex items-center gap-3">
-                        <Phone className="h-4 w-4 text-muted-foreground" />
-                        <div>
-                          <p className="text-sm font-medium">Phone</p>
-                          <a
-                            href={`tel:${selectedVendor.phone}`}
-                            className="text-swag-primary hover:underline"
-                          >
-                            {selectedVendor.phone}
-                          </a>
-                        </div>
-                      </div>
-                    )}
                     {selectedVendor.website && (
                       <div className="flex items-center gap-3">
                         <Globe className="h-4 w-4 text-muted-foreground" />
@@ -1617,6 +1809,56 @@ export default function Vendors() {
                           <p className="text-muted-foreground">{selectedVendor.address}</p>
                         </div>
                       </div>
+                    )}
+                    {selectedVendor.apiIntegrationStatus && (
+                      <div className="flex items-center gap-3">
+                        <Package className="h-4 w-4 text-muted-foreground" />
+                        <div>
+                          <p className="text-sm font-medium">API Integration</p>
+                          <Badge className={selectedVendor.apiIntegrationStatus === "active" ? "bg-green-100 text-green-800" : ""}>
+                            {selectedVendor.apiIntegrationStatus}
+                          </Badge>
+                        </div>
+                      </div>
+                    )}
+                    {/* Legacy fields - show only if no contacts exist */}
+                    {vendorContacts.length === 0 && (
+                      <>
+                        {selectedVendor.email && (
+                          <div className="flex items-center gap-3 opacity-60">
+                            <Mail className="h-4 w-4 text-muted-foreground" />
+                            <div>
+                              <p className="text-xs text-muted-foreground">Legacy Email</p>
+                              <a
+                                href={`mailto:${selectedVendor.email}`}
+                                className="text-sm text-swag-primary hover:underline"
+                              >
+                                {selectedVendor.email}
+                              </a>
+                              <p className="text-xs text-muted-foreground mt-1">
+                                Consider adding this to a contact
+                              </p>
+                            </div>
+                          </div>
+                        )}
+                        {selectedVendor.phone && (
+                          <div className="flex items-center gap-3 opacity-60">
+                            <Phone className="h-4 w-4 text-muted-foreground" />
+                            <div>
+                              <p className="text-xs text-muted-foreground">Legacy Phone</p>
+                              <a
+                                href={`tel:${selectedVendor.phone}`}
+                                className="text-sm text-swag-primary hover:underline"
+                              >
+                                {selectedVendor.phone}
+                              </a>
+                              <p className="text-xs text-muted-foreground mt-1">
+                                Consider adding this to a contact
+                              </p>
+                            </div>
+                          </div>
+                        )}
+                      </>
                     )}
                   </CardContent>
                 </Card>
@@ -1676,6 +1918,136 @@ export default function Vendors() {
 
 
               </div>
+
+              {/* Vendor Contacts */}
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="flex items-center gap-2">
+                      <Users className="h-4 w-4" />
+                      Contacts ({vendorContacts.length})
+                    </CardTitle>
+                    <Button
+                      size="sm"
+                      onClick={() => setIsAddContactOpen(true)}
+                    >
+                      <Plus className="h-4 w-4 mr-1" />
+                      Add Contact
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  {isLoadingContacts ? (
+                    <div className="space-y-2">
+                      {Array.from({ length: 2 }).map((_, i) => (
+                        <Skeleton key={i} className="h-20 w-full" />
+                      ))}
+                    </div>
+                  ) : vendorContacts && vendorContacts.length > 0 ? (
+                    <div className="space-y-3">
+                      {vendorContacts.map((contact) => (
+                        <Card key={contact.id} className="border">
+                          <CardContent className="p-4">
+                            <div className="flex items-start justify-between">
+                              <div className="flex items-start gap-3 flex-1">
+                                <UserAvatar
+                                  name={`${contact.firstName} ${contact.lastName}`}
+                                  size="sm"
+                                />
+                                <div className="flex-1">
+                                  <div className="flex items-center gap-2">
+                                    <h4 className="font-medium">
+                                      {contact.firstName} {contact.lastName}
+                                    </h4>
+                                    {contact.isPrimary && (
+                                      <Badge variant="secondary" className="text-xs bg-blue-100 text-blue-800">
+                                        Primary
+                                      </Badge>
+                                    )}
+                                  </div>
+                                  {contact.title && (
+                                    <p className="text-sm text-muted-foreground">{contact.title}</p>
+                                  )}
+                                  <div className="mt-2 space-y-1">
+                                    {contact.email && (
+                                      <div className="flex items-center gap-2 text-sm">
+                                        <Mail className="h-3 w-3 text-muted-foreground" />
+                                        <a
+                                          href={`mailto:${contact.email}`}
+                                          className="text-swag-primary hover:underline"
+                                        >
+                                          {contact.email}
+                                        </a>
+                                      </div>
+                                    )}
+                                    {contact.phone && (
+                                      <div className="flex items-center gap-2 text-sm">
+                                        <Phone className="h-3 w-3 text-muted-foreground" />
+                                        <a
+                                          href={`tel:${contact.phone}`}
+                                          className="text-swag-primary hover:underline"
+                                        >
+                                          {contact.phone}
+                                        </a>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="flex gap-1">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => {
+                                    setSelectedContact(contact);
+                                    contactForm.reset({
+                                      firstName: contact.firstName,
+                                      lastName: contact.lastName,
+                                      email: contact.email || "",
+                                      phone: contact.phone || "",
+                                      title: contact.title || "",
+                                      isPrimary: contact.isPrimary || false,
+                                    });
+                                    setIsEditContactOpen(true);
+                                  }}
+                                >
+                                  <Edit className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => {
+                                    if (confirm("Are you sure you want to delete this contact?")) {
+                                      deleteContactMutation.mutate(contact.id);
+                                    }
+                                  }}
+                                  className="text-red-600 hover:text-red-700"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <Users className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                      <p>No contacts found for this vendor</p>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="mt-3"
+                        onClick={() => setIsAddContactOpen(true)}
+                      >
+                        <Plus className="h-4 w-4 mr-1" />
+                        Add First Contact
+                      </Button>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
 
               {/* Status and Integration */}
               <Card>
@@ -1810,17 +2182,40 @@ export default function Vendors() {
 
               {/* Action Buttons */}
               <div className="flex justify-end gap-3 pt-4 border-t">
-                <Button variant="outline" size="sm">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    handleEditVendor(selectedVendor);
+                    setIsVendorDetailOpen(false);
+                  }}
+                >
                   <Edit className="h-4 w-4 mr-2" />
                   Edit Vendor
                 </Button>
-                <Button variant="outline" size="sm">
-                  <Package className="h-4 w-4 mr-2" />
-                  View Orders
-                </Button>
-                <Button variant="outline" size="sm">
-                  <Mail className="h-4 w-4 mr-2" />
-                  Send Message
+                {selectedVendor.isPreferred && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setIsEditBenefitsOpen(true);
+                    }}
+                  >
+                    <Star className="h-4 w-4 mr-2" />
+                    Edit Benefits
+                  </Button>
+                )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    handleDeleteVendor(selectedVendor.id);
+                    setIsVendorDetailOpen(false);
+                  }}
+                  className="text-red-600 hover:text-red-700"
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete Vendor
                 </Button>
               </div>
             </div>
@@ -1970,6 +2365,529 @@ export default function Vendors() {
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Vendor Dialog */}
+      <Dialog open={isEditVendorOpen} onOpenChange={setIsEditVendorOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Edit className="h-5 w-5" />
+              Edit Vendor - {selectedVendor?.name}
+            </DialogTitle>
+          </DialogHeader>
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onUpdateSubmit)} className="space-y-6">
+              {/* Basic Information */}
+              <div className="space-y-4">
+                <h3 className="font-semibold text-sm">Basic Information</h3>
+                <FormField
+                  control={form.control}
+                  name="name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Vendor Name *</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Enter vendor name" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              {/* Contact Information */}
+              <div className="space-y-4 pt-4 border-t">
+                <h3 className="font-semibold text-sm flex items-center gap-2">
+                  <Phone className="h-4 w-4" />
+                  Contact Information
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="website"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Website</FormLabel>
+                        <FormControl>
+                          <Input placeholder="https://vendor.com" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                {/* Legacy Fields Notice */}
+
+                <FormField
+                  control={form.control}
+                  name="address"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Address</FormLabel>
+                      <FormControl>
+                        <Textarea placeholder="Full address" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <p className="text-sm text-blue-900 mb-2">
+                    <strong>Contact Management:</strong> Use the "Contacts" tab in vendor details to manage all contact persons for this vendor.
+                  </p>
+                  <p className="text-xs text-blue-700">
+                    The legacy Contact Person, Email, and Phone fields have been moved to the Contacts system for better organization.
+                  </p>
+                </div>
+              </div>
+
+              {/* Business Terms */}
+              <div className="space-y-4 pt-4 border-t">
+                <h3 className="font-semibold text-sm flex items-center gap-2">
+                  <DollarSign className="h-4 w-4" />
+                  Business Terms
+                </h3>
+                <FormField
+                  control={form.control}
+                  name="paymentTerms"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Payment Terms</FormLabel>
+                      <FormControl>
+                        <Input placeholder="e.g., Net 30" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="notes"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Notes</FormLabel>
+                      <FormControl>
+                        <Textarea
+                          placeholder="Additional notes about this vendor"
+                          rows={4}
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              {/* Preferred Status */}
+              <div className="space-y-4 pt-4 border-t">
+                <h3 className="font-semibold text-sm flex items-center gap-2">
+                  <Star className="h-4 w-4" />
+                  Vendor Status
+                </h3>
+                <FormField
+                  control={form.control}
+                  name="isPreferred"
+                  render={({ field }) => (
+                    <FormItem className="flex items-center justify-between p-3 border rounded-lg">
+                      <div>
+                        <FormLabel>Preferred Vendor</FormLabel>
+                        <p className="text-sm text-muted-foreground">
+                          Mark this vendor as preferred for priority treatment
+                        </p>
+                      </div>
+                      <FormControl>
+                        <Switch
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                        />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              {/* Show benefits fields if preferred */}
+              {form.watch("isPreferred") && (
+                <div className="space-y-4 pt-4 border-t bg-yellow-50/50 p-4 rounded-lg">
+                  <h3 className="font-semibold text-sm flex items-center gap-2">
+                    <Gift className="h-4 w-4 text-yellow-600" />
+                    Preferred Benefits
+                  </h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <FormField
+                      control={form.control}
+                      name="eqpPricing"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>EQP Pricing (%)</FormLabel>
+                          <FormControl>
+                            <Input
+                              type="number"
+                              placeholder="e.g., 15"
+                              {...field}
+                              onChange={(e) => field.onChange(e.target.value ? parseFloat(e.target.value) : undefined)}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="rebatePercentage"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Rebate (%)</FormLabel>
+                          <FormControl>
+                            <Input
+                              type="number"
+                              placeholder="e.g., 5"
+                              {...field}
+                              onChange={(e) => field.onChange(e.target.value ? parseFloat(e.target.value) : undefined)}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <FormField
+                      control={form.control}
+                      name="freeSetups"
+                      render={({ field }) => (
+                        <FormItem className="flex items-center justify-between p-3 border rounded-lg bg-white">
+                          <FormLabel>Free Setups</FormLabel>
+                          <FormControl>
+                            <Checkbox
+                              checked={field.value}
+                              onCheckedChange={field.onChange}
+                            />
+                          </FormControl>
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="freeSpecSamples"
+                      render={({ field }) => (
+                        <FormItem className="flex items-center justify-between p-3 border rounded-lg bg-white">
+                          <FormLabel>Free Spec Samples</FormLabel>
+                          <FormControl>
+                            <Checkbox
+                              checked={field.value}
+                              onCheckedChange={field.onChange}
+                            />
+                          </FormControl>
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="reducedSpecSamples"
+                      render={({ field }) => (
+                        <FormItem className="flex items-center justify-between p-3 border rounded-lg bg-white">
+                          <FormLabel>Reduced Spec Samples</FormLabel>
+                          <FormControl>
+                            <Checkbox
+                              checked={field.value}
+                              onCheckedChange={field.onChange}
+                            />
+                          </FormControl>
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="freeSelfPromo"
+                      render={({ field }) => (
+                        <FormItem className="flex items-center justify-between p-3 border rounded-lg bg-white">
+                          <FormLabel>Free Self-Promo</FormLabel>
+                          <FormControl>
+                            <Checkbox
+                              checked={field.value}
+                              onCheckedChange={field.onChange}
+                            />
+                          </FormControl>
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                </div>
+              )}
+
+              <div className="flex justify-end gap-3 pt-4">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setIsEditVendorOpen(false);
+                    form.reset();
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={updateVendorMutation.isPending}>
+                  {updateVendorMutation.isPending ? "Saving..." : "Save Changes"}
+                </Button>
+              </div>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Contact Dialog */}
+      <Dialog open={isAddContactOpen} onOpenChange={setIsAddContactOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Plus className="h-5 w-5" />
+              Add New Contact - {selectedVendor?.name}
+            </DialogTitle>
+          </DialogHeader>
+          <Form {...contactForm}>
+            <form onSubmit={contactForm.handleSubmit((data) => {
+              if (selectedVendor) {
+                createContactMutation.mutate({
+                  ...data,
+                  supplierId: selectedVendor.id
+                });
+              }
+            })} className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={contactForm.control}
+                  name="firstName"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>First Name *</FormLabel>
+                      <FormControl>
+                        <Input placeholder="John" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={contactForm.control}
+                  name="lastName"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Last Name *</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Doe" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+              <FormField
+                control={contactForm.control}
+                name="email"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Email</FormLabel>
+                    <FormControl>
+                      <Input type="email" placeholder="john@example.com" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={contactForm.control}
+                name="phone"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Phone</FormLabel>
+                    <FormControl>
+                      <Input placeholder="+1 (555) 123-4567" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={contactForm.control}
+                name="title"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Title/Position</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Sales Manager" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={contactForm.control}
+                name="isPrimary"
+                render={({ field }) => (
+                  <FormItem className="flex items-center justify-between p-3 border rounded-lg">
+                    <div>
+                      <FormLabel>Primary Contact</FormLabel>
+                      <p className="text-sm text-muted-foreground">
+                        Mark as the main point of contact
+                      </p>
+                    </div>
+                    <FormControl>
+                      <Switch
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                      />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+              <div className="flex justify-end gap-3 pt-4">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setIsAddContactOpen(false);
+                    contactForm.reset();
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={createContactMutation.isPending}>
+                  {createContactMutation.isPending ? "Adding..." : "Add Contact"}
+                </Button>
+              </div>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Contact Dialog */}
+      <Dialog open={isEditContactOpen} onOpenChange={setIsEditContactOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Edit className="h-5 w-5" />
+              Edit Contact
+            </DialogTitle>
+          </DialogHeader>
+          <Form {...contactForm}>
+            <form onSubmit={contactForm.handleSubmit((data) => {
+              if (selectedContact) {
+                updateContactMutation.mutate({
+                  id: selectedContact.id,
+                  data
+                });
+              }
+            })} className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={contactForm.control}
+                  name="firstName"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>First Name *</FormLabel>
+                      <FormControl>
+                        <Input placeholder="John" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={contactForm.control}
+                  name="lastName"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Last Name *</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Doe" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+              <FormField
+                control={contactForm.control}
+                name="email"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Email</FormLabel>
+                    <FormControl>
+                      <Input type="email" placeholder="john@example.com" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={contactForm.control}
+                name="phone"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Phone</FormLabel>
+                    <FormControl>
+                      <Input placeholder="+1 (555) 123-4567" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={contactForm.control}
+                name="title"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Title/Position</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Sales Manager" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={contactForm.control}
+                name="isPrimary"
+                render={({ field }) => (
+                  <FormItem className="flex items-center justify-between p-3 border rounded-lg">
+                    <div>
+                      <FormLabel>Primary Contact</FormLabel>
+                      <p className="text-sm text-muted-foreground">
+                        Mark as the main point of contact
+                      </p>
+                    </div>
+                    <FormControl>
+                      <Switch
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                      />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+              <div className="flex justify-end gap-3 pt-4">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setIsEditContactOpen(false);
+                    setSelectedContact(null);
+                    contactForm.reset();
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={updateContactMutation.isPending}>
+                  {updateContactMutation.isPending ? "Saving..." : "Save Changes"}
+                </Button>
+              </div>
+            </form>
+          </Form>
         </DialogContent>
       </Dialog>
     </div>

@@ -69,6 +69,106 @@ const contactFormSchema = z.object({
 
 type ContactFormData = z.infer<typeof contactFormSchema>;
 
+// Move ContactFormFields outside to prevent re-creation on every render
+const ContactFormFields = ({ form }: { form: any }) => (
+  <>
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <FormField
+        control={form.control}
+        name="firstName"
+        render={({ field }) => (
+          <FormItem>
+            <FormLabel>First Name *</FormLabel>
+            <FormControl>
+              <Input placeholder="John" {...field} />
+            </FormControl>
+            <FormMessage />
+          </FormItem>
+        )}
+      />
+
+      <FormField
+        control={form.control}
+        name="lastName"
+        render={({ field }) => (
+          <FormItem>
+            <FormLabel>Last Name *</FormLabel>
+            <FormControl>
+              <Input placeholder="Doe" {...field} />
+            </FormControl>
+            <FormMessage />
+          </FormItem>
+        )}
+      />
+
+      <FormField
+        control={form.control}
+        name="email"
+        render={({ field }) => (
+          <FormItem>
+            <FormLabel>Email</FormLabel>
+            <FormControl>
+              <Input type="email" placeholder="john.doe@company.com" {...field} />
+            </FormControl>
+            <FormMessage />
+          </FormItem>
+        )}
+      />
+
+      <FormField
+        control={form.control}
+        name="phone"
+        render={({ field }) => (
+          <FormItem>
+            <FormLabel>Phone</FormLabel>
+            <FormControl>
+              <Input placeholder="(555) 123-4567" {...field} />
+            </FormControl>
+            <FormMessage />
+          </FormItem>
+        )}
+      />
+    </div>
+
+    <FormField
+      control={form.control}
+      name="title"
+      render={({ field }) => (
+        <FormItem>
+          <FormLabel>Job Title</FormLabel>
+          <FormControl>
+            <Input placeholder="Sales Manager" {...field} />
+          </FormControl>
+          <FormMessage />
+        </FormItem>
+      )}
+    />
+
+    <FormField
+      control={form.control}
+      name="isPrimary"
+      render={({ field }) => (
+        <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
+          <FormControl>
+            <input
+              type="checkbox"
+              checked={field.value}
+              onChange={field.onChange}
+              className="h-4 w-4 rounded border-gray-300"
+            />
+          </FormControl>
+          <div className="space-y-1 leading-none">
+            <FormLabel>Primary Contact</FormLabel>
+            <p className="text-sm text-muted-foreground">
+              Set this person as the primary contact for the company
+            </p>
+          </div>
+        </FormItem>
+      )}
+    />
+  </>
+);
+
 export function ContactsManager({ companyId, companyName }: ContactsManagerProps) {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -76,7 +176,20 @@ export function ContactsManager({ companyId, companyName }: ContactsManagerProps
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const form = useForm<ContactFormData>({
+  // Separate forms for create and edit to prevent focus issues
+  const createForm = useForm<ContactFormData>({
+    resolver: zodResolver(contactFormSchema),
+    defaultValues: {
+      firstName: "",
+      lastName: "",
+      email: "",
+      phone: "",
+      title: "",
+      isPrimary: false,
+    },
+  });
+
+  const editForm = useForm<ContactFormData>({
     resolver: zodResolver(contactFormSchema),
     defaultValues: {
       firstName: "",
@@ -110,7 +223,7 @@ export function ContactsManager({ companyId, companyName }: ContactsManagerProps
       queryClient.invalidateQueries({ queryKey: ["/api/contacts", companyId] });
       queryClient.invalidateQueries({ queryKey: ["/api/companies"] });
       setIsCreateModalOpen(false);
-      form.reset();
+      createForm.reset();
       toast({
         title: "Contact created",
         description: "The contact has been successfully added.",
@@ -136,7 +249,7 @@ export function ContactsManager({ companyId, companyName }: ContactsManagerProps
       queryClient.invalidateQueries({ queryKey: ["/api/companies"] });
       setIsEditModalOpen(false);
       setSelectedContact(null);
-      form.reset();
+      editForm.reset();
       toast({
         title: "Contact updated",
         description: "The contact has been successfully updated.",
@@ -185,7 +298,7 @@ export function ContactsManager({ companyId, companyName }: ContactsManagerProps
 
   const handleEditContact = (contact: Contact) => {
     setSelectedContact(contact);
-    form.reset({
+    editForm.reset({
       firstName: contact.firstName,
       lastName: contact.lastName,
       email: contact.email || "",
@@ -213,105 +326,6 @@ export function ContactsManager({ companyId, companyName }: ContactsManagerProps
     return `${firstName[0]}${lastName[0]}`.toUpperCase();
   };
 
-  const ContactFormFields = () => (
-    <>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <FormField
-          control={form.control}
-          name="firstName"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>First Name *</FormLabel>
-              <FormControl>
-                <Input placeholder="John" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
-        <FormField
-          control={form.control}
-          name="lastName"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Last Name *</FormLabel>
-              <FormControl>
-                <Input placeholder="Doe" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
-        <FormField
-          control={form.control}
-          name="email"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Email</FormLabel>
-              <FormControl>
-                <Input type="email" placeholder="john.doe@company.com" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
-        <FormField
-          control={form.control}
-          name="phone"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Phone</FormLabel>
-              <FormControl>
-                <Input placeholder="(555) 123-4567" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-      </div>
-
-      <FormField
-        control={form.control}
-        name="title"
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel>Job Title</FormLabel>
-            <FormControl>
-              <Input placeholder="Sales Manager" {...field} />
-            </FormControl>
-            <FormMessage />
-          </FormItem>
-        )}
-      />
-
-      <FormField
-        control={form.control}
-        name="isPrimary"
-        render={({ field }) => (
-          <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
-            <FormControl>
-              <input
-                type="checkbox"
-                checked={field.value}
-                onChange={field.onChange}
-                className="h-4 w-4 rounded border-gray-300"
-              />
-            </FormControl>
-            <div className="space-y-1 leading-none">
-              <FormLabel>Primary Contact</FormLabel>
-              <p className="text-sm text-muted-foreground">
-                Set this person as the primary contact for the company
-              </p>
-            </div>
-          </FormItem>
-        )}
-      />
-    </>
-  );
-
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -331,9 +345,9 @@ export function ContactsManager({ companyId, companyName }: ContactsManagerProps
               </DialogDescription>
             </DialogHeader>
 
-            <Form {...form}>
-              <form onSubmit={form.handleSubmit(handleCreateContact)} className="space-y-4">
-                <ContactFormFields />
+            <Form {...createForm}>
+              <form onSubmit={createForm.handleSubmit(handleCreateContact)} className="space-y-4">
+                <ContactFormFields form={createForm} />
 
                 <div className="flex justify-end gap-2">
                   <Button
@@ -501,9 +515,9 @@ export function ContactsManager({ companyId, companyName }: ContactsManagerProps
             </DialogDescription>
           </DialogHeader>
 
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(handleUpdateContact)} className="space-y-4">
-              <ContactFormFields />
+          <Form {...editForm}>
+            <form onSubmit={editForm.handleSubmit(handleUpdateContact)} className="space-y-4">
+              <ContactFormFields form={editForm} />
 
               <div className="flex justify-end gap-2">
                 <Button

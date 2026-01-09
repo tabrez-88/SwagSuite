@@ -428,34 +428,6 @@ export default function Companies() {
 
                   <FormField
                     control={form.control}
-                    name="email"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Email</FormLabel>
-                        <FormControl>
-                          <Input type="email" placeholder="contact@company.com" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="phone"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Phone</FormLabel>
-                        <FormControl>
-                          <Input placeholder="(555) 123-4567" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
                     name="website"
                     render={({ field }) => (
                       <FormItem>
@@ -481,6 +453,16 @@ export default function Companies() {
                       </FormItem>
                     )}
                   />
+                </div>
+                
+                {/* Contact Management Info */}
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <p className="text-sm text-blue-900 mb-2">
+                    <strong>Contact Management:</strong> After creating the company, you can add contacts through the company detail page.
+                  </p>
+                  <p className="text-xs text-blue-700">
+                    Each company can have multiple contacts with their own email, phone, and role information.
+                  </p>
                 </div>
 
                 <FormField
@@ -843,18 +825,6 @@ export default function Companies() {
                     </CardHeader>
                     <CardContent className="space-y-3">
                       <div className="space-y-2">
-                        {company.email && (
-                          <div className="flex items-center gap-2 text-sm">
-                            <Mail className="h-4 w-4 text-muted-foreground" />
-                            <span className="text-muted-foreground truncate">{company.email}</span>
-                          </div>
-                        )}
-                        {company.phone && (
-                          <div className="flex items-center gap-2 text-sm">
-                            <Phone className="h-4 w-4 text-muted-foreground" />
-                            <span className="text-muted-foreground">{company.phone}</span>
-                          </div>
-                        )}
                         {company.website && (
                           <div className="flex items-center gap-2 text-sm">
                             <Globe className="h-4 w-4 text-muted-foreground" />
@@ -874,6 +844,12 @@ export default function Companies() {
                             <span className="text-muted-foreground">
                               {[company.city, company.state].filter(Boolean).join(', ')}
                             </span>
+                          </div>
+                        )}
+                        {company.industry && (
+                          <div className="flex items-center gap-2 text-sm">
+                            <Building className="h-4 w-4 text-muted-foreground" />
+                            <span className="text-muted-foreground text-xs">{company.industry}</span>
                           </div>
                         )}
                       </div>
@@ -975,16 +951,18 @@ export default function Companies() {
                           </TableCell>
                           <TableCell>
                             <div className="space-y-1">
-                              {company.email && (
+                              {company.website && (
                                 <div className="flex items-center gap-1 text-sm">
-                                  <Mail className="h-3 w-3 text-muted-foreground" />
-                                  <span className="truncate">{company.email}</span>
-                                </div>
-                              )}
-                              {company.phone && (
-                                <div className="flex items-center gap-1 text-sm">
-                                  <Phone className="h-3 w-3 text-muted-foreground" />
-                                  <span>{company.phone}</span>
+                                  <Globe className="h-3 w-3 text-muted-foreground" />
+                                  <a
+                                    href={company.website}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-swag-orange hover:underline"
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    Website
+                                  </a>
                                 </div>
                               )}
                             </div>
@@ -1098,7 +1076,7 @@ export default function Companies() {
 
           <Form {...form}>
             <form onSubmit={form.handleSubmit(handleUpdateCompany)} className="space-y-4">
-              {/* Same form fields as create modal but for editing */}
+              {/* Business Information */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <FormField
                   control={form.control}
@@ -1141,34 +1119,6 @@ export default function Companies() {
 
                 <FormField
                   control={form.control}
-                  name="email"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Email</FormLabel>
-                      <FormControl>
-                        <Input type="email" placeholder="contact@company.com" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="phone"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Phone</FormLabel>
-                      <FormControl>
-                        <Input placeholder="(555) 123-4567" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
                   name="website"
                   render={({ field }) => (
                     <FormItem>
@@ -1194,6 +1144,16 @@ export default function Companies() {
                     </FormItem>
                   )}
                 />
+              </div>
+              
+              {/* Contact Management Notice */}
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <p className="text-sm text-blue-900 mb-2">
+                  <strong>Contact Management:</strong> Use the company detail page to manage all contact persons for this company.
+                </p>
+                <p className="text-xs text-blue-700">
+                  The legacy Email and Phone fields have been moved to the Contacts system for better organization.
+                </p>
               </div>
 
               <FormField

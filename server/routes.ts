@@ -889,7 +889,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/contacts', isAuthenticated, async (req, res) => {
     try {
       const companyId = req.query.companyId as string;
-      const contacts = await storage.getContacts(companyId);
+      const supplierId = req.query.supplierId as string;
+      const contacts = await storage.getContacts(companyId, supplierId);
       res.json(contacts);
     } catch (error) {
       console.error("Error fetching contacts:", error);
