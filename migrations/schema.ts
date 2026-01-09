@@ -651,6 +651,7 @@ export const orders = pgTable("orders", {
 	customerNotes: text("customer_notes"),
 	internalNotes: text("internal_notes"),
 	trackingNumber: varchar("tracking_number"),
+	shippingMethod: varchar("shipping_method"),
 	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
 	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow(),
 	shippingAddress: text("shipping_address"),

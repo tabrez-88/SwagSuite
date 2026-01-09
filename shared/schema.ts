@@ -222,6 +222,7 @@ export const orders = pgTable("orders", {
   shippingAddress: text("shipping_address"),
   billingAddress: text("billing_address"),
   trackingNumber: varchar("tracking_number"),
+  shippingMethod: varchar("shipping_method"),
   currentStage: varchar("current_stage").notNull().default("sales-booked"),
   stagesCompleted: jsonb("stages_completed").notNull().default(sql`'["sales-booked"]'::jsonb`),
   stageData: jsonb("stage_data").notNull().default(sql`'{}'::jsonb`),

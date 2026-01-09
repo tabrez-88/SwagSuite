@@ -47,7 +47,7 @@ export default function Orders() {
   }));
 
   return (
-    <div className="space-y-6 p-4">
+    <div className="space-y-6 p-6 pb-6">
       {/* Header */}
       <div className="flex justify-between items-end">
         <div>

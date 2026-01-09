@@ -55,6 +55,7 @@ export default function OrderModal({ open, onOpenChange, order, initialCompanyId
     shippingAddress: "",
     billingAddress: "",
     trackingNumber: "",
+    shippingMethod: "",
     supplierId: "",
     tax: "0",
     shipping: "0",
@@ -80,6 +81,7 @@ export default function OrderModal({ open, onOpenChange, order, initialCompanyId
           shippingAddress: (order as any).shippingAddress || "",
           billingAddress: (order as any).billingAddress || "",
           trackingNumber: (order as any).trackingNumber || "",
+          shippingMethod: (order as any).shippingMethod || "",
           supplierId: (order as any).supplierId || "",
           tax: (order as any).tax || "0",
           shipping: (order as any).shipping || "0",
@@ -94,6 +96,7 @@ export default function OrderModal({ open, onOpenChange, order, initialCompanyId
           shippingAddress: "",
           billingAddress: "",
           trackingNumber: "",
+          shippingMethod: "",
           supplierId: "",
           tax: "0",
           shipping: "0",
@@ -558,7 +561,7 @@ export default function OrderModal({ open, onOpenChange, order, initialCompanyId
 
 
           {/* Order Details */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
               <Label htmlFor="inHandsDate">In-Hands Date</Label>
               <Input
@@ -577,6 +580,26 @@ export default function OrderModal({ open, onOpenChange, order, initialCompanyId
                 onChange={(e) => handleFieldChange("eventDate", e.target.value)}
               />
             </div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <Label htmlFor="shippingMethod">Shipping Method</Label>
+              <Select
+                value={formData.shippingMethod}
+                onValueChange={(value) => handleFieldChange("shippingMethod", value)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select shipping method..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="UPS">UPS</SelectItem>
+                  <SelectItem value="FedEx">FedEx</SelectItem>
+                  <SelectItem value="USPS">USPS</SelectItem>
+                  <SelectItem value="DHL">DHL</SelectItem>
+                  <SelectItem value="Other">Other</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
             <div>
               <Label htmlFor="trackingNumber">Tracking Number</Label>
               <Input
@@ -587,7 +610,7 @@ export default function OrderModal({ open, onOpenChange, order, initialCompanyId
                 onChange={(e) => handleFieldChange("trackingNumber", e.target.value)}
               />
             </div>
-          </div>
+            </div>
 
           {/* Addresses */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

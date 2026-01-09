@@ -1184,6 +1184,9 @@ export default function ProductionReport() {
                     <p><span className="font-medium">Company:</span> {selectedOrder.companyName}</p>
                     <p><span className="font-medium">Product:</span> {selectedOrder.productName}</p>
                     <p><span className="font-medium">Quantity:</span> {selectedOrder.quantity}</p>
+                    {(selectedOrder as any).shippingMethod && (
+                      <p><span className="font-medium">Shipping Method:</span> {(selectedOrder as any).shippingMethod}</p>
+                    )}
                     
                     {/* Price Breakdown */}
                     <div className="mt-3 pt-3 border-t space-y-1">

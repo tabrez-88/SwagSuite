@@ -59,7 +59,7 @@ export default function Sidebar() {
       {/* Sidebar */}
       <div
         className={cn(
-          "w-64 bg-swag-dark text-white flex-shrink-0 overflow-y-scroll transition-all duration-300",
+          "w-64 bg-swag-dark text-white flex-shrink-0 transition-all duration-300",
           // Desktop: always visible
           "lg:relative lg:translate-x-0",
           // Mobile: slide in/out from left, fixed position

@@ -665,6 +665,11 @@ export function OrderDetailsModal({ open, onOpenChange, order, companyName }: Or
                     </div>
 
                     <div>
+                      <p className="text-sm font-medium text-gray-500">Shipping Method</p>
+                      <p className="text-sm">{(currentOrder as any).shippingMethod || "Not specified"}</p>
+                    </div>
+
+                    <div>
                       <p className="text-sm font-medium text-gray-500">Tracking Number</p>
                       <p className="text-sm font-mono">{(currentOrder as any).trackingNumber || "Not available"}</p>
                     </div>
