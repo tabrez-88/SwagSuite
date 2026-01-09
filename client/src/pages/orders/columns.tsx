@@ -4,6 +4,9 @@ import { MoreHorizontal, Eye, FileEdit } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useToast } from "@/hooks/use-toast";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -125,10 +128,65 @@ export const columns: ColumnDef<OrderWithRelations>[] = [
     ),
     cell: ({ row }) => {
       const status = row.getValue("status") as keyof typeof statusDisplayMap;
+      const order = row.original;
+      const queryClient = useQueryClient();
+      const { toast } = useToast();
+
+      const updateStatusMutation = useMutation({
+        mutationFn: async (newStatus: string) => {
+          const response = await fetch(`/api/orders/${order.id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status: newStatus }),
+            credentials: 'include',
+          });
+          if (!response.ok) throw new Error('Failed to update status');
+          return response.json();
+        },
+        onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: ['/api/orders'] });
+          queryClient.invalidateQueries({ queryKey: [`/api/orders/${order.id}`] });
+          queryClient.invalidateQueries({ queryKey: [`/api/projects/${order.id}/activities`] });
+          queryClient.invalidateQueries({ queryKey: ['/api/dashboard/recent-orders'] });
+          toast({ title: "Status updated successfully" });
+        },
+        onError: () => {
+          toast({ title: "Failed to update status", variant: "destructive" });
+        },
+      });
+
       return (
-        <Badge className={statusColorMap[status] || "bg-gray-100 text-gray-800"}>
-          {statusDisplayMap[status] || status}
-        </Badge>
+        <Select
+          value={status}
+          onValueChange={(value) => updateStatusMutation.mutate(value)}
+        >
+          <SelectTrigger className={`${statusColorMap[status]} h-8 w-[160px] border-0 focus:ring-0`}>
+            {statusDisplayMap[status] || status}
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem  className={statusColorMap.quote} value="quote">
+              Quote
+            </SelectItem>
+            <SelectItem className={statusColorMap.pending_approval} value="pending_approval">
+              Pending Approval
+            </SelectItem>
+            <SelectItem className={statusColorMap.approved} value="approved">
+              Approved
+            </SelectItem>
+            <SelectItem className={statusColorMap.in_production} value="in_production">
+              In Production
+            </SelectItem>
+            <SelectItem className={statusColorMap.shipped} value="shipped">
+              Shipped
+            </SelectItem>
+            <SelectItem className={statusColorMap.delivered} value="delivered">
+              Delivered
+            </SelectItem>
+            <SelectItem className={statusColorMap.cancelled} value="cancelled">
+              Cancelled
+            </SelectItem>
+          </SelectContent>
+        </Select>
       );
     },
     filterFn: (row, id, value) => {

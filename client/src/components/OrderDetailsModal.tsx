@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
 import {
   Calendar,
   DollarSign,
@@ -287,6 +289,30 @@ export function OrderDetailsModal({ open, onOpenChange, order, companyName }: Or
         description: "Failed to send vendor email.",
         variant: "destructive",
       });
+    },
+  });
+
+  // Mutation to update order status
+  const updateStatusMutation = useMutation({
+    mutationFn: async ({ orderId, newStatus }: { orderId: string; newStatus: string }) => {
+      const response = await fetch(`/api/orders/${orderId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus }),
+        credentials: 'include',
+      });
+      if (!response.ok) throw new Error('Failed to update status');
+      return response.json();
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: [`/api/orders/${variables.orderId}`] });
+      queryClient.invalidateQueries({ queryKey: ['/api/orders'] });
+      queryClient.invalidateQueries({ queryKey: [`/api/projects/${variables.orderId}/activities`] });
+      queryClient.invalidateQueries({ queryKey: ['/api/dashboard/recent-orders'] });
+      toast({ title: "Order status updated successfully" });
+    },
+    onError: () => {
+      toast({ title: "Failed to update order status", variant: "destructive" });
     },
   });
 
@@ -690,6 +716,100 @@ export function OrderDetailsModal({ open, onOpenChange, order, companyName }: Or
                         </div>
                       </div>
                     )}
+                  </CardContent>
+                </Card>
+
+                {/* Order Status Management */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Tag className="w-5 h-5" />
+                      Order Status
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="order-status">Current Status</Label>
+                      <Select
+                        value={currentOrder.status || undefined}
+                        onValueChange={(value) => updateStatusMutation.mutate({ orderId: currentOrder.id, newStatus: value })}
+                        disabled={updateStatusMutation.isPending}
+                      >
+                        <SelectTrigger id="order-status" className="w-full">
+                          <SelectValue>
+                            <Badge className={statusColorMap[currentOrder.status as keyof typeof statusColorMap]}>
+                              {statusDisplayMap[currentOrder.status as keyof typeof statusDisplayMap]}
+                            </Badge>
+                          </SelectValue>
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="quote">
+                            <div className="flex items-center gap-2">
+                              <Badge className={statusColorMap.quote}>Quote</Badge>
+                              <span className="text-xs text-gray-500">Initial proposal</span>
+                            </div>
+                          </SelectItem>
+                          <SelectItem value="pending_approval">
+                            <div className="flex items-center gap-2">
+                              <Badge className={statusColorMap.pending_approval}>Pending Approval</Badge>
+                              <span className="text-xs text-gray-500">Awaiting approval</span>
+                            </div>
+                          </SelectItem>
+                          <SelectItem value="approved">
+                            <div className="flex items-center gap-2">
+                              <Badge className={statusColorMap.approved}>Approved</Badge>
+                              <span className="text-xs text-gray-500">Ready to start</span>
+                            </div>
+                          </SelectItem>
+                          <SelectItem value="in_production">
+                            <div className="flex items-center gap-2">
+                              <Badge className={statusColorMap.in_production}>In Production</Badge>
+                              <span className="text-xs text-gray-500">Being manufactured</span>
+                            </div>
+                          </SelectItem>
+                          <SelectItem value="shipped">
+                            <div className="flex items-center gap-2">
+                              <Badge className={statusColorMap.shipped}>Shipped</Badge>
+                              <span className="text-xs text-gray-500">In transit</span>
+                            </div>
+                          </SelectItem>
+                          <SelectItem value="delivered">
+                            <div className="flex items-center gap-2">
+                              <Badge className={statusColorMap.delivered}>Delivered</Badge>
+                              <span className="text-xs text-gray-500">Completed</span>
+                            </div>
+                          </SelectItem>
+                          <SelectItem value="cancelled">
+                            <div className="flex items-center gap-2">
+                              <Badge className={statusColorMap.cancelled}>Cancelled</Badge>
+                              <span className="text-xs text-gray-500">Order cancelled</span>
+                            </div>
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-gray-500 mt-1">
+                        Change the order status to track progress and notify team members
+                      </p>
+                    </div>
+                    
+                    {/* Status History */}
+                    <div className="pt-4 border-t">
+                      <p className="text-sm font-medium mb-2">Status Timeline</p>
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2 text-xs">
+                          <CheckCircle className="w-3 h-3 text-green-600" />
+                          <span className="text-gray-600">Created as {statusDisplayMap[currentOrder.status as keyof typeof statusDisplayMap]}</span>
+                          <span className="text-gray-400">• {new Date(currentOrder.createdAt!).toLocaleDateString()}</span>
+                        </div>
+                        {currentOrder.updatedAt && currentOrder.updatedAt !== currentOrder.createdAt && (
+                          <div className="flex items-center gap-2 text-xs">
+                            <Clock className="w-3 h-3 text-blue-600" />
+                            <span className="text-gray-600">Last updated</span>
+                            <span className="text-gray-400">• {new Date(currentOrder.updatedAt).toLocaleDateString()}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   </CardContent>
                 </Card>
 

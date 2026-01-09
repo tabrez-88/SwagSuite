@@ -243,8 +243,12 @@ export default function ProductionReport() {
       return response.json();
     },
     onSuccess: (data) => {
+      // Invalidate all related queries to sync across all pages
       queryClient.invalidateQueries({ queryKey: ["/api/orders"] });
+      queryClient.invalidateQueries({ queryKey: [`/api/orders/${data.id}`] }); // Sync with project page
+      queryClient.invalidateQueries({ queryKey: [`/api/projects/${data.id}/activities`] }); // Sync activities
       queryClient.invalidateQueries({ queryKey: ["/api/dashboard/recent-orders"] });
+      
       if (selectedOrder && selectedOrder.id === data.id) {
         const company = companies.find((c: any) => c.id === data.companyId);
         setSelectedOrder({
