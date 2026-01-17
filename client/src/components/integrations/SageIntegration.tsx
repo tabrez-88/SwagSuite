@@ -40,6 +40,7 @@ function SageIntegrationComponent() {
   const [searchResults, setSearchResults] = useState<SageProduct[]>([]);
   const [selectedProduct, setSelectedProduct] = useState<SageProduct | null>(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+  const [syncingProducts, setSyncingProducts] = useState<Set<string>>(new Set());
   
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -107,19 +108,36 @@ function SageIntegrationComponent() {
 
   // Sync product to database
   const syncProductMutation = useMutation({
-    mutationFn: async (products: SageProduct[]) => {
+    mutationFn: async ({ products, productId }: { products: SageProduct[], productId?: string }) => {
+      if (productId) {
+        setSyncingProducts(prev => new Set(prev).add(productId));
+      }
       const response = await apiRequest('POST', '/api/integrations/sage/products/sync', { products });
-      return await response.json();
+      return { data: await response.json(), productId };
     },
-    onSuccess: (data: any) => {
+    onSuccess: (result: any) => {
+      if (result.productId) {
+        setSyncingProducts(prev => {
+          const next = new Set(prev);
+          next.delete(result.productId);
+          return next;
+        });
+      }
       toast({
         title: "Product Added",
-        description: data.message || "Product has been added to your catalog",
+        description: result.data.message || "Product has been added to your catalog",
       });
       queryClient.invalidateQueries({ queryKey: ['/api/sage/products'] });
       queryClient.invalidateQueries({ queryKey: ['/api/products'] });
     },
-    onError: (error: any) => {
+    onError: (error: any, variables: any) => {
+      if (variables.productId) {
+        setSyncingProducts(prev => {
+          const next = new Set(prev);
+          next.delete(variables.productId);
+          return next;
+        });
+      }
       toast({
         title: "Sync Failed",
         description: error.message || "Failed to add product to catalog",
@@ -141,7 +159,7 @@ function SageIntegrationComponent() {
   };
 
   const handleAddProduct = (product: SageProduct) => {
-    syncProductMutation.mutate([product]);
+    syncProductMutation.mutate({ products: [product], productId: product.productId });
   };
 
   const handleViewDetails = (product: SageProduct) => {
@@ -352,7 +370,7 @@ function SageIntegrationComponent() {
                           <Button
                             size="sm"
                             onClick={() => handleAddProduct(product)}
-                            disabled={syncProductMutation.isPending}
+                            disabled={syncingProducts.has(product.productId)}
                           >
                             <Plus className="h-4 w-4 mr-1" />
                             Add to Catalog
@@ -604,7 +622,7 @@ function SageIntegrationComponent() {
                     handleAddProduct(selectedProduct);
                     setIsDetailModalOpen(false);
                   }}
-                  disabled={syncProductMutation.isPending}
+                  disabled={selectedProduct ? syncingProducts.has(selectedProduct.productId) : false}
                 >
                   <Plus className="h-4 w-4 mr-1" />
                   Add to Catalog

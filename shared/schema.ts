@@ -703,6 +703,10 @@ export const integrationSettings = pgTable("integration_settings", {
   // S&S Activewear Integration
   ssActivewearAccount: varchar("ss_activewear_account"),
   ssActivewearApiKey: text("ss_activewear_api_key"),
+  // SanMar Integration (SOAP API)
+  sanmarCustomerId: varchar("sanmar_customer_id"),
+  sanmarUsername: varchar("sanmar_username"),
+  sanmarPassword: text("sanmar_password"),
   // Slack Integration
   slackBotToken: text("slack_bot_token"),
   slackChannelId: varchar("slack_channel_id"),

@@ -14,6 +14,7 @@ import ProductModal from "@/components/ProductModal";
 import { ProductIntegrations } from "@/components/integrations/ProductIntegrations";
 import { SsActivewearIntegration } from "@/components/integrations/SsActivewearIntegration";
 import { SageIntegration } from "@/components/integrations/SageIntegration";
+import { SanmarIntegration } from "@/components/integrations/SanmarIntegration";
 import { PopularProducts } from "@/components/PopularProducts";
 import { ProductDetailModal } from "@/components/ProductDetailModal";
 
@@ -161,7 +162,7 @@ export default function Products() {
 
       {/* Main Content */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-auto">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="my-catalog" className="flex items-center gap-2">
             <Package size={16} />
             My Catalog
@@ -173,6 +174,10 @@ export default function Products() {
           <TabsTrigger value="ss-activewear" className="flex items-center gap-2">
             <ShoppingCart size={16} />
             S&S Activewear
+          </TabsTrigger>
+          <TabsTrigger value="sanmar" className="flex items-center gap-2">
+            <Package size={16} />
+            SanMar
           </TabsTrigger>
           <TabsTrigger value="sage" className="flex items-center gap-2">
             <Database size={16} />
@@ -357,6 +362,11 @@ export default function Products() {
         {/* S&S Activewear Integration Tab */}
         <TabsContent value="ss-activewear">
           <SsActivewearIntegration />
+        </TabsContent>
+
+        {/* SanMar Integration Tab */}
+        <TabsContent value="sanmar">
+          <SanmarIntegration />
         </TabsContent>
 
         {/* SAGE Integration Tab */}

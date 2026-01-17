@@ -20,6 +20,7 @@ export function SsActivewearIntegration() {
   const [isTestingConnection, setIsTestingConnection] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<SsActivewearProduct | null>(null);
   const [detailModalOpen, setDetailModalOpen] = useState(false);
+  const [syncingProducts, setSyncingProducts] = useState<Set<string>>(new Set());
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -39,9 +40,6 @@ export function SsActivewearIntegration() {
       console.log('Is Array?', Array.isArray(data));
       return data as SsActivewearProduct[];
     },
-    onSuccess: (data) => {
-      console.log('Search successful, products:', data);
-    },
     onError: (error) => {
       console.error('Search error:', error);
     },
@@ -49,19 +47,36 @@ export function SsActivewearIntegration() {
 
   // Sync products to catalog
   const syncProductMutation = useMutation({
-    mutationFn: async (products: SsActivewearProduct[]) => {
+    mutationFn: async ({ products, productId }: { products: SsActivewearProduct[], productId?: string }) => {
+      if (productId) {
+        setSyncingProducts(prev => new Set(prev).add(productId));
+      }
       const response = await apiRequest('POST', '/api/ss-activewear/products/sync', { products });
       const data = await response.json();
-      return data;
+      return { data, productId };
     },
-    onSuccess: (data: any) => {
+    onSuccess: (result: any) => {
+      if (result.productId) {
+        setSyncingProducts(prev => {
+          const next = new Set(prev);
+          next.delete(result.productId);
+          return next;
+        });
+      }
       toast({
         title: "Products Added",
-        description: `${data.count || 1} product(s) successfully added to catalog`,
+        description: `${result.data.count || 1} product(s) successfully added to catalog`,
       });
       queryClient.invalidateQueries({ queryKey: ['/api/products'] });
     },
-    onError: (error) => {
+    onError: (error, variables: any) => {
+      if (variables.productId) {
+        setSyncingProducts(prev => {
+          const next = new Set(prev);
+          next.delete(variables.productId);
+          return next;
+        });
+      }
       toast({
         title: "Sync Failed",
         description: "Failed to add products to catalog",
@@ -88,7 +103,7 @@ export function SsActivewearIntegration() {
   };
 
   const handleAddToCatalog = (product: SsActivewearProduct) => {
-    syncProductMutation.mutate([product]);
+    syncProductMutation.mutate({ products: [product], productId: product.sku });
   };
 
   const formatCurrency = (value: string | number | null) => {
@@ -303,7 +318,7 @@ export function SsActivewearIntegration() {
                 {searchMutation.data.length > 0 && (
                   <Button 
                     size="sm" 
-                    onClick={() => syncProductMutation.mutate(searchMutation.data!)}
+                    onClick={() => syncProductMutation.mutate({ products: searchMutation.data! })}
                     disabled={syncProductMutation.isPending}
                   >
                     {syncProductMutation.isPending ? (
@@ -375,10 +390,10 @@ export function SsActivewearIntegration() {
                           <Button 
                             size="sm"
                             onClick={() => handleAddToCatalog(product)}
-                            disabled={syncProductMutation.isPending}
+                            disabled={syncingProducts.has(product.sku)}
                             className="flex-1"
                           >
-                            {syncProductMutation.isPending ? (
+                            {syncingProducts.has(product.sku) ? (
                               <Loader2 className="w-3 h-3 animate-spin" />
                             ) : (
                               'Add to Catalog'
@@ -522,10 +537,10 @@ export function SsActivewearIntegration() {
                 <div className="flex gap-2 pt-4">
                   <Button 
                     onClick={() => handleAddToCatalog(selectedProduct)}
-                    disabled={syncProductMutation.isPending}
+                    disabled={selectedProduct ? syncingProducts.has(selectedProduct.sku) : false}
                     className="flex-1"
                   >
-                    {syncProductMutation.isPending ? (
+                    {selectedProduct && syncingProducts.has(selectedProduct.sku) ? (
                       <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                     ) : (
                       <Download className="w-4 h-4 mr-2" />

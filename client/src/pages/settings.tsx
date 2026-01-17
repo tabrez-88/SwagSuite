@@ -591,6 +591,9 @@ export default function Settings() {
   const [integrations, setIntegrations] = useState({
     ssActivewearAccount: "",
     ssActivewearApiKey: "",
+    sanmarCustomerId: "",
+    sanmarUsername: "",
+    sanmarPassword: "",
     hubspotApiKey: "",
     slackBotToken: "",
     slackChannelId: "",
@@ -605,6 +608,7 @@ export default function Settings() {
   // Visibility state for sensitive fields
   const [showFields, setShowFields] = useState({
     ssActivewearApiKey: false,
+    sanmarPassword: false,
     slackBotToken: false,
     hubspotApiKey: false,
     sageApiKey: false
@@ -617,6 +621,9 @@ export default function Settings() {
       setIntegrations({
         ssActivewearAccount: settings.ssActivewearAccount || "",
         ssActivewearApiKey: settings.ssActivewearApiKey || "",
+        sanmarCustomerId: settings.sanmarCustomerId || "",
+        sanmarUsername: settings.sanmarUsername || "",
+        sanmarPassword: settings.sanmarPassword || "",
         hubspotApiKey: settings.hubspotApiKey || "",
         slackBotToken: settings.slackBotToken || "",
         slackChannelId: settings.slackChannelId || "",
@@ -767,6 +774,7 @@ export default function Settings() {
   const saveSettings = async (section: string) => {
     try {
       if (section === 'Integration') {
+        console.log('Saving integrations:', integrations);
         await apiRequest('POST', '/api/settings/integrations', integrations);
         queryClient.invalidateQueries({ queryKey: ['/api/settings/integrations'] });
       }
@@ -776,6 +784,7 @@ export default function Settings() {
         description: `${section} settings have been saved successfully.`,
       });
     } catch (error) {
+      console.error('Save settings error:', error);
       toast({
         title: "Error",
         description: "Failed to save settings. Please try again.",
@@ -1591,6 +1600,69 @@ export default function Settings() {
                     </div>
                   </div>
                 </div>
+
+                {/* SanMar */}
+                <div className="p-4 border rounded-lg">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <Package className="w-5 h-5 text-blue-600" />
+                      <h4 className="font-medium">SanMar</h4>
+                      <Badge variant={integrations.sanmarCustomerId && integrations.sanmarUsername && integrations.sanmarPassword ? "default" : "outline"}>
+                        {integrations.sanmarCustomerId && integrations.sanmarUsername && integrations.sanmarPassword ? "Connected" : "Not Connected"}
+                      </Badge>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-3 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="sanmarCustomerId">Customer ID</Label>
+                      <Input
+                        id="sanmarCustomerId"
+                        placeholder="Enter customer ID"
+                        value={integrations.sanmarCustomerId}
+                        onChange={(e) => setIntegrations(prev => ({ ...prev, sanmarCustomerId: e.target.value }))}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="sanmarUsername">Username</Label>
+                      <Input
+                        id="sanmarUsername"
+                        placeholder="Enter username"
+                        value={integrations.sanmarUsername}
+                        onChange={(e) => setIntegrations(prev => ({ ...prev, sanmarUsername: e.target.value }))}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="sanmarPassword">Password</Label>
+                      <div className="relative">
+                        <Input
+                          id="sanmarPassword"
+                          type={showFields.sanmarPassword ? "text" : "password"}
+                          placeholder="Enter password"
+                          value={integrations.sanmarPassword}
+                          onChange={(e) => setIntegrations(prev => ({ ...prev, sanmarPassword: e.target.value }))}
+                          className="pr-10"
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
+                          onClick={() => setShowFields(prev => ({ ...prev, sanmarPassword: !prev.sanmarPassword }))}
+                        >
+                          {showFields.sanmarPassword ? (
+                            <EyeOff className="h-4 w-4 text-gray-500" />
+                          ) : (
+                            <Eye className="h-4 w-4 text-gray-500" />
+                          )}
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-2">
+                    SOAP API credentials for SanMar product catalog integration
+                  </p>
+                </div>
+
                 {/* SAGE */}
                 <div className="p-4 border rounded-lg">
                   <div className="flex items-center justify-between mb-3">

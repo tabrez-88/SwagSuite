@@ -4127,6 +4127,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (credentials.sageLoginId) updates.sageLoginId = credentials.sageLoginId;
       if (credentials.sageApiKey) updates.sageApiKey = credentials.sageApiKey;
       
+      // SanMar
+      if (credentials.sanmarCustomerId) updates.sanmarCustomerId = credentials.sanmarCustomerId;
+      if (credentials.sanmarUsername) updates.sanmarUsername = credentials.sanmarUsername;
+      if (credentials.sanmarPassword) updates.sanmarPassword = credentials.sanmarPassword;
+      
       // HubSpot
       if (credentials.hubspotApiKey) updates.hubspotApiKey = credentials.hubspotApiKey;
       
@@ -5659,6 +5664,180 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ==================== SanMar Integration Routes ====================
+  
+  // Test SanMar connection
+  app.post('/api/sanmar/test-connection', isAuthenticated, async (req, res) => {
+    try {
+      const { customerId, username, password } = req.body;
+
+      if (!customerId || !username || !password) {
+        return res.status(400).json({ message: "Customer ID, username, and password are required" });
+      }
+
+      const { createSanMarService } = await import('./sanmarService');
+      const sanmarService = createSanMarService({ customerId, username, password });
+      
+      const isConnected = await sanmarService.testConnection();
+
+      if (isConnected) {
+        res.json({ success: true, message: "Successfully connected to SanMar API" });
+      } else {
+        res.status(400).json({ success: false, message: "Failed to connect to SanMar API" });
+      }
+    } catch (error) {
+      console.error("SanMar connection test error:", error);
+      res.status(500).json({ message: "Connection test failed" });
+    }
+  });
+
+  // Search SanMar products
+  app.get('/api/sanmar/search', isAuthenticated, async (req, res) => {
+    try {
+      const { q } = req.query;
+
+      if (!q || typeof q !== 'string') {
+        return res.status(400).json({ message: "Search query is required" });
+      }
+
+      // Get credentials from integration settings
+      const settings = await storage.getIntegrationSettings();
+      
+      if (!settings?.sanmarCustomerId || !settings?.sanmarUsername || !settings?.sanmarPassword) {
+        return res.status(400).json({ message: "SanMar credentials not configured. Please configure in Settings → Integrations." });
+      }
+
+      const { createSanMarService } = await import('./sanmarService');
+      const sanmarService = createSanMarService({
+        customerId: settings.sanmarCustomerId,
+        username: settings.sanmarUsername,
+        password: settings.sanmarPassword,
+      });
+
+      const products = await sanmarService.searchProducts(q);
+
+      // Products already have colors and sizes aggregated
+      res.json(products);
+    } catch (error) {
+      console.error("SanMar search error:", error);
+      res.status(500).json({ message: "Failed to search SanMar products" });
+    }
+  });
+
+  // Get SanMar product details
+  app.get('/api/sanmar/product/:styleId', isAuthenticated, async (req, res) => {
+    try {
+      const { styleId } = req.params;
+
+      const settings = await storage.getIntegrationSettings();
+      
+      if (!settings?.sanmarCustomerId || !settings?.sanmarUsername || !settings?.sanmarPassword) {
+        return res.status(400).json({ message: "SanMar credentials not configured" });
+      }
+
+      const { createSanMarService } = await import('./sanmarService');
+      const sanmarService = createSanMarService({
+        customerId: settings.sanmarCustomerId,
+        username: settings.sanmarUsername,
+        password: settings.sanmarPassword,
+      });
+
+      const product = await sanmarService.getProductDetails(styleId);
+
+      if (!product) {
+        return res.status(404).json({ message: "Product not found" });
+      }
+
+      // Product already has all details including colors, sizes, and images
+      res.json(product);
+    } catch (error) {
+      console.error("SanMar product details error:", error);
+      res.status(500).json({ message: "Failed to get product details" });
+    }
+  });
+
+  // Sync SanMar products to catalog
+  app.post('/api/sanmar/products/sync', isAuthenticated, async (req, res) => {
+    try {
+      const { products } = req.body;
+
+      if (!Array.isArray(products) || products.length === 0) {
+        return res.status(400).json({ message: "Products array is required" });
+      }
+
+      // Find or create SanMar supplier
+      let sanmarSupplier = await storage.getSupplierByName("SanMar");
+      
+      if (!sanmarSupplier) {
+        sanmarSupplier = await storage.createSupplier({
+          name: "SanMar",
+          website: "https://www.sanmar.com",
+          email: "customerservice@sanmar.com",
+          phone: "(800) 426-6399",
+        });
+      }
+
+      let successCount = 0;
+      const errors = [];
+
+      for (const sanmarProduct of products) {
+        try {
+          // Build comprehensive description
+          const descriptionParts = [
+            sanmarProduct.productTitle || `${sanmarProduct.brandName} ${sanmarProduct.styleName}`,
+            sanmarProduct.productDescription,
+            sanmarProduct.fabricContent ? `Fabric: ${sanmarProduct.fabricContent}` : null,
+            sanmarProduct.productWeight ? `Weight: ${sanmarProduct.productWeight}` : null,
+            sanmarProduct.countryOfOrigin ? `Made in: ${sanmarProduct.countryOfOrigin}` : null,
+            sanmarProduct.caseQuantity ? `Case Qty: ${sanmarProduct.caseQuantity}` : null,
+          ].filter(Boolean);
+
+          // Map SanMar product to our schema
+          const product = {
+            name: sanmarProduct.productTitle || `${sanmarProduct.brandName} ${sanmarProduct.styleName}`,
+            description: descriptionParts.join(' | '),
+            sku: sanmarProduct.styleId,
+            supplierSku: sanmarProduct.styleId,
+            supplierId: sanmarSupplier.id,
+            basePrice: (sanmarProduct.pieceSalePrice || sanmarProduct.piecePrice || sanmarProduct.dozenPrice / 12 || 0).toString(),
+            minimumQuantity: sanmarProduct.caseSize || 1,
+            brand: sanmarProduct.brandName,
+            category: sanmarProduct.categoryName || 'Apparel',
+            colors: Array.isArray(sanmarProduct.colors) ? sanmarProduct.colors : [],
+            sizes: Array.isArray(sanmarProduct.sizes) ? sanmarProduct.sizes : [],
+            imprintMethods: null,
+            leadTime: null,
+            imageUrl: sanmarProduct.frontModel || sanmarProduct.colorProductImage || sanmarProduct.productImage || null,
+            productType: 'apparel',
+          };
+
+          // Check if product already exists
+          const existingProduct = await storage.getProductBySku(sanmarProduct.styleId);
+          
+          if (existingProduct) {
+            await storage.updateProduct(existingProduct.id, product);
+          } else {
+            await storage.createProduct(product);
+          }
+
+          successCount++;
+        } catch (error) {
+          console.error(`Error syncing SanMar product ${sanmarProduct.styleId}:`, error);
+          errors.push({ styleId: sanmarProduct.styleId, error: String(error) });
+        }
+      }
+
+      res.json({
+        count: successCount,
+        total: products.length,
+        errors: errors.length > 0 ? errors : undefined,
+      });
+    } catch (error) {
+      console.error("Error syncing SanMar products:", error);
+      res.status(500).json({ message: "Failed to sync products" });
+    }
+  });
+
   // Admin Settings Management Endpoints
   app.get('/api/admin/settings', isAuthenticated, async (req, res) => {
     try {
@@ -5706,6 +5885,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const settings = {
         ssActivewearAccount: dbSettings?.ssActivewearAccount || process.env.SS_ACTIVEWEAR_ACCOUNT || "",
         ssActivewearApiKey: dbSettings?.ssActivewearApiKey || process.env.SS_ACTIVEWEAR_API_KEY || "",
+        sanmarCustomerId: dbSettings?.sanmarCustomerId || process.env.SANMAR_CUSTOMER_ID || "",
+        sanmarUsername: dbSettings?.sanmarUsername || process.env.SANMAR_USERNAME || "",
+        sanmarPassword: dbSettings?.sanmarPassword || process.env.SANMAR_PASSWORD || "",
         hubspotApiKey: dbSettings?.hubspotApiKey || process.env.HUBSPOT_API_KEY || "",
         slackBotToken: dbSettings?.slackBotToken || process.env.SLACK_BOT_TOKEN || "",
         slackChannelId: dbSettings?.slackChannelId || process.env.SLACK_CHANNEL_ID || "",
@@ -5733,14 +5915,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log('Saving integration settings:', {
         ssActivewearAccount: settings.ssActivewearAccount ? '***' : '',
         ssActivewearApiKey: settings.ssActivewearApiKey ? '***' : '',
+        sanmarCustomerId: settings.sanmarCustomerId ? '***' : '',
+        sanmarUsername: settings.sanmarUsername ? '***' : '',
+        sanmarPassword: settings.sanmarPassword ? '***' : '',
         hubspotApiKey: settings.hubspotApiKey ? '***' : '',
         slackBotToken: settings.slackBotToken ? '***' : '',
         slackChannelId: settings.slackChannelId || '',
+        sageAcctId: settings.sageAcctId ? '***' : '',
+        sageLoginId: settings.sageLoginId ? '***' : '',
+        sageApiKey: settings.sageApiKey ? '***' : '',
         updatedBy: userId
       });
       
       // Save to database
       const savedSettings = await storage.upsertIntegrationSettings(settings, userId);
+      
+      console.log('Settings saved successfully:', {
+        id: savedSettings.id,
+        hasSanmarCustomerId: !!savedSettings.sanmarCustomerId,
+        hasSanmarUsername: !!savedSettings.sanmarUsername,
+        hasSanmarPassword: !!savedSettings.sanmarPassword
+      });
       
       res.json({ 
         success: true, 
