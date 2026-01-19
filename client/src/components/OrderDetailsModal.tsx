@@ -60,6 +60,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import OrderModal from "./OrderModal";
 import ProductModal from "./ProductModal";
 import { useToast } from "@/hooks/use-toast";
+import { format } from "date-fns";
 
 interface OrderDetailsModalProps {
   open: boolean;
@@ -160,6 +161,36 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
   const [editingProduct, setEditingProduct] = useState<any>(null);
   const [deletingProduct, setDeletingProduct] = useState<any>(null);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  
+  // Edit dialog states
+  const [isEditContactOpen, setIsEditContactOpen] = useState(false);
+  const [isEditBillingAddressOpen, setIsEditBillingAddressOpen] = useState(false);
+  const [isEditShippingAddressOpen, setIsEditShippingAddressOpen] = useState(false);
+  const [isEditShippingInfoOpen, setIsEditShippingInfoOpen] = useState(false);
+  
+  // Form data states
+  const [selectedContactId, setSelectedContactId] = useState<string>("");
+  const [billingAddressForm, setBillingAddressForm] = useState({
+    street: "",
+    city: "",
+    state: "",
+    zipCode: "",
+    country: "US",
+    contactName: "",
+    email: ""
+  });
+  const [shippingAddressForm, setShippingAddressForm] = useState({
+    address: "",
+    contactName: "",
+    email: ""
+  });
+  const [shippingInfoForm, setShippingInfoForm] = useState({
+    supplierInHandsDate: "",
+    inHandsDate: "",
+    eventDate: "",
+    isFirm: false,
+    shippingMethod: ""
+  });
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -176,10 +207,30 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
     enabled: open && !!order,
   });
 
+  // Fetch contacts for the order's company
+  const { data: contacts = [] } = useQuery<any[]>({
+    queryKey: [`/api/contacts`, { companyId: order?.companyId }],
+    queryFn: async () => {
+      if (!order?.companyId) return [];
+      const response = await fetch(`/api/contacts?companyId=${order.companyId}`);
+      if (!response.ok) return [];
+      return response.json();
+    },
+    enabled: open && !!order?.companyId,
+  });
+
   // Get company name
-  const companyName = order?.companyId 
+  const companyName = order?.companyId
     ? companies.find((c: any) => c.id === order.companyId)?.name || "Unknown Company"
     : "Individual Client";
+
+  // Get primary contact or first contact
+  const primaryContact = contacts.find((c: any) => c.isPrimary) || contacts[0];
+
+  // Get company data
+  const companyData = order?.companyId
+    ? companies.find((c: any) => c.id === order.companyId)
+    : null;
 
   // Fetch team members for @ mentions
   const { data: teamMembers = [] } = useQuery<TeamMember[]>({
@@ -195,22 +246,33 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
     gcTime: 0, // Don't cache (replaces cacheTime in newer versions)
   });
 
+  // Fetch suppliers data (must be before orderVendors useMemo)
+  const { data: suppliers = [] } = useQuery<any[]>({
+    queryKey: ["/api/suppliers"],
+    enabled: open && !!order,
+    staleTime: 0, // Force fresh data
+  });
+
   // Get unique vendors from order items
   const orderVendors = useMemo(() => {
     const vendorsMap = new Map();
+    
     orderItems.forEach((item: any) => {
       if (item.supplierId && !vendorsMap.has(item.supplierId)) {
+        // Try to get supplier info from the item first, then fallback to suppliers array
+        const supplierFromArray = suppliers.find((s: any) => s.id === item.supplierId);
+        
         vendorsMap.set(item.supplierId, {
           id: item.supplierId,
-          name: item.supplierName,
-          email: item.supplierEmail,
-          phone: item.supplierPhone,
-          contactPerson: item.supplierContactPerson,
+          name: item.supplierName || supplierFromArray?.name || "Unknown Vendor",
+          email: item.supplierEmail || supplierFromArray?.email || "",
+          phone: item.supplierPhone || supplierFromArray?.phone || "",
+          contactPerson: item.supplierContactPerson || supplierFromArray?.contactPerson || "",
           products: [],
         });
       }
     });
-    
+
     orderItems.forEach((item: any) => {
       if (item.supplierId && vendorsMap.has(item.supplierId)) {
         const vendor = vendorsMap.get(item.supplierId);
@@ -224,9 +286,9 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
         });
       }
     });
-    
+
     return Array.from(vendorsMap.values());
-  }, [orderItems]);
+  }, [orderItems, suppliers]);
 
   const [selectedVendor, setSelectedVendor] = useState<any>(null);
 
@@ -237,13 +299,6 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
       setVendorEmailTo(orderVendors[0].email || "");
     }
   }, [orderVendors, selectedVendor]);
-
-  // Fetch suppliers data
-  const { data: suppliers = [] } = useQuery<any[]>({
-    queryKey: ["/api/suppliers"],
-    enabled: open && !!order,
-    staleTime: 0, // Force fresh data
-  });
 
   // Fetch all products to get current supplier info
   const { data: allProducts = [] } = useQuery<any[]>({
@@ -332,18 +387,18 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
           attachmentIds: data.attachmentIds,
         }),
       });
-      
+
       const result = await response.json();
-      
+
       // Handle partial success (207) - email saved but not sent
       if (response.status === 207) {
         throw new Error(result.emailError || "Email saved to database but failed to send. Please check your email configuration.");
       }
-      
+
       if (!response.ok) {
         throw new Error(result.message || "Failed to send email");
       }
-      
+
       return result;
     },
     onSuccess: () => {
@@ -390,18 +445,18 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
           attachmentIds: data.attachmentIds,
         }),
       });
-      
+
       const result = await response.json();
-      
+
       // Handle partial success (207) - email saved but not sent
       if (response.status === 207) {
         throw new Error(result.emailError || "Email saved to database but failed to send. Please check your email configuration.");
       }
-      
+
       if (!response.ok) {
         throw new Error(result.message || "Failed to send email");
       }
-      
+
       return result;
     },
     onSuccess: () => {
@@ -437,17 +492,17 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
       queryClient.invalidateQueries({ queryKey: [`/api/orders/${orderId}/items`] });
       setIsDeleteDialogOpen(false);
       setDeletingProduct(null);
-      toast({ 
+      toast({
         title: "Product deleted",
         description: "Product has been removed successfully."
       });
     },
     onError: () => {
       setIsDeleteDialogOpen(false);
-      toast({ 
-        title: "Failed to delete product", 
+      toast({
+        title: "Failed to delete product",
         description: "There was an error deleting the product. Please try again.",
-        variant: "destructive" 
+        variant: "destructive"
       });
     },
   });
@@ -473,6 +528,97 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
     },
     onError: () => {
       toast({ title: "Failed to update order status", variant: "destructive" });
+    },
+  });
+
+  // Mutation to update order shipping info
+  const updateShippingInfoMutation = useMutation({
+    mutationFn: async (data: any) => {
+      const response = await fetch(`/api/orders/${orderId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+        credentials: 'include',
+      });
+      if (!response.ok) throw new Error('Failed to update shipping info');
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/orders/${orderId}`] });
+      setIsEditShippingInfoOpen(false);
+      toast({ title: "Shipping information updated successfully" });
+    },
+    onError: () => {
+      toast({ title: "Failed to update shipping information", variant: "destructive" });
+    },
+  });
+
+  // Mutation to update company billing address
+  const updateBillingAddressMutation = useMutation({
+    mutationFn: async (data: any) => {
+      console.log('Sending billing address to server:', data);
+      const response = await fetch(`/api/companies/${order?.companyId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ billingAddress: data }),
+        credentials: 'include',
+      });
+      if (!response.ok) throw new Error('Failed to update billing address');
+      const result = await response.json();
+      console.log('Server response for billing:', result);
+      return result;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/companies'] });
+      setIsEditBillingAddressOpen(false);
+      toast({ title: "Billing address updated successfully" });
+    },
+    onError: () => {
+      toast({ title: "Failed to update billing address", variant: "destructive" });
+    },
+  });
+
+  // Mutation to update order shipping address
+  const updateShippingAddressMutation = useMutation({
+    mutationFn: async (data: { shippingAddress: string }) => {
+      const response = await fetch(`/api/orders/${orderId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+        credentials: 'include',
+      });
+      if (!response.ok) throw new Error('Failed to update shipping address');
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/orders/${orderId}`] });
+      setIsEditShippingAddressOpen(false);
+      toast({ title: "Shipping address updated successfully" });
+    },
+    onError: () => {
+      toast({ title: "Failed to update shipping address", variant: "destructive" });
+    },
+  });
+
+  // Mutation to update order contact
+  const updateOrderContactMutation = useMutation({
+    mutationFn: async (contactId: string) => {
+      const response = await fetch(`/api/orders/${orderId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contactId }),
+        credentials: 'include',
+      });
+      if (!response.ok) throw new Error('Failed to update contact');
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/orders/${orderId}`] });
+      setIsEditContactOpen(false);
+      toast({ title: "Contact updated successfully" });
+    },
+    onError: () => {
+      toast({ title: "Failed to update contact", variant: "destructive" });
     },
   });
 
@@ -664,6 +810,97 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
     }
   };
 
+  // Initialize form data when dialogs open
+  const handleOpenEditShippingInfo = () => {
+    setShippingInfoForm({
+      supplierInHandsDate: (order as any).supplierInHandsDate 
+        ? new Date((order as any).supplierInHandsDate).toISOString().split('T')[0] 
+        : "",
+      inHandsDate: order.inHandsDate 
+        ? new Date(order.inHandsDate).toISOString().split('T')[0] 
+        : "",
+      eventDate: order.eventDate 
+        ? new Date(order.eventDate).toISOString().split('T')[0] 
+        : "",
+      isFirm: (order as any).isFirm || false,
+      shippingMethod: (order as any).shippingMethod || ""
+    });
+    setIsEditShippingInfoOpen(true);
+  };
+
+  const handleOpenEditBillingAddress = () => {
+    const billing = companyData?.billingAddress || {};
+    setBillingAddressForm({
+      street: billing.street || "",
+      city: billing.city || "",
+      state: billing.state || "",
+      zipCode: billing.zipCode || "",
+      country: billing.country || "US",
+      contactName: billing.contactName || "",
+      email: billing.email || ""
+    });
+    setIsEditBillingAddressOpen(true);
+  };
+
+  const handleOpenEditShippingAddress = () => {
+    const shippingAddr = (order as any).shippingAddress || "";
+    // Try to parse if it's JSON
+    try {
+      const parsed = JSON.parse(shippingAddr);
+      setShippingAddressForm({
+        address: parsed.address || shippingAddr,
+        contactName: parsed.contactName || "",
+        email: parsed.email || ""
+      });
+    } catch {
+      // Not JSON, just plain text address
+      setShippingAddressForm({
+        address: shippingAddr,
+        contactName: "",
+        email: ""
+      });
+    }
+    setIsEditShippingAddressOpen(true);
+  };
+
+  const handleOpenEditContact = () => {
+    setSelectedContactId(order.contactId || primaryContact?.id || "");
+    setIsEditContactOpen(true);
+  };
+
+  const handleSaveShippingInfo = () => {
+    const data: any = {};
+    if (shippingInfoForm.supplierInHandsDate) data.supplierInHandsDate = shippingInfoForm.supplierInHandsDate;
+    if (shippingInfoForm.inHandsDate) data.inHandsDate = shippingInfoForm.inHandsDate;
+    if (shippingInfoForm.eventDate) data.eventDate = shippingInfoForm.eventDate;
+    data.isFirm = shippingInfoForm.isFirm;
+    if (shippingInfoForm.shippingMethod) data.shippingMethod = shippingInfoForm.shippingMethod;
+    
+    updateShippingInfoMutation.mutate(data);
+  };
+
+  const handleSaveBillingAddress = () => {
+    console.log('Saving billing address:', billingAddressForm);
+    updateBillingAddressMutation.mutate(billingAddressForm);
+  };
+
+  const handleSaveShippingAddress = () => {
+    console.log('Saving shipping address form:', shippingAddressForm);
+    // Save as JSON if we have contact info, otherwise just the address
+    const shippingData = (shippingAddressForm.contactName || shippingAddressForm.email)
+      ? JSON.stringify(shippingAddressForm)
+      : shippingAddressForm.address;
+    
+    console.log('Shipping data to save:', shippingData);
+    updateShippingAddressMutation.mutate({ shippingAddress: shippingData });
+  };
+
+  const handleSaveContact = () => {
+    if (selectedContactId) {
+      updateOrderContactMutation.mutate(selectedContactId);
+    }
+  };
+
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
@@ -722,46 +959,12 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
 
             <TabsContent value="details" className="mt-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Company & Contact Information */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Building2 className="w-5 h-5" />
-                      Company Information
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="flex items-center space-x-3">
-                      <UserAvatar name={companyName} size="sm" />
-                      <div>
-                        <p className="font-semibold">{companyName}</p>
-                        <p className="text-sm text-gray-600">Primary Client</p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      <User className="w-4 h-4 text-gray-500" />
-                      <span className="text-sm">Primary Contact</span>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      <Mail className="w-4 h-4 text-gray-500" />
-                      <span className="text-sm">contact@company.com</span>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      <Phone className="w-4 h-4 text-gray-500" />
-                      <span className="text-sm">(555) 123-4567</span>
-                    </div>
-                  </CardContent>
-                </Card>
-
                 {/* Order Details */}
-                <Card>
+                <Card className="col-span-2">
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
                       <Package className="w-5 h-5" />
-                      Order Details
+                      Order Info
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-4">
@@ -817,165 +1020,9 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
                         </span>
                       </div>
                     </div>
-                  </CardContent>
-                </Card>
 
-                {/* Rush Order & Timeline Information */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Calendar className="w-5 h-5" />
-                      Timeline & Priority
-                      {isRushOrder && (
-                        <Badge variant="destructive" className="flex items-center gap-1 ml-2">
-                          <AlertTriangle className="w-3 h-3" />
-                          RUSH
-                        </Badge>
-                      )}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    {order.inHandsDate ? (
-                      <div className="flex items-center gap-2">
-                        <Calendar className="w-4 h-4 text-gray-500" />
-                        <span className="text-sm font-medium">In Hands Date: </span>
-                        <span className={`text-sm font-medium ${isRushOrder ? 'text-red-600' : 'text-gray-900'}`}>
-                          {new Date(order.inHandsDate).toLocaleDateString()}
-                        </span>
-                        {isRushOrder && (
-                          <Badge variant="outline" className="text-xs text-red-600 border-red-200">
-                            {Math.ceil((new Date(order.inHandsDate).getTime() - new Date().getTime()) / (24 * 60 * 60 * 1000))} days
-                          </Badge>
-                        )}
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-2">
-                        <Calendar className="w-4 h-4 text-gray-400" />
-                        <span className="text-sm text-gray-500">No in-hands date specified</span>
-                      </div>
-                    )}
+                    <Separator />
 
-                    {order.createdAt && (
-                      <div className="flex items-center gap-2">
-                        <Clock className="w-4 h-4 text-gray-500" />
-                        <span className="text-sm font-medium">Order Created: </span>
-                        <span className="text-sm">
-                          {new Date(order.createdAt).toLocaleDateString()}
-                        </span>
-                      </div>
-                    )}
-
-                    {isRushOrder && (
-                      <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
-                        <div className="flex items-center gap-2 mb-1">
-                          <Zap className="w-4 h-4 text-red-600" />
-                          <span className="text-sm font-medium text-red-800">Rush Order Alert</span>
-                        </div>
-                        <p className="text-xs text-red-700">
-                          This order has a tight deadline. Coordinate with vendors for expedited production.
-                        </p>
-                      </div>
-                    )}
-
-                    {order.eventDate && (
-                      <div className="flex items-center gap-2">
-                        <Clock className="w-4 h-4 text-gray-500" />
-                        <span className="text-sm font-medium">Event Date: </span>
-                        <span className="text-sm">
-                          {new Date(order.eventDate).toLocaleDateString()}
-                        </span>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-                {/* Shipping Information */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Truck className="w-5 h-5" />
-                      Shipping Information
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    <div className="flex items-start gap-2">
-                      <MapPin className="w-4 h-4 text-gray-500 mt-0.5" />
-                      <div className="text-sm">
-                        <p className="font-medium">Shipping Address:</p>
-                        <p className="text-gray-600 whitespace-pre-line">
-                          {(order as any).shippingAddress || "No shipping address provided"}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div>
-                      <p className="text-sm font-medium text-gray-500">Shipping Method</p>
-                      <p className="text-sm">{(order as any).shippingMethod || "Not specified"}</p>
-                    </div>
-
-                    <div>
-                      <p className="text-sm font-medium text-gray-500">Tracking Number</p>
-                      <p className="text-sm font-mono">{(order as any).trackingNumber || "Not available"}</p>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* Notes & Special Instructions */}
-                {order.notes && (
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <FileText className="w-5 h-5" />
-                        Notes & Instructions
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <p className="text-sm text-gray-700 whitespace-pre-line">{order.notes}</p>
-                    </CardContent>
-                  </Card>
-                )}
-
-                {/* Order Timeline */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Clock className="w-5 h-5" />
-                      Order Timeline
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    <div className="flex items-center gap-3">
-                      <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                      <div className="text-sm">
-                        <p className="font-medium">Order Created</p>
-                        <p className="text-gray-500">
-                          {order.createdAt ? new Date(order.createdAt).toLocaleDateString() : 'N/A'}
-                        </p>
-                      </div>
-                    </div>
-
-                    {order.updatedAt && order.updatedAt !== order.createdAt && (
-                      <div className="flex items-center gap-3">
-                        <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                        <div className="text-sm">
-                          <p className="font-medium">Last Updated</p>
-                          <p className="text-gray-500">
-                            {new Date(order.updatedAt).toLocaleDateString()}
-                          </p>
-                        </div>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-
-                {/* Order Status Management */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Tag className="w-5 h-5" />
-                      Order Status
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
                     <div className="space-y-2">
                       <Label htmlFor="order-status">Current Status</Label>
                       <Select
@@ -1039,7 +1086,7 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
                         Change the order status to track progress and notify team members
                       </p>
                     </div>
-                    
+
                     {/* Status History */}
                     <div className="pt-4 border-t">
                       <p className="text-sm font-medium mb-2">Status Timeline</p>
@@ -1060,6 +1107,366 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
                     </div>
                   </CardContent>
                 </Card>
+
+                {/* Company & Contact Information */}
+                <Card className="col-span-2">
+                  <CardHeader>
+                    <CardTitle className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Building2 className="w-5 h-5" />
+                        Account Information
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleOpenEditContact}
+                        className="ml-auto"
+                      >
+                        <Edit className="w-3 h-3 mr-1" />
+                        Edit Contact
+                      </Button>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="space-y-3">
+                      <Separator />
+                      <h3 className="text-xl font-semibold">Account Details</h3>
+                      <div className="flex items-center space-x-3">
+                        <UserAvatar name={companyName} size="sm" />
+                        <div>
+                          <p className="font-semibold">{companyName}</p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-medium">Contact Name:</p>
+                        <span className="text-sm">
+                          {primaryContact
+                            ? `${primaryContact.firstName} ${primaryContact.lastName}${primaryContact.title ? ` - ${primaryContact.title}` : ''}`
+                            : "No primary contact"}
+                        </span>
+                      </div>
+
+                      {primaryContact?.email && (
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-medium">Email Contact:</p>
+                          <span className="text-sm">{primaryContact.email}</span>
+                        </div>
+                      )}
+
+                      {primaryContact?.phone && (
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-medium">Phone Contact:</p>
+                          <span className="text-sm">{primaryContact.phone}</span>
+                        </div>
+                      )}
+                    </div>
+                    <div className="space-y-3">
+                      <Separator />
+                      <div className="flex items-center justify-between">
+                        <h3 className="text-xl font-semibold">Billing Address</h3>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={handleOpenEditBillingAddress}
+                        >
+                          <Edit className="w-3 h-3 mr-1" />
+                          Edit
+                        </Button>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-medium">Billing Contact:</p>
+                        <p className="text-sm">{(order as any).billingContact || "Not specified"}</p>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-medium">Billing Customer Email:</p>
+                        <p className="text-sm">{(order as any).billingCustomerEmail || "Not specified"}</p>
+                      </div>
+
+                      <div className="flex items-start gap-2 w-full">
+                        <MapPin className="w-4 h-4 text-gray-500 mt-0.5" />
+                        <div className="text-sm w-full">
+                          {companyData?.billingAddress ? (
+                            <>
+                              {companyData.billingAddress.street && <p className="text-gray-600">{companyData.billingAddress.street}</p>}
+                              {companyData.billingAddress.city && (
+                                <p className="text-gray-600">
+                                  {companyData.billingAddress.city}
+                                  {companyData.billingAddress.state && `, ${companyData.billingAddress.state}`}
+                                  {companyData.billingAddress.zipCode && ` ${companyData.billingAddress.zipCode}`}
+                                </p>
+                              )}
+                              {companyData.billingAddress.country && <p className="text-gray-600">{companyData.billingAddress.country}</p>}
+                              {companyData.billingAddress.contactName && (
+                                <p className="text-gray-600 mt-1"><span className="font-medium">Contact:</span> {companyData.billingAddress.contactName}</p>
+                              )}
+                              {companyData.billingAddress.email && (
+                                <p className="text-gray-600"><span className="font-medium">Email:</span> {companyData.billingAddress.email}</p>
+                              )}
+                            </>
+                          ) : companyData?.address ? (
+                            <>
+                              <p className="text-gray-600">{companyData.address}</p>
+                              {(companyData.city || companyData.state || companyData.zipCode) && (
+                                <p className="text-gray-600">
+                                  {companyData.city}
+                                  {companyData.state && `, ${companyData.state}`}
+                                  {companyData.zipCode && ` ${companyData.zipCode}`}
+                                </p>
+                              )}
+                              {companyData.country && <p className="text-gray-600">{companyData.country}</p>}
+                            </>
+                          ) : (
+                            <p className="text-gray-500 italic">No billing address on file</p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="space-y-3">
+                      <Separator />
+                      <div className="flex items-center justify-between">
+                        <h3 className="text-xl font-semibold">Shipping Address</h3>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={handleOpenEditShippingAddress}
+                        >
+                          <Edit className="w-3 h-3 mr-1" />
+                          Edit
+                        </Button>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-medium">Shipping Contact:</p>
+                        <p className="text-sm">{(order as any).shippingContact || "Not specified"}</p>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-medium">Shipping Customer Email:</p>
+                        <p className="text-sm">{(order as any).shippingCustomerEmail || "Not specified"}</p>
+                      </div>
+
+                      <div className="flex items-start gap-2">
+                        <MapPin className="w-4 h-4 text-gray-500 mt-0.5" />
+                        <div className="text-sm">
+                          {(order as any).shippingAddress ? (
+                            <>
+                              <p className="font-medium">Order-Specific Shipping Address:</p>
+                              {(() => {
+                                try {
+                                  const parsed = JSON.parse((order as any).shippingAddress);
+                                  return (
+                                    <>
+                                      <p className="text-gray-600 whitespace-pre-line">{parsed.address}</p>
+                                      {parsed.contactName && (
+                                        <p className="text-gray-600 mt-1"><span className="font-medium">Contact:</span> {parsed.contactName}</p>
+                                      )}
+                                      {parsed.email && (
+                                        <p className="text-gray-600"><span className="font-medium">Email:</span> {parsed.email}</p>
+                                      )}
+                                    </>
+                                  );
+                                } catch {
+                                  return <p className="text-gray-600 whitespace-pre-line">{(order as any).shippingAddress}</p>;
+                                }
+                              })()}
+                            </>
+                          ) : companyData?.shippingAddresses && Array.isArray(companyData.shippingAddresses) && companyData.shippingAddresses.length > 0 ? (
+                            <>
+                              {companyData.shippingAddresses[0].street && <p className="text-gray-600">{companyData.shippingAddresses[0].street}</p>}
+                              {companyData.shippingAddresses[0].city && (
+                                <p className="text-gray-600">
+                                  {companyData.shippingAddresses[0].city}
+                                  {companyData.shippingAddresses[0].state && `, ${companyData.shippingAddresses[0].state}`}
+                                  {companyData.shippingAddresses[0].zipCode && ` ${companyData.shippingAddresses[0].zipCode}`}
+                                </p>
+                              )}
+                              {companyData.shippingAddresses[0].country && <p className="text-gray-600">{companyData.shippingAddresses[0].country}</p>}
+                              {companyData.shippingAddresses.length > 1 && (
+                                <p className="text-xs text-blue-600 mt-1">+{companyData.shippingAddresses.length - 1} more shipping address(es) on file</p>
+                              )}
+                            </>
+                          ) : companyData?.address ? (
+                            <>
+                              <p className="text-gray-600">{companyData.address}</p>
+                              {(companyData.city || companyData.state || companyData.zipCode) && (
+                                <p className="text-gray-600">
+                                  {companyData.city}
+                                  {companyData.state && `, ${companyData.state}`}
+                                  {companyData.zipCode && ` ${companyData.zipCode}`}
+                                </p>
+                              )}
+                              {companyData.country && <p className="text-gray-600">{companyData.country}</p>}
+                            </>
+                          ) : (
+                            <p className="text-gray-500 italic">No shipping address provided</p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Shipping Information */}
+                <Card className="col-span-2">
+                  <CardHeader>
+                    <CardTitle className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Truck className="w-5 h-5" />
+                        Shipping & Timeline Information
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleOpenEditShippingInfo}
+                        className="ml-auto"
+                      >
+                        <Edit className="w-3 h-3 mr-1" />
+                        Edit Shipping Info
+                      </Button>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {/* Date Information */}
+                    <div className="space-y-3 p-3 bg-gray-50 rounded-lg">
+                      <h4 className="text-sm font-semibold text-gray-700">Important Dates</h4>
+                      
+                      {(order as any).supplierInHandsDate && (
+                        <div className="flex items-center gap-2">
+                          <Calendar className="w-4 h-4 text-blue-600" />
+                          <span className="text-sm font-medium">Supplier In-Hands Date:</span>
+                          <span className="text-sm font-semibold text-blue-700">
+                            {format(new Date((order as any).supplierInHandsDate), 'MMM dd, yyyy')}
+                          </span>
+                        </div>
+                      )}
+
+                      {order.inHandsDate && (
+                        <div className="flex items-center gap-2">
+                          <Calendar className="w-4 h-4 text-gray-500" />
+                          <span className="text-sm font-medium">Customer Requested In-Hands Date:</span>
+                          <span className={`text-sm font-semibold ${isRushOrder ? 'text-red-600' : 'text-gray-900'}`}>
+                            {format(new Date(order.inHandsDate), 'MMM dd, yyyy')}
+                          </span>
+                          {(order as any).isFirm && (
+                            <Badge variant="destructive" className="text-xs">
+                              FIRM
+                            </Badge>
+                          )}
+                          {isRushOrder && (
+                            <Badge variant="outline" className="text-xs text-red-600 border-red-200">
+                              {Math.ceil((new Date(order.inHandsDate).getTime() - new Date().getTime()) / (24 * 60 * 60 * 1000))} days left
+                            </Badge>
+                          )}
+                        </div>
+                      )}
+
+                      {order.eventDate && (
+                        <div className="flex items-center gap-2">
+                          <Calendar className="w-4 h-4 text-purple-600" />
+                          <span className="text-sm font-medium">Event Date:</span>
+                          <span className="text-sm font-semibold text-purple-700">
+                            {format(new Date(order.eventDate), 'MMM dd, yyyy')}
+                          </span>
+                        </div>
+                      )}
+
+                      {order.createdAt && (
+                        <div className="flex items-center gap-2">
+                          <Clock className="w-4 h-4 text-gray-400" />
+                          <span className="text-sm font-medium">Order Created:</span>
+                          <span className="text-sm text-gray-600">
+                            {format(new Date(order.createdAt), 'MMM dd, yyyy')}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+
+                    {isRushOrder && (
+                      <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+                        <div className="flex items-center gap-2 mb-1">
+                          <Zap className="w-4 h-4 text-red-600" />
+                          <span className="text-sm font-medium text-red-800">Rush Order Alert</span>
+                        </div>
+                        <p className="text-xs text-red-700">
+                          This order has a tight deadline. Coordinate with vendors for expedited production.
+                        </p>
+                      </div>
+                    )}
+
+                    <Separator />
+
+                    {/* Shipping Details */}
+                    <div className="space-y-3">
+                      <h4 className="text-sm font-semibold text-gray-700">Shipping Details</h4>
+                      
+                      <div className="flex items-start gap-2">
+                        <MapPin className="w-4 h-4 text-gray-500 mt-0.5" />
+                        <div className="text-sm flex-1">
+                          <p className="font-medium text-gray-700">Shipping Address:</p>
+                          <div className="text-gray-600 whitespace-pre-line mt-1">
+                            {(() => {
+                              const shippingAddr = (order as any).shippingAddress;
+                              if (!shippingAddr) return <span className="text-gray-500 italic">No shipping address provided</span>;
+                              
+                              try {
+                                const parsed = JSON.parse(shippingAddr);
+                                return (
+                                  <>
+                                    <p>{parsed.address}</p>
+                                    {parsed.contactName && (
+                                      <p className="mt-1"><span className="font-medium">Contact:</span> {parsed.contactName}</p>
+                                    )}
+                                    {parsed.email && (
+                                      <p><span className="font-medium">Email:</span> {parsed.email}</p>
+                                    )}
+                                  </>
+                                );
+                              } catch {
+                                return <p>{shippingAddr}</p>;
+                              }
+                            })()}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <Truck className="w-4 h-4 text-gray-500" />
+                        <span className="text-sm font-medium">Shipping Method:</span>
+                        <span className="text-sm text-gray-700">
+                          {(order as any).shippingMethod || "Not specified"}
+                        </span>
+                      </div>
+
+                      {(order as any).trackingNumber && (
+                        <div className="flex items-center gap-2">
+                          <Package className="w-4 h-4 text-gray-500" />
+                          <span className="text-sm font-medium">Tracking Number:</span>
+                          <span className="text-sm font-mono text-blue-600">
+                            {(order as any).trackingNumber}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Notes & Special Instructions */}
+                {order.notes && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <FileText className="w-5 h-5" />
+                        Notes & Instructions
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-sm text-gray-700 whitespace-pre-line">{order.notes}</p>
+                    </CardContent>
+                  </Card>
+                )}
 
                 {/* Production Stages Progress */}
                 <Card className="md:col-span-2">
@@ -1186,12 +1593,12 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
                         // Get current product to find supplier
                         const currentProduct = allProducts.find((p: any) => p.id === item.productId);
                         const currentSupplierId = currentProduct?.supplierId || item.supplierId;
-                        
+
                         // Fallback: lookup supplier from suppliers array
-                        const itemSupplier = item.supplierName 
-                          ? { name: item.supplierName } 
-                          : currentSupplierId 
-                            ? suppliers.find((s: any) => s.id === currentSupplierId) 
+                        const itemSupplier = item.supplierName
+                          ? { name: item.supplierName }
+                          : currentSupplierId
+                            ? suppliers.find((s: any) => s.id === currentSupplierId)
                             : null;
 
                         return (
@@ -1212,7 +1619,7 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
                                       size="sm"
                                       onClick={async () => {
                                         const prodId = item.productId;
-                                        
+
                                         if (!prodId) {
                                           toast({
                                             title: "Error",
@@ -1226,7 +1633,7 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
                                           const response = await fetch(`/api/products/${prodId}`, {
                                             credentials: 'include'
                                           });
-                                          
+
                                           if (!response.ok) {
                                             toast({
                                               title: "Error",
@@ -1235,7 +1642,7 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
                                             });
                                             return;
                                           }
-                                          
+
                                           const product = await response.json();
                                           setEditingProduct(product);
                                           setIsProductModalOpen(true);
@@ -1258,7 +1665,7 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
                                       size="sm"
                                       onClick={() => {
                                         const prodId = item.productId;
-                                        
+
                                         if (!prodId) {
                                           toast({
                                             title: "Error",
@@ -1267,7 +1674,7 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
                                           });
                                           return;
                                         }
-                                        
+
                                         setDeletingProduct({
                                           ...item,
                                           productId: prodId
@@ -1281,7 +1688,7 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
                                     </Button>
                                   </div>
                                 </div>
-                                
+
                                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-3">
                                   <div>
                                     <p className="text-xs text-gray-500 uppercase">Quantity</p>
@@ -1608,7 +2015,7 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
                                 {companyName && <p className="text-sm my-1"><strong>Company:</strong> {companyName}</p>}
                               </div>
                             )}
-                            <div 
+                            <div
                               className="text-gray-700 text-sm leading-relaxed prose prose-sm max-w-none"
                               dangerouslySetInnerHTML={{ __html: emailBody || "<p class='text-gray-400 italic'>No content yet...</p>" }}
                             />
@@ -1908,7 +2315,7 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
                                   {selectedVendor?.name && <p className="text-sm my-1"><strong>Vendor:</strong> {selectedVendor.name}</p>}
                                 </div>
                               )}
-                              <div 
+                              <div
                                 className="text-gray-700 text-sm leading-relaxed prose prose-sm max-w-none"
                                 dangerouslySetInnerHTML={{ __html: vendorEmailBody || "<p class='text-gray-400 italic'>No content yet...</p>" }}
                               />
@@ -2247,6 +2654,297 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Edit Contact Dialog */}
+      <Dialog open={isEditContactOpen} onOpenChange={setIsEditContactOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit Primary Contact</DialogTitle>
+            <DialogDescription>
+              Select the primary contact for this order
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <Select value={selectedContactId} onValueChange={setSelectedContactId}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select a contact" />
+              </SelectTrigger>
+              <SelectContent>
+                {contacts.map((contact: any) => (
+                  <SelectItem key={contact.id} value={contact.id}>
+                    <div className="flex items-center gap-2">
+                      <UserAvatar name={`${contact.firstName} ${contact.lastName}`} size="sm" />
+                      <div>
+                        <p className="font-medium">{contact.firstName} {contact.lastName}</p>
+                        <p className="text-xs text-gray-500">{contact.email}</p>
+                      </div>
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => setIsEditContactOpen(false)} className="flex-1">
+              Cancel
+            </Button>
+            <Button onClick={handleSaveContact} disabled={updateOrderContactMutation.isPending} className="flex-1">
+              {updateOrderContactMutation.isPending ? "Saving..." : "Save Changes"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Billing Address Dialog */}
+      <Dialog open={isEditBillingAddressOpen} onOpenChange={setIsEditBillingAddressOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit Billing Address</DialogTitle>
+            <DialogDescription>
+              Update the billing address for {companyName}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div>
+              <Label htmlFor="billing-street">Street Address</Label>
+              <Input
+                id="billing-street"
+                value={billingAddressForm.street}
+                onChange={(e) => setBillingAddressForm({ ...billingAddressForm, street: e.target.value })}
+                placeholder="123 Main St"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <Label htmlFor="billing-city">City</Label>
+                <Input
+                  id="billing-city"
+                  value={billingAddressForm.city}
+                  onChange={(e) => setBillingAddressForm({ ...billingAddressForm, city: e.target.value })}
+                  placeholder="City"
+                />
+              </div>
+              <div>
+                <Label htmlFor="billing-state">State</Label>
+                <Input
+                  id="billing-state"
+                  value={billingAddressForm.state}
+                  onChange={(e) => setBillingAddressForm({ ...billingAddressForm, state: e.target.value })}
+                  placeholder="CA"
+                  maxLength={2}
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <Label htmlFor="billing-zip">ZIP Code</Label>
+                <Input
+                  id="billing-zip"
+                  value={billingAddressForm.zipCode}
+                  onChange={(e) => setBillingAddressForm({ ...billingAddressForm, zipCode: e.target.value })}
+                  placeholder="12345"
+                />
+              </div>
+              <div>
+                <Label htmlFor="billing-country">Country</Label>
+                <Input
+                  id="billing-country"
+                  value={billingAddressForm.country}
+                  onChange={(e) => setBillingAddressForm({ ...billingAddressForm, country: e.target.value })}
+                  placeholder="US"
+                />
+              </div>
+            </div>
+            
+            <Separator />
+            
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <Label htmlFor="billing-contact">Contact Name</Label>
+                <Input
+                  id="billing-contact"
+                  value={billingAddressForm.contactName}
+                  onChange={(e) => setBillingAddressForm({ ...billingAddressForm, contactName: e.target.value })}
+                  placeholder="John Doe"
+                />
+              </div>
+              <div>
+                <Label htmlFor="billing-email">Email</Label>
+                <Input
+                  id="billing-email"
+                  type="email"
+                  value={billingAddressForm.email}
+                  onChange={(e) => setBillingAddressForm({ ...billingAddressForm, email: e.target.value })}
+                  placeholder="billing@company.com"
+                />
+              </div>
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => setIsEditBillingAddressOpen(false)} className="flex-1">
+              Cancel
+            </Button>
+            <Button onClick={handleSaveBillingAddress} disabled={updateBillingAddressMutation.isPending} className="flex-1">
+              {updateBillingAddressMutation.isPending ? "Saving..." : "Save Changes"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Shipping Address Dialog */}
+      <Dialog open={isEditShippingAddressOpen} onOpenChange={setIsEditShippingAddressOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit Shipping Address</DialogTitle>
+            <DialogDescription>
+              Update the shipping address for this order
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="flex justify-end">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const billing = companyData?.billingAddress || {};
+                  const billingAddr = [
+                    billing.street,
+                    [billing.city, billing.state, billing.zipCode].filter(Boolean).join(', '),
+                    billing.country
+                  ].filter(Boolean).join('\n');
+                  
+                  setShippingAddressForm({
+                    address: billingAddr,
+                    contactName: billing.contactName || "",
+                    email: billing.email || ""
+                  });
+                }}
+              >
+                📋 Copy from Billing Address
+              </Button>
+            </div>
+            
+            <div>
+              <Label htmlFor="shipping-address">Shipping Address</Label>
+              <Textarea
+                id="shipping-address"
+                value={shippingAddressForm.address}
+                onChange={(e) => setShippingAddressForm({ ...shippingAddressForm, address: e.target.value })}
+                placeholder="Enter complete shipping address"
+                rows={5}
+              />
+            </div>
+            
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <Label htmlFor="shipping-contact">Contact Name</Label>
+                <Input
+                  id="shipping-contact"
+                  value={shippingAddressForm.contactName}
+                  onChange={(e) => setShippingAddressForm({ ...shippingAddressForm, contactName: e.target.value })}
+                  placeholder="Jane Smith"
+                />
+              </div>
+              <div>
+                <Label htmlFor="shipping-email">Email</Label>
+                <Input
+                  id="shipping-email"
+                  type="email"
+                  value={shippingAddressForm.email}
+                  onChange={(e) => setShippingAddressForm({ ...shippingAddressForm, email: e.target.value })}
+                  placeholder="shipping@company.com"
+                />
+              </div>
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => setIsEditShippingAddressOpen(false)} className="flex-1">
+              Cancel
+            </Button>
+            <Button onClick={handleSaveShippingAddress} disabled={updateShippingAddressMutation.isPending} className="flex-1">
+              {updateShippingAddressMutation.isPending ? "Saving..." : "Save Changes"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Shipping Info Dialog */}
+      <Dialog open={isEditShippingInfoOpen} onOpenChange={setIsEditShippingInfoOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Edit Shipping & Timeline Information</DialogTitle>
+            <DialogDescription>
+              Update shipping details and important dates
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="supplier-in-hands">Supplier In-Hands Date</Label>
+                <Input
+                  id="supplier-in-hands"
+                  type="date"
+                  value={shippingInfoForm.supplierInHandsDate}
+                  onChange={(e) => setShippingInfoForm({ ...shippingInfoForm, supplierInHandsDate: e.target.value })}
+                />
+              </div>
+              <div>
+                <Label htmlFor="customer-in-hands">Customer In-Hands Date</Label>
+                <Input
+                  id="customer-in-hands"
+                  type="date"
+                  value={shippingInfoForm.inHandsDate}
+                  onChange={(e) => setShippingInfoForm({ ...shippingInfoForm, inHandsDate: e.target.value })}
+                />
+              </div>
+            </div>
+            
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="event-date">Event Date</Label>
+                <Input
+                  id="event-date"
+                  type="date"
+                  value={shippingInfoForm.eventDate}
+                  onChange={(e) => setShippingInfoForm({ ...shippingInfoForm, eventDate: e.target.value })}
+                />
+              </div>
+              <div className="flex items-center space-x-2 pt-6">
+                <input
+                  type="checkbox"
+                  id="is-firm"
+                  checked={shippingInfoForm.isFirm}
+                  onChange={(e) => setShippingInfoForm({ ...shippingInfoForm, isFirm: e.target.checked })}
+                  className="rounded"
+                />
+                <Label htmlFor="is-firm">Firm In-Hands Date</Label>
+              </div>
+            </div>
+
+            <Separator />
+
+            <div>
+              <Label htmlFor="shipping-method">Shipping Method</Label>
+              <Input
+                id="shipping-method"
+                value={shippingInfoForm.shippingMethod}
+                onChange={(e) => setShippingInfoForm({ ...shippingInfoForm, shippingMethod: e.target.value })}
+                placeholder="e.g., UPS Ground, FedEx 2-Day"
+              />
+              <p className="text-xs text-gray-500 mt-1">💡 Tracking number will be added during shipment in Production Report</p>
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => setIsEditShippingInfoOpen(false)} className="flex-1">
+              Cancel
+            </Button>
+            <Button onClick={handleSaveShippingInfo} disabled={updateShippingInfoMutation.isPending} className="flex-1">
+              {updateShippingInfoMutation.isPending ? "Saving..." : "Save Changes"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

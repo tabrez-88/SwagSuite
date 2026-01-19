@@ -624,7 +624,7 @@ export default function ProjectPage() {
               </div>
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <p className="text-sm text-gray-500">Assigned To</p>
+                  <p className="text-sm text-gray-500">Sales Rep</p>
                   <Button
                     variant="ghost"
                     size="sm"
@@ -709,6 +709,16 @@ export default function ProjectPage() {
                   </p>
                 </div>
               )}
+              {order.eventDate && (
+                <div>
+                  <p className="text-sm text-gray-500">Event Date</p>
+                  <p className="text-sm flex items-center gap-1">
+                    <Calendar className="w-4 h-4" />
+                    {format(new Date(order.eventDate), 'MMM dd, yyyy')}
+                  </p>
+                </div>
+              )}
+
               <div>
                 <p className="text-sm text-gray-500">Created</p>
                 <p className="text-sm">
