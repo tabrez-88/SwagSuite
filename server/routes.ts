@@ -20,8 +20,8 @@ import {
 import type { Express } from "express";
 import fs from "fs";
 import { createServer, type Server } from "http";
-import multer from "multer";
 import path from "path";
+import { upload, presentationUpload, getCloudinaryUrl, getOptimizedImageUrl, deleteFromCloudinary, cloudinary } from "./cloudinary";
 import { sendSlackMessage } from "../shared/slack";
 import { isAuthenticated, setupAuth } from "./replitAuth";
 import { SsActivewearService } from "./ssActivewearService";
@@ -48,62 +48,7 @@ interface SocialMediaPost {
   isExcitingNews: boolean;
 }
 
-// Configure multer for file uploads
-const uploadDir = path.join(process.cwd(), 'uploads');
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir, { recursive: true });
-}
-
-const upload = multer({
-  dest: uploadDir,
-  limits: {
-    fileSize: 50 * 1024 * 1024, // 50MB limit for data files
-  },
-  fileFilter: (req, file, cb) => {
-    // Allow data import file types
-    const allowedTypes = [
-      'image/jpeg', 'image/png', 'image/gif',
-      'application/pdf',
-      'application/postscript', // .ai, .eps files
-      'image/svg+xml',
-      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // .xlsx
-      'application/vnd.ms-excel', // .xls
-      'text/csv',
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // .docx
-      'application/msword' // .doc
-    ];
-
-    if (allowedTypes.includes(file.mimetype) ||
-      file.originalname.toLowerCase().endsWith('.ai') ||
-      file.originalname.toLowerCase().endsWith('.eps') ||
-      file.originalname.toLowerCase().endsWith('.csv') ||
-      file.originalname.toLowerCase().endsWith('.xlsx') ||
-      file.originalname.toLowerCase().endsWith('.xls') ||
-      file.originalname.toLowerCase().endsWith('.docx') ||
-      file.originalname.toLowerCase().endsWith('.doc')) {
-      cb(null, true);
-    } else {
-      cb(new Error('Invalid file type. Only images, PDF, AI, EPS, Excel, CSV, and Word files are allowed.'));
-    }
-  }
-});
-
-// Separate upload configuration for presentation files
-const presentationUpload = multer({
-  dest: uploadDir,
-  limits: {
-    fileSize: 10 * 1024 * 1024, // 10MB limit for presentation files
-  },
-  fileFilter: (req, file, cb) => {
-    const allowedTypes = ['.ai', '.eps', '.jpeg', '.jpg', '.png', '.pdf', '.psd', '.svg'];
-    const ext = path.extname(file.originalname).toLowerCase();
-    if (allowedTypes.includes(ext)) {
-      cb(null, true);
-    } else {
-      cb(new Error('Invalid file type. Only AI, EPS, JPEG, PNG, PDF, PSD, and SVG files are allowed.'));
-    }
-  }
-});
+// Multer is now configured in cloudinary.ts with Cloudinary storage
 
 // Initialize Anthropic client
 const anthropic = process.env.ANTHROPIC_API_KEY ? new Anthropic({
@@ -1804,15 +1749,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const { orderId, companyId } = req.body;
+      
+      // File is uploaded to Cloudinary via multer-storage-cloudinary
+      // req.file.path contains the Cloudinary URL
+      // req.file.filename contains the Cloudinary public_id
 
       const artworkFile = await storage.createArtworkFile({
         orderId: orderId || null,
         companyId: companyId || null,
-        fileName: req.file.filename,
+        fileName: (req.file as any).filename || (req.file as any).public_id,
         originalName: req.file.originalname,
         fileSize: req.file.size,
         mimeType: req.file.mimetype,
-        filePath: req.file.path,
+        filePath: (req.file as any).path, // Cloudinary URL
         uploadedBy: (req.user as any)?.id,
       });
 
@@ -1855,13 +1804,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "No file uploaded" });
       }
 
+      // File is uploaded to Cloudinary via multer-storage-cloudinary
+      // req.file.path contains the Cloudinary URL
+      
       // Create upload record
       const dataUpload = await storage.createDataUpload({
-        fileName: req.file.filename,
+        fileName: (req.file as any).filename || (req.file as any).public_id,
         originalName: req.file.originalname,
         fileSize: req.file.size,
         mimeType: req.file.mimetype,
-        filePath: req.file.path,
+        filePath: (req.file as any).path, // Cloudinary URL
         uploadedBy: req.user?.claims?.sub,
         status: 'pending'
       });
@@ -6389,6 +6341,145 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Upload file to project
+  app.post("/api/projects/:orderId/upload", upload.single('file'), async (req, res) => {
+    try {
+      const { orderId } = req.params;
+      const file = req.file;
+
+      if (!file) {
+        return res.status(400).json({ error: "No file uploaded" });
+      }
+
+      // Import dependencies
+      const { db } = await import("./db");
+      const { users } = await import("@shared/schema");
+      const { projectActivities, insertProjectActivitySchema } = await import("@shared/project-schema");
+      const { eq } = await import("drizzle-orm");
+
+      // Get current user ID
+      const currentUserId = req.user?.claims?.sub || "system-user";
+
+      // File is uploaded to Cloudinary via multer-storage-cloudinary
+      // req.file.path contains the Cloudinary URL
+      const cloudinaryUrl = (file as any).path;
+      const publicId = (file as any).filename || (file as any).public_id;
+
+      // Create activity record
+      const validatedData = insertProjectActivitySchema.parse({
+        orderId,
+        userId: currentUserId,
+        activityType: "file_upload",
+        content: `Uploaded file: ${file.originalname}`,
+        mentionedUsers: [],
+        isSystemGenerated: false,
+        metadata: {
+          fileName: file.originalname,
+          fileSize: file.size,
+          mimeType: file.mimetype,
+          cloudinaryUrl: cloudinaryUrl,
+          cloudinaryPublicId: publicId,
+        },
+      });
+
+      const [newActivity] = await db
+        .insert(projectActivities)
+        .values(validatedData)
+        .returning();
+
+      // Fetch the complete activity with user info
+      const [activityWithUser] = await db
+        .select({
+          id: projectActivities.id,
+          orderId: projectActivities.orderId,
+          userId: projectActivities.userId,
+          activityType: projectActivities.activityType,
+          content: projectActivities.content,
+          metadata: projectActivities.metadata,
+          mentionedUsers: projectActivities.mentionedUsers,
+          isSystemGenerated: projectActivities.isSystemGenerated,
+          createdAt: projectActivities.createdAt,
+          user: {
+            id: users.id,
+            firstName: users.firstName,
+            lastName: users.lastName,
+            email: users.email,
+          },
+        })
+        .from(projectActivities)
+        .leftJoin(users, eq(projectActivities.userId, users.id))
+        .where(eq(projectActivities.id, newActivity.id));
+
+      res.json(activityWithUser);
+    } catch (error) {
+      console.error("Error uploading file:", error);
+      res.status(500).json({ error: "Failed to upload file" });
+    }
+  });
+
+  // Download file from project
+  app.get("/api/projects/:orderId/files/:activityId", async (req, res) => {
+    try {
+      const { orderId, activityId } = req.params;
+
+      // Import dependencies
+      const { db } = await import("./db");
+      const { projectActivities } = await import("@shared/project-schema");
+      const { eq, and } = await import("drizzle-orm");
+
+      // Get activity to find file metadata
+      const [activity] = await db
+        .select()
+        .from(projectActivities)
+        .where(
+          and(
+            eq(projectActivities.id, activityId),
+            eq(projectActivities.orderId, orderId),
+            eq(projectActivities.activityType, "file_upload")
+          )
+        );
+
+      const metadata = activity?.metadata as { 
+        cloudinaryUrl?: string; 
+        cloudinaryPublicId?: string;
+        storagePath?: string; // legacy support
+        mimeType?: string; 
+        fileName?: string 
+      } | undefined;
+      
+      if (!activity || (!metadata?.cloudinaryUrl && !metadata?.storagePath)) {
+        return res.status(404).json({ error: "File not found" });
+      }
+
+      // If Cloudinary URL exists, redirect to it
+      if (metadata.cloudinaryUrl) {
+        // Generate download URL with proper attachment header
+        const downloadUrl = cloudinary.url(metadata.cloudinaryPublicId || '', {
+          flags: 'attachment',
+          resource_type: 'auto',
+        });
+        
+        return res.redirect(downloadUrl);
+      }
+
+      // Legacy: handle old Replit Storage files
+      const { replitStorage } = await import("./replitStorage");
+      const fileBuffer = await replitStorage.downloadFile(metadata.storagePath!);
+
+      if (!fileBuffer) {
+        return res.status(404).json({ error: "File not found in storage" });
+      }
+
+      // Set appropriate headers
+      res.setHeader('Content-Type', metadata.mimeType || 'application/octet-stream');
+      res.setHeader('Content-Disposition', `attachment; filename="${metadata.fileName}"`);
+      res.send(fileBuffer);
+    } catch (error) {
+      console.error("Error downloading file:", error);
+      res.status(500).json({ error: "Failed to download file" });
+    }
+  });
+
   // Team members API for @ mentions and assignments
   app.get("/api/users/team", async (req, res) => {
     try {
@@ -6929,18 +7020,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
 
           // Save metadata to database
+          const attachmentData = {
+            filename: file.filename,
+            originalFilename: file.originalname,
+            storagePath: uploadedPath,
+            mimeType: file.mimetype || null,
+            fileSize: file.size || null,
+            category: category || 'attachment',
+            uploadedBy: userId || null,
+            orderId: orderId,
+          };
+          
           const [attachment] = await db
             .insert(attachments)
-            .values({
-              orderId: orderId,
-              filename: file.filename || '',
-              originalFilename: file.originalname || '',
-              storagePath: uploadedPath,
-              mimeType: file.mimetype || null,
-              fileSize: file.size || null,
-              category: category || 'attachment',
-              uploadedBy: userId || null,
-            })
+            .values(attachmentData as any)
             .returning();
 
           uploadedAttachments.push(attachment);
@@ -7322,7 +7415,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json({
         ...newApproval,
-        approvalUrl: `${req.protocol}://${req.get('host')}/approve/${token}`
+        approvalUrl: `${req.protocol}://${req.get('host')}/approval/${token}`
       });
     } catch (error) {
       console.error('Error generating approval link:', error);
@@ -7369,6 +7462,689 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Error fetching approvals:', error);
       res.status(500).json({ message: 'Failed to fetch approvals' });
+    }
+  });
+
+  // PUBLIC APPROVAL ENDPOINTS (No authentication required)
+  
+  // Get approval details by token (PUBLIC)
+  app.get("/api/approvals/:token", async (req, res) => {
+    try {
+      const { token } = req.params;
+      
+      const { db } = await import("./db");
+      const { artworkApprovals, orders, orderItems, products, companies } = await import("@shared/schema");
+      const { eq } = await import("drizzle-orm");
+      
+      const [approval] = await db
+        .select({
+          id: artworkApprovals.id,
+          orderId: artworkApprovals.orderId,
+          orderItemId: artworkApprovals.orderItemId,
+          artworkFileId: artworkApprovals.artworkFileId,
+          approvalToken: artworkApprovals.approvalToken,
+          status: artworkApprovals.status,
+          approvedAt: artworkApprovals.approvedAt,
+          declinedAt: artworkApprovals.declinedAt,
+          declineReason: artworkApprovals.declineReason,
+          pdfPath: artworkApprovals.pdfPath,
+          orderNumber: orders.orderNumber,
+          companyId: orders.companyId,
+          companyName: companies.name,
+          productName: products.name,
+          productSku: products.sku,
+          itemQuantity: orderItems.quantity,
+          itemColor: orderItems.color,
+          itemSize: orderItems.size,
+        })
+        .from(artworkApprovals)
+        .leftJoin(orders, eq(artworkApprovals.orderId, orders.id))
+        .leftJoin(companies, eq(orders.companyId, companies.id))
+        .leftJoin(orderItems, eq(artworkApprovals.orderItemId, orderItems.id))
+        .leftJoin(products, eq(orderItems.productId, products.id))
+        .where(eq(artworkApprovals.approvalToken, token));
+
+      if (!approval) {
+        return res.status(404).json({ message: "Approval not found" });
+      }
+
+      // Format response
+      const response = {
+        id: approval.id,
+        orderId: approval.orderId,
+        orderItemId: approval.orderItemId,
+        approvalToken: approval.approvalToken,
+        status: approval.status,
+        artworkUrl: approval.pdfPath,
+        approvedAt: approval.approvedAt,
+        rejectedAt: approval.declinedAt,
+        comments: approval.declineReason,
+        order: {
+          orderNumber: approval.orderNumber,
+          companyName: approval.companyName || "Individual Client",
+        },
+        orderItem: {
+          productName: approval.productName || "Product",
+          productSku: approval.productSku,
+          quantity: approval.itemQuantity || 0,
+          color: approval.itemColor,
+          size: approval.itemSize,
+        },
+      };
+
+      res.json(response);
+    } catch (error) {
+      console.error('Error fetching approval:', error);
+      res.status(500).json({ message: 'Failed to fetch approval' });
+    }
+  });
+
+  // Approve artwork (PUBLIC)
+  app.post("/api/approvals/:token/approve", async (req, res) => {
+    try {
+      const { token } = req.params;
+      const { comments } = req.body;
+      
+      const { db } = await import("./db");
+      const { artworkApprovals } = await import("@shared/schema");
+      const { projectActivities } = await import("@shared/project-schema");
+      const { eq } = await import("drizzle-orm");
+      
+      // Get approval
+      const [approval] = await db
+        .select()
+        .from(artworkApprovals)
+        .where(eq(artworkApprovals.approvalToken, token));
+
+      if (!approval) {
+        return res.status(404).json({ message: "Approval not found" });
+      }
+
+      if (approval.status !== "pending") {
+        return res.status(400).json({ message: "This approval has already been processed" });
+      }
+
+      // Update approval status
+      const [updated] = await db
+        .update(artworkApprovals)
+        .set({
+          status: "approved",
+          approvedAt: new Date(),
+          declineReason: comments || null,
+          updatedAt: new Date(),
+        })
+        .where(eq(artworkApprovals.id, approval.id))
+        .returning();
+
+      // Create activity log
+      if (approval.orderId) {
+        try {
+          await db.insert(projectActivities).values({
+            orderId: approval.orderId,
+            userId: "system", // System-generated activity
+            activityType: "artwork_approved",
+            content: `Artwork approved by client${comments ? `: ${comments}` : ''}`,
+            metadata: {
+              approvalId: approval.id,
+              clientEmail: approval.clientEmail,
+              orderItemId: approval.orderItemId,
+            },
+            mentionedUsers: [],
+            isSystemGenerated: true,
+          });
+        } catch (err) {
+          console.error('Error creating activity:', err);
+        }
+      }
+
+      res.json({ success: true, approval: updated });
+    } catch (error) {
+      console.error('Error approving artwork:', error);
+      res.status(500).json({ message: 'Failed to approve artwork' });
+    }
+  });
+
+  // Reject artwork (PUBLIC)
+  app.post("/api/approvals/:token/reject", async (req, res) => {
+    try {
+      const { token } = req.params;
+      const { comments } = req.body;
+      
+      if (!comments || !comments.trim()) {
+        return res.status(400).json({ message: "Comments are required for rejection" });
+      }
+      
+      const { db } = await import("./db");
+      const { artworkApprovals } = await import("@shared/schema");
+      const { projectActivities } = await import("@shared/project-schema");
+      const { eq } = await import("drizzle-orm");
+      
+      // Get approval
+      const [approval] = await db
+        .select()
+        .from(artworkApprovals)
+        .where(eq(artworkApprovals.approvalToken, token));
+
+      if (!approval) {
+        return res.status(404).json({ message: "Approval not found" });
+      }
+
+      if (approval.status !== "pending") {
+        return res.status(400).json({ message: "This approval has already been processed" });
+      }
+
+      // Update approval status
+      const [updated] = await db
+        .update(artworkApprovals)
+        .set({
+          status: "declined",
+          declinedAt: new Date(),
+          declineReason: comments,
+          updatedAt: new Date(),
+        })
+        .where(eq(artworkApprovals.id, approval.id))
+        .returning();
+
+      // Create activity log
+      if (approval.orderId) {
+        try {
+          await db.insert(projectActivities).values({
+            orderId: approval.orderId,
+            userId: "system",
+            activityType: "artwork_rejected",
+            content: `Artwork revision requested by client: ${comments}`,
+            metadata: {
+              approvalId: approval.id,
+              clientEmail: approval.clientEmail,
+              orderItemId: approval.orderItemId,
+            },
+            mentionedUsers: [],
+            isSystemGenerated: true,
+          });
+        } catch (err) {
+          console.error('Error creating activity:', err);
+        }
+      }
+
+      res.json({ success: true, approval: updated });
+    } catch (error) {
+      console.error('Error rejecting artwork:', error);
+      res.status(500).json({ message: 'Failed to reject artwork' });
+    }
+  });
+
+  // Get all files for an order
+  app.get("/api/orders/:orderId/files", isAuthenticated, async (req, res) => {
+    try {
+      const { orderId } = req.params;
+      const { db } = await import("./db");
+      const { orderFiles, orderItems, products, artworkApprovals, artworkFiles } = await import("@shared/schema");
+      const { eq, and, sql } = await import("drizzle-orm");
+
+      const files = await db
+        .select({
+          id: orderFiles.id,
+          fileName: orderFiles.fileName,
+          originalName: orderFiles.originalName,
+          fileSize: orderFiles.fileSize,
+          mimeType: orderFiles.mimeType,
+          filePath: orderFiles.filePath,
+          thumbnailPath: orderFiles.thumbnailPath,
+          fileType: orderFiles.fileType,
+          tags: orderFiles.tags,
+          orderItemId: orderFiles.orderItemId,
+          notes: orderFiles.notes,
+          uploadedBy: orderFiles.uploadedBy,
+          createdAt: orderFiles.createdAt,
+          // Order item fields (will be null if no join)
+          itemId: orderItems.id,
+          itemColor: orderItems.color,
+          itemSize: orderItems.size,
+          itemQuantity: orderItems.quantity,
+          productId: orderItems.productId,
+          productName: products.name,
+          productSku: products.sku,
+        })
+        .from(orderFiles)
+        .leftJoin(orderItems, eq(orderFiles.orderItemId, orderItems.id))
+        .leftJoin(products, eq(orderItems.productId, products.id))
+        .where(eq(orderFiles.orderId, orderId))
+        .orderBy(orderFiles.createdAt);
+
+      // Get approval status by joining artworkApprovals with artworkFiles
+      // Match orderFiles.filePath with artworkFiles.filePath to find related approvals
+      let approvalMap = new Map();
+      
+      if (files.length > 0) {
+        const approvals = await db
+          .select({
+            artworkFilePath: artworkFiles.filePath,
+            status: artworkApprovals.status,
+            approvedAt: artworkApprovals.approvedAt,
+            declinedAt: artworkApprovals.declinedAt,
+            declineReason: artworkApprovals.declineReason,
+            approvalToken: artworkApprovals.approvalToken,
+          })
+          .from(artworkApprovals)
+          .innerJoin(artworkFiles, eq(artworkApprovals.artworkFileId, artworkFiles.id))
+          .where(eq(artworkApprovals.orderId, orderId));
+
+        // Map approvals by artwork file path (which matches orderFile path)
+        approvals.forEach(approval => {
+          if (approval.artworkFilePath) {
+            approvalMap.set(approval.artworkFilePath, {
+              status: approval.status,
+              approvedAt: approval.approvedAt,
+              declinedAt: approval.declinedAt,
+              feedback: approval.declineReason,
+              approvalToken: approval.approvalToken,
+            });
+          }
+        });
+      }
+
+      // Transform to include nested orderItem object and approval status
+      const transformedFiles = files.map(file => ({
+        id: file.id,
+        fileName: file.fileName,
+        originalName: file.originalName,
+        fileSize: file.fileSize,
+        mimeType: file.mimeType,
+        filePath: file.filePath,
+        thumbnailPath: file.thumbnailPath,
+        fileType: file.fileType,
+        tags: file.tags,
+        orderItemId: file.orderItemId,
+        notes: file.notes,
+        uploadedBy: file.uploadedBy,
+        createdAt: file.createdAt,
+        orderItem: file.itemId ? {
+          id: file.itemId,
+          color: file.itemColor,
+          size: file.itemSize,
+          quantity: file.itemQuantity,
+          productId: file.productId,
+          productName: file.productName,
+          productSku: file.productSku,
+        } : null,
+        // Include approval info for customer_proof files
+        approval: file.fileType === 'customer_proof' && approvalMap.has(file.filePath) 
+          ? approvalMap.get(file.filePath) 
+          : null
+      }));
+
+      res.json(transformedFiles);
+    } catch (error) {
+      console.error('Error fetching order files:', error);
+      res.status(500).json({ message: 'Failed to fetch order files' });
+    }
+  });
+
+  // Upload files to order
+  app.post("/api/orders/:orderId/files", isAuthenticated, upload.array("files", 10), async (req, res) => {
+    try {
+      const { orderId } = req.params;
+      const { fileType = "customer_proof", notes, autoGenerateApproval } = req.body;
+      const files = req.files as Express.Multer.File[];
+
+      if (!files || files.length === 0) {
+        return res.status(400).json({ message: "No files uploaded" });
+      }
+
+      // Parse productIds array from request body (for customer_proof with per-file assignments)
+      const productIds: (string | undefined)[] = [];
+      if (fileType === "customer_proof") {
+        // Check if multer already parsed it as array
+        if (Array.isArray(req.body.productIds)) {
+          productIds.push(...req.body.productIds);
+        } else if (req.body.productIds) {
+          productIds.push(req.body.productIds);
+        } else {
+          // Handle array format: productIds[0], productIds[1], etc.
+          Object.keys(req.body)
+            .filter(key => key.startsWith('productIds['))
+            .sort((a, b) => {
+              const indexA = parseInt(a.match(/\d+/)?.[0] || '0');
+              const indexB = parseInt(b.match(/\d+/)?.[0] || '0');
+              return indexA - indexB;
+            })
+            .forEach(key => {
+              productIds.push(req.body[key]);
+            });
+        }
+      }
+
+      const { db } = await import("./db");
+      const { orderFiles, orders, artworkFiles, artworkApprovals, orderItems, products } = await import("@shared/schema");
+      const { eq } = await import("drizzle-orm");
+
+      // Verify order exists
+      const [order] = await db.select().from(orders).where(eq(orders.id, orderId));
+      if (!order) {
+        return res.status(404).json({ message: "Order not found" });
+      }
+
+      const userId = (req.user as any)?.id;
+
+      // Create file records
+      const uploadedFiles = await Promise.all(
+        files.map(async (file, index) => {
+          // File is uploaded to Cloudinary
+          const cloudinaryUrl = (file as any).path;
+          const publicId = (file as any).filename || (file as any).public_id;
+          
+          // Get product ID for this file (if customer_proof)
+          const orderItemId = fileType === "customer_proof" && productIds[index] 
+            ? productIds[index] 
+            : null;
+          
+          const [fileRecord] = await db
+            .insert(orderFiles)
+            .values({
+              orderId,
+              orderItemId: orderItemId || null,
+              fileName: publicId,
+              originalName: file.originalname,
+              fileSize: file.size,
+              mimeType: file.mimetype,
+              filePath: cloudinaryUrl, // Store Cloudinary URL
+              fileType,
+              tags: [fileType],
+              notes: notes || null,
+              uploadedBy: userId,
+            })
+            .returning();
+
+          return { fileRecord, orderItemId };
+        })
+      );
+
+      // Auto-generate approval links for customer proofs
+      const approvalLinks = [];
+      if (fileType === "customer_proof" && autoGenerateApproval === "true") {
+        const crypto = await import("crypto");
+        
+        for (const { fileRecord, orderItemId } of uploadedFiles) {
+          if (!orderItemId) continue;
+
+          // Get product info
+          const [orderItem] = await db
+            .select({
+              productId: orderItems.productId,
+              productName: products.name,
+            })
+            .from(orderItems)
+            .leftJoin(products, eq(orderItems.productId, products.id))
+            .where(eq(orderItems.id, orderItemId));
+
+          // Copy file to artworkFiles table
+          const [newArtworkFile] = await db.insert(artworkFiles).values({
+            orderId,
+            fileName: fileRecord.fileName,
+            filePath: fileRecord.filePath,
+            originalName: fileRecord.originalName,
+            fileSize: fileRecord.fileSize,
+            mimeType: fileRecord.mimeType,
+            uploadedBy: userId,
+          }).returning();
+
+          // Generate approval token
+          const approvalToken = crypto.randomBytes(32).toString("hex");
+
+          // Create approval record
+          await db.insert(artworkApprovals).values({
+            orderId,
+            orderItemId,
+            artworkFileId: newArtworkFile.id,
+            approvalToken,
+            status: "pending",
+            sentAt: new Date(),
+          });
+
+          approvalLinks.push({
+            token: approvalToken,
+            productName: orderItem?.productName || 'Product',
+            fileId: fileRecord.id,
+          });
+        }
+      }
+
+      res.json({ 
+        files: uploadedFiles.map(f => f.fileRecord),
+        approvalLinks: approvalLinks.length > 0 ? approvalLinks : undefined,
+      });
+    } catch (error) {
+      console.error('Error uploading order files:', error);
+      res.status(500).json({ message: 'Failed to upload files' });
+    }
+  });
+
+  // Proxy endpoint to serve Cloudinary files (to avoid CORS/authentication issues)
+  app.get("/api/files/cloudinary-proxy", async (req, res) => {
+    try {
+      const { url } = req.query;
+      
+      if (!url || typeof url !== 'string') {
+        return res.status(400).json({ message: "URL parameter is required" });
+      }
+
+      // Validate it's a Cloudinary URL
+      if (!url.includes('cloudinary.com')) {
+        return res.status(400).json({ message: "Invalid Cloudinary URL" });
+      }
+
+      // Fetch the file from Cloudinary (use URL as-is)
+      const response = await fetch(url);
+      
+      if (!response.ok) {
+        return res.status(response.status).json({ message: "Failed to fetch file from Cloudinary" });
+      }
+
+      // Get content type
+      const contentType = response.headers.get('content-type');
+      if (contentType) {
+        res.setHeader('Content-Type', contentType);
+      }
+
+      // Set CORS headers to allow iframe embedding
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('X-Frame-Options', 'ALLOWALL');
+      
+      // Stream the response
+      const buffer = await response.arrayBuffer();
+      res.send(Buffer.from(buffer));
+    } catch (error) {
+      console.error('Error proxying Cloudinary file:', error);
+      res.status(500).json({ message: 'Failed to proxy file' });
+    }
+  });
+
+  // Delete file from order
+  app.delete("/api/orders/:orderId/files/:fileId", isAuthenticated, async (req, res) => {
+    try {
+      const { orderId, fileId } = req.params;
+      const { db } = await import("./db");
+      const { orderFiles } = await import("@shared/schema");
+      const { eq, and } = await import("drizzle-orm");
+
+      // Get file info first
+      const [file] = await db
+        .select()
+        .from(orderFiles)
+        .where(and(eq(orderFiles.id, fileId), eq(orderFiles.orderId, orderId)));
+
+      if (!file) {
+        return res.status(404).json({ message: "File not found" });
+      }
+
+      // Delete file from Cloudinary if it's stored there
+      if (file.fileName && file.fileName.includes('/')) {
+        try {
+          await deleteFromCloudinary(file.fileName);
+        } catch (err) {
+          console.error("Failed to delete from Cloudinary:", err);
+        }
+      } else {
+        // Legacy: Delete from local storage
+        try {
+          const fs = await import("fs");
+          const path = await import("path");
+          const filePath = path.join(process.cwd(), "uploads", file.fileName);
+          if (fs.existsSync(filePath)) {
+            fs.unlinkSync(filePath);
+          }
+        } catch (err) {
+          console.error("Failed to delete file from local storage:", err);
+        }
+      }
+
+      // Delete from database
+      await db.delete(orderFiles).where(eq(orderFiles.id, fileId));
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error deleting file:', error);
+      res.status(500).json({ message: 'Failed to delete file' });
+    }
+  });
+
+  // Send proof to customer (generates approval link for a file)
+  app.post("/api/orders/:orderId/send-proof", isAuthenticated, async (req, res) => {
+    try {
+      const { orderId } = req.params;
+      const { fileId, orderItemId, clientEmail, clientName, message } = req.body;
+
+      if (!clientEmail) {
+        return res.status(400).json({ message: "Client email is required" });
+      }
+
+      const { db } = await import("./db");
+      const { artworkApprovals, orderFiles, orders, artworkFiles } = await import("@shared/schema");
+      const { eq } = await import("drizzle-orm");
+      const crypto = await import("crypto");
+
+      // Verify order and file
+      const [order] = await db.select().from(orders).where(eq(orders.id, orderId));
+      if (!order) {
+        return res.status(404).json({ message: "Order not found" });
+      }
+
+      let artworkFileId = null;
+      if (fileId) {
+        const [orderFile] = await db.select().from(orderFiles).where(eq(orderFiles.id, fileId));
+        if (!orderFile) {
+          return res.status(404).json({ message: "File not found" });
+        }
+
+        // Copy file from orderFiles to artworkFiles
+        const [newArtworkFile] = await db
+          .insert(artworkFiles)
+          .values({
+            orderId: orderId,
+            fileName: orderFile.fileName,
+            filePath: orderFile.filePath,
+            originalName: orderFile.originalName,
+            fileSize: orderFile.fileSize,
+            mimeType: orderFile.mimeType,
+            uploadedBy: (req.user as any)?.id,
+          })
+          .returning();
+
+        artworkFileId = newArtworkFile.id;
+      }
+
+      // Generate unique token
+      const token = crypto.randomBytes(32).toString('hex');
+
+      // Create approval
+      // Now artworkFileId properly references artworkFiles table
+      const [approval] = await db
+        .insert(artworkApprovals)
+        .values({
+          orderId,
+          orderItemId: orderItemId || null,
+          artworkFileId: artworkFileId, // Proper foreign key reference
+          approvalToken: token,
+          status: "pending",
+          clientEmail,
+          clientName: clientName || null,
+          sentAt: new Date(),
+        })
+        .returning();
+
+      const approvalUrl = `${req.protocol}://${req.get('host')}/approval/${token}`;
+
+      // TODO: Send email with approval link and message
+      // For now, just return the link
+
+      res.json({
+        success: true,
+        message: "Approval request created",
+        approval,
+        approvalUrl
+      });
+    } catch (error) {
+      console.error('Error requesting artwork approval:', error);
+      res.status(500).json({ message: 'Failed to request artwork approval' });
+    }
+  });
+
+  // Cloudinary file utilities endpoints
+  
+  // Get optimized image URL
+  app.get("/api/files/cloudinary/optimize", isAuthenticated, async (req, res) => {
+    try {
+      const { publicId, width, height } = req.query;
+      
+      if (!publicId) {
+        return res.status(400).json({ message: "publicId is required" });
+      }
+
+      const url = getOptimizedImageUrl(
+        publicId as string,
+        width ? parseInt(width as string) : undefined,
+        height ? parseInt(height as string) : undefined
+      );
+
+      res.json({ url });
+    } catch (error) {
+      console.error('Error generating optimized image URL:', error);
+      res.status(500).json({ message: 'Failed to generate optimized URL' });
+    }
+  });
+
+  // Get direct Cloudinary URL
+  app.get("/api/files/cloudinary/url", isAuthenticated, async (req, res) => {
+    try {
+      const { publicId } = req.query;
+      
+      if (!publicId) {
+        return res.status(400).json({ message: "publicId is required" });
+      }
+
+      const url = getCloudinaryUrl(publicId as string);
+
+      res.json({ url });
+    } catch (error) {
+      console.error('Error generating Cloudinary URL:', error);
+      res.status(500).json({ message: 'Failed to generate URL' });
+    }
+  });
+
+  // Delete file from Cloudinary
+  app.delete("/api/files/cloudinary/:publicId", isAuthenticated, async (req, res) => {
+    try {
+      const { publicId } = req.params;
+      
+      // Decode public ID (it might be URL encoded)
+      const decodedPublicId = decodeURIComponent(publicId);
+      
+      await deleteFromCloudinary(decodedPublicId);
+
+      res.json({ success: true, message: "File deleted from Cloudinary" });
+    } catch (error) {
+      console.error('Error deleting file from Cloudinary:', error);
+      res.status(500).json({ message: 'Failed to delete file from Cloudinary' });
     }
   });
 

@@ -145,27 +145,27 @@ export default function ProductionReport() {
         title: "Project Reassigned",
         description: "Project has been reassigned successfully.",
       });
-      
+
       // Invalidate and refetch orders
       await queryClient.invalidateQueries({ queryKey: ["/api/orders"] });
       await queryClient.invalidateQueries({ queryKey: ["/api/users/team"] });
-      
+
       // Update selectedOrder with new assignment
       if (selectedOrder) {
         const updatedOrders = await queryClient.fetchQuery({ queryKey: ["/api/orders"] });
         const updatedOrder = (updatedOrders as any[]).find((o: any) => o.id === selectedOrder.id);
-        
+
         if (updatedOrder) {
           const company = companies.find((c: any) => c.id === updatedOrder.companyId);
           const assignedUser = users.find((u: any) => u.id === updatedOrder.assignedUserId);
-          
+
           setSelectedOrder({
             ...selectedOrder,
             assignedTo: assignedUser ? `${assignedUser.firstName} ${assignedUser.lastName}` : undefined,
           });
         }
       }
-      
+
       setIsReassignDialogOpen(false);
       setReassignUserId("");
     },
@@ -189,26 +189,26 @@ export default function ProductionReport() {
         title: "CSR Reassigned",
         description: "CSR has been reassigned successfully.",
       });
-      
+
       // Invalidate and refetch orders
       await queryClient.invalidateQueries({ queryKey: ["/api/orders"] });
       await queryClient.invalidateQueries({ queryKey: ["/api/users/team"] });
-      
+
       // Update selectedOrder with new CSR assignment
       if (selectedOrder) {
         const updatedOrders = await queryClient.fetchQuery({ queryKey: ["/api/orders"] });
         const updatedOrder = (updatedOrders as any[]).find((o: any) => o.id === selectedOrder.id);
-        
+
         if (updatedOrder) {
           const csrUser = users.find((u: any) => u.id === updatedOrder.csrUserId);
-          
+
           setSelectedOrder({
             ...selectedOrder,
             csrAssignedTo: csrUser ? `${csrUser.firstName} ${csrUser.lastName}` : undefined,
           });
         }
       }
-      
+
       setIsReassignCsrDialogOpen(false);
       setReassignCsrUserId("");
     },
@@ -334,7 +334,7 @@ export default function ProductionReport() {
       queryClient.invalidateQueries({ queryKey: [`/api/orders/${data.id}`] }); // Sync with project page
       queryClient.invalidateQueries({ queryKey: [`/api/projects/${data.id}/activities`] }); // Sync activities
       queryClient.invalidateQueries({ queryKey: ["/api/dashboard/recent-orders"] });
-      
+
       if (selectedOrder && selectedOrder.id === data.id) {
         const company = companies.find((c: any) => c.id === data.companyId);
         setSelectedOrder({
@@ -678,8 +678,8 @@ export default function ProductionReport() {
                     </div>
                   </div>
                   <div className="flex justify-between mt-4">
-                    <Button 
-                      variant="destructive" 
+                    <Button
+                      variant="destructive"
                       onClick={() => {
                         if (confirm('Are you sure you want to reset to default stages? This will remove all custom stages.')) {
                           const defaultStages = resetStages();
@@ -1106,7 +1106,7 @@ export default function ProductionReport() {
                           name={order.assignedTo}
                           size="sm"
                         />
-                        <span className="text-sm text-gray-500">Assigned to: {order.assignedTo}</span>
+                        <span className="text-sm text-gray-500">Sales Rep: {order.assignedTo}</span>
                       </div>
                     </div>
                     <div className="text-right">
@@ -1277,7 +1277,7 @@ export default function ProductionReport() {
                     {(selectedOrder as any).shippingMethod && (
                       <p><span className="font-medium">Shipping Method:</span> {(selectedOrder as any).shippingMethod}</p>
                     )}
-                    
+
                     {/* Price Breakdown */}
                     <div className="mt-3 pt-3 border-t space-y-1">
                       <div className="flex justify-between">
@@ -1302,9 +1302,15 @@ export default function ProductionReport() {
                 <div>
                   <h3 className="font-medium mb-3">Production Details</h3>
                   <div className="space-y-2 text-sm">
+                    <p><span className="font-medium">Priority:</span>
+                      <Badge className={`ml-2 ${getPriorityColor(selectedOrder.priority)}`}>
+                        {selectedOrder.priority.toUpperCase()}
+                      </Badge>
+                    </p>
+                    <p><span className="font-medium">Due Date:</span> {selectedOrder.dueDate ? format(new Date(selectedOrder.dueDate), 'MMM dd, yyyy') : 'TBD'}</p>
                     <div className="flex items-center justify-between">
                       <div className="flex items-center space-x-2">
-                        <span className="font-medium">Assigned To:</span>
+                        <span className="font-medium">Sales Rep:</span>
                         <UserAvatar
                           name={selectedOrder.assignedTo}
                           size="sm"
@@ -1325,12 +1331,7 @@ export default function ProductionReport() {
                         {selectedOrder.assignedTo ? 'Reassign' : 'Assign'}
                       </Button>
                     </div>
-                    <p><span className="font-medium">Priority:</span>
-                      <Badge className={`ml-2 ${getPriorityColor(selectedOrder.priority)}`}>
-                        {selectedOrder.priority.toUpperCase()}
-                      </Badge>
-                    </p>
-                    <p><span className="font-medium">Due Date:</span> {selectedOrder.dueDate ? format(new Date(selectedOrder.dueDate), 'MMM dd, yyyy') : 'TBD'}</p>
+
                     <div className="flex items-center justify-between mt-2">
                       <div className="flex items-center space-x-2">
                         <span className="font-medium">CSR:</span>
@@ -1864,20 +1865,20 @@ export default function ProductionReport() {
                 </SelectContent>
               </Select>
               <p className="text-xs text-gray-500 mt-2">
-                {selectedOrder?.assignedTo 
+                {selectedOrder?.assignedTo
                   ? 'Change the team member responsible for this project'
                   : 'Select a team member to take ownership of this project'}
               </p>
             </div>
-            
+
             {/* Current Assignment */}
             {selectedOrder?.assignedTo && (
               <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
                 <p className="text-xs font-medium text-blue-900 mb-1">Currently Assigned To:</p>
                 <div className="flex items-center gap-2">
-                  <UserAvatar 
-                    name={selectedOrder.assignedTo} 
-                    size="sm" 
+                  <UserAvatar
+                    name={selectedOrder.assignedTo}
+                    size="sm"
                   />
                   <div className="text-sm">
                     <p className="font-medium text-blue-900">
@@ -1903,12 +1904,12 @@ export default function ProductionReport() {
                 }}
                 disabled={!selectedOrder || reassignOrderMutation.isPending}
               >
-                {reassignOrderMutation.isPending 
-                  ? "Updating..." 
-                  : reassignUserId === "unassigned" 
-                    ? "Unassign" 
-                    : selectedOrder?.assignedTo 
-                      ? "Reassign Project" 
+                {reassignOrderMutation.isPending
+                  ? "Updating..."
+                  : reassignUserId === "unassigned"
+                    ? "Unassign"
+                    : selectedOrder?.assignedTo
+                      ? "Reassign Project"
                       : "Assign Project"}
               </Button>
             </div>
@@ -1953,20 +1954,20 @@ export default function ProductionReport() {
                 </SelectContent>
               </Select>
               <p className="text-xs text-gray-500 mt-2">
-                {selectedOrder?.csrAssignedTo 
+                {selectedOrder?.csrAssignedTo
                   ? 'Change the CSR responsible for production coordination'
                   : 'Select a CSR to handle production coordination'}
               </p>
             </div>
-            
+
             {/* Current CSR Assignment */}
             {selectedOrder?.csrAssignedTo && (
               <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
                 <p className="text-xs font-medium text-blue-900 mb-1">Currently Assigned CSR:</p>
                 <div className="flex items-center gap-2">
-                  <UserAvatar 
-                    name={selectedOrder.csrAssignedTo} 
-                    size="sm" 
+                  <UserAvatar
+                    name={selectedOrder.csrAssignedTo}
+                    size="sm"
                   />
                   <div className="text-sm">
                     <p className="font-medium text-blue-900">
@@ -1992,12 +1993,12 @@ export default function ProductionReport() {
                 }}
                 disabled={!selectedOrder || reassignCsrMutation.isPending}
               >
-                {reassignCsrMutation.isPending 
-                  ? "Updating..." 
-                  : reassignCsrUserId === "unassigned" 
-                    ? "Unassign CSR" 
-                    : selectedOrder?.csrAssignedTo 
-                      ? "Reassign CSR" 
+                {reassignCsrMutation.isPending
+                  ? "Updating..."
+                  : reassignCsrUserId === "unassigned"
+                    ? "Unassign CSR"
+                    : selectedOrder?.csrAssignedTo
+                      ? "Reassign CSR"
                       : "Assign CSR"}
               </Button>
             </div>

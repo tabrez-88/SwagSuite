@@ -30,7 +30,7 @@ import ErrorsPage from "@/pages/errors";
 import UsersPage from "@/pages/settings/users";
 import ProfilePage from "@/pages/profile";
 import NotFound from "@/pages/not-found";
-import ApprovalPage from "@/pages/ApprovalPage";
+import ApprovalPage from "@/pages/approval";
 import { SlackSidebar } from "@/components/SlackSidebar";
 import { SidebarProvider } from "@/hooks/useSidebar";
 import { useState } from 'react';
@@ -75,7 +75,7 @@ function Router() {
   return (
     <Switch>
       {/* Public approval route - accessible without authentication */}
-      <Route path="/approve/:token" component={ApprovalPage} />
+      <Route path="/approval/:token" component={ApprovalPage} />
       
       {!isAuthenticated ? (
         <Route path="/" component={Landing} />

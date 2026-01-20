@@ -273,6 +273,25 @@ export const artworkFiles = pgTable("artwork_files", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+// Order files (artwork proofs, documents, etc.)
+export const orderFiles = pgTable("order_files", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  orderId: varchar("order_id").references(() => orders.id).notNull(),
+  orderItemId: varchar("order_item_id").references(() => orderItems.id), // Optional: associate file with specific product
+  fileName: varchar("file_name").notNull(),
+  originalName: varchar("original_name").notNull(),
+  fileSize: integer("file_size"),
+  mimeType: varchar("mime_type"),
+  filePath: varchar("file_path").notNull(),
+  thumbnailPath: varchar("thumbnail_path"),
+  fileType: varchar("file_type").notNull().default("document"), // customer_proof, supplier_proof, invoice, other_document, artwork
+  tags: jsonb("tags").default(sql`'[]'::jsonb`), // Array of tags like ["customer_proof", "final_artwork"]
+  uploadedBy: varchar("uploaded_by").references(() => users.id),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 // Artwork approvals
 export const artworkApprovals = pgTable("artwork_approvals", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -281,7 +300,7 @@ export const artworkApprovals = pgTable("artwork_approvals", {
   artworkFileId: varchar("artwork_file_id").references(() => artworkFiles.id),
   approvalToken: varchar("approval_token", { length: 255 }).notNull().unique(),
   status: varchar("status", { length: 50 }).notNull().default("pending"), // pending, approved, declined
-  clientEmail: varchar("client_email", { length: 255 }).notNull(),
+  clientEmail: varchar("client_email", { length: 255 }),
   clientName: varchar("client_name", { length: 255 }),
   sentAt: timestamp("sent_at"),
   approvedAt: timestamp("approved_at"),

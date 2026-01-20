@@ -10,7 +10,7 @@ class ReplitStorageService {
     private initialized: boolean = false;
 
     constructor() {
-        // Initialize client with optional bucket ID
+        // Initialize client with bucket ID from environment
         const bucketId = process.env.REPLIT_BUCKET_ID;
         this.client = new Client(bucketId ? { bucketId } : undefined);
         this.initialized = true;

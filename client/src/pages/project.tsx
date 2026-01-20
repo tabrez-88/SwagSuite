@@ -423,28 +423,33 @@ export default function ProjectPage() {
     mutationFn: async (file: File) => {
       const formData = new FormData();
       formData.append('file', file);
-      formData.append('orderId', orderId!);
 
-      const response = await fetch('/api/upload', {
+      const response = await fetch(`/api/projects/${orderId}/upload`, {
         method: 'POST',
         body: formData,
+        credentials: 'include',
       });
-      if (!response.ok) throw new Error('Upload failed');
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Upload failed');
+      }
+      
       return response.json();
     },
     onSuccess: (data) => {
       toast({
         title: "File Uploaded",
-        description: "File has been uploaded successfully.",
+        description: `${data.metadata?.fileName || 'File'} has been uploaded successfully.`,
       });
       queryClient.invalidateQueries({ queryKey: [`/api/projects/${orderId}/activities`] });
       setIsUploadFileDialogOpen(false);
       setUploadFile(null);
     },
-    onError: () => {
+    onError: (error: Error) => {
       toast({
-        title: "Error",
-        description: "Failed to upload file.",
+        title: "Upload Failed",
+        description: error.message || "Failed to upload file.",
         variant: "destructive",
       });
     },
@@ -896,6 +901,31 @@ export default function ProjectPage() {
                                   {formatActivityContent(activity)}
                                 </p>
 
+                                {/* File download link for file uploads */}
+                                {activity.activityType === "file_upload" && activity.metadata?.fileName && (
+                                  <div className="mt-2 p-2 bg-gray-50 rounded-lg border border-gray-200">
+                                    <div className="flex items-center justify-between">
+                                      <div className="flex items-center gap-2">
+                                        <FileText className="w-4 h-4 text-blue-600" />
+                                        <div>
+                                          <p className="text-sm font-medium text-gray-900">{activity.metadata.fileName}</p>
+                                          <p className="text-xs text-gray-500">
+                                            {activity.metadata.fileSize ? `${(activity.metadata.fileSize / 1024).toFixed(2)} KB` : 'Unknown size'}
+                                          </p>
+                                        </div>
+                                      </div>
+                                      <a
+                                        href={`/api/projects/${orderId}/files/${activity.id}`}
+                                        download={activity.metadata.fileName}
+                                        className="text-sm text-blue-600 hover:text-blue-800 font-medium flex items-center gap-1"
+                                      >
+                                        <Upload className="w-3 h-3" />
+                                        Download
+                                      </a>
+                                    </div>
+                                  </div>
+                                )}
+
                                 {activity.mentionedUsers && activity.mentionedUsers.length > 0 && (
                                   <div className="flex items-center gap-1 mt-2">
                                     <AtSign className="w-3 h-3 text-gray-400" />
@@ -1145,13 +1175,86 @@ export default function ProjectPage() {
 
             <TabsContent value="files">
               <Card>
-                <CardContent className="p-8 text-center">
-                  <Upload className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                  <p className="text-gray-500 mb-4">No files uploaded yet</p>
-                  <Button variant="outline">
-                    <Upload className="w-4 h-4 mr-2" />
-                    Upload Files
-                  </Button>
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="flex items-center gap-2">
+                      <FileText className="w-5 h-5" />
+                      Project Files
+                    </CardTitle>
+                    <Button onClick={() => setIsUploadFileDialogOpen(true)} size="sm">
+                      <Upload className="w-4 h-4 mr-2" />
+                      Upload File
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  {(() => {
+                    const fileActivities = activities.filter(
+                      (activity: ProjectActivity) => activity.activityType === "file_upload"
+                    );
+
+                    if (fileActivities.length === 0) {
+                      return (
+                        <div className="text-center py-8">
+                          <FileText className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                          <p className="text-gray-500 mb-4">No files uploaded yet</p>
+                          <Button onClick={() => setIsUploadFileDialogOpen(true)} variant="outline">
+                            <Upload className="w-4 h-4 mr-2" />
+                            Upload First File
+                          </Button>
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div className="space-y-3">
+                        {fileActivities.map((activity: ProjectActivity) => (
+                          <div
+                            key={activity.id}
+                            className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors"
+                          >
+                            <div className="flex items-center gap-3 flex-1 min-w-0">
+                              <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center flex-shrink-0">
+                                <FileText className="w-5 h-5 text-blue-600" />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="font-medium text-sm text-gray-900 truncate">
+                                  {activity.metadata?.fileName || 'Unknown file'}
+                                </p>
+                                <div className="flex items-center gap-3 text-xs text-gray-500 mt-1">
+                                  <span>
+                                    {activity.metadata?.fileSize 
+                                      ? `${(activity.metadata.fileSize / 1024).toFixed(2)} KB`
+                                      : 'Unknown size'}
+                                  </span>
+                                  <span>•</span>
+                                  <span>
+                                    {format(new Date(activity.createdAt), 'MMM dd, yyyy')}
+                                  </span>
+                                  <span>•</span>
+                                  <span className="flex items-center gap-1">
+                                    <UserAvatar 
+                                      name={`${activity.user.firstName} ${activity.user.lastName}`}
+                                      size="sm"
+                                    />
+                                    {activity.user.firstName} {activity.user.lastName}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                            <a
+                              href={`/api/projects/${orderId}/files/${activity.id}`}
+                              download={activity.metadata?.fileName}
+                              className="ml-4 flex items-center gap-2 px-4 py-2 text-sm font-medium text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors"
+                            >
+                              <Upload className="w-4 h-4" />
+                              Download
+                            </a>
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })()}
                 </CardContent>
               </Card>
             </TabsContent>

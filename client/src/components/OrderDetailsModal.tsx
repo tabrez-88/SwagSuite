@@ -19,7 +19,7 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { SendApprovalDialog } from "@/components/SendApprovalDialog";
+import { FilesTab } from "@/components/FilesTab";
 import {
   Calendar,
   DollarSign,
@@ -157,17 +157,17 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
   const [showMentionSuggestions, setShowMentionSuggestions] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
-  const [isSendApprovalOpen, setIsSendApprovalOpen] = useState(false);
+
   const [editingProduct, setEditingProduct] = useState<any>(null);
   const [deletingProduct, setDeletingProduct] = useState<any>(null);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  
+
   // Edit dialog states
   const [isEditContactOpen, setIsEditContactOpen] = useState(false);
   const [isEditBillingAddressOpen, setIsEditBillingAddressOpen] = useState(false);
   const [isEditShippingAddressOpen, setIsEditShippingAddressOpen] = useState(false);
   const [isEditShippingInfoOpen, setIsEditShippingInfoOpen] = useState(false);
-  
+
   // Form data states
   const [selectedContactId, setSelectedContactId] = useState<string>("");
   const [billingAddressForm, setBillingAddressForm] = useState({
@@ -256,12 +256,12 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
   // Get unique vendors from order items
   const orderVendors = useMemo(() => {
     const vendorsMap = new Map();
-    
+
     orderItems.forEach((item: any) => {
       if (item.supplierId && !vendorsMap.has(item.supplierId)) {
         // Try to get supplier info from the item first, then fallback to suppliers array
         const supplierFromArray = suppliers.find((s: any) => s.id === item.supplierId);
-        
+
         vendorsMap.set(item.supplierId, {
           id: item.supplierId,
           name: item.supplierName || supplierFromArray?.name || "Unknown Vendor",
@@ -332,6 +332,12 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
       if (!response.ok) throw new Error("Failed to fetch vendor communications");
       return response.json();
     },
+    enabled: open && !!order,
+  });
+
+  // Fetch artwork approvals
+  const { data: approvals = [] } = useQuery<any[]>({
+    queryKey: [`/api/orders/${orderId}/approvals`],
     enabled: open && !!order,
   });
 
@@ -813,14 +819,14 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
   // Initialize form data when dialogs open
   const handleOpenEditShippingInfo = () => {
     setShippingInfoForm({
-      supplierInHandsDate: (order as any).supplierInHandsDate 
-        ? new Date((order as any).supplierInHandsDate).toISOString().split('T')[0] 
+      supplierInHandsDate: (order as any).supplierInHandsDate
+        ? new Date((order as any).supplierInHandsDate).toISOString().split('T')[0]
         : "",
-      inHandsDate: order.inHandsDate 
-        ? new Date(order.inHandsDate).toISOString().split('T')[0] 
+      inHandsDate: order.inHandsDate
+        ? new Date(order.inHandsDate).toISOString().split('T')[0]
         : "",
-      eventDate: order.eventDate 
-        ? new Date(order.eventDate).toISOString().split('T')[0] 
+      eventDate: order.eventDate
+        ? new Date(order.eventDate).toISOString().split('T')[0]
         : "",
       isFirm: (order as any).isFirm || false,
       shippingMethod: (order as any).shippingMethod || ""
@@ -874,8 +880,6 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
     if (shippingInfoForm.inHandsDate) data.inHandsDate = shippingInfoForm.inHandsDate;
     if (shippingInfoForm.eventDate) data.eventDate = shippingInfoForm.eventDate;
     data.isFirm = shippingInfoForm.isFirm;
-    if (shippingInfoForm.shippingMethod) data.shippingMethod = shippingInfoForm.shippingMethod;
-    
     updateShippingInfoMutation.mutate(data);
   };
 
@@ -890,7 +894,7 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
     const shippingData = (shippingAddressForm.contactName || shippingAddressForm.email)
       ? JSON.stringify(shippingAddressForm)
       : shippingAddressForm.address;
-    
+
     console.log('Shipping data to save:', shippingData);
     updateShippingAddressMutation.mutate({ shippingAddress: shippingData });
   };
@@ -929,14 +933,6 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setIsSendApprovalOpen(true)}
-              >
-                <Send className="w-4 h-4 mr-2" />
-                Send Approval
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
                 onClick={handleViewProject}
               >
                 <ExternalLink className="w-4 h-4" />
@@ -949,9 +945,10 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
           </DialogHeader>
 
           <Tabs defaultValue="details" className="w-full">
-            <TabsList className="grid w-full h-fit gap-2 grid-cols-3 md:grid-cols-5">
+            <TabsList className="grid w-full h-fit gap-2 grid-cols-3 md:grid-cols-6">
               <TabsTrigger value="details">Order Details</TabsTrigger>
               <TabsTrigger value="products">Products ({orderItems.length})</TabsTrigger>
+              <TabsTrigger value="files">Files</TabsTrigger>
               <TabsTrigger value="communication">Internal Notes</TabsTrigger>
               <TabsTrigger value="email">Client Communication</TabsTrigger>
               <TabsTrigger value="vendor">Vendor Communication</TabsTrigger>
@@ -968,61 +965,6 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-4">
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <p className="text-sm font-medium text-gray-500">Order Type</p>
-                        <Badge variant="outline" className="mt-1">
-                          {order.orderType?.replace('_', ' ').toUpperCase() || 'QUOTE'}
-                        </Badge>
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium text-gray-500">Priority</p>
-                        <Badge variant="secondary" className="mt-1">
-                          NORMAL
-                        </Badge>
-                      </div>
-                    </div>
-
-                    <Separator />
-
-                    <div className="space-y-3">
-                      {/* Price Breakdown */}
-                      <div className="space-y-2 bg-gray-50 p-3 rounded-lg">
-                        <div className="flex justify-between text-sm">
-                          <span className="text-gray-600">Subtotal:</span>
-                          <span className="font-medium">${Number(order.subtotal || 0).toLocaleString()}</span>
-                        </div>
-                        <div className="flex justify-between text-sm">
-                          <span className="text-gray-600">Tax:</span>
-                          <span className="font-medium">${Number(order.tax || 0).toLocaleString()}</span>
-                        </div>
-                        <div className="flex justify-between text-sm">
-                          <span className="text-gray-600">Shipping:</span>
-                          <span className="font-medium">${Number(order.shipping || 0).toLocaleString()}</span>
-                        </div>
-                        <Separator />
-                        <div className="flex justify-between items-center">
-                          <div className="flex items-center gap-2">
-                            <DollarSign className="w-4 h-4 text-gray-500" />
-                            <span className="text-sm font-semibold">Total:</span>
-                          </div>
-                          <span className="text-lg font-bold text-green-600">
-                            ${Number(order.total || 0).toLocaleString()}
-                          </span>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-2">
-                        <CheckCircle className="w-4 h-4 text-gray-500" />
-                        <span className="text-sm font-medium">Deposit (50%): </span>
-                        <span className="text-sm font-semibold">
-                          ${(Number(order.total || 0) * 0.5).toLocaleString()}
-                        </span>
-                      </div>
-                    </div>
-
-                    <Separator />
-
                     <div className="space-y-2">
                       <Label htmlFor="order-status">Current Status</Label>
                       <Select
@@ -1087,6 +1029,21 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
                       </p>
                     </div>
 
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <p className="text-sm font-medium text-gray-500">Order Type</p>
+                        <Badge variant="outline" className="mt-1">
+                          {order.orderType?.replace('_', ' ').toUpperCase() || 'QUOTE'}
+                        </Badge>
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-gray-500">Priority</p>
+                        <Badge variant="secondary" className="mt-1">
+                          NORMAL
+                        </Badge>
+                      </div>
+                    </div>
                     {/* Status History */}
                     <div className="pt-4 border-t">
                       <p className="text-sm font-medium mb-2">Status Timeline</p>
@@ -1105,6 +1062,45 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
                         )}
                       </div>
                     </div>
+                    <Separator />
+
+                    <div className="space-y-3">
+                      {/* Price Breakdown */}
+                      <div className="space-y-2 bg-gray-50 p-3 rounded-lg">
+                        <div className="flex justify-between text-sm">
+                          <span className="text-gray-600">Subtotal:</span>
+                          <span className="font-medium">${Number(order.subtotal || 0).toLocaleString()}</span>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                          <span className="text-gray-600">Tax:</span>
+                          <span className="font-medium">${Number(order.tax || 0).toLocaleString()}</span>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                          <span className="text-gray-600">Shipping:</span>
+                          <span className="font-medium">${Number(order.shipping || 0).toLocaleString()}</span>
+                        </div>
+                        <Separator />
+                        <div className="flex justify-between items-center">
+                          <div className="flex items-center gap-2">
+                            <DollarSign className="w-4 h-4 text-gray-500" />
+                            <span className="text-sm font-semibold">Total:</span>
+                          </div>
+                          <span className="text-lg font-bold text-green-600">
+                            ${Number(order.total || 0).toLocaleString()}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <CheckCircle className="w-4 h-4 text-gray-500" />
+                        <span className="text-sm font-medium">Deposit (50%): </span>
+                        <span className="text-sm font-semibold">
+                          ${(Number(order.total || 0) * 0.5).toLocaleString()}
+                        </span>
+                      </div>
+                    </div>
+
+
                   </CardContent>
                 </Card>
 
@@ -1332,7 +1328,7 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
                     {/* Date Information */}
                     <div className="space-y-3 p-3 bg-gray-50 rounded-lg">
                       <h4 className="text-sm font-semibold text-gray-700">Important Dates</h4>
-                      
+
                       {(order as any).supplierInHandsDate && (
                         <div className="flex items-center gap-2">
                           <Calendar className="w-4 h-4 text-blue-600" />
@@ -1396,60 +1392,6 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
                       </div>
                     )}
 
-                    <Separator />
-
-                    {/* Shipping Details */}
-                    <div className="space-y-3">
-                      <h4 className="text-sm font-semibold text-gray-700">Shipping Details</h4>
-                      
-                      <div className="flex items-start gap-2">
-                        <MapPin className="w-4 h-4 text-gray-500 mt-0.5" />
-                        <div className="text-sm flex-1">
-                          <p className="font-medium text-gray-700">Shipping Address:</p>
-                          <div className="text-gray-600 whitespace-pre-line mt-1">
-                            {(() => {
-                              const shippingAddr = (order as any).shippingAddress;
-                              if (!shippingAddr) return <span className="text-gray-500 italic">No shipping address provided</span>;
-                              
-                              try {
-                                const parsed = JSON.parse(shippingAddr);
-                                return (
-                                  <>
-                                    <p>{parsed.address}</p>
-                                    {parsed.contactName && (
-                                      <p className="mt-1"><span className="font-medium">Contact:</span> {parsed.contactName}</p>
-                                    )}
-                                    {parsed.email && (
-                                      <p><span className="font-medium">Email:</span> {parsed.email}</p>
-                                    )}
-                                  </>
-                                );
-                              } catch {
-                                return <p>{shippingAddr}</p>;
-                              }
-                            })()}
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-2">
-                        <Truck className="w-4 h-4 text-gray-500" />
-                        <span className="text-sm font-medium">Shipping Method:</span>
-                        <span className="text-sm text-gray-700">
-                          {(order as any).shippingMethod || "Not specified"}
-                        </span>
-                      </div>
-
-                      {(order as any).trackingNumber && (
-                        <div className="flex items-center gap-2">
-                          <Package className="w-4 h-4 text-gray-500" />
-                          <span className="text-sm font-medium">Tracking Number:</span>
-                          <span className="text-sm font-mono text-blue-600">
-                            {(order as any).trackingNumber}
-                          </span>
-                        </div>
-                      )}
-                    </div>
                   </CardContent>
                 </Card>
 
@@ -1600,6 +1542,9 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
                           : currentSupplierId
                             ? suppliers.find((s: any) => s.id === currentSupplierId)
                             : null;
+
+                        // Find approval for this item
+                        const itemApproval = approvals.find((a: any) => a.orderItemId === item.id);
 
                         return (
                           <div key={item.id} className="border rounded-lg p-4 hover:bg-gray-50 transition-colors">
@@ -1757,6 +1702,46 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
                                     <p className="text-sm text-gray-700">{item.notes}</p>
                                   </div>
                                 )}
+
+                                {/* Artwork Approval Status */}
+                                {itemApproval && (
+                                  <div className="mt-3 pt-3 border-t">
+                                    <div className="flex items-center justify-between">
+                                      <p className="text-xs text-gray-500 uppercase mb-1">Artwork Approval</p>
+                                      {itemApproval.status === 'approved' && (
+                                        <Badge className="bg-green-100 text-green-800">
+                                          <CheckCircle className="w-3 h-3 mr-1" />
+                                          Approved
+                                        </Badge>
+                                      )}
+                                      {itemApproval.status === 'declined' && (
+                                        <Badge variant="destructive">
+                                          <X className="w-3 h-3 mr-1" />
+                                          Revision Requested
+                                        </Badge>
+                                      )}
+                                      {itemApproval.status === 'pending' && (
+                                        <Badge variant="outline" className="text-yellow-700 border-yellow-300">
+                                          <Clock className="w-3 h-3 mr-1" />
+                                          Pending
+                                        </Badge>
+                                      )}
+                                    </div>
+                                    {itemApproval.declineReason && (
+                                      <p className="text-sm text-gray-600 mt-2 italic">"{itemApproval.declineReason}"</p>
+                                    )}
+                                    {itemApproval.approvedAt && (
+                                      <p className="text-xs text-gray-500 mt-1">
+                                        Approved {new Date(itemApproval.approvedAt).toLocaleDateString()}
+                                      </p>
+                                    )}
+                                    {itemApproval.declinedAt && (
+                                      <p className="text-xs text-gray-500 mt-1">
+                                        Revision requested {new Date(itemApproval.declinedAt).toLocaleDateString()}
+                                      </p>
+                                    )}
+                                  </div>
+                                )}
                               </div>
                             </div>
                           </div>
@@ -1781,6 +1766,19 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
                   )}
                 </CardContent>
               </Card>
+            </TabsContent>
+
+            <TabsContent value="files" className="mt-6">
+              <FilesTab
+                orderId={orderId!}
+                products={orderItems.map((item: any) => ({
+                  id: item.id,
+                  productName: item.productName,
+                  color: item.color,
+                  size: item.size,
+                  quantity: item.quantity,
+                }))}
+              />
             </TabsContent>
 
             <TabsContent value="communication" className="mt-6">
@@ -2597,15 +2595,7 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
         }}
         product={editingProduct}
       />
-      <SendApprovalDialog
-        open={isSendApprovalOpen}
-        onOpenChange={setIsSendApprovalOpen}
-        orderId={orderId || ""}
-        orderNumber={order.orderNumber}
-        orderItems={orderItems}
-        defaultClientEmail={order?.companyId ? companies.find((c: any) => c.id === order.companyId)?.email : ""}
-        defaultClientName={order?.companyId ? companies.find((c: any) => c.id === order.companyId)?.name : ""}
-      />
+
       <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -2755,9 +2745,9 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
                 />
               </div>
             </div>
-            
+
             <Separator />
-            
+
             <div className="grid grid-cols-2 gap-2">
               <div>
                 <Label htmlFor="billing-contact">Contact Name</Label>
@@ -2813,7 +2803,7 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
                     [billing.city, billing.state, billing.zipCode].filter(Boolean).join(', '),
                     billing.country
                   ].filter(Boolean).join('\n');
-                  
+
                   setShippingAddressForm({
                     address: billingAddr,
                     contactName: billing.contactName || "",
@@ -2824,7 +2814,7 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
                 📋 Copy from Billing Address
               </Button>
             </div>
-            
+
             <div>
               <Label htmlFor="shipping-address">Shipping Address</Label>
               <Textarea
@@ -2835,7 +2825,7 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
                 rows={5}
               />
             </div>
-            
+
             <div className="grid grid-cols-2 gap-2">
               <div>
                 <Label htmlFor="shipping-contact">Contact Name</Label>
@@ -2899,7 +2889,7 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
                 />
               </div>
             </div>
-            
+
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="event-date">Event Date</Label>
@@ -2920,19 +2910,6 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
                 />
                 <Label htmlFor="is-firm">Firm In-Hands Date</Label>
               </div>
-            </div>
-
-            <Separator />
-
-            <div>
-              <Label htmlFor="shipping-method">Shipping Method</Label>
-              <Input
-                id="shipping-method"
-                value={shippingInfoForm.shippingMethod}
-                onChange={(e) => setShippingInfoForm({ ...shippingInfoForm, shippingMethod: e.target.value })}
-                placeholder="e.g., UPS Ground, FedEx 2-Day"
-              />
-              <p className="text-xs text-gray-500 mt-1">💡 Tracking number will be added during shipment in Production Report</p>
             </div>
           </div>
           <div className="flex gap-2">
