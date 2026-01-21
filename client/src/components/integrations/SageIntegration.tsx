@@ -129,6 +129,7 @@ function SageIntegrationComponent() {
       });
       queryClient.invalidateQueries({ queryKey: ['/api/sage/products'] });
       queryClient.invalidateQueries({ queryKey: ['/api/products'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/suppliers'] });
     },
     onError: (error: any, variables: any) => {
       if (variables.productId) {

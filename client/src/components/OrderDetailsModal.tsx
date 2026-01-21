@@ -1,4 +1,4 @@
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { FilesTab } from "@/components/FilesTab";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -10,62 +10,61 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { UserAvatar } from "@/components/UserAvatar";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { FilesTab } from "@/components/FilesTab";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Separator } from "@/components/ui/separator";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Textarea } from "@/components/ui/textarea";
+import { UserAvatar } from "@/components/UserAvatar";
+import { useToast } from "@/hooks/use-toast";
+import type { Order } from "@shared/schema";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { format } from "date-fns";
 import {
-  Calendar,
-  DollarSign,
-  Package,
+  AlertTriangle,
   Building2,
-  User,
-  Phone,
+  Calendar,
+  CheckCircle,
+  Clock,
+  CreditCard,
+  DollarSign,
+  Edit,
+  ExternalLink,
+  Eye,
+  Factory,
+  FileText,
   Mail,
   MapPin,
-  Clock,
-  FileText,
-  Truck,
-  CheckCircle,
   MessageSquare,
+  Package,
+  Phone,
   Send,
-  AtSign,
-  ExternalLink,
-  Tag,
-  AlertTriangle,
-  Zap,
-  Factory,
-  Eye,
-  ThumbsUp,
-  CreditCard,
   ShoppingCart,
+  Tag,
+  ThumbsUp,
+  Trash2,
   TrendingUp,
+  Truck,
   Upload,
+  User,
   X,
-  Edit,
-  Trash2
+  Zap
 } from "lucide-react";
-import type { Order } from "@shared/schema";
-import { useState, useRef, useMemo, useCallback, useEffect } from "react";
-import { useDropzone } from 'react-dropzone';
-import { RichTextEditor } from './RichTextEditor';
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "wouter";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import OrderModal from "./OrderModal";
 import ProductModal from "./ProductModal";
-import { useToast } from "@/hooks/use-toast";
-import { format } from "date-fns";
+import { RichTextEditor } from './RichTextEditor';
 
 interface OrderDetailsModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   orderId: string | null;
+  onPrefillEmail?: (data: { to: string; toName: string; subject: string; body: string; tab: string }) => void;
 }
 
 interface TeamMember {
@@ -136,8 +135,10 @@ const statusDisplayMap = {
 
 function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalProps) {
   const [, setLocation] = useLocation();
+  const [activeTab, setActiveTab] = useState("details");
   const [internalNote, setInternalNote] = useState("");
   const [emailTo, setEmailTo] = useState("");
+  const [emailToName, setEmailToName] = useState("");
   const [emailFrom, setEmailFrom] = useState("");
   const [emailFromName, setEmailFromName] = useState("");
   const [emailFromCustom, setEmailFromCustom] = useState(false);
@@ -145,6 +146,7 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
   const [emailBody, setEmailBody] = useState("");
   const [emailAttachments, setEmailAttachments] = useState<File[]>([]);
   const [vendorEmailTo, setVendorEmailTo] = useState("");
+  const [vendorEmailToName, setVendorEmailToName] = useState("");
   const [vendorEmailFrom, setVendorEmailFrom] = useState("");
   const [vendorEmailFromName, setVendorEmailFromName] = useState("");
   const [vendorEmailFromCustom, setVendorEmailFromCustom] = useState(false);
@@ -194,6 +196,8 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const [emailSearchQuery, setEmailSearchQuery] = useState("");
+  const [vendorEmailSearchQuery, setVendorEmailSearchQuery] = useState("");
 
   // Fetch order data
   const { data: order, isLoading } = useQuery<Order>({
@@ -374,6 +378,7 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
       fromEmail: string;
       fromName: string;
       recipientEmail: string;
+      recipientName: string;
       subject: string;
       body: string;
       attachments?: File[];
@@ -388,6 +393,7 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
           fromEmail: data.fromEmail,
           fromName: data.fromName,
           recipientEmail: data.recipientEmail,
+          recipientName: data.recipientName,
           subject: data.subject,
           body: data.body,
           attachmentIds: data.attachmentIds,
@@ -432,6 +438,7 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
       fromEmail: string;
       fromName: string;
       recipientEmail: string;
+      recipientName: string;
       subject: string;
       body: string;
       attachments?: File[];
@@ -446,6 +453,7 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
           fromEmail: data.fromEmail,
           fromName: data.fromName,
           recipientEmail: data.recipientEmail,
+          recipientName: data.recipientName,
           subject: data.subject,
           body: data.body,
           attachmentIds: data.attachmentIds,
@@ -484,30 +492,30 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
     },
   });
 
-  // Mutation to delete product
-  const deleteProductMutation = useMutation({
-    mutationFn: async (productId: string) => {
-      const response = await fetch(`/api/products/${productId}`, {
+  // Mutation to delete order item (remove item from this order)
+  const deleteOrderItemMutation = useMutation({
+    mutationFn: async (orderItemId: string) => {
+      const response = await fetch(`/api/orders/${orderId}/items/${orderItemId}`, {
         method: 'DELETE',
         credentials: 'include',
       });
-      if (!response.ok) throw new Error('Failed to delete product');
+      if (!response.ok) throw new Error('Failed to delete order item');
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/products'] });
       queryClient.invalidateQueries({ queryKey: [`/api/orders/${orderId}/items`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/orders/${orderId}`] });
       setIsDeleteDialogOpen(false);
       setDeletingProduct(null);
       toast({
-        title: "Product deleted",
-        description: "Product has been removed successfully."
+        title: "Item removed",
+        description: "Product has been removed from this order."
       });
     },
     onError: () => {
       setIsDeleteDialogOpen(false);
       toast({
-        title: "Failed to delete product",
-        description: "There was an error deleting the product. Please try again.",
+        title: "Failed to remove item",
+        description: "There was an error removing the item from this order. Please try again.",
         variant: "destructive"
       });
     },
@@ -703,7 +711,7 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
   };
 
   const handleSendEmail = async () => {
-    if (!emailFrom.trim() || !emailTo.trim() || !emailSubject.trim() || !emailBody.trim()) {
+    if (!emailFrom.trim() || !emailToName.trim() || !emailTo.trim() || !emailSubject.trim() || !emailBody.trim()) {
       toast({
         title: "Missing fields",
         description: "Please fill in all email fields including sender.",
@@ -737,6 +745,7 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
         fromEmail: emailFrom,
         fromName: emailFromName || "SwagSuite",
         recipientEmail: emailTo,
+        recipientName: emailToName,
         subject: emailSubject,
         body: emailBody,
         attachments: emailAttachments,
@@ -760,7 +769,7 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
   };
 
   const handleSendVendorEmail = async () => {
-    if (!vendorEmailFrom.trim() || !vendorEmailTo.trim() || !vendorEmailSubject.trim() || !vendorEmailBody.trim()) {
+    if (!vendorEmailFrom.trim() || !vendorEmailToName.trim() || !vendorEmailTo.trim() || !vendorEmailSubject.trim() || !vendorEmailBody.trim()) {
       toast({
         title: "Missing fields",
         description: "Please fill in all email fields including sender.",
@@ -794,6 +803,7 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
         fromEmail: vendorEmailFrom,
         fromName: vendorEmailFromName || "SwagSuite",
         recipientEmail: vendorEmailTo,
+        recipientName: vendorEmailToName,
         subject: vendorEmailSubject,
         body: vendorEmailBody,
         attachments: vendorEmailAttachments,
@@ -803,6 +813,7 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
       setVendorEmailFrom("");
       setVendorEmailFromName("");
       setVendorEmailTo("");
+      setVendorEmailToName("");
       setVendorEmailSubject("");
       setVendorEmailBody("");
       setVendorEmailAttachments([]);
@@ -908,7 +919,7 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-6xl p-4 max-h-[95vh] overflow-y-auto">
+        <DialogContent className="max-w-7xl p-4 max-h-[95vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center pt-6 gap-3">
               <FileText className="w-6 h-6" />
@@ -944,7 +955,7 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
             </DialogDescription>
           </DialogHeader>
 
-          <Tabs defaultValue="details" className="w-full">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <TabsList className="grid w-full h-fit gap-2 grid-cols-3 md:grid-cols-6">
               <TabsTrigger value="details">Order Details</TabsTrigger>
               <TabsTrigger value="products">Products ({orderItems.length})</TabsTrigger>
@@ -1543,8 +1554,8 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
                             ? suppliers.find((s: any) => s.id === currentSupplierId)
                             : null;
 
-                        // Find approval for this item
-                        const itemApproval = approvals.find((a: any) => a.orderItemId === item.id);
+                        // Get all approvals for this item (to show approval history)
+                        const itemApprovals = approvals.filter((a: any) => a.orderItemId === item.id);
 
                         return (
                           <div key={item.id} className="border rounded-lg p-4 hover:bg-gray-50 transition-colors">
@@ -1609,25 +1620,13 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
                                       variant="ghost"
                                       size="sm"
                                       onClick={() => {
-                                        const prodId = item.productId;
-
-                                        if (!prodId) {
-                                          toast({
-                                            title: "Error",
-                                            description: "Product ID not found in order item",
-                                            variant: "destructive"
-                                          });
-                                          return;
-                                        }
-
-                                        setDeletingProduct({
-                                          ...item,
-                                          productId: prodId
-                                        });
+                                        // Set the entire item for deletion
+                                        // item.id is the orderItemId we need for deletion
+                                        setDeletingProduct(item);
                                         setIsDeleteDialogOpen(true);
                                       }}
                                       className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
-                                      title="Delete product"
+                                      title="Remove item from order"
                                     >
                                       <Trash2 className="w-4 h-4" />
                                     </Button>
@@ -1703,43 +1702,82 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
                                   </div>
                                 )}
 
-                                {/* Artwork Approval Status */}
-                                {itemApproval && (
+                                {/* Artwork Approval History */}
+                                {itemApprovals && itemApprovals.length > 0 && (
                                   <div className="mt-3 pt-3 border-t">
-                                    <div className="flex items-center justify-between">
-                                      <p className="text-xs text-gray-500 uppercase mb-1">Artwork Approval</p>
-                                      {itemApproval.status === 'approved' && (
-                                        <Badge className="bg-green-100 text-green-800">
-                                          <CheckCircle className="w-3 h-3 mr-1" />
-                                          Approved
-                                        </Badge>
-                                      )}
-                                      {itemApproval.status === 'declined' && (
-                                        <Badge variant="destructive">
-                                          <X className="w-3 h-3 mr-1" />
-                                          Revision Requested
-                                        </Badge>
-                                      )}
-                                      {itemApproval.status === 'pending' && (
-                                        <Badge variant="outline" className="text-yellow-700 border-yellow-300">
-                                          <Clock className="w-3 h-3 mr-1" />
-                                          Pending
-                                        </Badge>
-                                      )}
+                                    <div className="flex items-center justify-between mb-2">
+                                      <p className="text-xs text-gray-500 uppercase font-semibold">Artwork Approval History</p>
+                                      <Badge variant="outline" className="text-xs">
+                                        {itemApprovals.length} {itemApprovals.length === 1 ? 'submission' : 'submissions'}
+                                      </Badge>
                                     </div>
-                                    {itemApproval.declineReason && (
-                                      <p className="text-sm text-gray-600 mt-2 italic">"{itemApproval.declineReason}"</p>
-                                    )}
-                                    {itemApproval.approvedAt && (
-                                      <p className="text-xs text-gray-500 mt-1">
-                                        Approved {new Date(itemApproval.approvedAt).toLocaleDateString()}
-                                      </p>
-                                    )}
-                                    {itemApproval.declinedAt && (
-                                      <p className="text-xs text-gray-500 mt-1">
-                                        Revision requested {new Date(itemApproval.declinedAt).toLocaleDateString()}
-                                      </p>
-                                    )}
+                                    <div className="space-y-2">
+                                      {itemApprovals
+                                        .sort((a: any, b: any) => new Date(b.createdAt || b.sentAt).getTime() - new Date(a.createdAt || a.sentAt).getTime())
+                                        .map((approval: any, index: number) => (
+                                          <div key={approval.id} className={`p-3 rounded-lg border ${approval.status === 'approved' ? 'bg-green-50 border-green-200' :
+                                            approval.status === 'declined' ? 'bg-red-50 border-red-200' :
+                                              'bg-yellow-50 border-yellow-200'
+                                            }`}>
+                                            <div className="flex items-start justify-between gap-2">
+                                              <div className="flex-1">
+                                                <div className="flex items-center gap-2 mb-1">
+                                                  {approval.status === 'approved' && (
+                                                    <>
+                                                      <CheckCircle className="w-4 h-4 text-green-600" />
+                                                      <span className="text-sm font-semibold text-green-800">Approved</span>
+                                                    </>
+                                                  )}
+                                                  {approval.status === 'declined' && (
+                                                    <>
+                                                      <X className="w-4 h-4 text-red-600" />
+                                                      <span className="text-sm font-semibold text-red-800">Revision Requested</span>
+                                                    </>
+                                                  )}
+                                                  {approval.status === 'pending' && (
+                                                    <>
+                                                      <Clock className="w-4 h-4 text-yellow-600" />
+                                                      <span className="text-sm font-semibold text-yellow-800">Pending Review</span>
+                                                    </>
+                                                  )}
+                                                  {index === 0 && (
+                                                    <Badge variant="secondary" className="text-xs ml-auto">Latest</Badge>
+                                                  )}
+                                                </div>
+
+                                                {approval.approvedAt && (
+                                                  <p className="text-xs text-gray-600 mt-1">
+                                                    ✓ Approved on {new Date(approval.approvedAt).toLocaleDateString()} at {new Date(approval.approvedAt).toLocaleTimeString()}
+                                                  </p>
+                                                )}
+                                                {approval.declinedAt && (
+                                                  <p className="text-xs text-gray-600 mt-1">
+                                                    ↻ Requested revision on {new Date(approval.declinedAt).toLocaleDateString()} at {new Date(approval.declinedAt).toLocaleTimeString()}
+                                                  </p>
+                                                )}
+                                                {approval.sentAt && approval.status === 'pending' && (
+                                                  <p className="text-xs text-gray-600 mt-1">
+                                                    📤 Sent on {new Date(approval.sentAt).toLocaleDateString()} at {new Date(approval.sentAt).toLocaleTimeString()}
+                                                  </p>
+                                                )}
+
+                                                {approval.declineReason && (
+                                                  <div className="mt-2 p-2 bg-white rounded border">
+                                                    <p className="text-xs text-gray-500 mb-1">Feedback:</p>
+                                                    <p className="text-sm text-gray-700 italic">"{approval.declineReason}"</p>
+                                                  </div>
+                                                )}
+
+                                                {approval.clientName && (
+                                                  <p className="text-xs text-gray-500 mt-1">
+                                                    Client: {approval.clientName} ({approval.clientEmail})
+                                                  </p>
+                                                )}
+                                              </div>
+                                            </div>
+                                          </div>
+                                        ))}
+                                    </div>
                                   </div>
                                 )}
                               </div>
@@ -1778,6 +1816,16 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
                   size: item.size,
                   quantity: item.quantity,
                 }))}
+                onSwitchToEmail={(emailData) => {
+                  setEmailSubject(emailData.subject);
+                  setEmailBody(emailData.body);
+                  // Set default recipient from primary contact
+                  if (primaryContact) {
+                    setEmailTo(primaryContact.email);
+                    setEmailToName(`${primaryContact.firstName} ${primaryContact.lastName}`);
+                  }
+                  setActiveTab("email");
+                }}
               />
             </TabsContent>
 
@@ -1888,6 +1936,15 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="grid grid-cols-2 gap-4">
+                    <div className="col-span-2">
+                      <label className="text-sm font-medium">Subject:</label>
+                      <Input
+                        placeholder={`Re: Order #${order.orderNumber}`}
+                        value={emailSubject}
+                        onChange={(e) => setEmailSubject(e.target.value)}
+                        data-testid="input-email-subject"
+                      />
+                    </div>
                     <div>
                       <label className="text-sm font-medium">From:</label>
                       {emailFromCustom ? (
@@ -1952,26 +2009,59 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
                     </div>
                     <div>
                       <label className="text-sm font-medium">To:</label>
+                      <div className="relative">
+                        <Input
+                          placeholder="client@company.com"
+                          value={emailTo}
+                          onChange={(e) => {
+                            setEmailTo(e.target.value);
+                            setEmailSearchQuery(e.target.value);
+                          }}
+                          onFocus={() => setEmailSearchQuery(emailTo)}
+                          onBlur={() => setTimeout(() => setEmailSearchQuery(""), 200)}
+                          data-testid="input-email-to"
+                        />
+                        {emailSearchQuery && contacts.length > 0 && (
+                          <div className="absolute z-50 w-full mt-1 bg-white border rounded-md shadow-lg max-h-60 overflow-auto">
+                            {contacts
+                              .filter((c: any) => 
+                                c.email?.toLowerCase().includes(emailSearchQuery.toLowerCase()) ||
+                                `${c.firstName} ${c.lastName}`.toLowerCase().includes(emailSearchQuery.toLowerCase())
+                              )
+                              .slice(0, 5)
+                              .map((contact: any) => (
+                                <button
+                                  key={contact.id}
+                                  type="button"
+                                  className="w-full px-3 py-2 text-left hover:bg-gray-100 flex items-center gap-2"
+                                  onClick={() => {
+                                    setEmailTo(contact.email);
+                                    setEmailToName(`${contact.firstName} ${contact.lastName}`);
+                                    setEmailSearchQuery("");
+                                  }}
+                                >
+                                  <div>
+                                    <div className="font-medium text-sm">{contact.firstName} {contact.lastName}</div>
+                                    <div className="text-xs text-gray-500">{contact.email}</div>
+                                  </div>
+                                </button>
+                              ))
+                            }
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium">To Name:</label>
                       <Input
-                        placeholder="client@company.com"
-                        value={emailTo}
-                        onChange={(e) => setEmailTo(e.target.value)}
-                        data-testid="input-email-to"
+                        placeholder="Your Client Name"
+                        value={emailToName}
+                        onChange={(e) => setEmailToName(e.target.value)}
+                        data-testid="input-email-to-name"
                       />
                     </div>
                   </div>
-
-                  <div>
-                    <label className="text-sm font-medium">Subject:</label>
-                    <Input
-                      placeholder={`Re: Order #${order.orderNumber}`}
-                      value={emailSubject}
-                      onChange={(e) => setEmailSubject(e.target.value)}
-                      data-testid="input-email-subject"
-                    />
-                  </div>
-
-                  <div>
+                  <div className="">
                     <div className="flex items-center justify-between mb-2">
                       <label className="text-sm font-medium">Message:</label>
                       <div className="flex gap-2">
@@ -1997,7 +2087,7 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
                         value={emailBody}
                         onChange={setEmailBody}
                         placeholder="Compose your message to the client..."
-                        className="mt-1"
+                        className="mt-1 relative"
                       />
                     ) : (
                       <div className="border rounded-lg p-4 min-h-[300px] bg-gray-50">
@@ -2025,7 +2115,6 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
                       </div>
                     )}
                   </div>
-
                   <div>
                     <label className="text-sm font-medium mb-2 block">Attachments:</label>
                     <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center cursor-pointer hover:border-blue-500 transition-colors"
@@ -2047,23 +2136,24 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
                         <p className="text-xs text-gray-400">PDF, Images, Documents</p>
                       </div>
                     </div>
-                    {emailAttachments.length > 0 && (
-                      <div className="mt-2 space-y-2">
-                        {emailAttachments.map((file, index) => (
-                          <div key={index} className="flex items-center justify-between p-2 bg-gray-50 rounded">
-                            <span className="text-sm">{file.name}</span>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => setEmailAttachments(prev => prev.filter((_, i) => i !== index))}
-                            >
-                              Remove
-                            </Button>
-                          </div>
-                        ))}
-                      </div>
-                    )}
                   </div>
+
+                  {emailAttachments.length > 0 && (
+                    <div className="mt-2 space-y-2">
+                      {emailAttachments.map((file, index) => (
+                        <div key={index} className="flex items-center justify-between p-2 bg-gray-50 rounded">
+                          <span className="text-sm">{file.name}</span>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setEmailAttachments(prev => prev.filter((_, i) => i !== index))}
+                          >
+                            Remove
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
 
                   <div className="flex gap-2">
                     <Button
@@ -2176,6 +2266,7 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
             </TabsContent>
 
             <TabsContent value="vendor" className="mt-6">
+
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Vendor Communication */}
                 <Card>
@@ -2186,6 +2277,15 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-4">
+                    <div>
+                      <label className="text-sm font-medium">Subject:</label>
+                      <Input
+                        placeholder={`Production Update - Order #${order.orderNumber}`}
+                        value={vendorEmailSubject}
+                        onChange={(e) => setVendorEmailSubject(e.target.value)}
+                        data-testid="input-vendor-email-subject"
+                      />
+                    </div>
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <label className="text-sm font-medium">From:</label>
@@ -2251,24 +2351,61 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
                       </div>
                       <div>
                         <label className="text-sm font-medium">To:</label>
+                        <div className="relative">
+                          <Input
+                            placeholder={selectedVendor?.email || "vendor@supplier.com"}
+                            value={vendorEmailTo || selectedVendor?.email || ""}
+                            onChange={(e) => {
+                              setVendorEmailTo(e.target.value);
+                              setVendorEmailSearchQuery(e.target.value);
+                            }}
+                            onFocus={() => setVendorEmailSearchQuery(vendorEmailTo || selectedVendor?.email || "")}
+                            onBlur={() => setTimeout(() => setVendorEmailSearchQuery(""), 200)}
+                            data-testid="input-vendor-email-to"
+                          />
+                          {vendorEmailSearchQuery && orderVendors.length > 0 && (
+                            <div className="absolute z-50 w-full mt-1 bg-white border rounded-md shadow-lg max-h-60 overflow-auto">
+                              {orderVendors
+                                .filter((v: any) => 
+                                  v.email?.toLowerCase().includes(vendorEmailSearchQuery.toLowerCase()) ||
+                                  v.name?.toLowerCase().includes(vendorEmailSearchQuery.toLowerCase())
+                                )
+                                .slice(0, 5)
+                                .map((vendor: any) => (
+                                  <button
+                                    key={vendor.id}
+                                    type="button"
+                                    className="w-full px-3 py-2 text-left hover:bg-gray-100 flex items-center gap-2"
+                                    onClick={() => {
+                                      setVendorEmailTo(vendor.email);
+                                      setVendorEmailToName(vendor.name);
+                                      setVendorEmailSearchQuery("");
+                                      setSelectedVendor(vendor);
+                                    }}
+                                  >
+                                    <div>
+                                      <div className="font-medium text-sm">{vendor.name}</div>
+                                      <div className="text-xs text-gray-500">{vendor.email}</div>
+                                    </div>
+                                  </button>
+                                ))
+                              }
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium">To Name:</label>
                         <Input
-                          placeholder={selectedVendor?.email || "vendor@selectedVendor.com"}
-                          value={vendorEmailTo || selectedVendor?.email || ""}
-                          onChange={(e) => setVendorEmailTo(e.target.value)}
-                          data-testid="input-vendor-email-to"
+                          placeholder={selectedVendor?.email || "Vendor Name"}
+                          value={vendorEmailToName || selectedVendor?.email || ""}
+                          onChange={(e) => setVendorEmailToName(e.target.value)}
+                          data-testid="input-vendor-email-to-name"
                         />
                       </div>
                     </div>
 
-                    <div>
-                      <label className="text-sm font-medium">Subject:</label>
-                      <Input
-                        placeholder={`Production Update - Order #${order.orderNumber}`}
-                        value={vendorEmailSubject}
-                        onChange={(e) => setVendorEmailSubject(e.target.value)}
-                        data-testid="input-vendor-email-subject"
-                      />
-                    </div>
+
 
                     <div>
                       <div className="flex items-center justify-between mb-2">
@@ -2580,7 +2717,14 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
       </Dialog >
       <OrderModal
         open={isEditModalOpen}
-        onOpenChange={setIsEditModalOpen}
+        onOpenChange={(open) => {
+          setIsEditModalOpen(open);
+          if (!open) {
+            // Refresh order items and order data when OrderModal closes
+            queryClient.invalidateQueries({ queryKey: [`/api/orders/${orderId}/items`] });
+            queryClient.invalidateQueries({ queryKey: [`/api/orders/${orderId}`] });
+          }
+        }}
         order={order}
       />
       <ProductModal
@@ -2601,15 +2745,15 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center gap-2">
               <AlertTriangle className="w-5 h-5 text-red-600" />
-              Delete Product?
+              Remove Item from Order?
             </AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete <strong>{deletingProduct?.productName}</strong>?
+              Are you sure you want to remove <strong>{deletingProduct?.productName}</strong> from this order?
               {deletingProduct?.productSku && (
                 <span className="block mt-1 text-xs text-gray-500">SKU: {deletingProduct.productSku}</span>
               )}
-              <span className="block mt-2 text-red-600 font-medium">
-                This action cannot be undone. The product will be permanently removed from the system.
+              <span className="block mt-2 text-orange-600 font-medium">
+                This will only remove the item from this order. The product will remain in your catalog.
               </span>
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -2623,21 +2767,21 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
             <AlertDialogAction
               onClick={() => {
                 if (deletingProduct) {
-                  deleteProductMutation.mutate(deletingProduct.productId);
+                  deleteOrderItemMutation.mutate(deletingProduct.id);
                 }
               }}
               className="bg-red-600 hover:bg-red-700 focus:ring-red-600"
-              disabled={deleteProductMutation.isPending}
+              disabled={deleteOrderItemMutation.isPending}
             >
-              {deleteProductMutation.isPending ? (
+              {deleteOrderItemMutation.isPending ? (
                 <>
                   <span className="animate-spin mr-2">⏳</span>
-                  Deleting...
+                  Removing...
                 </>
               ) : (
                 <>
                   <Trash2 className="w-4 h-4 mr-2" />
-                  Delete Product
+                  Remove Item
                 </>
               )}
             </AlertDialogAction>

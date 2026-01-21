@@ -361,37 +361,79 @@ export class SageService {
      */
     async syncProductToDatabase(sageProduct: SageProduct): Promise<string> {
         try {
-            // If supplier name is empty but we have supplierId, try to fetch supplier info
-            let supplierName = sageProduct.supplierName;
-            if (!supplierName && sageProduct.supplierId) {
-                try {
-                    console.log(`Fetching supplier info for supplier ID: ${sageProduct.supplierId}`);
-                    const supplierInfo = await this.getSupplierInfo(sageProduct.supplierId);
-                    console.log('Supplier info response:', supplierInfo);
-                    supplierName = supplierInfo?.name || supplierInfo?.companyName || supplierInfo?.supplier?.name || supplierInfo?.supplier?.companyName || `Supplier ${sageProduct.supplierId}`;
-                    console.log(`Resolved supplier name: ${supplierName}`);
-                } catch (error) {
-                    console.log(`Could not fetch supplier info for ${sageProduct.supplierId}, using ID as name`);
-                    console.error('Supplier fetch error:', error);
-                    supplierName = `Supplier ${sageProduct.supplierId}`;
+            console.log('=== SAGE Product Sync Debug ===');
+            console.log('Product Name:', sageProduct.productName);
+            console.log('Supplier Name from SAGE:', sageProduct.supplierName);
+            console.log('Supplier ID from SAGE:', sageProduct.supplierId);
+            
+            // Validate we have at least supplier name
+            if (!sageProduct.supplierName || sageProduct.supplierName.trim() === '') {
+                console.error('⚠️  ERROR: Supplier name is missing from SAGE API!');
+                throw new Error('Cannot sync product: Supplier name is required from SAGE API');
+            }
+            
+            const supplierName = sageProduct.supplierName;
+            const supplierId = sageProduct.supplierId?.trim() || null;
+            
+            console.log('Processing with:', { supplierName, supplierId });
+            
+            // First, try to find supplier by SAGE ID (if provided)
+            let supplier = null;
+            if (supplierId) {
+                supplier = await storage.getSupplierBySageId(supplierId);
+                console.log('Found existing supplier by SAGE ID:', supplier);
+                
+                // If supplier found but name doesn't match, it might be wrong - check by name too
+                if (supplier && supplier.name !== supplierName) {
+                    console.warn(`⚠️  Supplier name mismatch! DB has "${supplier.name}" but SAGE says "${supplierName}"`);
+                    console.log('This might be wrong - will search by name instead...');
+                    supplier = null; // Reset and search by name below
+                }
+            } else {
+                console.log('No SAGE supplier ID provided, will search by name only');
+            }
+            
+            // If no supplier found by ID, or ID search was skipped, search by name
+            if (!supplier) {
+                console.log('Searching for supplier by name:', supplierName);
+                const allSuppliers = await storage.getSuppliers();
+                supplier = allSuppliers.find(s => 
+                    s.name.toLowerCase() === supplierName.toLowerCase()
+                );
+                
+                if (supplier) {
+                    console.log('Found supplier by name:', supplier);
+                    // Update with SAGE ID if we have one and it's not set
+                    if (supplierId && !supplier.sageId) {
+                        console.log('Updating supplier with SAGE ID:', supplierId);
+                        await storage.updateSupplier(supplier.id, {
+                            sageId: supplierId,
+                            apiIntegrationStatus: 'active',
+                            lastSyncAt: new Date()
+                        });
+                    }
+                } else {
+                    console.log('No existing supplier found, will create new one');
                 }
             }
 
-            // First, check if supplier exists, if not create it
-            let supplier = await storage.getSupplierBySageId(sageProduct.supplierId);
-
-            let supplierId = supplier?.id;
+            let dbSupplierId = supplier?.id;
             
-            if (!supplier && (supplierName || sageProduct.supplierId)) {
-                // Create new supplier
+            if (!supplier) {
+                // Create new supplier with name and SAGE ID (if available)
+                console.log('Creating new supplier:', supplierName);
                 const newSupplier = await storage.createSupplier({
-                    name: supplierName || `Supplier ${sageProduct.supplierId}`,
-                    sageId: sageProduct.supplierId,
+                    name: supplierName,
+                    sageId: supplierId || undefined,
                     apiIntegrationStatus: 'active',
                     lastSyncAt: new Date()
                 });
-                supplierId = newSupplier.id;
+                dbSupplierId = newSupplier.id;
+                console.log('Created new supplier with ID:', dbSupplierId, 'Name:', newSupplier.name);
             }
+            
+            console.log('Final supplier ID for product:', dbSupplierId);
+            console.log('Final supplier name:', supplierName);
 
             // Check if product already exists in sage_products
             const existingSageProduct = await storage.getSageProductBySageId(sageProduct.productId);
@@ -400,10 +442,10 @@ export class SageService {
                 sageId: sageProduct.productId,
                 productName: sageProduct.productName,
                 productNumber: sageProduct.productNumber,
-                supplierId: supplierId,
+                supplierId: dbSupplierId,
                 category: sageProduct.category,
                 subcategory: sageProduct.subcategory,
-                brand: supplierName || sageProduct.supplierName,
+                brand: supplierName,
                 description: sageProduct.description,
                 colors: sageProduct.colors || [],
                 features: sageProduct.features || [],
@@ -440,7 +482,7 @@ export class SageService {
                 supplierSku: sageProduct.productId, // Store SAGE SPC code here
                 description: sageProduct.description || '',
                 basePrice: (sageProduct.pricingStructure as any)?.minPrice?.toString() || '0',
-                supplierId: supplierId,
+                supplierId: dbSupplierId,
                 brand: supplierName || sageProduct.supplierName,
                 category: sageProduct.category,
                 colors: sageProduct.colors || [],
@@ -449,6 +491,12 @@ export class SageService {
                 leadTime: 10, // Default lead time
                 minimumQuantity: 1,
             };
+
+            console.log('Main product data to save:', {
+                name: mainProductData.name,
+                supplierId: mainProductData.supplierId,
+                brand: mainProductData.brand
+            });
 
             // Check if already exists in main products table by supplierSku (SAGE SPC code)
             const existingMainProducts = await storage.getProducts();
@@ -459,12 +507,16 @@ export class SageService {
 
             if (matchedProduct) {
                 // Update existing main product
+                console.log('Updating existing product:', matchedProduct.id);
                 await storage.updateProduct(matchedProduct.id, mainProductData);
             } else {
                 // Create new main product
-                await storage.createProduct(mainProductData);
+                console.log('Creating new main product');
+                const createdProduct = await storage.createProduct(mainProductData);
+                console.log('Created product with supplier ID:', createdProduct.supplierId);
             }
 
+            console.log('=== End SAGE Product Sync ===\n');
             return sageProductId;
         } catch (error) {
             console.error('Error syncing SAGE product to database:', error);

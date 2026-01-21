@@ -38,6 +38,7 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Separator } from "./ui/separator";
+import { format } from "date-fns";
 
 interface OrderFile {
     id: string;
@@ -80,6 +81,7 @@ interface FilesTabProps {
         size?: string;
         quantity: number;
     }>;
+    onSwitchToEmail?: (emailData: { body: string; subject: string }) => void;
 }
 
 const FILE_TYPE_OPTIONS = [
@@ -90,7 +92,7 @@ const FILE_TYPE_OPTIONS = [
     { value: "other_document", label: "Other Document", color: "bg-gray-500" },
 ];
 
-export function FilesTab({ orderId, products }: FilesTabProps) {
+export function FilesTab({ orderId, products, onSwitchToEmail }: FilesTabProps) {
     const { toast } = useToast();
     const queryClient = useQueryClient();
 
@@ -105,15 +107,20 @@ export function FilesTab({ orderId, products }: FilesTabProps) {
         queryKey: [`/api/orders/${orderId}/files`],
     });
 
-    // Get products that don't have customer proofs yet
-    const productsWithProofs = new Set(
+    // Get products that don't have pending/approved customer proofs
+    // Allow re-upload if previous approval was declined
+    const productsWithActiveProofs = new Set(
         files
-            .filter(f => f.fileType === "customer_proof" && f.orderItemId)
+            .filter(f =>
+                f.fileType === "customer_proof" &&
+                f.orderItemId &&
+                f.approval?.status !== "declined"
+            )
             .map(f => f.orderItemId)
     );
 
     const availableProductsForProof = products.filter(
-        p => !productsWithProofs.has(p.id)
+        p => !productsWithActiveProofs.has(p.id)
     );
 
     // Upload mutation
@@ -279,22 +286,46 @@ export function FilesTab({ orderId, products }: FilesTabProps) {
         // Get selected files with approval data
         const selectedFiles = files.filter(f => selectedFileIds.includes(f.id));
 
-        // Generate email body with preview links
-        const emailBody = selectedFiles.map(file => {
+        // Generate email body with preview links in HTML format
+        const emailBody = selectedFiles.map((file, index) => {
             const approvalLink = file.approval?.approvalToken
                 ? `${window.location.origin}/approval/${file.approval.approvalToken}`
                 : 'Pending';
 
-            return `${file.orderItem?.productName || 'Product'}: ${approvalLink}`;
-        }).join('\n');
+            const productInfo = file.orderItem?.productName || 'Product';
+            const colorSize = file.orderItem?.color
+                ? ` (${file.orderItem.color}${file.orderItem?.size ? ` / ${file.orderItem.size}` : ''})`
+                : '';
 
-        // Copy to clipboard or open email client
-        navigator.clipboard.writeText(emailBody).then(() => {
+            return `<p style="margin-bottom: 15px;">
+                <strong>${index + 1}. ${productInfo}${colorSize}</strong><br/>
+                <span style="color: #666;font-size: 24px;">Approval Link:</span> <a href="${approvalLink}" style="color: #2563eb;font-size: 24px;font-weight: bold;">${approvalLink}</a>
+            </p>`;
+        }).join('');
+
+        const emailSubject = `Artwork Approval Required - ${selectedFiles.length} Item${selectedFiles.length > 1 ? 's' : ''}`;
+        const fullEmailBody = `<p>Hi,</p>
+                                <p>Please review and approve the following artwork proofs:</p>
+                                ${emailBody}
+                                <p>Thank you!</p>
+                                `;
+
+        // Switch to email tab and pre-fill
+        if (onSwitchToEmail) {
+            onSwitchToEmail({ body: fullEmailBody, subject: emailSubject });
             toast({
-                title: "Preview links copied!",
-                description: "Approval preview links have been copied to clipboard",
+                title: "Ready to send",
+                description: "Email composition ready in Client Communication tab",
             });
-        });
+        } else {
+            // Fallback: copy to clipboard
+            navigator.clipboard.writeText(fullEmailBody).then(() => {
+                toast({
+                    title: "Preview links copied!",
+                    description: "Approval preview links have been copied to clipboard",
+                });
+            });
+        }
     };
 
     // Get unique tags from all files
@@ -306,7 +337,7 @@ export function FilesTab({ orderId, products }: FilesTabProps) {
         : files.filter(f => f.tags?.includes(filterTag));
 
     // Get customer proof files for selection
-    const customerProofFiles = filteredFiles.filter(f => f.fileType === "customer_proof");
+    const customerProofFiles = filteredFiles.filter(f => f.fileType === "customer_proof" && f.approval?.status !== "declined" && f.approval?.status !== 'approved');
 
     // Calculate Cloudinary stats
     const cloudinaryFiles = files.filter(f => f.filePath && f.filePath.includes('cloudinary.com'));
@@ -419,7 +450,7 @@ export function FilesTab({ orderId, products }: FilesTabProps) {
                         <Table>
                             <TableHeader>
                                 <TableRow>
-                                    {filterTag === "customer_proof" && (
+                                    {customerProofFiles.length > 0 && (
                                         <TableHead className="w-12">
                                             <Checkbox
                                                 checked={selectedFileIds.length === customerProofFiles.length && customerProofFiles.length > 0}
@@ -430,7 +461,7 @@ export function FilesTab({ orderId, products }: FilesTabProps) {
                                     <TableHead className="w-16">Preview</TableHead>
                                     <TableHead>File Name</TableHead>
                                     <TableHead>Type</TableHead>
-                                    <TableHead>Status</TableHead>
+                                    <TableHead className="text-center">Status</TableHead>
                                     <TableHead>Size</TableHead>
                                     <TableHead>Date</TableHead>
                                     <TableHead className="w-12">Actions</TableHead>
@@ -439,12 +470,14 @@ export function FilesTab({ orderId, products }: FilesTabProps) {
                             <TableBody>
                                 {filteredFiles.map((file) => (
                                     <TableRow key={file.id}>
-                                        {filterTag === "customer_proof" && (
+                                        {customerProofFiles.length > 0 && (
                                             <TableCell>
-                                                <Checkbox
-                                                    checked={selectedFileIds.includes(file.id)}
-                                                    onCheckedChange={() => handleSelectFile(file.id)}
-                                                />
+                                                {file.fileType === "customer_proof" && file.approval?.status != "declined" && file.approval?.status !== 'approved' ? (
+                                                    <Checkbox
+                                                        checked={selectedFileIds.includes(file.id)}
+                                                        onCheckedChange={() => handleSelectFile(file.id)}
+                                                    />
+                                                ) : <div className="w-6" />}
                                             </TableCell>
                                         )}
                                         <TableCell>
@@ -504,7 +537,7 @@ export function FilesTab({ orderId, products }: FilesTabProps) {
                                         </TableCell>
                                         <TableCell >
                                             {file.fileType === "customer_proof" && file.approval ? (
-                                                <div className="flex gap-2 items-center">
+                                                <div className="flex gap-2 items-center justify-between">
                                                     <Badge
                                                         variant="outline"
                                                         className={
@@ -544,7 +577,7 @@ export function FilesTab({ orderId, products }: FilesTabProps) {
                                             {(file.fileSize / 1024).toFixed(1)} KB
                                         </TableCell>
                                         <TableCell className="text-xs text-gray-500">
-                                            {new Date(file.createdAt).toLocaleDateString()}
+                                            {format(new Date(file.createdAt), "MMM dd, yyyy HH:mm")}
                                         </TableCell>
                                         <TableCell>
                                             <DropdownMenu>

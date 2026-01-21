@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useRoute } from "wouter";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
@@ -46,6 +46,7 @@ function ApprovalPage() {
   const token = params?.token;
   const { toast } = useToast();
   const [comments, setComments] = useState("");
+  const queryClient = useQueryClient();
 
   // Fetch approval data
   const { data: approval, isLoading, error } = useQuery<ApprovalData>({
@@ -66,6 +67,14 @@ function ApprovalPage() {
       return response.json();
     },
     onSuccess: () => {
+      // Invalidate queries to sync with OrderDetailsModal
+      if (approval?.orderId) {
+        queryClient.invalidateQueries({ queryKey: [`/api/orders/${approval.orderId}/approvals`] });
+        queryClient.invalidateQueries({ queryKey: [`/api/orders/${approval.orderId}`] });
+        // queryClient.invalidateQueries({ queryKey: [`/api/orders/${approval.orderId}/items`] });
+      }
+      queryClient.invalidateQueries({ queryKey: [`/api/approvals/${token}`] });
+      
       toast({
         title: "Artwork Approved! ✅",
         description: "Thank you! The artwork has been approved and production will begin.",
@@ -93,6 +102,13 @@ function ApprovalPage() {
       return response.json();
     },
     onSuccess: () => {
+      // Invalidate queries to sync with OrderDetailsModal
+      if (approval?.orderId) {
+        queryClient.invalidateQueries({ queryKey: [`/api/orders/${approval.orderId}/approvals`] });
+        queryClient.invalidateQueries({ queryKey: [`/api/orders/${approval.orderId}`] });
+      }
+      queryClient.invalidateQueries({ queryKey: [`/api/approvals/${token}`] });
+      
       toast({
         title: "Feedback Submitted ✅",
         description: "We've received your feedback and will revise the artwork.",

@@ -1552,6 +1552,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const dataToValidate = { ...req.body };
       
+      // Extract items from request body before validation
+      const items = req.body.items;
+      delete dataToValidate.items; // Remove items from order data validation
+      
       // Convert date strings to Date objects for validation
       if (dataToValidate.inHandsDate) {
         dataToValidate.inHandsDate = new Date(dataToValidate.inHandsDate);
@@ -1568,6 +1572,50 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Get old order to check if company/supplier changed
       const oldOrder = await storage.getOrder(req.params.id);
       const order = await storage.updateOrder(req.params.id, validatedData);
+
+      // Handle order items if provided
+      if (items && Array.isArray(items)) {
+        // Get existing order items
+        const existingItems = await storage.getOrderItems(order.id);
+        const existingItemIds = new Set(existingItems.map(item => item.id));
+        
+        // Process each item from the request
+        for (const item of items) {
+          // If item has an ID and exists in database, update it
+          if (item.id && !item.id.toString().startsWith('temp-') && existingItemIds.has(item.id)) {
+            await storage.updateOrderItem(item.id, {
+              quantity: item.quantity,
+              unitPrice: item.unitPrice,
+              totalPrice: item.totalPrice,
+              color: item.color,
+              size: item.size,
+              imprintLocation: item.imprintLocation,
+              imprintMethod: item.imprintMethod,
+              notes: item.notes,
+              supplierId: item.supplierId,
+            });
+          } else if (!item.id || item.id.toString().startsWith('temp-')) {
+            // New item (temp ID or no ID), create it
+            await storage.createOrderItem({
+              orderId: order.id,
+              productId: item.productId,
+              supplierId: item.supplierId,
+              quantity: item.quantity,
+              unitPrice: item.unitPrice,
+              totalPrice: item.totalPrice,
+              color: item.color,
+              size: item.size,
+              imprintLocation: item.imprintLocation,
+              imprintMethod: item.imprintMethod,
+              notes: item.notes,
+            });
+          }
+        }
+        
+        // Note: We don't auto-delete items here to prevent accidental data loss
+        // and to avoid foreign key constraint violations with artwork_approvals.
+        // Users should manually delete items through the UI if needed.
+      }
 
       // Log activity
       await storage.createActivity({
@@ -1708,6 +1756,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.delete('/api/orders/:orderId/items/:itemId', isAuthenticated, async (req, res) => {
     try {
+      // First, delete any artwork approvals associated with this order item
+      // This prevents foreign key constraint violations
+      const { db } = await import("./db");
+      const { artworkApprovals } = await import("@shared/schema");
+      const { eq } = await import("drizzle-orm");
+      
+      await db.delete(artworkApprovals).where(eq(artworkApprovals.orderItemId, req.params.itemId));
+      
+      // Now safe to delete the order item
       await storage.deleteOrderItem(req.params.itemId);
 
       // Recalculate order totals after deleting item
@@ -6632,7 +6689,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.log('📧 Attempting to send email...');
         console.log('  Type:', communicationType);
         console.log('  From:', fromEmail, fromName ? `(${fromName})` : '');
-        console.log('  To:', recipientEmail);
+        console.log('  To:', recipientEmail, recipientName ? `(${recipientName})` : '');
         console.log('  Subject:', subject);
         console.log('  Attachments:', emailAttachments.length);
         
@@ -6647,6 +6704,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               from: fromEmail,
               fromName: fromName || 'SwagSuite',
               to: recipientEmail,
+              toName: recipientName,
               subject,
               body,
               orderNumber: order?.orderNumber,
@@ -6660,6 +6718,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               from: fromEmail,
               fromName: fromName || 'SwagSuite',
               to: recipientEmail,
+              toName: recipientName,
               subject,
               body,
               orderNumber: order?.orderNumber,

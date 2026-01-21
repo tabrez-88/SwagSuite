@@ -102,6 +102,7 @@ export function SanmarIntegration() {
                 description: `${result.data.count || 1} product(s) successfully added to catalog`,
             });
             queryClient.invalidateQueries({ queryKey: ['/api/products'] });
+            queryClient.invalidateQueries({ queryKey: ['/api/suppliers'] });
         },
         onError: (error, variables: any) => {
             if (variables.productId) {

@@ -1,5 +1,6 @@
 import nodemailer from 'nodemailer';
 import type { Transporter } from 'nodemailer';
+import type SMTPTransport from 'nodemailer/lib/smtp-transport';
 import { storage } from './storage';
 
 interface EmailOptions {
@@ -10,7 +11,7 @@ interface EmailOptions {
 }
 
 class EmailService {
-  private transporter: Transporter | null = null;
+  private transporter: Transporter<SMTPTransport.SentMessageInfo> | null = null;
 
   async initialize() {
     const settings = await storage.getIntegrationSettings();
@@ -67,6 +68,7 @@ class EmailService {
     from?: string;
     fromName?: string;
     to: string;
+    toName?: string;
     subject: string;
     body: string;
     orderNumber?: string;
@@ -122,6 +124,7 @@ class EmailService {
     const mailOptions: any = {
       from: `"${fromName}" <${fromEmail}>`,
       to: data.to,
+      toName: data.toName,
       subject: data.subject,
       html,
       text: data.body,
@@ -152,6 +155,7 @@ class EmailService {
     from?: string;
     fromName?: string;
     to: string;
+    toName?: string;
     subject: string;
     body: string;
     orderNumber?: string;
@@ -208,6 +212,7 @@ class EmailService {
     const vendorMailOptions: any = {
       from: `"${fromName}" <${fromEmail}>`,
       to: data.to,
+      toName: data.toName,
       subject: data.subject,
       html,
       text: data.body,
@@ -244,8 +249,10 @@ class EmailService {
         throw new Error('Failed to initialize email service');
       }
       
+      const transporter = this.transporter as Transporter<SMTPTransport.SentMessageInfo>;
+      
       // Verify SMTP connection
-      await this.transporter.verify();
+      await transporter.verify();
       console.log('✓ SMTP connection successful');
       
       // If test email recipient provided, send test email

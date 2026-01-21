@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { useEffect } from "react";
 import { format, formatDistanceToNow } from "date-fns";
 import {
     Card,
@@ -51,12 +52,35 @@ const roleConfig = {
 export default function ProfilePage() {
     const { data: user, isLoading, dataUpdatedAt } = useQuery<User>({
         queryKey: ["/api/auth/user"],
+        queryFn: async () => {
+            const res = await fetch("/api/auth/user", {
+                credentials: "include",
+            });
+            
+            // Return null if unauthorized instead of throwing
+            if (res.status === 401) {
+                return null;
+            }
+            
+            if (!res.ok) {
+                throw new Error(`${res.status}: ${res.statusText}`);
+            }
+            
+            return res.json();
+        },
         refetchOnMount: true,
     });
 
     // Check if user was just registered (created within last 5 seconds)
     const isNewlyRegistered = user && dataUpdatedAt && 
         new Date(user.createdAt).getTime() > (Date.now() - 5000);
+
+    // Redirect to login if not authenticated
+    useEffect(() => {
+        if (!isLoading && !user) {
+            window.location.href = '/api/login';
+        }
+    }, [isLoading, user]);
 
     if (isLoading) {
         return (

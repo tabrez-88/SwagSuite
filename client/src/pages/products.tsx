@@ -227,7 +227,7 @@ export default function Products() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {filteredProducts.map((product: Product) => {
                 const supplier = suppliers.find((s: Supplier) => s.id === product.supplierId);
-
+                
                 return (
                   <Card key={product.id} className="hover:shadow-lg flex flex-col justify-between transition-shadow">
                     <CardHeader>
