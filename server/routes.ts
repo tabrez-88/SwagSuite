@@ -441,15 +441,316 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // User Invitation APIs
+  app.post('/api/invitations', isAuthenticated, async (req, res) => {
+    try {
+      const { email, role } = req.body;
+      const currentUser = await storage.getUser((req as any).user.claims.sub);
+
+      // Check if current user is admin or manager
+      if (!currentUser || !['admin', 'manager'].includes(currentUser.role || '')) {
+        return res.status(403).json({ message: "Only administrators and managers can invite users" });
+      }
+
+      // Validate email
+      const { validateEmail } = await import("./passwordUtils");
+      const emailError = validateEmail(email);
+      if (emailError) {
+        return res.status(400).json({ message: emailError });
+      }
+
+      // Check if user already exists
+      const existingUser = await storage.getUserByEmail(email);
+      if (existingUser) {
+        return res.status(400).json({ message: "User with this email already exists" });
+      }
+
+      // Check if there's already a pending invitation
+      const existingInvitation = await storage.getUserInvitationByEmail(email);
+      if (existingInvitation) {
+        return res.status(400).json({ message: "Invitation already sent to this email" });
+      }
+
+      // Generate invitation token
+      const { generateInvitationToken } = await import("./passwordUtils");
+      const { token, expiresAt } = generateInvitationToken();
+
+      // Create invitation
+      const invitation = await storage.createUserInvitation({
+        email,
+        role: role || 'user',
+        token,
+        invitedBy: currentUser.id,
+        expiresAt,
+      });
+
+      // TODO: Send email with invitation link
+      const invitationUrl = `${req.protocol}://${req.get('host')}/accept-invitation?token=${token}`;
+      console.log(`Invitation URL: ${invitationUrl}`);
+
+      // Log activity
+      await storage.createActivity({
+        userId: currentUser.id,
+        entityType: 'user_invitation',
+        entityId: invitation.id,
+        action: 'created',
+        description: `Invited ${email} as ${role}`,
+      });
+
+      res.json({
+        message: "Invitation sent successfully",
+        invitation: {
+          id: invitation.id,
+          email: invitation.email,
+          role: invitation.role,
+          expiresAt: invitation.expiresAt,
+        },
+        invitationUrl, // For development
+      });
+    } catch (error) {
+      console.error("Error creating invitation:", error);
+      res.status(500).json({ message: "Failed to create invitation" });
+    }
+  });
+
+  app.get('/api/invitations/pending', isAuthenticated, async (req, res) => {
+    try {
+      const currentUser = await storage.getUser((req as any).user.claims.sub);
+      
+      if (!currentUser || !['admin', 'manager'].includes(currentUser.role || '')) {
+        return res.status(403).json({ message: "Unauthorized" });
+      }
+
+      const invitations = await storage.getPendingInvitations();
+      res.json(invitations);
+    } catch (error) {
+      console.error("Error fetching invitations:", error);
+      res.status(500).json({ message: "Failed to fetch invitations" });
+    }
+  });
+
+  app.post('/api/invitations/accept', async (req, res) => {
+    try {
+      const { token, username, password, firstName, lastName } = req.body;
+
+      // Validate inputs
+      const { validateUsername, validatePassword, hashPassword } = await import("./passwordUtils");
+      
+      const usernameError = validateUsername(username);
+      if (usernameError) {
+        return res.status(400).json({ message: usernameError });
+      }
+
+      const passwordError = validatePassword(password);
+      if (passwordError) {
+        return res.status(400).json({ message: passwordError });
+      }
+
+      // Get invitation
+      const invitation = await storage.getUserInvitationByToken(token);
+      if (!invitation) {
+        return res.status(404).json({ message: "Invalid or expired invitation" });
+      }
+
+      // Check if username already exists
+      const existingUser = await storage.getUserByUsername(username);
+      if (existingUser) {
+        return res.status(400).json({ message: "Username already taken" });
+      }
+
+      // Check if email already exists
+      const existingEmailUser = await storage.getUserByEmail(invitation.email);
+      if (existingEmailUser) {
+        return res.status(400).json({ message: "User already registered" });
+      }
+
+      // Hash password
+      const hashedPassword = await hashPassword(password);
+
+      // Create user
+      const newUser = await storage.upsertUser({
+        email: invitation.email,
+        username,
+        password: hashedPassword,
+        firstName,
+        lastName,
+        role: invitation.role as any,
+        authProvider: 'local',
+        isActive: true,
+      });
+
+      // Mark invitation as accepted
+      await storage.markInvitationAccepted(token);
+
+      // Log activity
+      await storage.createActivity({
+        userId: newUser.id,
+        entityType: 'user',
+        entityId: newUser.id,
+        action: 'created',
+        description: `Accepted invitation and created account`,
+      });
+
+      res.json({
+        message: "Account created successfully",
+        user: {
+          id: newUser.id,
+          email: newUser.email,
+          username: newUser.username,
+          firstName: newUser.firstName,
+          lastName: newUser.lastName,
+          role: newUser.role,
+        },
+      });
+    } catch (error) {
+      console.error("Error accepting invitation:", error);
+      res.status(500).json({ message: "Failed to accept invitation" });
+    }
+  });
+
+  app.get('/api/invitations/verify/:token', async (req, res) => {
+    try {
+      const { token } = req.params;
+      const invitation = await storage.getUserInvitationByToken(token);
+
+      if (!invitation) {
+        return res.status(404).json({ 
+          valid: false,
+          message: "Invalid or expired invitation" 
+        });
+      }
+
+      res.json({
+        valid: true,
+        email: invitation.email,
+        role: invitation.role,
+      });
+    } catch (error) {
+      console.error("Error verifying invitation:", error);
+      res.status(500).json({ message: "Failed to verify invitation" });
+    }
+  });
+
+  app.delete('/api/invitations/:id', isAuthenticated, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const currentUser = await storage.getUser((req as any).user.claims.sub);
+
+      if (!currentUser || !['admin', 'manager'].includes(currentUser.role || '')) {
+        return res.status(403).json({ message: "Unauthorized" });
+      }
+
+      await storage.deleteInvitation(id);
+      res.json({ message: "Invitation deleted successfully" });
+    } catch (error) {
+      console.error("Error deleting invitation:", error);
+      res.status(500).json({ message: "Failed to delete invitation" });
+    }
+  });
+
+  // Password Reset APIs
+  app.post('/api/auth/forgot-password', async (req, res) => {
+    try {
+      const { email } = req.body;
+
+      // Find user by email
+      const user = await storage.getUserByEmail(email);
+      if (!user) {
+        // Don't reveal if email exists or not
+        return res.json({ message: "If an account exists, a password reset email has been sent" });
+      }
+
+      // Check if user has local auth
+      if (user.authProvider !== 'local') {
+        return res.status(400).json({ message: "This account uses OAuth login" });
+      }
+
+      // Generate reset token
+      const { generatePasswordResetToken } = await import("./passwordUtils");
+      const { token, expiresAt } = generatePasswordResetToken();
+
+      // Create password reset
+      await storage.createPasswordReset({
+        userId: user.id,
+        token,
+        expiresAt,
+      });
+
+      // TODO: Send email with reset link
+      const resetUrl = `${req.protocol}://${req.get('host')}/reset-password?token=${token}`;
+      console.log(`Password reset URL: ${resetUrl}`);
+
+      res.json({ message: "If an account exists, a password reset email has been sent" });
+    } catch (error) {
+      console.error("Error requesting password reset:", error);
+      res.status(500).json({ message: "Failed to process request" });
+    }
+  });
+
+  app.post('/api/auth/reset-password', async (req, res) => {
+    try {
+      const { token, newPassword } = req.body;
+
+      // Validate password
+      const { validatePassword, hashPassword } = await import("./passwordUtils");
+      const passwordError = validatePassword(newPassword);
+      if (passwordError) {
+        return res.status(400).json({ message: passwordError });
+      }
+
+      // Get reset token
+      const reset = await storage.getPasswordResetByToken(token);
+      if (!reset) {
+        return res.status(404).json({ message: "Invalid or expired reset token" });
+      }
+
+      // Hash new password
+      const hashedPassword = await hashPassword(newPassword);
+
+      // Update user password
+      await storage.updateUserPassword(reset.userId, hashedPassword);
+
+      // Mark reset token as used
+      await storage.markPasswordResetUsed(token);
+
+      // Log activity
+      await storage.createActivity({
+        userId: reset.userId,
+        entityType: 'user',
+        entityId: reset.userId,
+        action: 'updated',
+        description: 'Password reset',
+      });
+
+      res.json({ message: "Password reset successfully" });
+    } catch (error) {
+      console.error("Error resetting password:", error);
+      res.status(500).json({ message: "Failed to reset password" });
+    }
+  });
+
   // Users Management API
   app.get('/api/users', isAuthenticated, async (req, res) => {
     try {
-      const { db } = await import("./db");
-      const { users } = await import("@shared/schema");
-      const { desc } = await import("drizzle-orm");
+      const allUsers = await storage.getAllUsers();
+      
+      // Remove sensitive data
+      const sanitizedUsers = allUsers.map(user => ({
+        id: user.id,
+        email: user.email,
+        username: user.username,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        profileImageUrl: user.profileImageUrl,
+        role: user.role,
+        authProvider: user.authProvider,
+        isActive: user.isActive,
+        lastLoginAt: user.lastLoginAt,
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt,
+      }));
 
-      const allUsers = await db.select().from(users).orderBy(desc(users.updatedAt));
-      res.json(allUsers);
+      res.json(sanitizedUsers);
     } catch (error) {
       console.error("Error fetching users:", error);
       res.status(500).json({ message: "Failed to fetch users" });
@@ -1457,7 +1758,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } else {
         orders = await storage.getOrders();
       }
-
+      
       res.json(orders);
     } catch (error) {
       console.error("Error fetching orders:", error);

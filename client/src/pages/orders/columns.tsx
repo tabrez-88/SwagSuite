@@ -43,15 +43,7 @@ export type OrderWithRelations = Order & {
 };
 
 export const columns: ColumnDef<OrderWithRelations>[] = [
-  {
-    accessorKey: "orderNumber",
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Order #" />
-    ),
-    cell: ({ row }) => (
-      <div className="font-medium">{row.getValue("orderNumber")}</div>
-    ),
-  },
+
   {
     accessorKey: "companyName",
     header: ({ column }) => (
@@ -71,9 +63,18 @@ export const columns: ColumnDef<OrderWithRelations>[] = [
     },
   },
   {
+    accessorKey: "orderNumber",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Order #" />
+    ),
+    cell: ({ row }) => (
+      <div className="font-medium">{row.getValue("orderNumber")}</div>
+    ),
+  },
+  {
     accessorKey: "orderType",
     header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Type" />
+      <DataTableColumnHeader column={column} title="Order Type" />
     ),
     cell: ({ row }) => (
       <Badge variant="outline" className="text-nowrap">
@@ -124,7 +125,7 @@ export const columns: ColumnDef<OrderWithRelations>[] = [
             {statusDisplayMap[status] || status}
           </SelectTrigger>
           <SelectContent>
-            <SelectItem  className={statusColorMap.quote} value="quote">
+            <SelectItem className={statusColorMap.quote} value="quote">
               Quote
             </SelectItem>
             <SelectItem className={statusColorMap.pending_approval} value="pending_approval">
@@ -180,7 +181,7 @@ export const columns: ColumnDef<OrderWithRelations>[] = [
   {
     accessorKey: "createdAt",
     header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Created" />
+      <DataTableColumnHeader column={column} title="Order Date" />
     ),
     cell: ({ row }) => {
       const date = row.getValue("createdAt");

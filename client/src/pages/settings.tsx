@@ -1054,7 +1054,7 @@ export default function Settings() {
 
   if (settingsLoading) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[400px] text-center">
+      <div className="flex flex-col items-center justify-center min-h-[400px] text-center p-4">
         <Settings2 className="w-12 h-12 text-gray-400 mb-4 animate-spin" />
         <h2 className="text-xl font-semibold text-gray-900 mb-2">Loading Settings</h2>
         <p className="text-gray-600">Please wait while we load the system configuration...</p>
@@ -1064,7 +1064,7 @@ export default function Settings() {
 
   if (!hasAccess) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[400px] text-center">
+      <div className="flex flex-col items-center justify-center min-h-[400px] text-center p-4">
         <Shield className="w-12 h-12 text-gray-400 mb-4" />
         <h2 className="text-xl font-semibold text-gray-900 mb-2">Access Restricted</h2>
         <p className="text-gray-600">You need administrator or manager privileges to access system settings.</p>
@@ -1073,7 +1073,7 @@ export default function Settings() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 p-4">
       <div className="flex items-center justify-between p-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">System Settings</h1>

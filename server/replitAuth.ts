@@ -7,6 +7,7 @@ import type { Express, RequestHandler } from "express";
 import memoize from "memoizee";
 import connectPg from "connect-pg-simple";
 import { storage } from "./storage";
+import { comparePassword } from "./passwordUtils";
 
 // Determine if we are in local development mode
 // We consider it local dev if REPL_ID is not set or if it is set to "local-dev"
@@ -94,68 +95,105 @@ export async function setupAuth(app: Express) {
   passport.serializeUser((user: Express.User, cb) => cb(null, user));
   passport.deserializeUser((user: Express.User, cb) => cb(null, user));
 
+  // Always set up Local Strategy for username/password login
+  passport.use(
+    "local",
+    new LocalStrategy(
+      { usernameField: "username", passwordField: "password" },
+      async (username, password, done) => {
+        try {
+          console.log(`Local auth attempt for: ${username}`);
+          
+          // Try to find user by username or email
+          let user = await storage.getUserByUsername(username);
+          if (!user) {
+            user = await storage.getUserByEmail(username);
+          }
+
+          // Check if user exists
+          if (!user) {
+            return done(null, false, { message: "Invalid username or password" });
+          }
+
+          // Check if user is active
+          if (!user.isActive) {
+            return done(null, false, { message: "Account is disabled" });
+          }
+
+          // Check if user has password (local auth)
+          if (!user.password) {
+            return done(null, false, { message: "This account uses OAuth login" });
+          }
+
+          // Verify password
+          const isValidPassword = await comparePassword(password, user.password);
+          if (!isValidPassword) {
+            return done(null, false, { message: "Invalid username or password" });
+          }
+
+          // Update last login
+          await storage.updateUserLastLogin(user.id);
+
+          // Create session user object
+          const sessionUser = {
+            claims: {
+              sub: user.id,
+              email: user.email,
+              first_name: user.firstName,
+              last_name: user.lastName,
+              profile_image_url: user.profileImageUrl,
+              exp: Math.floor(Date.now() / 1000) + 7 * 24 * 60 * 60, // 7 days
+            },
+            expires_at: Math.floor(Date.now() / 1000) + 7 * 24 * 60 * 60,
+          };
+
+          console.log(`Local auth successful for: ${username}`);
+          return done(null, sessionUser);
+        } catch (error) {
+          console.error("Local auth error:", error);
+          return done(error);
+        }
+      }
+    )
+  );
+
   if (isLocalDev) {
     console.log("Setting up Local Auth Strategy for development");
 
-    // Local Strategy for development
-    passport.use(
-      new LocalStrategy(async (username, password, done) => {
-        // For dev: accept any login, create a mock user
-        const mockUser = {
-          claims: {
-            sub: "dev-user-id",
-            email: "dev@example.com",
-            first_name: "Developer",
-            last_name: "Local",
-            profile_image_url: "https://via.placeholder.com/150",
-            exp: Math.floor(Date.now() / 1000) + (24 * 60 * 60) // 24 hours
-          },
-          expires_at: Math.floor(Date.now() / 1000) + (24 * 60 * 60),
-          access_token: "mock-access-token",
-          refresh_token: "mock-refresh-token"
-        };
-        
-        await upsertUser(mockUser.claims);
-        return done(null, mockUser);
-      })
-    );
-
-    app.post("/api/login",
-      passport.authenticate("local", {
-        successRedirect: "/",
-        failureRedirect: "/login?error=true"
-      })
-    );
-
-    // Also support GET for convenience if needed, or redirect
+    // Redirect /api/login to landing page in dev mode
     app.get("/api/login", (req, res) => {
-       // Since we can't easily do a POST from a simple link, 
-       // for dev convenience we'll just auto-login if they hit this endpoint
-       // Or serve a simple login form. Let's redirect to a simple dev login page
-       // But better yet, let's just cheat and auto-login for GET too in dev
-       req.login({
+      res.redirect("/?auth=required");
+    });
+
+    // Development auto-login (for testing)
+    app.get("/api/login/dev", (req, res) => {
+      req.login(
+        {
           claims: {
             sub: "dev-user-id",
             email: "dev@example.com",
             first_name: "Developer",
             last_name: "Local",
             profile_image_url: "https://via.placeholder.com/150",
-            exp: Math.floor(Date.now() / 1000) + (24 * 60 * 60)
+            exp: Math.floor(Date.now() / 1000) + 24 * 60 * 60,
           },
-          expires_at: Math.floor(Date.now() / 1000) + (24 * 60 * 60)
-        } as any, async (err) => {
-          if (err) { return res.status(500).send("Login failed"); }
+          expires_at: Math.floor(Date.now() / 1000) + 24 * 60 * 60,
+        } as any,
+        async (err) => {
+          if (err) {
+            return res.status(500).send("Login failed");
+          }
           await upsertUser({
             sub: "dev-user-id",
             email: "dev@example.com",
             first_name: "Developer",
             last_name: "Local",
-            profile_image_url: "https://via.placeholder.com/150"
+            profile_image_url: "https://via.placeholder.com/150",
           });
           return res.redirect("/");
-       });
+        }
+      );
     });
-
   } else {
     // Original Replit Auth Logic
     const config = await getOidcConfig();
@@ -201,6 +239,39 @@ export async function setupAuth(app: Express) {
       })(req, res, next);
     });
   }
+
+  // POST endpoint for username/password login (works in all environments)
+  app.post("/api/auth/login", (req, res, next) => {
+    passport.authenticate("local", (err: any, user: any, info: any) => {
+      if (err) {
+        console.error("Login error:", err);
+        return res.status(500).json({ message: "Internal server error" });
+      }
+      
+      if (!user) {
+        return res.status(401).json({ 
+          message: info?.message || "Invalid username or password" 
+        });
+      }
+
+      req.logIn(user, (err) => {
+        if (err) {
+          console.error("Session error:", err);
+          return res.status(500).json({ message: "Failed to create session" });
+        }
+        
+        return res.json({ 
+          message: "Login successful",
+          user: {
+            id: user.claims.sub,
+            email: user.claims.email,
+            firstName: user.claims.first_name,
+            lastName: user.claims.last_name,
+          }
+        });
+      });
+    })(req, res, next);
+  });
 
   app.get("/api/logout", (req, res) => {
     req.logout(() => {

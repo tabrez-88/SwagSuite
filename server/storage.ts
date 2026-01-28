@@ -88,6 +88,12 @@ import {
   type UpsertUser,
   type User,
   users,
+  type UserInvitation,
+  userInvitations,
+  type InsertUserInvitation,
+  type PasswordReset,
+  passwordResets,
+  type InsertPasswordReset,
   weeklyReportConfig,
   type WeeklyReportConfig,
   type WeeklyReportLog,
@@ -634,7 +640,46 @@ export class DatabaseStorage implements IStorage {
 
   // Order operations
   async getOrders(): Promise<Order[]> {
-    return await db.select().from(orders).orderBy(desc(orders.createdAt));
+    const results = await db
+      .select({
+        // All order fields
+        id: orders.id,
+        orderNumber: orders.orderNumber,
+        companyId: orders.companyId,
+        contactId: orders.contactId,
+        assignedUserId: orders.assignedUserId,
+        status: orders.status,
+        orderType: orders.orderType,
+        subtotal: orders.subtotal,
+        tax: orders.tax,
+        shipping: orders.shipping,
+        total: orders.total,
+        margin: orders.margin,
+        inHandsDate: orders.inHandsDate,
+        eventDate: orders.eventDate,
+        notes: orders.notes,
+        customerNotes: orders.customerNotes,
+        trackingNumber: orders.trackingNumber,
+        createdAt: orders.createdAt,
+        updatedAt: orders.updatedAt,
+        // Related company info
+        companyName: companies.name,
+        companyEmail: companies.email,
+        companyPhone: companies.phone,
+        // Related contact info
+        contactName: sql<string>`CONCAT(${contacts.firstName}, ' ', ${contacts.lastName})`,
+        contactEmail: contacts.email,
+        contactPhone: contacts.phone,
+        // Assigned user info
+        assignedUserName: sql<string>`CONCAT(${users.firstName}, ' ', ${users.lastName})`,
+      })
+      .from(orders)
+      .leftJoin(companies, eq(orders.companyId, companies.id))
+      .leftJoin(contacts, eq(orders.contactId, contacts.id))
+      .leftJoin(users, eq(orders.assignedUserId, users.id))
+      .orderBy(desc(orders.createdAt));
+
+    return results as any;
   }
 
   async getOrder(id: string): Promise<Order | undefined> {
@@ -2319,13 +2364,138 @@ export class DatabaseStorage implements IStorage {
   async updateSageProduct(id: string, product: Partial<InsertSageProduct>): Promise<SageProduct> {
     const [updated] = await db
       .update(sageProducts)
-      .set({
-        ...product,
-        updatedAt: new Date()
-      } as any)
+      .set({ ...product, lastSyncedAt: new Date() })
       .where(eq(sageProducts.id, id))
       .returning();
     return updated;
+  }
+
+  // User Invitation operations
+  async createUserInvitation(invitation: InsertUserInvitation): Promise<UserInvitation> {
+    const [newInvitation] = await db
+      .insert(userInvitations)
+      .values(invitation)
+      .returning();
+    return newInvitation;
+  }
+
+  async getUserInvitationByToken(token: string): Promise<UserInvitation | undefined> {
+    const [invitation] = await db
+      .select()
+      .from(userInvitations)
+      .where(eq(userInvitations.token, token));
+    return invitation;
+  }
+
+  async getUserInvitationByEmail(email: string): Promise<UserInvitation | undefined> {
+    const [invitation] = await db
+      .select()
+      .from(userInvitations)
+      .where(
+        and(
+          eq(userInvitations.email, email),
+          sql`${userInvitations.acceptedAt} IS NULL`,
+          sql`${userInvitations.expiresAt} > NOW()`
+        )
+      )
+      .orderBy(desc(userInvitations.createdAt))
+      .limit(1);
+    return invitation;
+  }
+
+  async getPendingInvitations(): Promise<UserInvitation[]> {
+    return await db
+      .select()
+      .from(userInvitations)
+      .where(
+        and(
+          sql`${userInvitations.acceptedAt} IS NULL`,
+          sql`${userInvitations.expiresAt} > NOW()`
+        )
+      )
+      .orderBy(desc(userInvitations.createdAt));
+  }
+
+  async markInvitationAccepted(token: string): Promise<void> {
+    await db
+      .update(userInvitations)
+      .set({ acceptedAt: new Date() })
+      .where(eq(userInvitations.token, token));
+  }
+
+  async deleteInvitation(id: string): Promise<void> {
+    await db.delete(userInvitations).where(eq(userInvitations.id, id));
+  }
+
+  // Password Reset operations
+  async createPasswordReset(reset: InsertPasswordReset): Promise<PasswordReset> {
+    const [newReset] = await db
+      .insert(passwordResets)
+      .values(reset)
+      .returning();
+    return newReset;
+  }
+
+  async getPasswordResetByToken(token: string): Promise<PasswordReset | undefined> {
+    const [reset] = await db
+      .select()
+      .from(passwordResets)
+      .where(
+        and(
+          eq(passwordResets.token, token),
+          sql`${passwordResets.usedAt} IS NULL`,
+          sql`${passwordResets.expiresAt} > NOW()`
+        )
+      );
+    return reset;
+  }
+
+  async markPasswordResetUsed(token: string): Promise<void> {
+    await db
+      .update(passwordResets)
+      .set({ usedAt: new Date() })
+      .where(eq(passwordResets.token, token));
+  }
+
+  // User operations - update for username/password
+  async getUserByUsername(username: string): Promise<User | undefined> {
+    const [user] = await db
+      .select()
+      .from(users)
+      .where(eq(users.username, username));
+    return user;
+  }
+
+  async getUserByEmail(email: string): Promise<User | undefined> {
+    const [user] = await db
+      .select()
+      .from(users)
+      .where(eq(users.email, email));
+    return user;
+  }
+
+  async updateUserPassword(userId: string, hashedPassword: string): Promise<void> {
+    await db
+      .update(users)
+      .set({ 
+        password: hashedPassword,
+        updatedAt: new Date()
+      })
+      .where(eq(users.id, userId));
+  }
+
+  async updateUserLastLogin(userId: string): Promise<void> {
+    await db
+      .update(users)
+      .set({ lastLoginAt: new Date() })
+      .where(eq(users.id, userId));
+  }
+
+  async getAllUsers(): Promise<User[]> {
+    return await db
+      .select()
+      .from(users)
+      .orderBy(desc(users.createdAt));
   }
 
   async getSupplierBySageId(sageId: string): Promise<Supplier | undefined> {
