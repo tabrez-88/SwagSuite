@@ -399,7 +399,21 @@ export class DatabaseStorage implements IStorage {
 
   // Contact operations
   async getContacts(companyId?: string, supplierId?: string): Promise<Contact[]> {
-    const query = db.select().from(contacts);
+    const query = db.select({
+      id: contacts.id,
+      companyId: contacts.companyId,
+      supplierId: contacts.supplierId,
+      firstName: contacts.firstName,
+      lastName: contacts.lastName,
+      email: contacts.email,
+      phone: contacts.phone,
+      title: contacts.title,
+      isPrimary: contacts.isPrimary,
+      billingAddress: contacts.billingAddress,
+      shippingAddress: contacts.shippingAddress,
+      createdAt: contacts.createdAt,
+      updatedAt: contacts.updatedAt,
+    }).from(contacts);
     if (companyId) {
       return await query.where(eq(contacts.companyId, companyId));
     }
@@ -662,6 +676,12 @@ export class DatabaseStorage implements IStorage {
         trackingNumber: orders.trackingNumber,
         createdAt: orders.createdAt,
         updatedAt: orders.updatedAt,
+        // Production stage fields
+        currentStage: orders.currentStage,
+        stagesCompleted: orders.stagesCompleted,
+        stageData: orders.stageData,
+        customNotes: orders.customNotes,
+        csrUserId: orders.csrUserId,
         // Related company info
         companyName: companies.name,
         companyEmail: companies.email,
@@ -784,8 +804,12 @@ export class DatabaseStorage implements IStorage {
         productId: orderItems.productId,
         supplierId: orderItems.supplierId,
         quantity: orderItems.quantity,
+        cost: orderItems.cost,
         unitPrice: orderItems.unitPrice,
         totalPrice: orderItems.totalPrice,
+        decorationCost: orderItems.decorationCost,
+        charges: orderItems.charges,
+        sizePricing: orderItems.sizePricing,
         color: orderItems.color,
         size: orderItems.size,
         imprintLocation: orderItems.imprintLocation,

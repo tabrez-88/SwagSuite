@@ -84,7 +84,7 @@ interface ProductionOrder {
 
 export default function ProductionReport() {
   const [stages, setStages] = useState<ProductionStage[]>(loadStages);
-
+  console.log(stages)
   // Listen for stage updates from other components (like project page)
   React.useEffect(() => {
     const handleStagesUpdate = (event: CustomEvent) => {
@@ -1150,7 +1150,7 @@ export default function ProductionReport() {
                 </div>
 
                 {/* Stage Pipeline */}
-                <div className="flex items-center space-x-2 z-20 p-2  overflow-x-scroll md:overflow-x-auto">
+                <div className="flex items-center space-x-2 z-20 p-2 overflow-x-scroll md:overflow-x-auto">
                   {stages.map((stage, index) => {
                     const isCompleted = order.stagesCompleted.includes(stage.id);
                     const isCurrent = order.currentStage === stage.id;

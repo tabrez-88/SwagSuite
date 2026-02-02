@@ -37,6 +37,8 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { isUnauthorizedError } from "@/lib/authUtils";
 import type { Company, Order } from "@shared/schema";
+import { Separator } from "./ui/separator";
+import { Checkbox } from "@/components/ui/checkbox";
 
 interface OrderModalProps {
   open: boolean;
@@ -52,59 +54,43 @@ export default function OrderModal({ open, onOpenChange, order, initialCompanyId
     contactId: "",
     assignedUserId: "",
     orderType: "quote",
-    customerPo: "",
-    paymentTerms: "Net 30",
     inHandsDate: "",
     eventDate: "",
+    supplierInHandsDate: "",
+    isFirm: false,
     notes: "",
     orderDiscount: "0",
+    billingContact: "",
+    billingEmail: "",
+    billingStreet: "",
+    billingCity: "",
+    billingState: "",
+    billingZipCode: "",
+    billingCountry: "US",
+    billingPhone: "",
+    shippingContact: "",
+    shippingEmail: "",
+    shippingStreet: "",
+    shippingCity: "",
+    shippingState: "",
+    shippingZipCode: "",
+    shippingCountry: "US",
+    shippingPhone: "",
   });
   const [orderItems, setOrderItems] = useState<any[]>([]);
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [productSearch, setProductSearch] = useState("");
   const [openCustomerCombo, setOpenCustomerCombo] = useState(false);
+  const [sameAsBilling, setSameAsBilling] = useState(false);
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  // Reset or populate form when opening 
-  useEffect(() => {
-    if (open) {
-      if (order) {
-        setFormData({
-          companyId: order.companyId || "",
-          contactId: (order as any).contactId || "",
-          assignedUserId: (order as any).assignedUserId || "",
-          orderType: order.orderType || "quote",
-          customerPo: (order as any).customerPo || "",
-          paymentTerms: (order as any).paymentTerms || "Net 30",
-          inHandsDate: order.inHandsDate ? new Date(order.inHandsDate).toISOString().split('T')[0] : "",
-          eventDate: order.eventDate ? new Date(order.eventDate).toISOString().split('T')[0] : "",
-          notes: order.notes || "",
-          orderDiscount: (order as any).orderDiscount || "0",
-        });
-      } else {
-        setFormData({
-          companyId: initialCompanyId || "",
-          contactId: "",
-          assignedUserId: "",
-          orderType: "quote",
-          customerPo: "",
-          paymentTerms: "Net 30",
-          inHandsDate: "",
-          eventDate: "",
-          notes: "",
-          orderDiscount: "0",
-        });
-        setOrderItems([]);
-      }
-    }
-  }, [open, order, initialCompanyId]); // depend on open, order, and initialCompanyId
-
-  // Helper to update specific fields
-  const handleFieldChange = (field: string, value: any) => {
-    setFormData((prev) => ({ ...prev, [field]: value }));
-  };
+  // Fetch current user first so it's available for form initialization
+  const { data: currentUser } = useQuery<any>({
+    queryKey: ["/api/auth/user"],
+    enabled: open,
+  });
 
   const { data: companies = [] } = useQuery<Company[]>({
     queryKey: ["/api/companies"],
@@ -113,7 +99,7 @@ export default function OrderModal({ open, onOpenChange, order, initialCompanyId
 
   const { data: contacts = [] } = useQuery<any[]>({
     queryKey: ["/api/contacts"],
-    enabled: open && !!formData.companyId,
+    enabled: open,
   });
 
   const { data: users = [] } = useQuery<any[]>({
@@ -136,6 +122,198 @@ export default function OrderModal({ open, onOpenChange, order, initialCompanyId
     queryKey: [`/api/orders/${order?.id}/items`],
     enabled: open && !!order?.id,
   });
+
+  // Reset or populate form when opening 
+  useEffect(() => {
+    if (open) {
+      if (order) {
+        // Parse shipping address if it's JSON
+        let shippingStreet = "";
+        let shippingCity = "";
+        let shippingState = "";
+        let shippingZipCode = "";
+        let shippingCountry = "US";
+        let shippingPhone = "";
+        if ((order as any).shippingAddress) {
+          try {
+            const parsed = JSON.parse((order as any).shippingAddress);
+            // Try new format first
+            if (parsed.street) {
+              shippingStreet = parsed.street || "";
+              shippingCity = parsed.city || "";
+              shippingState = parsed.state || "";
+              shippingZipCode = parsed.zipCode || "";
+              shippingCountry = parsed.country || "US";
+              shippingPhone = parsed.phone || "";
+            } else {
+              // Fallback to old format (address field)
+              shippingStreet = parsed.address || "";
+            }
+          } catch {
+            shippingStreet = (order as any).shippingAddress;
+          }
+        }
+
+        setFormData({
+          companyId: order.companyId || "",
+          contactId: (order as any).contactId || "",
+          assignedUserId: (order as any).assignedUserId || "",
+          orderType: order.orderType || "quote",
+          inHandsDate: order.inHandsDate ? new Date(order.inHandsDate).toISOString().split('T')[0] : "",
+          eventDate: order.eventDate ? new Date(order.eventDate).toISOString().split('T')[0] : "",
+          supplierInHandsDate: (order as any).supplierInHandsDate ? new Date((order as any).supplierInHandsDate).toISOString().split('T')[0] : "",
+          isFirm: (order as any).isFirm || false,
+          notes: order.notes || "",
+          orderDiscount: (order as any).orderDiscount || "0",
+          billingContact: (order as any).billingContact || "",
+          billingEmail: (order as any).billingEmail || "",
+          billingStreet: "",
+          billingCity: "",
+          billingState: "",
+          billingZipCode: "",
+          billingCountry: "US",
+          billingPhone: "",
+          shippingContact: (order as any).shippingContact || "",
+          shippingEmail: (order as any).shippingEmail || "",
+          shippingStreet,
+          shippingCity,
+          shippingState,
+          shippingZipCode,
+          shippingCountry,
+          shippingPhone,
+        });
+      } else {
+        setFormData({
+          companyId: initialCompanyId || "",
+          contactId: "",
+          assignedUserId: currentUser?.id || "",
+          orderType: "quote",
+          inHandsDate: "",
+          eventDate: "",
+          supplierInHandsDate: "",
+          isFirm: false,
+          notes: "",
+          orderDiscount: "0",
+          billingContact: "",
+          billingEmail: "",
+          billingStreet: "",
+          billingCity: "",
+          billingState: "",
+          billingZipCode: "",
+          billingCountry: "US",
+          billingPhone: "",
+          shippingContact: "",
+          shippingEmail: "",
+          shippingStreet: "",
+          shippingCity: "",
+          shippingState: "",
+          shippingZipCode: "",
+          shippingCountry: "US",
+          shippingPhone: "",
+        });
+        setOrderItems([]);
+      }
+    }
+  }, [open, order, initialCompanyId, currentUser]); // depend on open, order, initialCompanyId, and currentUser
+
+  // Helper to update specific fields
+  const handleFieldChange = (field: string, value: any) => {
+    setFormData((prev) => ({ ...prev, [field]: value }));
+  };
+
+  // Sync shipping address with billing when checkbox is checked
+  useEffect(() => {
+    if (sameAsBilling) {
+      setFormData((prev) => ({
+        ...prev,
+        shippingContact: prev.billingContact,
+        shippingEmail: prev.billingEmail,
+        shippingStreet: prev.billingStreet,
+        shippingCity: prev.billingCity,
+        shippingState: prev.billingState,
+        shippingZipCode: prev.billingZipCode,
+        shippingCountry: prev.billingCountry,
+        shippingPhone: prev.billingPhone,
+      }));
+    }
+  }, [sameAsBilling, formData.billingContact, formData.billingEmail, formData.billingStreet, formData.billingCity, formData.billingState, formData.billingZipCode, formData.billingCountry, formData.billingPhone]);
+
+  // Auto-fill billing and shipping address when contact is selected
+  useEffect(() => {
+    if (formData.contactId && contacts.length > 0) {
+      const selectedContact = contacts.find((c: any) => c.id === formData.contactId);
+      if (selectedContact) {
+        const contactFullName = `${selectedContact.firstName} ${selectedContact.lastName}`;
+        const contactEmail = selectedContact.email || "";
+        
+        // Parse billing address from contact if available
+        if (selectedContact.billingAddress) {
+          try {
+            const billingAddr = JSON.parse(selectedContact.billingAddress);
+            setFormData((prev) => ({
+              ...prev,
+              billingContact: contactFullName,
+              billingEmail: contactEmail,
+              billingStreet: billingAddr.street || "",
+              billingCity: billingAddr.city || "",
+              billingState: billingAddr.state || "",
+              billingZipCode: billingAddr.zipCode || "",
+              billingCountry: billingAddr.country || "US",
+              billingPhone: selectedContact.phone || "",
+            }));
+          } catch {
+            // If not JSON, just set contact info and phone
+            setFormData((prev) => ({
+              ...prev,
+              billingContact: contactFullName,
+              billingEmail: contactEmail,
+              billingPhone: selectedContact.phone || "",
+            }));
+          }
+        } else {
+          // Just set contact info and phone if no billing address
+          setFormData((prev) => ({
+            ...prev,
+            billingContact: contactFullName,
+            billingEmail: contactEmail,
+            billingPhone: selectedContact.phone || "",
+          }));
+        }
+
+        // Parse shipping address from contact if available
+        if (selectedContact.shippingAddress) {
+          try {
+            const shippingAddr = JSON.parse(selectedContact.shippingAddress);
+            setFormData((prev) => ({
+              ...prev,
+              shippingContact: contactFullName,
+              shippingEmail: contactEmail,
+              shippingStreet: shippingAddr.street || "",
+              shippingCity: shippingAddr.city || "",
+              shippingState: shippingAddr.state || "",
+              shippingZipCode: shippingAddr.zipCode || "",
+              shippingCountry: shippingAddr.country || "US",
+              shippingPhone: shippingAddr.phone || "",
+            }));
+          } catch {
+            // If not JSON, just set contact info
+            setFormData((prev) => ({
+              ...prev,
+              shippingContact: contactFullName,
+              shippingEmail: contactEmail,
+            }));
+          }
+        } else {
+          // Just set contact info if no shipping address
+          setFormData((prev) => ({
+            ...prev,
+            shippingContact: contactFullName,
+            shippingEmail: contactEmail,
+          }));
+        }
+      }
+    }
+  }, [formData.contactId, contacts]);
 
   // Populate order items when editing
   useEffect(() => {
@@ -352,6 +530,15 @@ export default function OrderModal({ open, onOpenChange, order, initialCompanyId
         payload.eventDate = null;
       }
 
+      if (payload.supplierInHandsDate) {
+        payload.supplierInHandsDate = new Date(payload.supplierInHandsDate);
+      } else if (payload.supplierInHandsDate === "") {
+        payload.supplierInHandsDate = null;
+      }
+
+      // Include firm in-hands date flag
+      payload.isFirm = payload.isFirm || false;
+
       const response = await apiRequest("PATCH", `/api/orders/${order?.id}`, payload);
       return response.json();
     },
@@ -405,6 +592,43 @@ export default function OrderModal({ open, onOpenChange, order, initialCompanyId
       payload.eventDate = null;
     }
 
+    if (formData.supplierInHandsDate) {
+      payload.supplierInHandsDate = new Date(formData.supplierInHandsDate);
+    } else {
+      payload.supplierInHandsDate = null;
+    }
+
+    // Include firm in-hands date flag
+    payload.isFirm = formData.isFirm;
+
+    // Prepare billing address with contact info
+    if (formData.billingStreet || formData.billingCity) {
+      payload.billingAddress = JSON.stringify({
+        street: formData.billingStreet,
+        city: formData.billingCity,
+        state: formData.billingState,
+        zipCode: formData.billingZipCode,
+        country: formData.billingCountry,
+        phone: formData.billingPhone,
+        contactName: formData.billingContact,
+        email: formData.billingEmail,
+      });
+    }
+
+    // Prepare shipping address with contact info
+    if (formData.shippingStreet || formData.shippingCity) {
+      payload.shippingAddress = JSON.stringify({
+        street: formData.shippingStreet,
+        city: formData.shippingCity,
+        state: formData.shippingState,
+        zipCode: formData.shippingZipCode,
+        country: formData.shippingCountry,
+        phone: formData.shippingPhone,
+        contactName: formData.shippingContact,
+        email: formData.shippingEmail,
+      });
+    }
+
     // Add items to payload (both create and update)
     payload.items = orderItems.map(item => ({
       productId: item.productId,
@@ -427,15 +651,16 @@ export default function OrderModal({ open, onOpenChange, order, initialCompanyId
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-screen overflow-y-auto">
+    <Dialog open={open} onOpenChange={onOpenChange} >
+      <DialogContent className="max-w-7xl max-h-screen h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{order ? `Edit Order ${order.orderNumber || ''}` : "Create New Order"}</DialogTitle>
+          <DialogTitle>{order ? `Edit Order ${order.orderNumber || ''}` : "Create New Quote / Sales Order"}</DialogTitle>
         </DialogHeader>
+        <Separator />
 
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Customer, Contact, and Order Type Row */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
               <Label htmlFor="customer">Customer *</Label>
               <Popover open={openCustomerCombo} onOpenChange={setOpenCustomerCombo}>
@@ -457,24 +682,32 @@ export default function OrderModal({ open, onOpenChange, order, initialCompanyId
                     <CommandInput placeholder="Search customer..." />
                     <CommandEmpty>No customer found.</CommandEmpty>
                     <CommandGroup className="max-h-64 overflow-auto">
-                      {companies?.map((company) => (
-                        <CommandItem
-                          key={company.id}
-                          value={company.name}
-                          onSelect={() => {
-                            handleFieldChange("companyId", company.id);
-                            setOpenCustomerCombo(false);
-                          }}
-                        >
-                          <Check
-                            className={cn(
-                              "mr-2 h-4 w-4",
-                              formData.companyId === company.id ? "opacity-100" : "opacity-0"
-                            )}
-                          />
-                          {company.name}
-                        </CommandItem>
-                      ))}
+                      {companies?.map((company) => {
+                        const contactCount = contacts.filter((c: any) => c.companyId === company.id).length;
+                        return (
+                          <CommandItem
+                            key={company.id}
+                            value={company.name}
+                            onSelect={() => {
+                              handleFieldChange("companyId", company.id);
+                              setOpenCustomerCombo(false);
+                            }}
+                          >
+                            <Check
+                              className={cn(
+                                "mr-2 h-4 w-4",
+                                formData.companyId === company.id ? "opacity-100" : "opacity-0"
+                              )}
+                            />
+                            <div className="flex-1">
+                              <div>{company.name}</div>
+                              <div className="text-xs text-muted-foreground">
+                                {contactCount} {contactCount === 1 ? 'contact' : 'contacts'}
+                              </div>
+                            </div>
+                          </CommandItem>
+                        );
+                      })}
                     </CommandGroup>
                   </Command>
                 </PopoverContent>
@@ -504,6 +737,29 @@ export default function OrderModal({ open, onOpenChange, order, initialCompanyId
               </Select>
             </div>
 
+            
+          </div>
+
+          {/* Sales Rep Row */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <Label htmlFor="assignedUserId">Sales Rep</Label>
+              <Select
+                value={formData.assignedUserId}
+                onValueChange={(value) => handleFieldChange("assignedUserId", value)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select sales rep..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {users.map((user: any) => (
+                    <SelectItem key={user.id} value={user.id}>
+                      {user.firstName} {user.lastName}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
             <div>
               <Label htmlFor="orderType">Order Type</Label>
               <Select
@@ -522,110 +778,60 @@ export default function OrderModal({ open, onOpenChange, order, initialCompanyId
             </div>
           </div>
 
-          {/* Sales Rep, Customer PO, Payment Terms Row */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {/* Product Selection - Only show when editing existing order */}
+          {order && (
             <div>
-              <Label htmlFor="assignedUserId">Sales Rep / Owner</Label>
-              <Select
-                value={formData.assignedUserId}
-                onValueChange={(value) => handleFieldChange("assignedUserId", value)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select sales rep..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {users.map((user: any) => (
-                    <SelectItem key={user.id} value={user.id}>
-                      {user.firstName} {user.lastName}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+              <Label>Add Products</Label>
+              <div className="relative">
+                <Input
+                  placeholder="Search products by name or SKU..."
+                  value={productSearch}
+                  onChange={(e) => setProductSearch(e.target.value)}
+                  className="pr-10"
+                />
+                {productSearch && filteredProducts.length > 0 && (
+                  <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
+                    {filteredProducts.slice(0, 10).map((product: any) => {
+                      const colorsArray = ensureArray(product.colors);
+                      const sizesArray = ensureArray(product.sizes);
 
-            <div>
-              <Label htmlFor="customerPo">Customer PO#</Label>
-              <Input
-                id="customerPo"
-                placeholder="Customer purchase order number..."
-                value={formData.customerPo}
-                onChange={(e) => handleFieldChange("customerPo", e.target.value)}
-              />
-            </div>
-
-            <div>
-              <Label htmlFor="paymentTerms">Payment Terms</Label>
-              <Select
-                value={formData.paymentTerms}
-                onValueChange={(value) => handleFieldChange("paymentTerms", value)}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Net 30">Net 30</SelectItem>
-                  <SelectItem value="Net 60">Net 60</SelectItem>
-                  <SelectItem value="Net 90">Net 90</SelectItem>
-                  <SelectItem value="COD">COD (Cash on Delivery)</SelectItem>
-                  <SelectItem value="Due on Receipt">Due on Receipt</SelectItem>
-                  <SelectItem value="Prepaid">Prepaid</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          {/* Product Selection */}
-          <div>
-            <Label>Add Products</Label>
-            <div className="relative">
-              <Input
-                placeholder="Search products by name or SKU..."
-                value={productSearch}
-                onChange={(e) => setProductSearch(e.target.value)}
-                className="pr-10"
-              />
-              {productSearch && filteredProducts.length > 0 && (
-                <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
-                  {filteredProducts.slice(0, 10).map((product: any) => {
-                    const colorsArray = ensureArray(product.colors);
-                    const sizesArray = ensureArray(product.sizes);
-
-                    return (
-                      <div
-                        key={product.id}
-                        onMouseDown={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                        }}
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          addProduct(product);
-                        }}
-                        className="w-full px-4 py-2 text-left hover:bg-gray-100 flex justify-between items-start border-b last:border-b-0 cursor-pointer"
-                      >
-                        <div className="flex-1">
-                          <div className="font-medium">{product.name}</div>
-                          <div className="text-sm text-gray-500">{product.sku || 'No SKU'}</div>
-                          <div className="text-xs text-gray-400 mt-1 space-x-2">
-                            {colorsArray.length > 0 && (
-                              <span>Colors: {colorsArray.slice(0, 3).join(', ')}{colorsArray.length > 3 ? '...' : ''}</span>
-                            )}
-                            {sizesArray.length > 0 && (
-                              <span>• Sizes: {sizesArray.slice(0, 3).join(', ')}{sizesArray.length > 3 ? '...' : ''}</span>
-                            )}
+                      return (
+                        <div
+                          key={product.id}
+                          onMouseDown={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                          }}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            addProduct(product);
+                          }}
+                          className="w-full px-4 py-2 text-left hover:bg-gray-100 flex justify-between items-start border-b last:border-b-0 cursor-pointer"
+                        >
+                          <div className="flex-1">
+                            <div className="font-medium">{product.name}</div>
+                            <div className="text-sm text-gray-500">{product.sku || 'No SKU'}</div>
+                            <div className="text-xs text-gray-400 mt-1 space-x-2">
+                              {colorsArray.length > 0 && (
+                                <span>Colors: {colorsArray.slice(0, 3).join(', ')}{colorsArray.length > 3 ? '...' : ''}</span>
+                              )}
+                              {sizesArray.length > 0 && (
+                                <span>• Sizes: {sizesArray.slice(0, 3).join(', ')}{sizesArray.length > 3 ? '...' : ''}</span>
+                              )}
+                            </div>
+                          </div>
+                          <div className="text-swag-primary font-semibold ml-4">
+                            ${parseFloat(product.basePrice || "0").toFixed(2)}
                           </div>
                         </div>
-                        <div className="text-swag-primary font-semibold ml-4">
-                          ${parseFloat(product.basePrice || "0").toFixed(2)}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Order Items Table */}
           {orderItems.length > 0 && (
@@ -857,13 +1063,26 @@ export default function OrderModal({ open, onOpenChange, order, initialCompanyId
               </div>
             </div>
           )}
+          {/* Notes */}
+          <div>
+            <Label htmlFor="notes">Order Description</Label>
+            <Textarea
+              id="notes"
+              placeholder="Additional order information, special instructions..."
+              value={formData.notes}
+              onChange={(e) => handleFieldChange("notes", e.target.value)}
+              rows={3}
+            />
+          </div>
 
 
-
-          {/* Dates Row */}
+          <div className="flex items-center justify-between border-b pb-2">
+            <h3 className="text-lg font-semibold">Shipping Details</h3>
+          </div>
+          {/* Customer Dates Row */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
-              <Label htmlFor="inHandsDate">In-Hands Date</Label>
+              <Label htmlFor="inHandsDate">Customer Requested In-Hands Date</Label>
               <Input
                 id="inHandsDate"
                 type="date"
@@ -872,7 +1091,7 @@ export default function OrderModal({ open, onOpenChange, order, initialCompanyId
               />
             </div>
             <div>
-              <Label htmlFor="eventDate">Event Date</Label>
+              <Label htmlFor="eventDate">Customer Event Date</Label>
               <Input
                 id="eventDate"
                 type="date"
@@ -882,17 +1101,190 @@ export default function OrderModal({ open, onOpenChange, order, initialCompanyId
             </div>
           </div>
 
-          {/* Notes */}
-          <div>
-            <Label htmlFor="notes">Order Notes</Label>
-            <Textarea
-              id="notes"
-              placeholder="Additional order information, special instructions..."
-              value={formData.notes}
-              onChange={(e) => handleFieldChange("notes", e.target.value)}
-              rows={3}
-            />
+          {/* Supplier Dates Row */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <Label htmlFor="supplierInHandsDate">Supplier In-Hands Date</Label>
+              <Input
+                id="supplierInHandsDate"
+                type="date"
+                value={formData.supplierInHandsDate}
+                onChange={(e) => handleFieldChange("supplierInHandsDate", e.target.value)}
+              />
+            </div>
+            <div className="flex items-center space-x-2 pt-8">
+              <Checkbox
+                id="isFirm"
+                checked={formData.isFirm}
+                onCheckedChange={(checked) => handleFieldChange("isFirm", checked)}
+              />
+              <Label htmlFor="isFirm" className="text-sm font-normal cursor-pointer">
+                Firm In-Hands Date
+              </Label>
+            </div>
           </div>
+
+          {/* Addresses Section */}
+          <div className="grid md:grid-cols-2 gap-6">
+            {/* Billing Address Section */}
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold border-b pb-2">Billing Address</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="md:col-span-2">
+                  <Label htmlFor="billingStreet">Street Address</Label>
+                  <Input
+                    id="billingStreet"
+                    placeholder="123 Main St"
+                    value={formData.billingStreet}
+                    onChange={(e) => handleFieldChange("billingStreet", e.target.value)}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="billingCity">City</Label>
+                  <Input
+                    id="billingCity"
+                    placeholder="City"
+                    value={formData.billingCity}
+                    onChange={(e) => handleFieldChange("billingCity", e.target.value)}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="billingState">State</Label>
+                  <Input
+                    id="billingState"
+                    placeholder="CA"
+                    value={formData.billingState}
+                    onChange={(e) => handleFieldChange("billingState", e.target.value)}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="billingZipCode">ZIP Code</Label>
+                  <Input
+                    id="billingZipCode"
+                    placeholder="12345"
+                    value={formData.billingZipCode}
+                    onChange={(e) => handleFieldChange("billingZipCode", e.target.value)}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="billingCountry">Country</Label>
+                  <Select
+                    value={formData.billingCountry}
+                    onValueChange={(value) => handleFieldChange("billingCountry", value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="US">United States</SelectItem>
+                      <SelectItem value="CA">Canada</SelectItem>
+                      <SelectItem value="MX">Mexico</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="col-span-2">
+                  <Label htmlFor="billingPhone">Billing Phone</Label>
+                  <Input
+                    id="billingPhone"
+                    type="tel"
+                    placeholder="(555) 123-4567"
+                    value={formData.billingPhone}
+                    onChange={(e) => handleFieldChange("billingPhone", e.target.value)}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Shipping Address Section */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between border-b pb-2">
+                <h3 className="text-lg font-semibold">Shipping Address</h3>
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="sameAsBilling"
+                    checked={sameAsBilling}
+                    onCheckedChange={(checked) => setSameAsBilling(checked as boolean)}
+                  />
+                  <Label htmlFor="sameAsBilling" className="text-sm font-normal cursor-pointer">
+                    Same as Billing Address
+                  </Label>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="md:col-span-2">
+                  <Label htmlFor="shippingStreet">Street Address</Label>
+                  <Input
+                    id="shippingStreet"
+                    placeholder="123 Main St"
+                    value={formData.shippingStreet}
+                    onChange={(e) => handleFieldChange("shippingStreet", e.target.value)}
+                    disabled={sameAsBilling}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="shippingCity">City</Label>
+                  <Input
+                    id="shippingCity"
+                    placeholder="City"
+                    value={formData.shippingCity}
+                    onChange={(e) => handleFieldChange("shippingCity", e.target.value)}
+                    disabled={sameAsBilling}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="shippingState">State</Label>
+                  <Input
+                    id="shippingState"
+                    placeholder="CA"
+                    value={formData.shippingState}
+                    onChange={(e) => handleFieldChange("shippingState", e.target.value)}
+                    disabled={sameAsBilling}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="shippingZipCode">ZIP Code</Label>
+                  <Input
+                    id="shippingZipCode"
+                    placeholder="12345"
+                    value={formData.shippingZipCode}
+                    onChange={(e) => handleFieldChange("shippingZipCode", e.target.value)}
+                    disabled={sameAsBilling}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="shippingCountry">Country</Label>
+                  <Select
+                    value={formData.shippingCountry}
+                    onValueChange={(value) => handleFieldChange("shippingCountry", value)}
+                    disabled={sameAsBilling}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="US">United States</SelectItem>
+                      <SelectItem value="CA">Canada</SelectItem>
+                      <SelectItem value="MX">Mexico</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="col-span-2">
+                  <Label htmlFor="shippingPhone">Shipping Phone</Label>
+                  <Input
+                    id="shippingPhone"
+                    type="tel"
+                    placeholder="(555) 123-4567"
+                    value={formData.shippingPhone}
+                    onChange={(e) => handleFieldChange("shippingPhone", e.target.value)}
+                    disabled={sameAsBilling}
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+
+
 
           {/* Action Buttons */}
           <div className="flex justify-end space-x-4 pt-6 border-t border-gray-200">

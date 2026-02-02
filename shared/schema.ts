@@ -115,6 +115,8 @@ export const contacts = pgTable("contacts", {
   phone: varchar("phone"),
   title: varchar("title"),
   isPrimary: boolean("is_primary").default(false),
+  billingAddress: text("billing_address"),
+  shippingAddress: text("shipping_address"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -272,8 +274,12 @@ export const orderItems = pgTable("order_items", {
   productId: varchar("product_id").references(() => products.id),
   supplierId: varchar("supplier_id").references(() => suppliers.id), // Each product has its own vendor
   quantity: integer("quantity").notNull(),
+  cost: decimal("cost", { precision: 10, scale: 2 }), // Cost per unit (COGS)
   unitPrice: decimal("unit_price", { precision: 10, scale: 2 }).notNull(),
   totalPrice: decimal("total_price", { precision: 12, scale: 2 }).notNull(),
+  decorationCost: decimal("decoration_cost", { precision: 10, scale: 2 }), // Decoration/imprint cost
+  charges: decimal("charges", { precision: 10, scale: 2 }), // Additional charges
+  sizePricing: jsonb("size_pricing"), // For SanMar/S&S: { 'XS': { cost: 10, price: 20, quantity: 5 }, 'S': {...}, ... }
   color: varchar("color"),
   size: varchar("size"),
   imprintLocation: varchar("imprint_location"),
@@ -559,8 +565,11 @@ export const insertOrderItemSchema = z.preprocess(
     if (input && typeof input === 'object') {
       return {
         ...input,
+        cost: input.cost != null ? String(input.cost) : input.cost,
         unitPrice: input.unitPrice != null ? String(input.unitPrice) : input.unitPrice,
         totalPrice: input.totalPrice != null ? String(input.totalPrice) : input.totalPrice,
+        decorationCost: input.decorationCost != null ? String(input.decorationCost) : input.decorationCost,
+        charges: input.charges != null ? String(input.charges) : input.charges,
       };
     }
     return input;

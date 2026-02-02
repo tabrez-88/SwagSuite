@@ -47,18 +47,11 @@ export default function Orders() {
 
         <div className="flex gap-2">
           <Button
-            variant="outline"
-            onClick={() => setLocation('/production-report')}
-          >
-            <Calendar size={20} className="mr-2" />
-            Production Report
-          </Button>
-          <Button
             onClick={() => setIsCreateModalOpen(true)}
             className="bg-swag-primary hover:bg-swag-primary/90"
           >
             <PlusCircle size={20} />
-            New Order
+            New Quote / Sales Order
           </Button>
         </div>
       </div>

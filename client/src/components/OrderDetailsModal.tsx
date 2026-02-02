@@ -23,7 +23,7 @@ import { UserAvatar } from "@/components/UserAvatar";
 import { useToast } from "@/hooks/use-toast";
 import type { Order } from "@shared/schema";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { format } from "date-fns";
+import { format, addDays } from "date-fns";
 import {
   AlertTriangle,
   Building2,
@@ -195,6 +195,11 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
   const [isEditShippingAddressOpen, setIsEditShippingAddressOpen] = useState(false);
   const [isEditShippingInfoOpen, setIsEditShippingInfoOpen] = useState(false);
 
+  // Inline product editing states
+  const [editedItems, setEditedItems] = useState<Record<string, any>>({});
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [isUpdatingOrder, setIsUpdatingOrder] = useState(false);
+
   // Form data states
   const [selectedContactId, setSelectedContactId] = useState<string>("");
   const [billingAddressForm, setBillingAddressForm] = useState({
@@ -203,11 +208,17 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
     state: "",
     zipCode: "",
     country: "US",
+    phone: "",
     contactName: "",
     email: ""
   });
   const [shippingAddressForm, setShippingAddressForm] = useState({
-    address: "",
+    street: "",
+    city: "",
+    state: "",
+    zipCode: "",
+    country: "US",
+    phone: "",
     contactName: "",
     email: ""
   });
@@ -219,8 +230,230 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
     shippingMethod: ""
   });
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const queryClient = useQueryClient();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  // Helper function to initialize edited item state
+  const getEditedItem = (itemId: string, item: any) => {
+    if (editedItems[itemId]) {
+      return editedItems[itemId];
+    }
+
+    // Initialize with current values
+    return {
+      id: itemId,
+      productId: item.productId,
+      productName: item.productName,
+      productSku: item.productSku,
+      supplierId: item.supplierId,
+      color: item.color || '',
+      quantity: item.quantity || 0,
+      unitPrice: parseFloat(item.unitPrice) || 0,
+      cost: parseFloat(item.cost || 0),
+      decorationCost: parseFloat(item.decorationCost || 0),
+      charges: parseFloat(item.charges || 0),
+      margin: 44, // Default margin percentage
+      sizePricing: item.sizePricing || {}, // For SanMar/S&S: { 'S': { cost: 0, price: 0, quantity: 0 }, ... }
+    };
+  };
+
+  // Helper function to update edited item
+  const updateEditedItem = (itemId: string, updates: any) => {
+    const currentItem = orderItems.find((item: any) => item.id === itemId);
+    if (!currentItem) return;
+
+    const editedItem = getEditedItem(itemId, currentItem);
+    const updatedItem = { ...editedItem, ...updates };
+
+    setEditedItems(prev => ({
+      ...prev,
+      [itemId]: updatedItem
+    }));
+    setHasUnsavedChanges(true);
+  };
+
+  // Helper function to calculate totals for an item
+  const calculateItemTotals = (item: any) => {
+    const { quantity, unitPrice, decorationCost, charges, cost, uomFactory } = item;
+    const productTotal = quantity * unitPrice;
+
+    // Decoration dan Charges adalah PERSENTASE dari product total
+    // Decoration % × Product Total = Decoration $
+    // Charges % × (Product + Decoration) = Charges $
+    const decorationPercent = decorationCost || 0;
+    const chargesPercent = charges || 0;
+
+    const decorationTotal = (decorationPercent / 100) * productTotal;
+    const subtotalAfterDecoration = productTotal + decorationTotal;
+    const chargesTotal = (chargesPercent / 100) * subtotalAfterDecoration;
+
+    const total = productTotal + decorationTotal + chargesTotal;
+
+    // Calculate product margin: Margin = (Price - Cost) / Price * 100
+    const productCostTotal = (cost || 0) * quantity;
+    const productMargin = productTotal > 0 ? ((productTotal - productCostTotal) / productTotal) * 100 : 0;
+
+    // Calculate total margin: Total Margin = (Total Price - Total Cost) / Total Price * 100
+    // Total Cost = Product Cost + Decoration Cost + Charges Cost
+    const totalCost = productCostTotal + decorationTotal + chargesTotal;
+    const totalMargin = total > 0 ? ((total - totalCost) / total) * 100 : 0;
+
+    // Calculate factory quantity from UOM Factory
+    // If UOM Factory = 12, and quantity = 140, factoryQuantity = ceil(140/12) = 12 boxes
+    const factoryQuantity = uomFactory && uomFactory > 0 ? Math.ceil(quantity / uomFactory) : quantity;
+
+    return {
+      productTotal,
+      decorationTotal,
+      chargesTotal,
+      total,
+      productMargin,
+      totalMargin,
+      factoryQuantity
+    };
+  };
+
+  // Helper function to calculate margin
+  const calculateMargin = (price: number, cost: number) => {
+    if (price === 0) return 0;
+    return ((price - cost) / price) * 100;
+  };
+
+  // Handler for updating color
+  const handleColorChange = (itemId: string, color: string) => {
+    updateEditedItem(itemId, { color });
+  };
+
+  // Handler for updating size-based pricing (SanMar/S&S)
+  const handleSizePricingChange = (itemId: string, size: string, field: 'cost' | 'price' | 'quantity', value: number) => {
+    const currentItem = orderItems.find((item: any) => item.id === itemId);
+    if (!currentItem) return;
+
+    const editedItem = getEditedItem(itemId, currentItem);
+    const sizePricing = { ...editedItem.sizePricing };
+
+    if (!sizePricing[size]) {
+      sizePricing[size] = { cost: 0, price: 0, quantity: 0 };
+    }
+
+    sizePricing[size][field] = value;
+
+    // Calculate total quantity and weighted average price
+    let totalQuantity = 0;
+    let totalPrice = 0;
+    let totalCost = 0;
+
+    Object.entries(sizePricing).forEach(([sz, data]: [string, any]) => {
+      totalQuantity += data.quantity || 0;
+      totalPrice += (data.price || 0) * (data.quantity || 0);
+      totalCost += (data.cost || 0) * (data.quantity || 0);
+    });
+
+    const avgPrice = totalQuantity > 0 ? totalPrice / totalQuantity : 0;
+    const avgCost = totalQuantity > 0 ? totalCost / totalQuantity : 0;
+
+    updateEditedItem(itemId, {
+      sizePricing,
+      quantity: totalQuantity,
+      unitPrice: avgPrice,
+      cost: avgCost
+    });
+  };
+
+  // Handler for simple pricing (non-SanMar/S&S)
+  const handleSimplePricingChange = (itemId: string, field: 'cost' | 'price' | 'quantity', value: number) => {
+    const updates: any = {};
+
+    if (field === 'cost') {
+      updates.cost = value;
+    } else if (field === 'price') {
+      updates.unitPrice = value;
+    } else if (field === 'quantity') {
+      updates.quantity = value;
+    }
+
+    updateEditedItem(itemId, updates);
+  };
+
+  // Handler for margin changes
+  const handleMarginChange = (itemId: string, marginPercent: number) => {
+    const currentItem = orderItems.find((item: any) => item.id === itemId);
+    if (!currentItem) return;
+
+    const editedItem = getEditedItem(itemId, currentItem);
+    const cost = editedItem.cost || 0;
+
+    // Calculate new price based on margin: price = cost / (1 - margin/100)
+    const newPrice = cost > 0 ? cost / (1 - marginPercent / 100) : editedItem.unitPrice;
+
+    updateEditedItem(itemId, {
+      margin: marginPercent,
+      unitPrice: newPrice
+    });
+  };
+
+  // Handler for decoration cost
+  const handleDecorationChange = (itemId: string, decorationCost: number) => {
+    updateEditedItem(itemId, { decorationCost });
+  };
+
+  // Handler for charges
+  const handleChargesChange = (itemId: string, charges: number) => {
+    updateEditedItem(itemId, { charges });
+  };
+
+  // Handler for product margin changes
+  const handleProductMarginChange = (itemId: string, marginPercent: number) => {
+    const currentItem = orderItems.find((item: any) => item.id === itemId);
+    if (!currentItem) return;
+
+    const editedItem = getEditedItem(itemId, currentItem);
+    const cost = editedItem.cost || 0;
+
+    // Formula: Price = Cost / (1 - Margin%/100)
+    // Kalau margin 30% → Price = Cost / 0.70
+    // Kalau margin 44% → Price = Cost / 0.56
+    let newUnitPrice = editedItem.unitPrice;
+
+    if (cost > 0 && marginPercent < 100) {
+      newUnitPrice = cost / (1 - marginPercent / 100);
+    }
+
+    updateEditedItem(itemId, {
+      unitPrice: newUnitPrice
+    });
+  };
+
+  // Handler for total margin changes (affects the final price including decoration and charges)
+  const handleTotalMarginChange = (itemId: string, marginPercent: number) => {
+    const currentItem = orderItems.find((item: any) => item.id === itemId);
+    if (!currentItem) return;
+
+    const editedItem = getEditedItem(itemId, currentItem);
+    const totalCost = (editedItem.cost || 0) + (editedItem.decorationCost || 0) + (editedItem.charges || 0);
+
+    // Calculate new total price based on total margin
+    const newTotalPrice = totalCost > 0 ? totalCost / (1 - marginPercent / 100) : 0;
+
+    // Back-calculate unitPrice (assuming decoration and charges stay the same)
+    const newUnitPrice = newTotalPrice - (editedItem.decorationCost || 0) - (editedItem.charges || 0);
+
+    updateEditedItem(itemId, {
+      totalMargin: marginPercent,
+      unitPrice: newUnitPrice > 0 ? newUnitPrice : editedItem.unitPrice
+    });
+  };
+
+  // Handler for quantity change (direct)
+  const handleQuantityChange = (itemId: string, quantity: number) => {
+    updateEditedItem(itemId, { quantity });
+  };
+
+  // Handler for UOM Factory change
+  const handleUomFactoryChange = (itemId: string, uomFactory: number) => {
+    updateEditedItem(itemId, { uomFactory });
+  };
+
   const [emailSearchQuery, setEmailSearchQuery] = useState("");
   const [vendorEmailSearchQuery, setVendorEmailSearchQuery] = useState("");
 
@@ -351,10 +584,10 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
   // Handler for saving order item changes
   const handleSaveOrderItem = () => {
     if (!editingOrderItem) return;
-    
+
     const quantity = parseInt(orderItemForm.quantity);
     const unitPrice = parseFloat(orderItemForm.unitPrice);
-    
+
     if (isNaN(quantity) || quantity <= 0) {
       toast({
         title: "Invalid Quantity",
@@ -363,7 +596,7 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
       });
       return;
     }
-    
+
     if (isNaN(unitPrice) || unitPrice < 0) {
       toast({
         title: "Invalid Price",
@@ -372,7 +605,7 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
       });
       return;
     }
-    
+
     updateOrderItemMutation.mutate({
       itemId: editingOrderItem.id,
       updates: {
@@ -389,7 +622,7 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
   const handleAddProduct = () => {
     const quantity = parseInt(newProductForm.quantity);
     const unitPrice = parseFloat(newProductForm.unitPrice);
-    
+
     if (!newProductForm.productId) {
       toast({
         title: "Product Required",
@@ -398,7 +631,7 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
       });
       return;
     }
-    
+
     if (isNaN(quantity) || quantity <= 0) {
       toast({
         title: "Invalid Quantity",
@@ -407,7 +640,7 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
       });
       return;
     }
-    
+
     if (isNaN(unitPrice) || unitPrice < 0) {
       toast({
         title: "Invalid Price",
@@ -416,7 +649,7 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
       });
       return;
     }
-    
+
     addOrderItemMutation.mutate(newProductForm);
   };
 
@@ -609,6 +842,126 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
     },
   });
 
+  // Mutation to update order with all item changes (batch update)
+  const updateOrderWithItemsMutation = useMutation({
+    mutationFn: async () => {
+      if (!order) throw new Error("No order to update");
+
+      // Prepare items array from edited items
+      const itemsToUpdate = orderItems.map((item: any) => {
+        const editedItem = editedItems[item.id];
+
+        if (!editedItem) {
+          // No changes for this item, return original
+          return {
+            id: item.id,
+            productId: item.productId,
+            supplierId: item.supplierId,
+            quantity: item.quantity,
+            cost: parseFloat(item.cost || 0),
+            unitPrice: parseFloat(item.unitPrice),
+            totalPrice: parseFloat(item.totalPrice),
+            decorationCost: parseFloat(item.decorationCost || 0),
+            charges: parseFloat(item.charges || 0),
+            sizePricing: item.sizePricing || null,
+            color: item.color,
+            size: item.size,
+            imprintLocation: item.imprintLocation,
+            imprintMethod: item.imprintMethod,
+            notes: item.notes,
+          };
+        }
+
+        // Calculate totals for edited item
+        const totals = calculateItemTotals(editedItem);
+
+        const itemPayload = {
+          id: item.id,
+          productId: item.productId,
+          supplierId: item.supplierId,
+          quantity: editedItem.quantity,
+          cost: parseFloat(editedItem.cost || 0),
+          unitPrice: parseFloat(editedItem.unitPrice),
+          totalPrice: totals.total,
+          decorationCost: parseFloat(editedItem.decorationCost || 0),
+          charges: parseFloat(editedItem.charges || 0),
+          sizePricing: editedItem.sizePricing || null,
+          color: editedItem.color || null,
+          size: editedItem.size || null,
+          imprintLocation: item.imprintLocation,
+          imprintMethod: item.imprintMethod,
+          notes: item.notes,
+        };
+
+        console.log('Sending item update:', itemPayload);
+        return itemPayload;
+      });
+
+      // Calculate order totals
+      const subtotal = itemsToUpdate.reduce((sum, item) => sum + (typeof item.totalPrice === 'string' ? parseFloat(item.totalPrice) : item.totalPrice), 0);
+
+      const payload = {
+        items: itemsToUpdate,
+        subtotal: subtotal.toFixed(2),
+        total: subtotal.toFixed(2),
+      };
+
+      console.log('Full update payload:', payload);
+
+      const response = await fetch(`/api/orders/${order.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+        credentials: "include",
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || "Failed to update order");
+      }
+
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/orders/${orderId}/items`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/orders/${orderId}`] });
+
+      // Reset edited items state
+      setEditedItems({});
+      setHasUnsavedChanges(false);
+
+      toast({
+        title: "Order updated",
+        description: "All changes have been saved successfully.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Update failed",
+        description: error.message || "Failed to update order. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Handler for Update Order button
+  const handleUpdateOrder = async () => {
+    if (!hasUnsavedChanges) {
+      toast({
+        title: "No changes",
+        description: "There are no changes to save.",
+      });
+      return;
+    }
+
+    setIsUpdatingOrder(true);
+    try {
+      await updateOrderWithItemsMutation.mutateAsync();
+    } finally {
+      setIsUpdatingOrder(false);
+    }
+  };
+
   // Mutation to add product to order
   const addOrderItemMutation = useMutation({
     mutationFn: async (data: typeof newProductForm) => {
@@ -763,14 +1116,14 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
     },
   });
 
-  // Mutation to update company billing address
+  // Mutation to update order billing address
   const updateBillingAddressMutation = useMutation({
     mutationFn: async (data: any) => {
       console.log('Sending billing address to server:', data);
-      const response = await fetch(`/api/companies/${order?.companyId}`, {
+      const response = await fetch(`/api/orders/${orderId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ billingAddress: data }),
+        body: JSON.stringify({ billingAddress: JSON.stringify(data) }),
         credentials: 'include',
       });
       if (!response.ok) throw new Error('Failed to update billing address');
@@ -779,7 +1132,7 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
       return result;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/companies'] });
+      queryClient.invalidateQueries({ queryKey: [`/api/orders/${orderId}`] });
       setIsEditBillingAddressOpen(false);
       toast({ title: "Billing address updated successfully" });
     },
@@ -844,6 +1197,9 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
 
   const statusClass = statusColorMap[order.status as keyof typeof statusColorMap] || "bg-gray-100 text-gray-800";
   const statusLabel = statusDisplayMap[order.status as keyof typeof statusDisplayMap] || order.status;
+
+  // Calculate priority from inHandsDate (same logic as production-report)
+  const orderPriority = order.inHandsDate && new Date(order.inHandsDate) <= addDays(new Date(), 7) ? 'high' : 'medium';
 
   // Check if this is a rush order based on in hands date
   const isRushOrder = order.inHandsDate ?
@@ -1050,13 +1406,23 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
   };
 
   const handleOpenEditBillingAddress = () => {
-    const billing = companyData?.billingAddress || {};
+    // Parse billing address from order JSON
+    let billing: any = {};
+    if ((order as any).billingAddress) {
+      try {
+        billing = JSON.parse((order as any).billingAddress);
+      } catch {
+        billing = {};
+      }
+    }
+
     setBillingAddressForm({
       street: billing.street || "",
       city: billing.city || "",
       state: billing.state || "",
       zipCode: billing.zipCode || "",
       country: billing.country || "US",
+      phone: billing.phone || "",
       contactName: billing.contactName || "",
       email: billing.email || ""
     });
@@ -1069,14 +1435,24 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
     try {
       const parsed = JSON.parse(shippingAddr);
       setShippingAddressForm({
-        address: parsed.address || shippingAddr,
+        street: parsed.street || parsed.address || "",
+        city: parsed.city || "",
+        state: parsed.state || "",
+        zipCode: parsed.zipCode || "",
+        country: parsed.country || "US",
+        phone: parsed.phone || "",
         contactName: parsed.contactName || "",
         email: parsed.email || ""
       });
     } catch {
-      // Not JSON, just plain text address
+      // Not JSON, just plain text address - put it in street field
       setShippingAddressForm({
-        address: shippingAddr,
+        street: shippingAddr,
+        city: "",
+        state: "",
+        zipCode: "",
+        country: "US",
+        phone: "",
         contactName: "",
         email: ""
       });
@@ -1105,10 +1481,8 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
 
   const handleSaveShippingAddress = () => {
     console.log('Saving shipping address form:', shippingAddressForm);
-    // Save as JSON if we have contact info, otherwise just the address
-    const shippingData = (shippingAddressForm.contactName || shippingAddressForm.email)
-      ? JSON.stringify(shippingAddressForm)
-      : shippingAddressForm.address;
+    // Always save as JSON with all fields
+    const shippingData = JSON.stringify(shippingAddressForm);
 
     console.log('Shipping data to save:', shippingData);
     updateShippingAddressMutation.mutate({ shippingAddress: shippingData });
@@ -1123,7 +1497,7 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-7xl p-4 max-h-[95vh] overflow-y-auto">
+        <DialogContent className="max-w-[80vw] p-4 max-h-[95vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center pt-6 gap-3">
               <FileText className="w-6 h-6" />
@@ -1173,15 +1547,38 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {/* Order Details */}
                 <Card className="col-span-2">
-                  <CardHeader>
+                  <CardHeader className="flex flex-row justify-between py-2">
                     <CardTitle className="flex items-center gap-2">
                       <Package className="w-5 h-5" />
                       Order Info
                     </CardTitle>
+                    <div className="flex gap-6">
+                      <div>
+                        <p className="text-sm font-medium text-gray-500">Order Type</p>
+                        <Badge variant="outline" className="mt-1">
+                          {order.orderType?.replace('_', ' ').toUpperCase() || 'QUOTE'}
+                        </Badge>
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-gray-500">Priority</p>
+                        <Badge
+                          variant={orderPriority === 'high' ? 'default' : 'secondary'}
+                          className={`mt-1 ${orderPriority === 'high' ? 'bg-orange-500 text-white' : 'bg-yellow-500 text-white'
+                            }`}
+                        >
+                          {orderPriority.toUpperCase()}
+                        </Badge>
+                      </div>
+                    </div>
                   </CardHeader>
                   <CardContent className="space-y-4">
                     <div className="space-y-2">
-                      <Label htmlFor="order-status">Current Status</Label>
+                      <div className="flex flex-col">
+                        <Label htmlFor="order-status">Current Status</Label>
+                        <span className="text-xs text-gray-500 mt-1">
+                          Change the order status to track progress
+                        </span>
+                      </div>
                       <Select
                         value={order.status || undefined}
                         onValueChange={(value) => updateStatusMutation.mutate({ orderId: order.id, newStatus: value })}
@@ -1239,81 +1636,56 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
                           </SelectItem>
                         </SelectContent>
                       </Select>
-                      <p className="text-xs text-gray-500 mt-1">
-                        Change the order status to track progress and notify team members
-                      </p>
                     </div>
-
-
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <p className="text-sm font-medium text-gray-500">Order Type</p>
-                        <Badge variant="outline" className="mt-1">
-                          {order.orderType?.replace('_', ' ').toUpperCase() || 'QUOTE'}
-                        </Badge>
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium text-gray-500">Priority</p>
-                        <Badge variant="secondary" className="mt-1">
-                          NORMAL
-                        </Badge>
-                      </div>
-                    </div>
-                    {/* Status History */}
-                    <div className="pt-4 border-t">
-                      <p className="text-sm font-medium mb-2">Status Timeline</p>
-                      <div className="space-y-2">
-                        <div className="flex items-center gap-2 text-xs">
-                          <CheckCircle className="w-3 h-3 text-green-600" />
-                          <span className="text-gray-600">Created as {statusDisplayMap[order.status as keyof typeof statusDisplayMap]}</span>
-                          <span className="text-gray-400">• {new Date(order.createdAt!).toLocaleDateString()}</span>
+                    {/* Notes & Special Instructions */}
+                    {order.notes && (
+                      <div className="md:col-span-2 flex flex-col gap-2">
+                        <p className="font-semibold">
+                          Order Description
+                        </p>
+                        <div className="bg-gray-100 p-4 rounded-lg">
+                          <p className="text-sm text-gray-700 whitespace-pre-line">{order.notes}</p>
                         </div>
-                        {order.updatedAt && order.updatedAt !== order.createdAt && (
-                          <div className="flex items-center gap-2 text-xs">
-                            <Clock className="w-3 h-3 text-blue-600" />
-                            <span className="text-gray-600">Last updated</span>
-                            <span className="text-gray-400">• {new Date(order.updatedAt).toLocaleDateString()}</span>
+                      </div>
+                    )}
+
+                    {orderItems.length > 0 && (
+                      <div className="space-y-3">
+                        {/* Price Breakdown */}
+                        <div className="space-y-2 bg-gray-50 p-3 rounded-lg">
+                          <div className="flex justify-between text-sm">
+                            <span className="text-gray-600">Subtotal:</span>
+                            <span className="font-medium">${Number(order.subtotal || 0).toLocaleString()}</span>
                           </div>
-                        )}
-                      </div>
-                    </div>
-                    <Separator />
-
-                    <div className="space-y-3">
-                      {/* Price Breakdown */}
-                      <div className="space-y-2 bg-gray-50 p-3 rounded-lg">
-                        <div className="flex justify-between text-sm">
-                          <span className="text-gray-600">Subtotal:</span>
-                          <span className="font-medium">${Number(order.subtotal || 0).toLocaleString()}</span>
-                        </div>
-                        <div className="flex justify-between text-sm">
-                          <span className="text-gray-600">Tax:</span>
-                          <span className="font-medium">${Number(order.tax || 0).toLocaleString()}</span>
-                        </div>
-                        <div className="flex justify-between text-sm">
-                          <span className="text-gray-600">Shipping:</span>
-                          <span className="font-medium">${Number(order.shipping || 0).toLocaleString()}</span>
-                        </div>
-                        <Separator />
-                        <div className="flex justify-between items-center">
-                          <div className="flex items-center gap-2">
-                            <DollarSign className="w-4 h-4 text-gray-500" />
-                            <span className="text-sm font-semibold">Total:</span>
+                          <div className="flex justify-between text-sm">
+                            <span className="text-gray-600">Tax:</span>
+                            <span className="font-medium">${Number(order.tax || 0).toLocaleString()}</span>
                           </div>
-                          <span className="text-lg font-bold text-green-600">
-                            ${Number(order.total || 0).toLocaleString()}
+                          <div className="flex justify-between text-sm">
+                            <span className="text-gray-600">Shipping:</span>
+                            <span className="font-medium">${Number(order.shipping || 0).toLocaleString()}</span>
+                          </div>
+                          <Separator />
+                          <div className="flex justify-between items-center">
+                            <div className="flex items-center gap-2">
+                              <DollarSign className="w-4 h-4 text-gray-500" />
+                              <span className="text-sm font-semibold">Total:</span>
+                            </div>
+                            <span className="text-lg font-bold text-green-600">
+                              ${Number(order.total || 0).toLocaleString()}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <CheckCircle className="w-4 h-4 text-gray-500" />
+                          <span className="text-sm font-medium">Deposit (50%): </span>
+                          <span className="text-sm font-semibold">
+                            ${(Number(order.total || 0) * 0.5).toLocaleString()}
                           </span>
                         </div>
                       </div>
-
-                      <div className="flex items-center gap-2">
-                        <CheckCircle className="w-4 h-4 text-gray-500" />
-                        <span className="text-sm font-medium">Deposit (50%): </span>
-                        <span className="text-sm font-semibold">
-                          ${(Number(order.total || 0) * 0.5).toLocaleString()}
-                        </span>
-                      </div>
-                    </div>
+                    )}
 
 
                   </CardContent>
@@ -1334,7 +1706,7 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
                         className="ml-auto"
                       >
                         <Edit className="w-3 h-3 mr-1" />
-                        Edit Contact
+                        Edit
                       </Button>
                     </CardTitle>
                   </CardHeader>
@@ -1350,7 +1722,7 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
                       </div>
 
                       <div className="flex items-center gap-2">
-                        <p className="text-sm font-medium">Contact Name:</p>
+                        <p className="text-sm font-medium">Name:</p>
                         <span className="text-sm">
                           {primaryContact
                             ? `${primaryContact.firstName} ${primaryContact.lastName}${primaryContact.title ? ` - ${primaryContact.title}` : ''}`
@@ -1360,14 +1732,14 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
 
                       {primaryContact?.email && (
                         <div className="flex items-center gap-2">
-                          <p className="text-sm font-medium">Email Contact:</p>
+                          <p className="text-sm font-medium">Email:</p>
                           <span className="text-sm">{primaryContact.email}</span>
                         </div>
                       )}
 
                       {primaryContact?.phone && (
                         <div className="flex items-center gap-2">
-                          <p className="text-sm font-medium">Phone Contact:</p>
+                          <p className="text-sm font-medium">Phone:</p>
                           <span className="text-sm">{primaryContact.phone}</span>
                         </div>
                       )}
@@ -1377,7 +1749,7 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
                       <div className="flex items-center justify-between">
                         <h3 className="text-xl font-semibold">Billing Address</h3>
                         <Button
-                          variant="ghost"
+                          variant="outline"
                           size="sm"
                           onClick={handleOpenEditBillingAddress}
                         >
@@ -1388,18 +1760,68 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
 
                       <div className="flex items-center gap-2">
                         <p className="text-sm font-medium">Billing Contact:</p>
-                        <p className="text-sm">{(order as any).billingContact || "Not specified"}</p>
+                        <p className="text-sm">
+                          {(() => {
+                            try {
+                              if ((order as any).billingAddress) {
+                                const parsed = JSON.parse((order as any).billingAddress);
+                                return parsed.contactName || "Not specified";
+                              }
+                              return "Not specified";
+                            } catch {
+                              return "Not specified";
+                            }
+                          })()}
+                        </p>
                       </div>
 
                       <div className="flex items-center gap-2">
                         <p className="text-sm font-medium">Billing Customer Email:</p>
-                        <p className="text-sm">{(order as any).billingCustomerEmail || "Not specified"}</p>
+                        <p className="text-sm">
+                          {(() => {
+                            try {
+                              if ((order as any).billingAddress) {
+                                const parsed = JSON.parse((order as any).billingAddress);
+                                return parsed.email || "Not specified";
+                              }
+                              return "Not specified";
+                            } catch {
+                              return "Not specified";
+                            }
+                          })()}
+                        </p>
                       </div>
 
                       <div className="flex items-start gap-2 w-full">
                         <MapPin className="w-4 h-4 text-gray-500 mt-0.5" />
                         <div className="text-sm w-full">
-                          {companyData?.billingAddress ? (
+                          {(order as any).billingAddress ? (
+                            <>
+                              {(() => {
+                                try {
+                                  const parsed = JSON.parse((order as any).billingAddress);
+                                  return (
+                                    <>
+                                      {parsed.street && <p className="text-gray-600">{parsed.street}</p>}
+                                      {parsed.city && (
+                                        <p className="text-gray-600">
+                                          {parsed.city}
+                                          {parsed.state && `, ${parsed.state}`}
+                                          {parsed.zipCode && ` ${parsed.zipCode}`}
+                                        </p>
+                                      )}
+                                      {parsed.country && <p className="text-gray-600">{parsed.country}</p>}
+                                      {parsed.phone && (
+                                        <p className="text-gray-600 mt-1"><span className="font-medium">Phone:</span> {parsed.phone}</p>
+                                      )}
+                                    </>
+                                  );
+                                } catch {
+                                  return <p className="text-gray-600">{(order as any).billingAddress}</p>;
+                                }
+                              })()}
+                            </>
+                          ) : companyData?.billingAddress ? (
                             <>
                               {companyData.billingAddress.street && <p className="text-gray-600">{companyData.billingAddress.street}</p>}
                               {companyData.billingAddress.city && (
@@ -1410,12 +1832,6 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
                                 </p>
                               )}
                               {companyData.billingAddress.country && <p className="text-gray-600">{companyData.billingAddress.country}</p>}
-                              {companyData.billingAddress.contactName && (
-                                <p className="text-gray-600 mt-1"><span className="font-medium">Contact:</span> {companyData.billingAddress.contactName}</p>
-                              )}
-                              {companyData.billingAddress.email && (
-                                <p className="text-gray-600"><span className="font-medium">Email:</span> {companyData.billingAddress.email}</p>
-                              )}
                             </>
                           ) : companyData?.address ? (
                             <>
@@ -1440,7 +1856,7 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
                       <div className="flex items-center justify-between">
                         <h3 className="text-xl font-semibold">Shipping Address</h3>
                         <Button
-                          variant="ghost"
+                          variant="outline"
                           size="sm"
                           onClick={handleOpenEditShippingAddress}
                         >
@@ -1451,12 +1867,36 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
 
                       <div className="flex items-center gap-2">
                         <p className="text-sm font-medium">Shipping Contact:</p>
-                        <p className="text-sm">{(order as any).shippingContact || "Not specified"}</p>
+                        <p className="text-sm">
+                          {(() => {
+                            try {
+                              if ((order as any).shippingAddress) {
+                                const parsed = JSON.parse((order as any).shippingAddress);
+                                return parsed.contactName || "Not specified";
+                              }
+                              return "Not specified";
+                            } catch {
+                              return "Not specified";
+                            }
+                          })()}
+                        </p>
                       </div>
 
                       <div className="flex items-center gap-2">
                         <p className="text-sm font-medium">Shipping Customer Email:</p>
-                        <p className="text-sm">{(order as any).shippingCustomerEmail || "Not specified"}</p>
+                        <p className="text-sm">
+                          {(() => {
+                            try {
+                              if ((order as any).shippingAddress) {
+                                const parsed = JSON.parse((order as any).shippingAddress);
+                                return parsed.email || "Not specified";
+                              }
+                              return "Not specified";
+                            } catch {
+                              return "Not specified";
+                            }
+                          })()}
+                        </p>
                       </div>
 
                       <div className="flex items-start gap-2">
@@ -1464,18 +1904,22 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
                         <div className="text-sm">
                           {(order as any).shippingAddress ? (
                             <>
-                              <p className="font-medium">Order-Specific Shipping Address:</p>
                               {(() => {
                                 try {
                                   const parsed = JSON.parse((order as any).shippingAddress);
                                   return (
                                     <>
-                                      <p className="text-gray-600 whitespace-pre-line">{parsed.address}</p>
-                                      {parsed.contactName && (
-                                        <p className="text-gray-600 mt-1"><span className="font-medium">Contact:</span> {parsed.contactName}</p>
+                                      {parsed.street && <p className="text-gray-600">{parsed.street}</p>}
+                                      {parsed.city && (
+                                        <p className="text-gray-600">
+                                          {parsed.city}
+                                          {parsed.state && `, ${parsed.state}`}
+                                          {parsed.zipCode && ` ${parsed.zipCode}`}
+                                        </p>
                                       )}
-                                      {parsed.email && (
-                                        <p className="text-gray-600"><span className="font-medium">Email:</span> {parsed.email}</p>
+                                      {parsed.country && <p className="text-gray-600">{parsed.country}</p>}
+                                      {parsed.phone && (
+                                        <p className="text-gray-600 mt-1"><span className="font-medium">Phone:</span> {parsed.phone}</p>
                                       )}
                                     </>
                                   );
@@ -1535,7 +1979,7 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
                         className="ml-auto"
                       >
                         <Edit className="w-3 h-3 mr-1" />
-                        Edit Shipping Info
+                        Edit
                       </Button>
                     </CardTitle>
                   </CardHeader>
@@ -1577,7 +2021,7 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
                       {order.eventDate && (
                         <div className="flex items-center gap-2">
                           <Calendar className="w-4 h-4 text-purple-600" />
-                          <span className="text-sm font-medium">Event Date:</span>
+                          <span className="text-sm font-medium">Customer Event Date:</span>
                           <span className="text-sm font-semibold text-purple-700">
                             {format(new Date(order.eventDate), 'MMM dd, yyyy')}
                           </span>
@@ -1591,6 +2035,13 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
                           <span className="text-sm text-gray-600">
                             {format(new Date(order.createdAt), 'MMM dd, yyyy')}
                           </span>
+                        </div>
+                      )}
+                      {order.updatedAt && order.updatedAt !== order.createdAt && (
+                        <div className="flex items-center gap-2 text-xs">
+                          <Clock className="w-3 h-3 text-blue-600" />
+                          <span className="text-gray-600">Last updated</span>
+                          <span className="text-gray-400">• {new Date(order.updatedAt).toLocaleDateString()}</span>
                         </div>
                       )}
                     </div>
@@ -1610,20 +2061,7 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
                   </CardContent>
                 </Card>
 
-                {/* Notes & Special Instructions */}
-                {order.notes && (
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <FileText className="w-5 h-5" />
-                        Notes & Instructions
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <p className="text-sm text-gray-700 whitespace-pre-line">{order.notes}</p>
-                    </CardContent>
-                  </Card>
-                )}
+
 
                 {/* Production Stages Progress */}
                 <Card className="md:col-span-2">
@@ -1663,7 +2101,6 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
                           { id: 'confirmation-received', name: 'Confirmation Received', icon: MessageSquare },
                           { id: 'proof-received', name: 'Proof Received', icon: Eye },
                           { id: 'proof-approved', name: 'Proof Approved', icon: ThumbsUp },
-                          { id: 'order-placed', name: 'Order Placed', icon: Package },
                           { id: 'invoice-paid', name: 'Invoice Paid', icon: CreditCard },
                           { id: 'shipping-scheduled', name: 'Shipping Scheduled', icon: Calendar },
                           { id: 'shipped', name: 'Shipped', icon: Truck },
@@ -1731,255 +2168,492 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
             </TabsContent>
 
             <TabsContent value="products" className="mt-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Package className="w-5 h-5" />
-                      Order Products ({orderItems.length})
-                    </div>
+              <div className="space-y-4">
+                {/* Header with buttons */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
                     <Button
-                      onClick={() => setIsAddProductDialogOpen(true)}
+                      variant="outline"
                       size="sm"
+                      onClick={() => setIsAddProductDialogOpen(true)}
                     >
                       <Plus className="w-4 h-4 mr-2" />
-                      Add Product
+                      Find Products
                     </Button>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {orderItems.length === 0 ? (
-                    <div className="text-center py-8 text-gray-500">
-                      <Package className="w-12 h-12 mx-auto mb-3 text-gray-400" />
-                      <p>No products in this order yet</p>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-gray-600">Source:</span>
+                      <Badge variant="outline">Catalog</Badge>
                     </div>
-                  ) : (
-                    <div className="space-y-4">
-                      {orderItems.map((item: any) => {
-                        // Get current product to find supplier
-                        const currentProduct = allProducts.find((p: any) => p.id === item.productId);
-                        const currentSupplierId = currentProduct?.supplierId || item.supplierId;
+                    {hasUnsavedChanges && (
+                      <Badge variant="default" className="bg-orange-500">
+                        Unsaved Changes
+                      </Badge>
+                    )}
+                  </div>
+                  <Button
+                    size="sm"
+                    className="bg-blue-600 hover:bg-blue-700"
+                    onClick={handleUpdateOrder}
+                    disabled={!hasUnsavedChanges || isUpdatingOrder}
+                  >
+                    {isUpdatingOrder ? "Updating..." : "Update Order"}
+                  </Button>
+                </div>
 
-                        // Fallback: lookup supplier from suppliers array
-                        const itemSupplier = item.supplierName
-                          ? { name: item.supplierName }
-                          : currentSupplierId
-                            ? suppliers.find((s: any) => s.id === currentSupplierId)
-                            : null;
+                {orderItems.length === 0 ? (
+                  <Card>
+                    <CardContent className="text-center py-12 text-gray-500">
+                      <Package className="w-16 h-16 mx-auto mb-4 text-gray-400" />
+                      <p className="text-lg font-medium mb-2">No products in this order yet</p>
+                      <p className="text-sm mb-4">Click "Find Products" to add items from your catalog</p>
+                      <Button
+                        variant="outline"
+                        onClick={() => setIsAddProductDialogOpen(true)}
+                      >
+                        <Plus className="w-4 h-4 mr-2" />
+                        Add Your First Product
+                      </Button>
+                    </CardContent>
+                  </Card>
+                ) : (
+                  <div className="space-y-3">
+                    {orderItems.map((item: any, itemIndex: number) => {
+                      const currentProduct = allProducts.find((p: any) => p.id === item.productId);
+                      const currentSupplierId = currentProduct?.supplierId || item.supplierId;
+                      const itemSupplier = item.supplierName
+                        ? { name: item.supplierName }
+                        : currentSupplierId
+                          ? suppliers.find((s: any) => s.id === currentSupplierId)
+                          : null;
 
-                        // Get all approvals for this item (to show approval history)
-                        const itemApprovals = approvals.filter((a: any) => a.orderItemId === item.id);
+                      // Determine if this supplier has size-based pricing (SanMar, S&S Activewear)
+                      const hasSizePricing = itemSupplier && (
+                        itemSupplier.name?.toLowerCase().includes('sanmar') ||
+                        itemSupplier.name?.toLowerCase().includes('s&s') ||
+                        itemSupplier.name?.toLowerCase().includes('s & s')
+                      );
 
-                        return (
-                          <div key={item.id} className="border rounded-lg p-4 hover:bg-gray-50 transition-colors">
-                            <div className="flex items-start justify-between">
-                              <div className="flex-1">
-                                <div className="flex items-center gap-3 mb-2">
-                                  <Package className="w-5 h-5 text-blue-600" />
-                                  <div className="flex-1">
-                                    <h4 className="font-semibold text-lg">{item.productName}</h4>
-                                    {item.productSku && (
-                                      <p className="text-sm text-gray-500">SKU: {item.productSku}</p>
-                                    )}
+                      // Parse colors if available
+                      const availableColors = currentProduct?.colors ?
+                        (Array.isArray(currentProduct.colors) ? currentProduct.colors :
+                          typeof currentProduct.colors === 'string' ? JSON.parse(currentProduct.colors) : [])
+                        : [];
+
+                      // Get edited or current item data
+                      const editedItem = getEditedItem(item.id, item);
+                      const totals = calculateItemTotals(editedItem);
+                      const currentMargin = calculateMargin(editedItem.unitPrice, editedItem.cost);
+                      const currentProductMargin = totals.productMargin;
+                      const currentTotalMargin = totals.totalMargin;
+
+                      return (
+                        <Card key={item.id} className="relative">
+                          <CardContent className="p-4">
+                            <div className="flex gap-4">
+                              {/* Product Image */}
+                              <div className="flex-shrink-0">
+                                {currentProduct?.imageUrl ? (
+                                  <img
+                                    src={currentProduct.imageUrl}
+                                    alt={item.productName}
+                                    className="w-24 h-24 object-cover rounded border"
+                                  />
+                                ) : (
+                                  <div className="w-24 h-24 bg-gray-100 rounded border flex items-center justify-center">
+                                    <Package className="w-8 h-8 text-gray-400" />
                                   </div>
-                                  <div className="flex items-center gap-1">
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      onClick={() => handleEditOrderItem(item)}
-                                      className="h-8 w-8 p-0 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-                                      title="Edit quantity and price"
-                                    >
-                                      <Edit className="w-4 h-4" />
-                                    </Button>
+                                )}
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="w-full mt-2 text-xs"
+                                >
+                                  Order In Bulk
+                                </Button>
+                              </div>
+
+                              {/* Product Details */}
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-start justify-between mb-2">
+                                  <div className="flex-1">
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-blue-600 font-medium">{item.productSku || 'No SKU'}</span>
+                                      <span className="text-gray-400 text-xs">{currentProduct?.id?.substring(0, 8)}</span>
+                                    </div>
+                                    <h3 className="font-semibold text-gray-900 mt-1">{item.productName}</h3>
+                                    <div className="flex items-center gap-2 mt-1">
+                                      <span className="text-sm text-gray-600">
+                                        {itemSupplier?.name || 'No Vendor'}
+                                      </span>
+                                      {itemSupplier && (
+                                        <Badge variant="outline" className="text-xs">
+                                          DropShip
+                                        </Badge>
+                                      )}
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-sm text-gray-600">UOM</span>
+                                    <span className="text-sm font-medium">Each</span>
                                     <Button
                                       variant="ghost"
                                       size="sm"
                                       onClick={() => {
-                                        // Set the entire item for deletion
-                                        // item.id is the orderItemId we need for deletion
                                         setDeletingProduct(item);
                                         setIsDeleteDialogOpen(true);
                                       }}
-                                      className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
-                                      title="Remove item from order"
+                                      className="h-8 w-8 p-0"
                                     >
-                                      <Trash2 className="w-4 h-4" />
+                                      <Trash2 className="w-4 h-4 text-gray-400 hover:text-red-600" />
                                     </Button>
                                   </div>
                                 </div>
 
-                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-3">
-                                  <div>
-                                    <p className="text-xs text-gray-500 uppercase">Quantity</p>
-                                    <p className="font-semibold">{item.quantity}</p>
+                                {/* Color Selection */}
+                                {availableColors.length > 0 && (
+                                  <div className="mb-3">
+                                    <Label className="text-xs text-gray-600 mb-1">Color *</Label>
+                                    <Select
+                                      value={editedItem.color || ''}
+                                      onValueChange={(value) => handleColorChange(item.id, value)}
+                                    >
+                                      <SelectTrigger className="w-48 h-8">
+                                        <SelectValue placeholder="Select color" />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {availableColors.map((color: string) => (
+                                          <SelectItem key={color} value={color}>
+                                            {color}
+                                          </SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
                                   </div>
-                                  <div>
-                                    <p className="text-xs text-gray-500 uppercase">Unit Price</p>
-                                    <p className="font-semibold">${Number(item.unitPrice).toFixed(2)}</p>
+                                )}
+
+                                {/* Pricing Grid - Different layouts based on supplier */}
+                                {hasSizePricing ? (
+                                  /* Size-based pricing for SanMar/S&S */
+                                  <div className="overflow-x-auto">
+                                    <div className="inline-block min-w-full">
+                                      <div className="flex items-center gap-2 mb-2">
+                                        <Button variant="ghost" size="sm" className="h-6 px-2">
+                                          <span className="text-xs">Size ↓ ↓</span>
+                                        </Button>
+                                        <div className="flex gap-1 overflow-x-auto">
+                                          {['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL'].map((size) => (
+                                            <div key={size} className="text-center min-w-[70px]">
+                                              <span className="text-xs font-medium">{size}</span>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      </div>
+
+                                      {/* Cost Row */}
+                                      <div className="flex items-center gap-2 mb-1">
+                                        <span className="text-xs text-gray-600 w-16">Cost</span>
+                                        <div className="flex gap-1">
+                                          {['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL'].map((size) => (
+                                            <Input
+                                              key={size}
+                                              type="number"
+                                              step="0.01"
+                                              className="w-[70px] h-7 text-xs text-center"
+                                              placeholder="0.00"
+                                              value={editedItem.sizePricing[size]?.cost || ''}
+                                              onChange={(e) => handleSizePricingChange(item.id, size, 'cost', parseFloat(e.target.value) || 0)}
+                                            />
+                                          ))}
+                                        </div>
+                                      </div>
+
+                                      {/* Price Row */}
+                                      <div className="flex items-center gap-2 mb-1">
+                                        <span className="text-xs text-gray-600 w-16">Price</span>
+                                        <div className="flex gap-1">
+                                          {['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL'].map((size) => (
+                                            <Input
+                                              key={size}
+                                              type="number"
+                                              step="0.01"
+                                              className="w-[70px] h-7 text-xs text-center"
+                                              placeholder="0.00"
+                                              value={editedItem.sizePricing[size]?.price || ''}
+                                              onChange={(e) => handleSizePricingChange(item.id, size, 'price', parseFloat(e.target.value) || 0)}
+                                            />
+                                          ))}
+                                        </div>
+                                      </div>
+
+                                      {/* Quantity Row */}
+                                      <div className="flex items-center gap-2 mb-1">
+                                        <span className="text-xs text-gray-600 w-16">Quantity</span>
+                                        <div className="flex gap-1">
+                                          {['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL'].map((size) => (
+                                            <Input
+                                              key={size}
+                                              type="number"
+                                              className="w-[70px] h-7 text-xs text-center"
+                                              defaultValue={0}
+                                              value={editedItem.sizePricing[size]?.quantity || ''}
+                                              onChange={(e) => handleSizePricingChange(item.id, size, 'quantity', parseInt(e.target.value) || 0)}
+                                            />
+                                          ))}
+                                        </div>
+                                      </div>
+
+                                      {/* Total Per Unit Row */}
+                                      <div className="flex items-center gap-2">
+                                        <span className="text-xs text-gray-600 w-16">Total Per Unit</span>
+                                        <div className="flex gap-1">
+                                          {['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL'].map((size) => {
+                                            const sizeData = editedItem.sizePricing[size] || { price: 0, quantity: 0 };
+                                            const total = (sizeData.price || 0) * (sizeData.quantity || 0);
+                                            return (
+                                              <div key={size} className="w-[70px] h-7 text-xs flex items-center justify-center border rounded bg-gray-50">
+                                                {total.toFixed(2)}
+                                              </div>
+                                            );
+                                          })}
+                                        </div>
+                                      </div>
+                                    </div>
                                   </div>
-                                  <div>
-                                    <p className="text-xs text-gray-500 uppercase">Total</p>
-                                    <p className="font-semibold text-green-600">${(item.quantity * Number(item.unitPrice)).toFixed(2)}</p>
+                                ) : (
+                                  /* Simple pricing for other vendors */
+                                  <div className="space-y-2">
+                                    <div className="grid grid-cols-4 gap-2 text-xs text-gray-600">
+                                      <div>Cost</div>
+                                      <div>Price</div>
+                                      <div>Quantity</div>
+                                      <div>Total Per Unit</div>
+                                    </div>
+                                    <div className="grid grid-cols-4 gap-2">
+                                      <Input
+                                        type="number"
+                                        step="0.01"
+                                        className="h-8 text-sm"
+                                        placeholder="0.00"
+                                        value={editedItem.cost || ''}
+                                        onChange={(e) => handleSimplePricingChange(item.id, 'cost', parseFloat(e.target.value) || 0)}
+                                      />
+                                      <Input
+                                        type="number"
+                                        step="0.01"
+                                        className="h-8 text-sm"
+                                        value={editedItem.unitPrice || ''}
+                                        onChange={(e) => handleSimplePricingChange(item.id, 'price', parseFloat(e.target.value) || 0)}
+                                      />
+                                      <Input
+                                        type="number"
+                                        className="h-8 text-sm"
+                                        value={editedItem.quantity || ''}
+                                        onChange={(e) => handleSimplePricingChange(item.id, 'quantity', parseInt(e.target.value) || 0)}
+                                      />
+                                      <div className="h-8 flex items-center justify-center border rounded bg-gray-50 text-sm">
+                                        {(editedItem.quantity * editedItem.unitPrice).toFixed(2)}
+                                      </div>
+                                    </div>
                                   </div>
-                                  <div>
-                                    <p className="text-xs text-gray-500 uppercase">Vendor</p>
-                                    {itemSupplier ? (
-                                      <p className="font-semibold text-blue-600">{itemSupplier.name}</p>
-                                    ) : currentSupplierId ? (
-                                      <p className="text-gray-500 text-xs">ID: {currentSupplierId.substring(0, 8)}...</p>
-                                    ) : (
-                                      <p className="text-gray-400 text-xs">No vendor</p>
-                                    )}
+                                )}
+                                <Separator className="my-3" />
+                                {/* Margin and Totals */}
+                                <div className="grid grid-cols-5 gap-2 mb-2">
+                                  <div className="flex justify-center items-center">
+                                    <span className="text-xs font-semibold text-gray-700">Margins</span>
+                                  </div>
+                                  <div className="flex justify-center items-center">
+                                    <span className="text-xs font-semibold text-gray-700">Product Margin</span>
+                                  </div>
+                                  <div className="flex justify-center items-center">
+                                    <span className="text-xs font-semibold text-gray-700">Decoration</span>
+                                  </div>
+                                  <div className="flex justify-center items-center">
+                                    <span className="text-xs font-semibold text-gray-700">Charges</span>
+                                  </div>
+                                  <div className="flex justify-center items-center">
+                                    <span className="text-xs font-semibold text-gray-700">Total Margin</span>
+                                  </div>
+                                </div>
+                                <div className="grid grid-cols-5 gap-2">
+                                  <div className="flex justify-center items-center">
+                                    <span className="text-xs text-gray-600">Values</span>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <Input
+                                      type="number"
+                                      step="0.01"
+                                      className="h-7 text-sm"
+                                      postfix="%"
+                                      value={currentProductMargin.toFixed(2)}
+                                      onChange={(e) => handleProductMarginChange(item.id, parseFloat(e.target.value) || 0)}
+                                    />
+                                  </div>
+
+                                  <div className="flex items-center gap-2">
+                                    <Input
+                                      type="number"
+                                      step="0.01"
+                                      className="h-7 text-sm"
+                                      postfix="%"
+                                      placeholder="0.00"
+                                      value={editedItem.decorationCost || ''}
+                                      onChange={(e) => handleDecorationChange(item.id, parseFloat(e.target.value) || 0)}
+                                    />
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <Input
+                                      type="number"
+                                      step="0.01"
+                                      className="h-7 text-sm"
+                                      postfix="%"
+                                      placeholder="0.00"
+                                      value={editedItem.charges || ''}
+                                      onChange={(e) => handleChargesChange(item.id, parseFloat(e.target.value) || 0)}
+                                    />
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <div className="h-7 flex items-center justify-center border rounded bg-gray-100 text-sm font-semibold px-3 w-full">
+                                      {currentTotalMargin.toFixed(2)}%
+                                    </div>
                                   </div>
                                 </div>
 
-                                {(item.color || item.size) && (
-                                  <div className="flex gap-4 mt-3">
-                                    {item.color && (
-                                      <div>
-                                        <p className="text-xs text-gray-500 uppercase">Color</p>
-                                        <Badge variant="outline" className="mt-1">{item.color}</Badge>
+                                {/* Price Breakdown */}
+                                <div className="mt-2 grid grid-cols-5 gap-2">
+                                  <div className="text-center">
+                                    <span className="text-xs mb-1 text-gray-600">Quantity</span>
+                                    <Input
+                                      type="number"
+                                      className="h-7 text-center text-sm font-medium"
+                                      value={editedItem.quantity}
+                                      onChange={(e) => handleQuantityChange(item.id, parseInt(e.target.value) || 0)}
+                                    />
+                                  </div>
+                                  <div className="text-center">
+                                    <span className="text-xs text-gray-600 mb-1">Product</span>
+                                    <div className="bg-blue-500 text-white rounded px-2 py-1 text-sm font-semibold">
+                                      ${totals.productTotal.toFixed(2)}
+                                    </div>
+                                  </div>
+                                  <div className="text-center">
+                                    <span className="text-xs text-gray-600 mb-1">Decoration</span>
+                                    <div className="bg-blue-500 text-white rounded px-2 py-1 text-sm font-semibold">
+                                      ${totals.decorationTotal.toFixed(2)}
+                                    </div>
+                                  </div>
+                                  <div className="text-center">
+                                    <span className="text-xs text-gray-600 mb-1">Charges</span>
+                                    <div className="bg-blue-500 text-white rounded px-2 py-1 text-sm font-semibold">
+                                      ${totals.chargesTotal.toFixed(2)}
+                                    </div>
+                                  </div>
+                                  <div className="text-center">
+                                    <span className="text-xs text-gray-600 mb-1">Total</span>
+                                    <div className="bg-blue-600 text-white rounded px-2 py-1 text-sm font-bold">
+                                      ${totals.total.toFixed(2)}
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {/* Action Icons */}
+                                <div className="mt-3 grid grid-cols-5 items-end gap-2">
+                                  <div className="text-center">
+                                    <span className="text-xs mb-1 text-gray-600">UOM Factory</span>
+                                    <Input
+                                      type="number"
+                                      className="h-7 text-center text-sm font-medium"
+                                      placeholder="e.g., 12"
+                                      value={editedItem.uomFactory || ''}
+                                      onChange={(e) => handleUomFactoryChange(item.id, parseInt(e.target.value) || 0)}
+                                    />
+                                    {editedItem.uomFactory && editedItem.uomFactory > 0 && (
+                                      <div className="text-xs text-gray-500 mt-1">
+                                        = {totals.factoryQuantity} {totals.factoryQuantity > 1 ? 'units' : 'unit'}
                                       </div>
                                     )}
-                                    {item.size && (
-                                      <div>
-                                        <p className="text-xs text-gray-500 uppercase">Size</p>
-                                        <Badge variant="outline" className="mt-1">{item.size}</Badge>
+                                  </div>
+                                  <div className="flex col-span-4 items-center">
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-8 w-8 p-0"
+                                      title="Artwork"
+                                      onClick={() => {
+                                        // TODO: Open artwork assignment dialog
+                                        toast({
+                                          title: "Coming Soon",
+                                          description: "Artwork assignment feature will be available soon.",
+                                        });
+                                      }}
+                                    >
+                                      <div className="w-6 h-6 bg-green-500 rounded-full flex items-center justify-center">
+                                        <Eye className="w-4 h-4 text-white" />
                                       </div>
-                                    )}
+                                    </Button>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-8 w-8 p-0"
+                                      title="Add Decoration"
+                                      onClick={() => {
+                                        // Focus on decoration input
+                                        const input = document.querySelector(`input[value="${editedItem.decorationCost || ''}"]`) as HTMLInputElement;
+                                        input?.focus();
+                                      }}
+                                    >
+                                      <div className="w-6 h-6 bg-green-500 rounded-full flex items-center justify-center">
+                                        <Plus className="w-4 h-4 text-white" />
+                                      </div>
+                                    </Button>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-8 w-8 p-0"
+                                      title="Add Notes"
+                                      onClick={() => {
+                                        // TODO: Open notes dialog
+                                        toast({
+                                          title: "Coming Soon",
+                                          description: "Notes feature will be available soon.",
+                                        });
+                                      }}
+                                    >
+                                      <MessageSquare className="w-5 h-5 text-gray-400" />
+                                    </Button>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-8 w-8 p-0"
+                                      title="More options"
+                                    >
+                                      <div className="w-6 h-6 bg-green-500 rounded-full flex items-center justify-center">
+                                        <Plus className="w-4 h-4 text-white" />
+                                      </div>
+                                    </Button>
                                   </div>
-                                )}
-
-                                {(item.imprintLocation || item.imprintMethod) && (
-                                  <div className="mt-3 pt-3 border-t">
-                                    <p className="text-xs text-gray-500 uppercase mb-2">Decoration Details</p>
-                                    <div className="flex gap-4">
-                                      {item.imprintLocation && (
-                                        <div>
-                                          <span className="text-xs text-gray-600">Location:</span>
-                                          <span className="ml-1 text-sm font-medium">{item.imprintLocation}</span>
-                                        </div>
-                                      )}
-                                      {item.imprintMethod && (
-                                        <div>
-                                          <span className="text-xs text-gray-600">Method:</span>
-                                          <span className="ml-1 text-sm font-medium">{item.imprintMethod}</span>
-                                        </div>
-                                      )}
-                                    </div>
-                                  </div>
-                                )}
-
-                                {item.notes && (
-                                  <div className="mt-3 pt-3 border-t">
-                                    <p className="text-xs text-gray-500 uppercase mb-1">Notes</p>
-                                    <p className="text-sm text-gray-700">{item.notes}</p>
-                                  </div>
-                                )}
-
-                                {/* Artwork Approval History */}
-                                {itemApprovals && itemApprovals.length > 0 && (
-                                  <div className="mt-3 pt-3 border-t">
-                                    <div className="flex items-center justify-between mb-2">
-                                      <p className="text-xs text-gray-500 uppercase font-semibold">Artwork Approval History</p>
-                                      <Badge variant="outline" className="text-xs">
-                                        {itemApprovals.length} {itemApprovals.length === 1 ? 'submission' : 'submissions'}
-                                      </Badge>
-                                    </div>
-                                    <div className="space-y-2">
-                                      {itemApprovals
-                                        .sort((a: any, b: any) => new Date(b.createdAt || b.sentAt).getTime() - new Date(a.createdAt || a.sentAt).getTime())
-                                        .map((approval: any, index: number) => (
-                                          <div key={approval.id} className={`p-3 rounded-lg border ${approval.status === 'approved' ? 'bg-green-50 border-green-200' :
-                                            approval.status === 'declined' ? 'bg-red-50 border-red-200' :
-                                              'bg-yellow-50 border-yellow-200'
-                                            }`}>
-                                            <div className="flex items-start justify-between gap-2">
-                                              <div className="flex-1">
-                                                <div className="flex items-center gap-2 mb-1">
-                                                  {approval.status === 'approved' && (
-                                                    <>
-                                                      <CheckCircle className="w-4 h-4 text-green-600" />
-                                                      <span className="text-sm font-semibold text-green-800">Approved</span>
-                                                    </>
-                                                  )}
-                                                  {approval.status === 'declined' && (
-                                                    <>
-                                                      <X className="w-4 h-4 text-red-600" />
-                                                      <span className="text-sm font-semibold text-red-800">Revision Requested</span>
-                                                    </>
-                                                  )}
-                                                  {approval.status === 'pending' && (
-                                                    <>
-                                                      <Clock className="w-4 h-4 text-yellow-600" />
-                                                      <span className="text-sm font-semibold text-yellow-800">Pending Review</span>
-                                                    </>
-                                                  )}
-                                                  {index === 0 && (
-                                                    <Badge variant="secondary" className="text-xs ml-auto">Latest</Badge>
-                                                  )}
-                                                </div>
-
-                                                {approval.approvedAt && (
-                                                  <p className="text-xs text-gray-600 mt-1">
-                                                    ✓ Approved on {new Date(approval.approvedAt).toLocaleDateString()} at {new Date(approval.approvedAt).toLocaleTimeString()}
-                                                  </p>
-                                                )}
-                                                {approval.declinedAt && (
-                                                  <p className="text-xs text-gray-600 mt-1">
-                                                    ↻ Requested revision on {new Date(approval.declinedAt).toLocaleDateString()} at {new Date(approval.declinedAt).toLocaleTimeString()}
-                                                  </p>
-                                                )}
-                                                {approval.sentAt && approval.status === 'pending' && (
-                                                  <p className="text-xs text-gray-600 mt-1">
-                                                    📤 Sent on {new Date(approval.sentAt).toLocaleDateString()} at {new Date(approval.sentAt).toLocaleTimeString()}
-                                                  </p>
-                                                )}
-
-                                                {approval.declineReason && (
-                                                  <div className="mt-2 p-2 bg-white rounded border">
-                                                    <p className="text-xs text-gray-500 mb-1">Feedback:</p>
-                                                    <p className="text-sm text-gray-700 italic">"{approval.declineReason}"</p>
-                                                  </div>
-                                                )}
-
-                                                {approval.clientName && (
-                                                  <p className="text-xs text-gray-500 mt-1">
-                                                    Client: {approval.clientName} ({approval.clientEmail})
-                                                  </p>
-                                                )}
-                                              </div>
-                                            </div>
-                                          </div>
-                                        ))}
-                                    </div>
-                                  </div>
-                                )}
+                                </div>
                               </div>
                             </div>
-                          </div>
-                        );
-                      })}
+                          </CardContent>
+                        </Card>
+                      );
+                    })}
+                  </div>
+                )}
 
-                      {/* Summary */}
-                      <div className="border-t pt-4 mt-6">
-                        <div className="flex justify-between items-center">
-                          <div className="text-gray-600">
-                            <span className="font-medium">Total Items:</span> {orderItems.reduce((sum: number, item: any) => sum + item.quantity, 0)}
-                          </div>
-                          <div className="text-right">
-                            <p className="text-sm text-gray-500">Subtotal</p>
-                            <p className="text-2xl font-bold text-green-600">
-                              ${orderItems.reduce((sum: number, item: any) => sum + (item.quantity * Number(item.unitPrice)), 0).toFixed(2)}
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
+                {/* Update message at bottom if items exist */}
+                {orderItems.length > 0 && hasUnsavedChanges && (
+                  <div className="text-sm text-orange-600 font-medium text-center py-2 bg-orange-50 rounded border border-orange-200">
+                    You have unsaved changes. Click "Update Order" to save your changes.
+                  </div>
+                )}
+                {orderItems.length > 0 && !hasUnsavedChanges && (
+                  <div className="text-sm text-gray-500 italic text-center py-2">
+                    All changes saved. Edit any field to make changes.
+                  </div>
+                )}
+              </div>
             </TabsContent>
 
             <TabsContent value="files" className="mt-6">
@@ -2132,7 +2806,7 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
                             type="email"
                           />
                           <Button
-                            variant="ghost"
+                            variant="outline"
                             size="sm"
                             onClick={() => {
                               setEmailFromCustom(false);
@@ -2164,7 +2838,7 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
                             </SelectContent>
                           </Select>
                           <Button
-                            variant="ghost"
+                            variant="outline"
                             size="sm"
                             onClick={() => setEmailFromCustom(true)}
                             className="w-full text-xs"
@@ -2200,7 +2874,7 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
                         {emailSearchQuery && contacts.length > 0 && (
                           <div className="absolute z-50 w-full mt-1 bg-white border rounded-md shadow-lg max-h-60 overflow-auto">
                             {contacts
-                              .filter((c: any) => 
+                              .filter((c: any) =>
                                 c.email?.toLowerCase().includes(emailSearchQuery.toLowerCase()) ||
                                 `${c.firstName} ${c.lastName}`.toLowerCase().includes(emailSearchQuery.toLowerCase())
                               )
@@ -2338,7 +3012,7 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
                         <div key={index} className="flex items-center justify-between p-2 bg-gray-50 rounded">
                           <span className="text-sm">{file.name}</span>
                           <Button
-                            variant="ghost"
+                            variant="outline"
                             size="sm"
                             onClick={() => setEmailAttachments(prev => prev.filter((_, i) => i !== index))}
                           >
@@ -2492,7 +3166,7 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
                               type="email"
                             />
                             <Button
-                              variant="ghost"
+                              variant="outline"
                               size="sm"
                               onClick={() => {
                                 setVendorEmailFromCustom(false);
@@ -2524,7 +3198,7 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
                               </SelectContent>
                             </Select>
                             <Button
-                              variant="ghost"
+                              variant="outline"
                               size="sm"
                               onClick={() => setVendorEmailFromCustom(true)}
                               className="w-full text-xs"
@@ -2560,7 +3234,7 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
                           {vendorEmailSearchQuery && orderVendors.length > 0 && (
                             <div className="absolute z-50 w-full mt-1 bg-white border rounded-md shadow-lg max-h-60 overflow-auto">
                               {orderVendors
-                                .filter((v: any) => 
+                                .filter((v: any) =>
                                   v.email?.toLowerCase().includes(vendorEmailSearchQuery.toLowerCase()) ||
                                   v.name?.toLowerCase().includes(vendorEmailSearchQuery.toLowerCase())
                                 )
@@ -2701,7 +3375,7 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
                             <div key={index} className="flex items-center justify-between p-2 bg-gray-50 rounded">
                               <span className="text-sm">{file.name}</span>
                               <Button
-                                variant="ghost"
+                                variant="outline"
                                 size="sm"
                                 onClick={() => setVendorEmailAttachments(prev => prev.filter((_, i) => i !== index))}
                               >
@@ -3100,6 +3774,16 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
                 />
               </div>
             </div>
+            <div>
+              <Label htmlFor="billing-phone">Phone</Label>
+              <Input
+                id="billing-phone"
+                type="tel"
+                value={billingAddressForm.phone}
+                onChange={(e) => setBillingAddressForm({ ...billingAddressForm, phone: e.target.value })}
+                placeholder="(555) 123-4567"
+              />
+            </div>
 
             <Separator />
 
@@ -3152,18 +3836,27 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
                 variant="outline"
                 size="sm"
                 onClick={() => {
-                  const billing = companyData?.billingAddress || {};
-                  const billingAddr = [
-                    billing.street,
-                    [billing.city, billing.state, billing.zipCode].filter(Boolean).join(', '),
-                    billing.country
-                  ].filter(Boolean).join('\n');
-
-                  setShippingAddressForm({
-                    address: billingAddr,
-                    contactName: billing.contactName || "",
-                    email: billing.email || ""
-                  });
+                  if (order?.billingAddress) {
+                    try {
+                      const billing = JSON.parse(order.billingAddress);
+                      setShippingAddressForm({
+                        street: billing.street || "",
+                        city: billing.city || "",
+                        state: billing.state || "",
+                        zipCode: billing.zipCode || "",
+                        country: billing.country || "US",
+                        phone: billing.phone || "",
+                        contactName: billing.contactName || "",
+                        email: billing.email || ""
+                      });
+                    } catch {
+                      toast({
+                        title: "Error",
+                        description: "Could not copy billing address",
+                        variant: "destructive"
+                      });
+                    }
+                  }
                 }}
               >
                 📋 Copy from Billing Address
@@ -3171,15 +3864,67 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
             </div>
 
             <div>
-              <Label htmlFor="shipping-address">Shipping Address</Label>
-              <Textarea
-                id="shipping-address"
-                value={shippingAddressForm.address}
-                onChange={(e) => setShippingAddressForm({ ...shippingAddressForm, address: e.target.value })}
-                placeholder="Enter complete shipping address"
-                rows={5}
+              <Label htmlFor="shipping-street">Street Address</Label>
+              <Input
+                id="shipping-street"
+                value={shippingAddressForm.street}
+                onChange={(e) => setShippingAddressForm({ ...shippingAddressForm, street: e.target.value })}
+                placeholder="123 Main St"
               />
             </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <Label htmlFor="shipping-city">City</Label>
+                <Input
+                  id="shipping-city"
+                  value={shippingAddressForm.city}
+                  onChange={(e) => setShippingAddressForm({ ...shippingAddressForm, city: e.target.value })}
+                  placeholder="City"
+                />
+              </div>
+              <div>
+                <Label htmlFor="shipping-state">State</Label>
+                <Input
+                  id="shipping-state"
+                  value={shippingAddressForm.state}
+                  onChange={(e) => setShippingAddressForm({ ...shippingAddressForm, state: e.target.value })}
+                  placeholder="CA"
+                  maxLength={2}
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <Label htmlFor="shipping-zip">ZIP Code</Label>
+                <Input
+                  id="shipping-zip"
+                  value={shippingAddressForm.zipCode}
+                  onChange={(e) => setShippingAddressForm({ ...shippingAddressForm, zipCode: e.target.value })}
+                  placeholder="12345"
+                />
+              </div>
+              <div>
+                <Label htmlFor="shipping-country">Country</Label>
+                <Input
+                  id="shipping-country"
+                  value={shippingAddressForm.country}
+                  onChange={(e) => setShippingAddressForm({ ...shippingAddressForm, country: e.target.value })}
+                  placeholder="US"
+                />
+              </div>
+            </div>
+            <div>
+              <Label htmlFor="shipping-phone">Phone</Label>
+              <Input
+                id="shipping-phone"
+                type="tel"
+                value={shippingAddressForm.phone}
+                onChange={(e) => setShippingAddressForm({ ...shippingAddressForm, phone: e.target.value })}
+                placeholder="(555) 123-4567"
+              />
+            </div>
+
+            <Separator />
 
             <div className="grid grid-cols-2 gap-2">
               <div>
@@ -3192,7 +3937,7 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
                 />
               </div>
               <div>
-                <Label htmlFor="shipping-email">Email</Label>
+                <Label htmlFor="shipping-email">Contact Email</Label>
                 <Input
                   id="shipping-email"
                   type="email"
@@ -3305,7 +4050,7 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
                   setTimeout(() => setShowProductDropdown(false), 200);
                 }}
               />
-              
+
               {/* Selected Product Display */}
               {newProductForm.productId && (() => {
                 const selectedProduct = allProducts.find((p: any) => p.id === newProductForm.productId);
@@ -3320,7 +4065,7 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
                     </div>
                     <Button
                       type="button"
-                      variant="ghost"
+                      variant="outline"
                       size="sm"
                       onClick={() => {
                         setNewProductForm({ ...newProductForm, productId: "", unitPrice: "0" });
@@ -3332,7 +4077,7 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
                   </div>
                 ) : null;
               })()}
-              
+
               {/* Dropdown */}
               {showProductDropdown && (() => {
                 const filteredProducts = allProducts.filter((p: any) => {
@@ -3342,7 +4087,7 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
                     p.sku?.toLowerCase().includes(search)
                   );
                 }).slice(0, 10);
-                
+
                 return filteredProducts.length > 0 ? (
                   <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto">
                     {filteredProducts.map((product: any) => (
@@ -3375,7 +4120,7 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
                 ) : null;
               })()}
             </div>
-            
+
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="add-quantity">Quantity *</Label>

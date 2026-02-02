@@ -1,4 +1,5 @@
 import { useState } from "react";
+import * as React from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -39,6 +40,8 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Separator } from "./ui/separator";
+import { Checkbox } from "@/components/ui/checkbox";
 
 interface Contact {
   id: string;
@@ -49,6 +52,8 @@ interface Contact {
   phone?: string;
   title?: string;
   isPrimary: boolean;
+  billingAddress?: string;
+  shippingAddress?: string;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -65,12 +70,22 @@ const contactFormSchema = z.object({
   phone: z.string().optional(),
   title: z.string().optional(),
   isPrimary: z.boolean().default(false),
+  billingStreet: z.string().optional(),
+  billingCity: z.string().optional(),
+  billingState: z.string().optional(),
+  billingZipCode: z.string().optional(),
+  billingCountry: z.string().optional(),
+  shippingStreet: z.string().optional(),
+  shippingCity: z.string().optional(),
+  shippingState: z.string().optional(),
+  shippingZipCode: z.string().optional(),
+  shippingCountry: z.string().optional(),
 });
 
 type ContactFormData = z.infer<typeof contactFormSchema>;
 
 // Move ContactFormFields outside to prevent re-creation on every render
-const ContactFormFields = ({ form }: { form: any }) => (
+const ContactFormFields = ({ form, sameAsBilling, setSameAsBilling }: { form: any; sameAsBilling: boolean; setSameAsBilling: (value: boolean) => void }) => (
   <>
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
       <FormField
@@ -166,6 +181,168 @@ const ContactFormFields = ({ form }: { form: any }) => (
         </FormItem>
       )}
     />
+
+    <Separator />
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+      {/* Billing Address Section */}
+      <div className="space-y-4">
+        <h4 className="font-semibold text-lg">Billing Address</h4>
+        <Separator />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <FormField
+            control={form.control}
+            name="billingStreet"
+            render={({ field }) => (
+              <FormItem className="md:col-span-2">
+                <FormLabel>Street Address</FormLabel>
+                <FormControl>
+                  <Input placeholder="123 Main St" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="billingCity"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>City</FormLabel>
+                <FormControl>
+                  <Input placeholder="City" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="billingState"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>State</FormLabel>
+                <FormControl>
+                  <Input placeholder="CA" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="billingZipCode"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>ZIP Code</FormLabel>
+                <FormControl>
+                  <Input placeholder="12345" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="billingCountry"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Country</FormLabel>
+                <FormControl>
+                  <Input placeholder="US" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+      </div>
+
+      {/* Shipping Address Section */}
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h4 className="font-semibold text-lg">Shipping Address</h4>
+          <div className="flex items-center space-x-2">
+            <Checkbox
+              id="sameAsBilling"
+              checked={sameAsBilling}
+              onCheckedChange={(checked) => setSameAsBilling(checked as boolean)}
+            />
+            <label htmlFor="sameAsBilling" className="text-sm cursor-pointer">
+              Same as Billing Address
+            </label>
+          </div>
+        </div>
+        <Separator />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <FormField
+            control={form.control}
+            name="shippingStreet"
+            render={({ field }) => (
+              <FormItem className="md:col-span-2">
+                <FormLabel>Street Address</FormLabel>
+                <FormControl>
+                  <Input placeholder="456 Oak Ave" {...field} disabled={sameAsBilling} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="shippingCity"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>City</FormLabel>
+                <FormControl>
+                  <Input placeholder="City" {...field} disabled={sameAsBilling} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="shippingState"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>State</FormLabel>
+                <FormControl>
+                  <Input placeholder="CA" {...field} disabled={sameAsBilling} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="shippingZipCode"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>ZIP Code</FormLabel>
+                <FormControl>
+                  <Input placeholder="12345" {...field} disabled={sameAsBilling} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="shippingCountry"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Country</FormLabel>
+                <FormControl>
+                  <Input placeholder="US" {...field} disabled={sameAsBilling} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+      </div>
+    </div>
   </>
 );
 
@@ -173,6 +350,8 @@ export function ContactsManager({ companyId, companyName }: ContactsManagerProps
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
+  const [sameAsBillingCreate, setSameAsBillingCreate] = useState(false);
+  const [sameAsBillingEdit, setSameAsBillingEdit] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -186,6 +365,16 @@ export function ContactsManager({ companyId, companyName }: ContactsManagerProps
       phone: "",
       title: "",
       isPrimary: false,
+      billingStreet: "",
+      billingCity: "",
+      billingState: "",
+      billingZipCode: "",
+      billingCountry: "",
+      shippingStreet: "",
+      shippingCity: "",
+      shippingState: "",
+      shippingZipCode: "",
+      shippingCountry: "",
     },
   });
 
@@ -198,8 +387,52 @@ export function ContactsManager({ companyId, companyName }: ContactsManagerProps
       phone: "",
       title: "",
       isPrimary: false,
+      billingStreet: "",
+      billingCity: "",
+      billingState: "",
+      billingZipCode: "",
+      billingCountry: "",
+      shippingStreet: "",
+      shippingCity: "",
+      shippingState: "",
+      shippingZipCode: "",
+      shippingCountry: "",
     },
   });
+
+  // Sync shipping address with billing for edit form
+  const billingStreetEdit = editForm.watch("billingStreet");
+  const billingCityEdit = editForm.watch("billingCity");
+  const billingStateEdit = editForm.watch("billingState");
+  const billingZipCodeEdit = editForm.watch("billingZipCode");
+  const billingCountryEdit = editForm.watch("billingCountry");
+
+  React.useEffect(() => {
+    if (sameAsBillingEdit) {
+      editForm.setValue("shippingStreet", billingStreetEdit || "");
+      editForm.setValue("shippingCity", billingCityEdit || "");
+      editForm.setValue("shippingState", billingStateEdit || "");
+      editForm.setValue("shippingZipCode", billingZipCodeEdit || "");
+      editForm.setValue("shippingCountry", billingCountryEdit || "");
+    }
+  }, [sameAsBillingEdit, billingStreetEdit, billingCityEdit, billingStateEdit, billingZipCodeEdit, billingCountryEdit, editForm]);
+
+  // Sync shipping address with billing for create form
+  const billingStreetCreate = createForm.watch("billingStreet");
+  const billingCityCreate = createForm.watch("billingCity");
+  const billingStateCreate = createForm.watch("billingState");
+  const billingZipCodeCreate = createForm.watch("billingZipCode");
+  const billingCountryCreate = createForm.watch("billingCountry");
+
+  React.useEffect(() => {
+    if (sameAsBillingCreate) {
+      createForm.setValue("shippingStreet", billingStreetCreate || "");
+      createForm.setValue("shippingCity", billingCityCreate || "");
+      createForm.setValue("shippingState", billingStateCreate || "");
+      createForm.setValue("shippingZipCode", billingZipCodeCreate || "");
+      createForm.setValue("shippingCountry", billingCountryCreate || "");
+    }
+  }, [sameAsBillingCreate, billingStreetCreate, billingCityCreate, billingStateCreate, billingZipCodeCreate, billingCountryCreate, createForm]);
 
   const { data: contacts = [], isLoading } = useQuery<Contact[]>({
     queryKey: ["/api/contacts", companyId],
@@ -213,10 +446,42 @@ export function ContactsManager({ companyId, companyName }: ContactsManagerProps
 
   const createContactMutation = useMutation({
     mutationFn: async (data: ContactFormData) => {
-      const response = await apiRequest("POST", "/api/contacts", {
-        ...data,
+      // Convert address fields to JSON
+      const payload: any = {
+        firstName: data.firstName,
+        lastName: data.lastName,
+        email: data.email,
+        phone: data.phone,
+        title: data.title,
+        isPrimary: data.isPrimary,
         companyId,
-      });
+      };
+
+      // Build billing address JSON if any field is filled
+      if (data.billingStreet || data.billingCity || data.billingState || data.billingZipCode || data.billingCountry) {
+        payload.billingAddress = JSON.stringify({
+          street: data.billingStreet || "",
+          city: data.billingCity || "",
+          state: data.billingState || "",
+          zipCode: data.billingZipCode || "",
+          country: data.billingCountry || "",
+          phone: "",
+        });
+      }
+
+      // Build shipping address JSON if any field is filled
+      if (data.shippingStreet || data.shippingCity || data.shippingState || data.shippingZipCode || data.shippingCountry) {
+        payload.shippingAddress = JSON.stringify({
+          street: data.shippingStreet || "",
+          city: data.shippingCity || "",
+          state: data.shippingState || "",
+          zipCode: data.shippingZipCode || "",
+          country: data.shippingCountry || "",
+          phone: "",
+        });
+      }
+
+      const response = await apiRequest("POST", "/api/contacts", payload);
       return response.json();
     },
     onSuccess: () => {
@@ -241,7 +506,42 @@ export function ContactsManager({ companyId, companyName }: ContactsManagerProps
   const updateContactMutation = useMutation({
     mutationFn: async ({ id, data }: { id: string; data: Partial<ContactFormData> }) => {
       console.log('Updating contact:', id, 'with data:', data);
-      const response = await apiRequest("PATCH", `/api/contacts/${id}`, data);
+
+      // Convert address fields to JSON
+      const payload: any = {
+        firstName: data.firstName,
+        lastName: data.lastName,
+        email: data.email,
+        phone: data.phone,
+        title: data.title,
+        isPrimary: data.isPrimary,
+      };
+
+      // Build billing address JSON if any field is filled
+      if (data.billingStreet || data.billingCity || data.billingState || data.billingZipCode || data.billingCountry) {
+        payload.billingAddress = JSON.stringify({
+          street: data.billingStreet || "",
+          city: data.billingCity || "",
+          state: data.billingState || "",
+          zipCode: data.billingZipCode || "",
+          country: data.billingCountry || "",
+          phone: "",
+        });
+      }
+
+      // Build shipping address JSON if any field is filled
+      if (data.shippingStreet || data.shippingCity || data.shippingState || data.shippingZipCode || data.shippingCountry) {
+        payload.shippingAddress = JSON.stringify({
+          street: data.shippingStreet || "",
+          city: data.shippingCity || "",
+          state: data.shippingState || "",
+          zipCode: data.shippingZipCode || "",
+          country: data.shippingCountry || "",
+          phone: "",
+        });
+      }
+
+      const response = await apiRequest("PATCH", `/api/contacts/${id}`, payload);
       return response.json();
     },
     onSuccess: () => {
@@ -298,6 +598,36 @@ export function ContactsManager({ companyId, companyName }: ContactsManagerProps
 
   const handleEditContact = (contact: Contact) => {
     setSelectedContact(contact);
+    
+    // Reset checkbox
+    setSameAsBillingEdit(false);
+
+    // Parse billing address
+    let billingStreet = "", billingCity = "", billingState = "", billingZipCode = "", billingCountry = "";
+    if (contact.billingAddress) {
+      try {
+        const billing = JSON.parse(contact.billingAddress);
+        billingStreet = billing.street || "";
+        billingCity = billing.city || "";
+        billingState = billing.state || "";
+        billingZipCode = billing.zipCode || "";
+        billingCountry = billing.country || "";
+      } catch { }
+    }
+
+    // Parse shipping address
+    let shippingStreet = "", shippingCity = "", shippingState = "", shippingZipCode = "", shippingCountry = "";
+    if (contact.shippingAddress) {
+      try {
+        const shipping = JSON.parse(contact.shippingAddress);
+        shippingStreet = shipping.street || "";
+        shippingCity = shipping.city || "";
+        shippingState = shipping.state || "";
+        shippingZipCode = shipping.zipCode || "";
+        shippingCountry = shipping.country || "";
+      } catch { }
+    }
+
     editForm.reset({
       firstName: contact.firstName,
       lastName: contact.lastName,
@@ -305,6 +635,16 @@ export function ContactsManager({ companyId, companyName }: ContactsManagerProps
       phone: contact.phone || "",
       title: contact.title || "",
       isPrimary: contact.isPrimary,
+      billingStreet,
+      billingCity,
+      billingState,
+      billingZipCode,
+      billingCountry,
+      shippingStreet,
+      shippingCity,
+      shippingState,
+      shippingZipCode,
+      shippingCountry,
     });
     setIsEditModalOpen(true);
   };
@@ -337,7 +677,7 @@ export function ContactsManager({ companyId, companyName }: ContactsManagerProps
               Add Contact
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-2xl">
+          <DialogContent className="max-w-7xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Add New Contact</DialogTitle>
               <DialogDescription>
@@ -347,7 +687,7 @@ export function ContactsManager({ companyId, companyName }: ContactsManagerProps
 
             <Form {...createForm}>
               <form onSubmit={createForm.handleSubmit(handleCreateContact)} className="space-y-4">
-                <ContactFormFields form={createForm} />
+                <ContactFormFields form={createForm} sameAsBilling={sameAsBillingCreate} setSameAsBilling={setSameAsBillingCreate} />
 
                 <div className="flex justify-end gap-2">
                   <Button
@@ -507,7 +847,7 @@ export function ContactsManager({ companyId, companyName }: ContactsManagerProps
 
       {/* Edit Contact Modal */}
       <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-7xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Edit Contact</DialogTitle>
             <DialogDescription>
@@ -517,7 +857,7 @@ export function ContactsManager({ companyId, companyName }: ContactsManagerProps
 
           <Form {...editForm}>
             <form onSubmit={editForm.handleSubmit(handleUpdateContact)} className="space-y-4">
-              <ContactFormFields form={editForm} />
+              <ContactFormFields form={editForm} sameAsBilling={sameAsBillingEdit} setSameAsBilling={setSameAsBillingEdit} />
 
               <div className="flex justify-end gap-2">
                 <Button
