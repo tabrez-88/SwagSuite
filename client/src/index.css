@@ -1,0 +1,261 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom scrollbar styles for product sections */
+.scrollbar-thin {
+  scrollbar-width: thin;
+}
+
+.scrollbar-thin::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+  border-radius: 3px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 3px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background: #9ca3af;
+}
+
+.scrollbar-thumb-gray-300::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+}
+
+.hover\:scrollbar-thumb-gray-400:hover::-webkit-scrollbar-thumb {
+  background: #9ca3af;
+}
+
+:root {
+  /* Default theme colors - will be overridden by ThemeProvider */
+  --theme-primary: #3b82f6;
+  --theme-primary-light: #60a5fa;
+  --theme-primary-dark: #2563eb;
+  --theme-secondary: #64748b;
+  --theme-secondary-light: #94a3b8;
+  --theme-secondary-dark: #475569;
+  --theme-accent: #10b981;
+  --theme-accent-light: #34d399;
+  --theme-accent-dark: #059669;
+  --theme-background: #ffffff;
+  --theme-text: #1f2937;
+  --theme-radius: 0.5rem;
+  --theme-font: 'Inter', sans-serif;
+
+  /* Sidebar colors */
+  --theme-sidebar-bg: #014559;
+  --theme-sidebar-text: #ffffff;
+  --theme-sidebar-border: #374151;
+
+  /* Navigation colors */
+  --theme-nav-hover: #374151;
+  --theme-nav-active: #3b82f6;
+  --theme-nav-text: #d1d5db;
+  --theme-nav-text-active: #ffffff;
+
+  /* Border and UI colors */
+  --theme-border: #e5e7eb;
+
+  /* Base colors */
+  --background: var(--theme-background);
+  --foreground: var(--theme-text);
+  --muted: hsl(60, 4.8%, 95.9%);
+  --muted-foreground: hsl(25, 5.3%, 44.7%);
+  --popover: hsl(0, 0%, 100%);
+  --popover-foreground: hsl(20, 14.3%, 4.1%);
+  --card: hsl(0, 0%, 100%);
+  --card-foreground: hsl(20, 14.3%, 4.1%);
+  --border: hsl(20, 5.9%, 90%);
+  --input: hsl(20, 5.9%, 90%);
+  --primary: var(--theme-primary);
+  --primary-foreground: hsl(211, 100%, 99%);
+  --secondary: var(--theme-secondary);
+  --secondary-foreground: hsl(24, 9.8%, 10%);
+  --accent: var(--theme-accent);
+  --accent-foreground: hsl(60, 9.1%, 97.8%);
+  --destructive: hsl(0, 84.2%, 60.2%);
+  --destructive-foreground: hsl(60, 9.1%, 97.8%);
+  --ring: hsl(20, 14.3%, 4.1%);
+  --radius: var(--theme-radius);
+  --dark: hsl(199, 89%, 12%);
+  --light-gray: hsl(210, 40%, 98%);
+
+  /* shadcn sidebar CSS variables */
+  --sidebar-background: var(--theme-sidebar-bg);
+  --sidebar-foreground: var(--theme-sidebar-text);
+  --sidebar-primary: var(--theme-primary);
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: var(--theme-nav-hover);
+  --sidebar-accent-foreground: var(--theme-sidebar-text);
+  --sidebar-border: var(--theme-sidebar-border);
+  --sidebar-ring: var(--theme-primary);
+}
+
+.dark {
+  --background: hsl(240, 10%, 3.9%);
+  --foreground: hsl(0, 0%, 98%);
+  --muted: hsl(240, 3.7%, 15.9%);
+  --muted-foreground: hsl(240, 5%, 64.9%);
+  --popover: hsl(240, 10%, 3.9%);
+  --popover-foreground: hsl(0, 0%, 98%);
+  --card: hsl(240, 10%, 3.9%);
+  --card-foreground: hsl(0, 0%, 98%);
+  --border: hsl(240, 3.7%, 15.9%);
+  --input: hsl(240, 3.7%, 15.9%);
+  --primary: hsl(194, 65%, 48%);
+  --primary-foreground: hsl(211, 100%, 99%);
+  --secondary: hsl(240, 3.7%, 15.9%);
+  --secondary-foreground: hsl(0, 0%, 98%);
+  --accent: hsl(240, 3.7%, 15.9%);
+  --accent-foreground: hsl(0, 0%, 98%);
+  --destructive: hsl(0, 62.8%, 30.6%);
+  --destructive-foreground: hsl(0, 0%, 98%);
+  --ring: hsl(240, 4.9%, 83.9%);
+  --radius: 0.5rem;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply font-sans antialiased bg-background text-foreground;
+    font-family: var(--theme-font);
+  }
+
+  /* Apply theme radius to buttons and cards */
+  button, .card, input, textarea, select {
+    border-radius: var(--theme-radius);
+  }
+}
+
+/* Custom SwagSuite brand colors - now theme-aware */
+.bg-swag-primary {
+  background-color: var(--theme-primary);
+}
+
+.bg-swag-secondary {
+  background-color: var(--theme-secondary);
+}
+
+.bg-swag-accent {
+  background-color: var(--theme-accent);
+}
+
+.bg-swag-dark {
+  background-color: var(--theme-sidebar-bg);
+}
+
+.text-sidebar {
+  color: var(--theme-sidebar-text);
+}
+
+.border-sidebar {
+  border-color: var(--theme-sidebar-border);
+}
+
+.text-nav {
+  color: var(--theme-nav-text);
+}
+
+.hover\:bg-nav-hover:hover {
+  background-color: var(--theme-nav-hover);
+}
+
+.text-swag-primary {
+  color: var(--theme-primary);
+}
+
+.text-swag-secondary {
+  color: var(--theme-secondary);
+}
+
+.text-swag-accent {
+  color: var(--theme-accent);
+}
+
+.text-swag-dark {
+  color: var(--theme-primary-dark);
+}
+
+/* Navigation active state - theme-aware */
+.nav-item.active {
+  background-color: var(--theme-primary);
+  color: white;
+}
+
+.nav-item:hover {
+  background-color: var(--theme-nav-hover);
+}
+
+/* Additional theme utility classes */
+@layer utilities {
+  .bg-theme-primary {
+    background-color: var(--theme-primary);
+  }
+
+  .bg-theme-primary-light {
+    background-color: var(--theme-primary-light);
+  }
+
+  .bg-theme-primary-dark {
+    background-color: var(--theme-primary-dark);
+  }
+
+  .bg-theme-secondary {
+    background-color: var(--theme-secondary);
+  }
+
+  .bg-theme-secondary-light {
+    background-color: var(--theme-secondary-light);
+  }
+
+  .bg-theme-secondary-dark {
+    background-color: var(--theme-secondary-dark);
+  }
+
+  .bg-theme-accent {
+    background-color: var(--theme-accent);
+  }
+
+  .bg-theme-accent-light {
+    background-color: var(--theme-accent-light);
+  }
+
+  .bg-theme-accent-dark {
+    background-color: var(--theme-accent-dark);
+  }
+
+  .text-theme-primary {
+    color: var(--theme-primary);
+  }
+
+  .text-theme-secondary {
+    color: var(--theme-secondary);
+  }
+
+  .text-theme-accent {
+    color: var(--theme-accent);
+  }
+
+  .border-theme-primary {
+    border-color: var(--theme-primary);
+  }
+
+  .border-theme-secondary {
+    border-color: var(--theme-secondary);
+  }
+
+  .border-theme-accent {
+    border-color: var(--theme-accent);
+  }
+}

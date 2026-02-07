@@ -1,0 +1,97 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1766985132185,
+      "tag": "0000_grey_sinister_six",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1767590591085,
+      "tag": "0001_complete_nick_fury",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1767751010128,
+      "tag": "0002_flowery_true_believers",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1767922720484,
+      "tag": "0003_closed_krista_starr",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1768633567443,
+      "tag": "0004_eminent_legion",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1769758176325,
+      "tag": "0005_calm_unus",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1769758937146,
+      "tag": "0006_light_wraith",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1770099401152,
+      "tag": "0007_broad_iron_monger",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1770173798841,
+      "tag": "0008_lyrical_sugar_man",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1770181183793,
+      "tag": "0009_bright_shriek",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1770266062964,
+      "tag": "0010_dapper_wrecking_crew",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1770268784826,
+      "tag": "0011_acoustic_silver_samurai",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1770281620885,
+      "tag": "0012_handy_tyger_tiger",
+      "breakpoints": true
+    }
+  ]
+}
