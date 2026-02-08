@@ -10,10 +10,14 @@ import { storage } from "./storage";
 import { comparePassword } from "./passwordUtils";
 
 // Determine if we are in local development mode
-// We consider it local dev if REPL_ID is not set or if it is set to "local-dev"
-const isLocalDev = !process.env.REPL_ID || process.env.REPL_ID === "local-dev";
+// We consider it local dev if REPL_ID is not set, empty, or set to specific dev values
+// This allows username/password auth to work in Cloud Run and local dev
+const isLocalDev = !process.env.REPL_ID || 
+                   process.env.REPL_ID === "" || 
+                   process.env.REPL_ID === "local-dev" ||
+                   process.env.REPL_ID === "cloud-run";
 
-// Only enforce REPLIT_DOMAINS if not in local dev
+// Only enforce REPLIT_DOMAINS if not in local dev (i.e., only in actual Replit environment)
 if (!isLocalDev && !process.env.REPLIT_DOMAINS) {
   throw new Error("Environment variable REPLIT_DOMAINS not provided");
 }
@@ -46,7 +50,8 @@ export function getSession() {
     saveUninitialized: false,
     cookie: {
       httpOnly: true,
-      secure: !isLocalDev, // Only secure in production
+      secure: !isLocalDev, // Only secure in production (Cloud Run uses HTTPS)
+      sameSite: isLocalDev ? 'lax' : 'strict', // Strict in production for CSRF protection
       maxAge: sessionTtl,
     },
   });

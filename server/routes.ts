@@ -400,6 +400,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Auth middleware
   await setupAuth(app);
 
+  // Health check endpoint for Cloud Run and monitoring
+  app.get('/api/health', async (req, res) => {
+    try {
+      // Basic database connectivity check using drizzle-orm
+      const { db, pool } = await import("./db");
+      const client = await pool.connect();
+      await client.query('SELECT 1');
+      client.release();
+      
+      res.status(200).json({ 
+        status: 'healthy',
+        timestamp: new Date().toISOString(),
+        service: 'swagsuite',
+        environment: process.env.NODE_ENV || 'development'
+      });
+    } catch (error) {
+      console.error('Health check failed:', error);
+      res.status(503).json({ 
+        status: 'unhealthy',
+        timestamp: new Date().toISOString(),
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+
   // Auth routes
   app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
     try {

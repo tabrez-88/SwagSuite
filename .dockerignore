@@ -1,0 +1,90 @@
+# Dependencies
+node_modules
+npm-debug.log
+yarn-error.log
+package-lock.json
+yarn.lock
+
+# Development files
+.env
+.env.local
+.env.development
+.env.test
+.env.production
+
+# Build outputs
+dist
+.vite
+.next
+.nuxt
+
+# Testing
+coverage
+.nyc_output
+*.test.ts
+*.test.js
+*.spec.ts
+*.spec.js
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+*.swn
+.DS_Store
+
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Documentation
+README.md
+CLOUD_RUN_DEPLOYMENT.md
+QUICKSTART.md
+ENVIRONMENT_VARIABLES.md
+DEPLOYMENT_CHECKLIST.md
+docs
+
+# CI/CD
+.github
+.gitlab-ci.yml
+cloudbuild.yaml
+
+# Logs
+logs
+*.log
+
+# Temporary files
+tmp
+temp
+*.tmp
+
+# Uploads (akan di-recreate di container)
+uploads/*
+!uploads/.gitkeep
+
+# OS files
+Thumbs.db
+.DS_Store
+
+# Replit specific
+.replit
+replit.nix
+replit.md
+
+# Scripts yang tidak diperlukan di production
+scripts/*.ts
+!scripts/seed.ts
+
+# Attached assets (jika tidak diperlukan di runtime)
+attached_assets
+
+# Install command file
+install.cmd
+
+# Keep necessary TypeScript files for migrations
+!migrations/**/*.ts
+!shared/**/*.ts
+!server/**/*.ts

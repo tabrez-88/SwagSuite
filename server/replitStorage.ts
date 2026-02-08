@@ -1,20 +1,41 @@
-import { Client } from '@replit/object-storage';
 import fs from 'fs';
+import { v2 as cloudinary } from 'cloudinary';
+import axios from 'axios';
 
 /**
- * Service for managing file uploads and downloads using Replit Object Storage.
+ * Storage Service for managing file uploads and downloads.
+ * Uses Replit Object Storage in Replit environment, Cloudinary in Cloud Run/other environments.
  * Handles file storage with organized paths and automatic cleanup.
  */
-class ReplitStorageService {
-    private client: Client;
+class StorageService {
+    private client: any;
     private initialized: boolean = false;
+    private isReplit: boolean = false;
+    private useCloudinary: boolean = false;
 
     constructor() {
-        // Initialize client with bucket ID from environment
-        const bucketId = process.env.REPLIT_BUCKET_ID;
-        this.client = new Client(bucketId ? { bucketId } : undefined);
-        this.initialized = true;
-        console.log('✅ Replit Storage Service initialized', bucketId ? `with bucket: ${bucketId}` : 'with default bucket');
+        // Detect environment - only use Replit storage if REPLIT_BUCKET_ID is set
+        this.isReplit = !!process.env.REPLIT_BUCKET_ID;
+        
+        if (!this.isReplit) {
+            // Use Cloudinary for Cloud Run and other environments
+            console.log('🌩️  Cloud environment detected, using Cloudinary for file storage');
+            this.useCloudinary = true;
+            this.initialized = true;
+        } else {
+            // Initialize Replit storage only if in Replit environment
+            try {
+                const { Client } = require('@replit/object-storage');
+                const bucketId = process.env.REPLIT_BUCKET_ID;
+                this.client = new Client(bucketId ? { bucketId } : undefined);
+                this.initialized = true;
+                console.log('✅ Replit Storage Service initialized', bucketId ? `with bucket: ${bucketId}` : 'with default bucket');
+            } catch (error) {
+                console.warn('⚠️  Failed to initialize Replit storage, falling back to Cloudinary:', error);
+                this.useCloudinary = true;
+                this.initialized = true;
+            }
+        }
     }
 
     /**
@@ -22,15 +43,23 @@ class ReplitStorageService {
      */
     async initialize(): Promise<void> {
         if (!this.initialized) {
-            const bucketId = process.env.REPLIT_BUCKET_ID;
-            this.client = new Client(bucketId ? { bucketId } : undefined);
+            if (this.isReplit && !this.useCloudinary) {
+                try {
+                    const { Client } = require('@replit/object-storage');
+                    const bucketId = process.env.REPLIT_BUCKET_ID;
+                    this.client = new Client(bucketId ? { bucketId } : undefined);
+                    console.log('✅ Replit Storage Service initialized');
+                } catch (error) {
+                    console.warn('⚠️  Falling back to Cloudinary');
+                    this.useCloudinary = true;
+                }
+            }
             this.initialized = true;
-            console.log('✅ Replit Storage Service initialized', bucketId ? `with bucket: ${bucketId}` : 'with default bucket');
         }
     }
 
     /**
-     * Upload a file from local filesystem to Replit Storage
+     * Upload a file from local filesystem to storage
      * @param localPath - Path to file on local filesystem
      * @param storagePath - Destination path in storage bucket
      * @returns Success status
@@ -39,23 +68,44 @@ class ReplitStorageService {
         try {
             console.log(`📤 Uploading file from ${localPath} to ${storagePath}`);
 
-            const result = await this.client.uploadFromFilename(storagePath, localPath);
+            if (this.useCloudinary) {
+                // Upload to Cloudinary
+                const result = await cloudinary.uploader.upload(localPath, {
+                    folder: 'attachments',
+                    public_id: storagePath.replace(/\//g, '_'),
+                    resource_type: 'auto'
+                });
 
-            if (!result.ok) {
-                console.error('Failed to upload file:', result.error);
-                return false;
+                // Clean up temp file after successful upload
+                try {
+                    fs.unlinkSync(localPath);
+                    console.log(`🗑️  Cleaned up temp file: ${localPath}`);
+                } catch (cleanupError) {
+                    console.warn('Failed to cleanup temp file:', cleanupError);
+                }
+
+                console.log(`✅ File uploaded to Cloudinary: ${result.secure_url}`);
+                return true;
+            } else {
+                // Use Replit storage
+                const result = await this.client.uploadFromFilename(storagePath, localPath);
+
+                if (!result.ok) {
+                    console.error('Failed to upload file:', result.error);
+                    return false;
+                }
+
+                // Clean up temp file after successful upload
+                try {
+                    fs.unlinkSync(localPath);
+                    console.log(`🗑️  Cleaned up temp file: ${localPath}`);
+                } catch (cleanupError) {
+                    console.warn('Failed to cleanup temp file:', cleanupError);
+                }
+
+                console.log(`✅ File uploaded successfully to ${storagePath}`);
+                return true;
             }
-
-            // Clean up temp file after successful upload
-            try {
-                fs.unlinkSync(localPath);
-                console.log(`🗑️  Cleaned up temp file: ${localPath}`);
-            } catch (cleanupError) {
-                console.warn('Failed to cleanup temp file:', cleanupError);
-            }
-
-            console.log(`✅ File uploaded successfully to ${storagePath}`);
-            return true;
         } catch (error) {
             console.error('Error uploading file:', error);
             return false;
@@ -63,7 +113,7 @@ class ReplitStorageService {
     }
 
     /**
-     * Upload a file from buffer to Replit Storage
+     * Upload a file from buffer to storage
      * @param buffer - File buffer
      * @param storagePath - Destination path in storage bucket
      * @returns Success status
@@ -72,15 +122,39 @@ class ReplitStorageService {
         try {
             console.log(`📤 Uploading buffer to ${storagePath}`);
 
-            const result = await this.client.uploadFromBytes(storagePath, buffer);
+            if (this.useCloudinary) {
+                // Upload buffer to Cloudinary
+                return new Promise((resolve) => {
+                    const uploadStream = cloudinary.uploader.upload_stream(
+                        {
+                            folder: 'attachments',
+                            public_id: storagePath.replace(/\//g, '_'),
+                            resource_type: 'auto'
+                        },
+                        (error, result) => {
+                            if (error) {
+                                console.error('Failed to upload buffer:', error);
+                                resolve(false);
+                            } else {
+                                console.log(`✅ Buffer uploaded to Cloudinary: ${result?.secure_url}`);
+                                resolve(true);
+                            }
+                        }
+                    );
+                    uploadStream.end(buffer);
+                });
+            } else {
+                // Use Replit storage
+                const result = await this.client.uploadFromBytes(storagePath, buffer);
 
-            if (!result.ok) {
-                console.error('Failed to upload buffer:', result.error);
-                return false;
+                if (!result.ok) {
+                    console.error('Failed to upload buffer:', result.error);
+                    return false;
+                }
+
+                console.log(`✅ Buffer uploaded successfully to ${storagePath}`);
+                return true;
             }
-
-            console.log(`✅ Buffer uploaded successfully to ${storagePath}`);
-            return true;
         } catch (error) {
             console.error('Error uploading buffer:', error);
             return false;
@@ -88,7 +162,7 @@ class ReplitStorageService {
     }
 
     /**
-     * Download a file from Replit Storage as a buffer
+     * Download a file from storage as a buffer
      * @param storagePath - Path to file in storage bucket
      * @returns File buffer or null if failed
      */
@@ -96,15 +170,29 @@ class ReplitStorageService {
         try {
             console.log(`📥 Downloading file from ${storagePath}`);
 
-            const result = await this.client.downloadAsBytes(storagePath);
+            if (this.useCloudinary) {
+                // Download from Cloudinary - construct URL from storage path
+                const publicId = `attachments/${storagePath.replace(/\//g, '_')}`;
+                const resourceType = storagePath.match(/\.(pdf|doc|docx|xls|xlsx)$/i) ? 'raw' : 'image';
+                const url = cloudinary.url(publicId, { resource_type: resourceType });
+                
+                const response = await axios.get(url, { responseType: 'arraybuffer' });
+                const buffer = Buffer.from(response.data);
+                
+                console.log(`✅ File downloaded successfully from Cloudinary`);
+                return buffer;
+            } else {
+                // Use Replit storage
+                const result = await this.client.downloadAsBytes(storagePath);
 
-            if (!result.ok) {
-                console.error('Failed to download file:', result.error);
-                return null;
+                if (!result.ok) {
+                    console.error('Failed to download file:', result.error);
+                    return null;
+                }
+
+                console.log(`✅ File downloaded successfully from ${storagePath}`);
+                return result.value[0];
             }
-
-            console.log(`✅ File downloaded successfully from ${storagePath}`);
-            return result.value[0];
         } catch (error) {
             console.error('Error downloading file:', error);
             return null;
@@ -112,7 +200,7 @@ class ReplitStorageService {
     }
 
     /**
-     * Delete a file from Replit Storage
+     * Delete a file from storage
      * @param storagePath - Path to file in storage bucket
      * @returns Success status
      */
@@ -120,15 +208,26 @@ class ReplitStorageService {
         try {
             console.log(`🗑️  Deleting file from ${storagePath}`);
 
-            const result = await this.client.delete(storagePath);
+            if (this.useCloudinary) {
+                // Delete from Cloudinary
+                const publicId = `attachments/${storagePath.replace(/\//g, '_')}`;
+                const resourceType = storagePath.match(/\.(pdf|doc|docx|xls|xlsx)$/i) ? 'raw' : 'image';
+                
+                await cloudinary.uploader.destroy(publicId, { resource_type: resourceType });
+                console.log(`✅ File deleted from Cloudinary`);
+                return true;
+            } else {
+                // Use Replit storage
+                const result = await this.client.delete(storagePath);
 
-            if (!result.ok) {
-                console.error('Failed to delete file:', result.error);
-                return false;
+                if (!result.ok) {
+                    console.error('Failed to delete file:', result.error);
+                    return false;
+                }
+
+                console.log(`✅ File deleted successfully from ${storagePath}`);
+                return true;
             }
-
-            console.log(`✅ File deleted successfully from ${storagePath}`);
-            return true;
         } catch (error) {
             console.error('Error deleting file:', error);
             return false;
@@ -136,20 +235,35 @@ class ReplitStorageService {
     }
 
     /**
-     * Check if a file exists in Replit Storage
+     * Check if a file exists in storage
      * @param storagePath - Path to file in storage bucket
      * @returns True if file exists, false otherwise
      */
     async fileExists(storagePath: string): Promise<boolean> {
         try {
-            const result = await this.client.exists(storagePath);
+            if (this.useCloudinary) {
+                // Check Cloudinary - try to get resource info
+                const publicId = `attachments/${storagePath.replace(/\//g, '_')}`;
+                try {
+                    await cloudinary.api.resource(publicId);
+                    return true;
+                } catch (error: any) {
+                    if (error.http_code === 404) {
+                        return false;
+                    }
+                    throw error;
+                }
+            } else {
+                // Use Replit storage
+                const result = await this.client.exists(storagePath);
 
-            if (!result.ok) {
-                console.error('Failed to check file existence:', result.error);
-                return false;
+                if (!result.ok) {
+                    console.error('Failed to check file existence:', result.error);
+                    return false;
+                }
+
+                return result.value;
             }
-
-            return result.value;
         } catch (error) {
             console.error('Error checking file existence:', error);
             return false;
@@ -157,7 +271,7 @@ class ReplitStorageService {
     }
 
     /**
-     * List files in Replit Storage with optional prefix filter
+     * List files in storage with optional prefix filter
      * @param prefix - Optional prefix to filter files
      * @returns Array of storage paths
      */
@@ -165,14 +279,28 @@ class ReplitStorageService {
         try {
             console.log(`📋 Listing files${prefix ? ` with prefix: ${prefix}` : ''}`);
 
-            const result = await this.client.list(prefix ? { prefix } : undefined);
+            if (this.useCloudinary) {
+                // List from Cloudinary
+                const result = await cloudinary.api.resources({
+                    type: 'upload',
+                    prefix: prefix ? `attachments/${prefix}` : 'attachments',
+                    max_results: 500
+                });
+                
+                return result.resources.map((r: any) => 
+                    r.public_id.replace('attachments/', '').replace(/_/g, '/')
+                );
+            } else {
+                // Use Replit storage
+                const result = await this.client.list(prefix ? { prefix } : undefined);
 
-            if (!result.ok) {
-                console.error('Failed to list files:', result.error);
-                return [];
+                if (!result.ok) {
+                    console.error('Failed to list files:', result.error);
+                    return [];
+                }
+
+                return result.value.map((obj: any) => obj.name);
             }
-
-            return result.value.map((obj: any) => obj.name);
         } catch (error) {
             console.error('Error listing files:', error);
             return [];
@@ -195,4 +323,4 @@ class ReplitStorageService {
 }
 
 // Create and export singleton instance
-export const replitStorage = new ReplitStorageService();
+export const replitStorage = new StorageService();

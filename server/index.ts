@@ -4,6 +4,13 @@ import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 
 const app = express();
+
+// Trust proxy for Cloud Run (running behind load balancer)
+// This is required for secure cookies and correct client IP detection
+if (process.env.NODE_ENV === 'production') {
+  app.set('trust proxy', true);
+}
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
@@ -66,10 +73,10 @@ app.use((req, res, next) => {
   }
 
   // ALWAYS serve the app on the port specified in the environment variable PORT
-  // Other ports are firewalled. Default to 5000 if not specified.
+  // Cloud Run requires port 8080. Default to 8080 for production, 5000 for development.
   // this serves both the API and the client.
-  // It is the only port that is not firewalled.
-  const port = parseInt(process.env.PORT || '5000', 10);
+  const defaultPort = process.env.NODE_ENV === 'production' ? 8080 : 5000;
+  const port = parseInt(process.env.PORT || String(defaultPort), 10);
   server.listen(port, "0.0.0.0", () => {
     log(`serving on port ${port} (http://localhost:${port})`);
   });

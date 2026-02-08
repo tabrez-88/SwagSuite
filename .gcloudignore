@@ -1,0 +1,65 @@
+# Google Cloud Build ignore
+# Similar to .dockerignore but for gcloud builds
+
+# Dependencies
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# Development files
+.env
+.env.*
+!.env.example
+
+# Build outputs
+dist/
+.vite/
+
+# Testing
+coverage/
+*.test.ts
+*.test.js
+*.spec.ts
+*.spec.js
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Git
+.git/
+.gitignore
+
+# Documentation
+README.md
+docs/
+
+# Logs
+logs/
+*.log
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Uploads
+uploads/*
+!uploads/.gitkeep
+
+# OS files
+Thumbs.db
+
+# Replit specific
+.replit
+replit.nix
+replit.md
+
+# Scripts
+scripts/
+
+# Attached assets
+attached_assets/
