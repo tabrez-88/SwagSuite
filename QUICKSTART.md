@@ -1,303 +1,281 @@
-# ⚡ Quick Start - Deploy ke Google Cloud Run
+# ⚡ Quick Start - Deploy SwagSuite ke Google Cloud Run
 
-Panduan singkat untuk deploy SwagSuite ke Cloud Run dalam 10 menit.
+Panduan lengkap step-by-step untuk deploy SwagSuite ke Google Cloud Run.
 
-## 📋 Checklist Persiapan
+> **📍 Semua command dijalankan dari Command Prompt (CMD) Windows**, kecuali disebutkan lain.
 
-### ✅ 1. Install Prerequisites
-- [ ] Google Cloud SDK installed (`gcloud --version`)
-- [ ] Docker installed (`docker --version`)
-- [ ] Google Cloud project sudah dibuat
-- [ ] Billing enabled di project
+---
 
-### ✅ 2. Setup Google Cloud
-```bash
-# Login
+## 📋 Prerequisites
+
+### 1. Install Google Cloud SDK
+
+Download dan install dari: https://cloud.google.com/sdk/docs/install
+
+Setelah install, buka **Command Prompt** dan verifikasi:
+```cmd
+gcloud --version
+```
+
+---
+
+## 🔐 Step 1: Login & Setup Project
+
+Buka **Command Prompt (CMD)** dan jalankan satu per satu:
+
+```cmd
 gcloud auth login
+```
+Browser akan terbuka, login dengan akun Google yang punya akses ke GCP project.
 
-# Set project
+```cmd
 gcloud config set project YOUR_PROJECT_ID
+```
+Ganti `YOUR_PROJECT_ID` dengan project ID kamu (contoh: `oms-swagsuite`).
 
-# Set region
+```cmd
 gcloud config set run/region asia-southeast2
-
-# Enable APIs
-gcloud services enable run.googleapis.com \
-  containerregistry.googleapis.com \
-  cloudbuild.googleapis.com \
-  secretmanager.googleapis.com
-```
-
-### ✅ 3. Setup Database
-- [ ] Database PostgreSQL sudah siap (Neon/Cloud SQL/External)
-- [ ] Connection string sudah didapat
-- [ ] Database accessible dari internet
-
-### ✅ 4. Setup Cloudinary
-- [ ] Cloudinary account sudah dibuat
-- [ ] Cloud Name, API Key, API Secret sudah didapat
-
-### ✅ 5. Create Secrets
-```bash
-# Generate secure secrets
-SESSION_SECRET=$(openssl rand -base64 32)
-JWT_SECRET=$(openssl rand -base64 32)
-
-# Create secrets di Secret Manager
-echo -n "YOUR_DATABASE_URL" | gcloud secrets create DATABASE_URL --data-file=-
-echo -n "$SESSION_SECRET" | gcloud secrets create SESSION_SECRET --data-file=-
-echo -n "$JWT_SECRET" | gcloud secrets create JWT_SECRET --data-file=-
-echo -n "YOUR_CLOUD_NAME" | gcloud secrets create CLOUDINARY_CLOUD_NAME --data-file=-
-echo -n "YOUR_API_KEY" | gcloud secrets create CLOUDINARY_API_KEY --data-file=-
-echo -n "YOUR_API_SECRET" | gcloud secrets create CLOUDINARY_API_SECRET --data-file=-
 ```
 
 ---
 
-## 🚀 Deployment (Pilih salah satu)
+## 🔌 Step 2: Enable Required APIs
 
-### Option A: Deploy dengan Script (Termudah)
-
-**Linux/Mac:**
-```bash
-chmod +x deploy.sh
-./deploy.sh
-```
-
-**Windows PowerShell:**
-```powershell
-.\deploy.ps1
-```
-
-### Option B: Deploy Manual Step-by-Step
-
-```bash
-# 1. Set variables
-PROJECT_ID=$(gcloud config get-value project)
-SERVICE_NAME="swagsuite"
-REGION="asia-southeast2"
-
-# 2. Build Docker image
-docker build -t gcr.io/$PROJECT_ID/$SERVICE_NAME:latest .
-
-# 3. Push ke Container Registry
-gcloud auth configure-docker
-docker push gcr.io/$PROJECT_ID/$SERVICE_NAME:latest
-
-# 4. Deploy ke Cloud Run
-gcloud run deploy $SERVICE_NAME \
-  --image gcr.io/$PROJECT_ID/$SERVICE_NAME:latest \
-  --platform managed \
-  --region $REGION \
-  --allow-unauthenticated \
-  --memory 1Gi \
-  --cpu 1 \
-  --min-instances 0 \
-  --max-instances 10 \
-  --timeout 300 \
-  --set-secrets DATABASE_URL=DATABASE_URL:latest,\
-SESSION_SECRET=SESSION_SECRET:latest,\
-JWT_SECRET=JWT_SECRET:latest,\
-CLOUDINARY_CLOUD_NAME=CLOUDINARY_CLOUD_NAME:latest,\
-CLOUDINARY_API_KEY=CLOUDINARY_API_KEY:latest,\
-CLOUDINARY_API_SECRET=CLOUDINARY_API_SECRET:latest
-```
-
-### Option C: Deploy dengan Cloud Build (CI/CD)
-
-```bash
-# Deploy langsung dari source code
-gcloud builds submit --config cloudbuild.yaml
+Copy-paste command ini (satu baris):
+```cmd
+gcloud services enable run.googleapis.com cloudbuild.googleapis.com secretmanager.googleapis.com artifactregistry.googleapis.com
 ```
 
 ---
 
-## ✅ Verification
+## 🔑 Step 3: Grant Permissions
 
-```bash
-# Get service URL
-SERVICE_URL=$(gcloud run services describe swagsuite \
-  --region asia-southeast2 \
-  --format 'value(status.url)')
+**PENTING:** Dapatkan Project Number dulu:
+```cmd
+gcloud projects describe YOUR_PROJECT_ID --format="value(projectNumber)"
+```
+Catat nomor yang muncul (contoh: `488131124182`).
 
-echo "Service URL: $SERVICE_URL"
+Lalu jalankan SEMUA command ini. **Ganti `YOUR_PROJECT_ID` dan `YOUR_PROJECT_NUMBER`:**
 
-# Test health endpoint
-curl $SERVICE_URL/api/health
-
-# Test di browser
-echo "Open in browser: $SERVICE_URL"
+```cmd
+gcloud projects add-iam-policy-binding YOUR_PROJECT_ID --member="serviceAccount:YOUR_PROJECT_NUMBER-compute@developer.gserviceaccount.com" --role="roles/secretmanager.secretAccessor"
 ```
 
-Expected response dari health check:
+```cmd
+gcloud projects add-iam-policy-binding YOUR_PROJECT_ID --member="serviceAccount:YOUR_PROJECT_NUMBER-compute@developer.gserviceaccount.com" --role="roles/storage.objectAdmin"
+```
+
+```cmd
+gcloud projects add-iam-policy-binding YOUR_PROJECT_ID --member="serviceAccount:YOUR_PROJECT_NUMBER@cloudbuild.gserviceaccount.com" --role="roles/run.admin"
+```
+
+```cmd
+gcloud projects add-iam-policy-binding YOUR_PROJECT_ID --member="serviceAccount:YOUR_PROJECT_NUMBER@cloudbuild.gserviceaccount.com" --role="roles/iam.serviceAccountUser"
+```
+
+---
+
+## 🗝️ Step 4: Create Secrets
+
+Buat secrets satu per satu. **Ganti nilai dalam tanda kutip dengan nilai sebenarnya.**
+
+### 4.1 DATABASE_URL
+```cmd
+gcloud secrets create DATABASE_URL --data-file=-
+```
+Ketik/paste connection string database kamu (contoh):
+```
+postgresql://user:password@host:5432/database?sslmode=require
+```
+Tekan **Ctrl+Z** lalu **Enter**.
+
+### 4.2 SESSION_SECRET
+```cmd
+gcloud secrets create SESSION_SECRET --data-file=-
+```
+Ketik random string 32 karakter (contoh): `aB3xY9kL2mN7pQ4rS8tU1vW6zC5dE0fG`
+Tekan **Ctrl+Z** lalu **Enter**.
+
+### 4.3 JWT_SECRET
+```cmd
+gcloud secrets create JWT_SECRET --data-file=-
+```
+Ketik random string 32 karakter (berbeda dari SESSION_SECRET): `hJ2kM5nP8qR1sT4uV7wX0yZ3aB6cD9eF`
+Tekan **Ctrl+Z** lalu **Enter**.
+
+### 4.4 CLOUDINARY_CLOUD_NAME
+```cmd
+gcloud secrets create CLOUDINARY_CLOUD_NAME --data-file=-
+```
+Ketik cloud name dari Cloudinary dashboard, tekan **Ctrl+Z** lalu **Enter**.
+
+### 4.5 CLOUDINARY_API_KEY
+```cmd
+gcloud secrets create CLOUDINARY_API_KEY --data-file=-
+```
+Ketik API key dari Cloudinary dashboard, tekan **Ctrl+Z** lalu **Enter**.
+
+### 4.6 CLOUDINARY_API_SECRET
+```cmd
+gcloud secrets create CLOUDINARY_API_SECRET --data-file=-
+```
+Ketik API secret dari Cloudinary dashboard, tekan **Ctrl+Z** lalu **Enter**.
+
+### Verifikasi Secrets
+```cmd
+gcloud secrets list
+```
+Harus ada 6 secrets.
+
+---
+
+## 🚀 Step 5: Deploy
+
+Pastikan kamu di folder project:
+```cmd
+cd "c:\Project\SwagSuite - LSD"
+```
+
+Jalankan command ini (copy semua dalam satu baris):
+```cmd
+gcloud run deploy swagsuite --source . --region asia-southeast2 --allow-unauthenticated --memory 1Gi --cpu 1 --timeout 300 --min-instances 0 --max-instances 10 --set-secrets DATABASE_URL=DATABASE_URL:latest,SESSION_SECRET=SESSION_SECRET:latest,JWT_SECRET=JWT_SECRET:latest,CLOUDINARY_CLOUD_NAME=CLOUDINARY_CLOUD_NAME:latest,CLOUDINARY_API_KEY=CLOUDINARY_API_KEY:latest,CLOUDINARY_API_SECRET=CLOUDINARY_API_SECRET:latest
+```
+
+Ketik `y` jika ditanya konfirmasi.
+
+⏱️ Tunggu 5-10 menit. Jika berhasil akan muncul URL seperti:
+```
+Service URL: https://swagsuite-xxxxx-as.a.run.app
+```
+
+---
+
+## ✅ Step 6: Verify
+
+Buka URL yang muncul di browser, atau test dengan:
+```cmd
+curl https://swagsuite-xxxxx-as.a.run.app/api/health
+```
+
+Expected response:
 ```json
-{
-  "status": "healthy",
-  "timestamp": "2024-01-15T12:00:00.000Z",
-  "service": "swagsuite",
-  "environment": "production"
-}
+{"status":"healthy","timestamp":"...","service":"swagsuite","environment":"production"}
 ```
 
 ---
 
 ## 🔄 Update Aplikasi
 
-Setelah deployment pertama, untuk update aplikasi:
-
-```bash
-# Build new version
-docker build -t gcr.io/$PROJECT_ID/swagsuite:latest .
-
-# Push
-docker push gcr.io/$PROJECT_ID/swagsuite:latest
-
-# Deploy akan otomatis ambil latest image
-gcloud run deploy swagsuite --image gcr.io/$PROJECT_ID/swagsuite:latest
+Setelah ada perubahan code, deploy ulang dengan command yang sama:
+```cmd
+cd "c:\Project\SwagSuite - LSD"
+gcloud run deploy swagsuite --source . --region asia-southeast2 --allow-unauthenticated --memory 1Gi --cpu 1 --timeout 300 --set-secrets DATABASE_URL=DATABASE_URL:latest,SESSION_SECRET=SESSION_SECRET:latest,JWT_SECRET=JWT_SECRET:latest,CLOUDINARY_CLOUD_NAME=CLOUDINARY_CLOUD_NAME:latest,CLOUDINARY_API_KEY=CLOUDINARY_API_KEY:latest,CLOUDINARY_API_SECRET=CLOUDINARY_API_SECRET:latest
 ```
 
-Atau dengan Cloud Build:
-```bash
-gcloud builds submit --config cloudbuild.yaml
+---
+
+## 🆘 Troubleshooting
+
+### ❌ "Permission denied on secret"
+Jalankan:
+```cmd
+gcloud projects add-iam-policy-binding YOUR_PROJECT_ID --member="serviceAccount:YOUR_PROJECT_NUMBER-compute@developer.gserviceaccount.com" --role="roles/secretmanager.secretAccessor"
+```
+
+### ❌ "Container failed to start"
+Cek logs:
+```cmd
+gcloud run services logs read swagsuite --region asia-southeast2 --limit 50
+```
+
+Kemungkinan penyebab:
+1. **DATABASE_URL salah** - Pastikan connection string valid dan format benar
+2. **Database tidak accessible** - Pastikan database allow connections dari internet
+3. **Secret belum dibuat** - Jalankan `gcloud secrets list` untuk verifikasi
+
+### ❌ "Secret already exists"
+Hapus secret lama dulu:
+```cmd
+gcloud secrets delete SECRET_NAME
+```
+Lalu buat ulang.
+
+### ❌ Build gagal "attached_assets not found"
+File sudah dipindah ke `client/public/`. Pastikan code sudah update.
+
+### ❌ "npm ci requires package-lock.json"
+Dockerfile sudah diupdate pakai `npm install`. Pastikan file terbaru.
+
+### ❌ "artifactregistry.repositories.uploadArtifacts denied"
+Jalankan:
+```cmd
+gcloud projects add-iam-policy-binding YOUR_PROJECT_ID --member="serviceAccount:YOUR_PROJECT_NUMBER@cloudbuild.gserviceaccount.com" --role="roles/artifactregistry.writer"
 ```
 
 ---
 
 ## 📊 Monitoring
 
-```bash
-# View logs real-time
-gcloud run services logs tail swagsuite --region asia-southeast2
-
-# View recent logs
-gcloud run services logs read swagsuite --region asia-southeast2 --limit 50
-
-# Open in console
-echo "https://console.cloud.google.com/run/detail/asia-southeast2/swagsuite/logs"
+### View Logs
+```cmd
+gcloud run services logs read swagsuite --region asia-southeast2 --limit 100
 ```
 
----
-
-## 🔧 Common Commands
-
-```bash
-# Update environment variable
-gcloud run services update swagsuite --update-env-vars KEY=VALUE
-
-# Update memory/CPU
-gcloud run services update swagsuite --memory 2Gi --cpu 2
-
-# Update scaling
-gcloud run services update swagsuite --min-instances 1 --max-instances 20
-
-# View service details
+### View Service Details
+```cmd
 gcloud run services describe swagsuite --region asia-southeast2
-
-# Delete service
-gcloud run services delete swagsuite --region asia-southeast2
 ```
 
----
-
-## 🆘 Troubleshooting Quick Fixes
-
-### ❌ Service tidak bisa start (503 error)
-```bash
-# Check logs
-gcloud run services logs read swagsuite --limit 100
-
-# Common issues:
-# 1. DATABASE_URL tidak di-set → Set dengan gcloud secrets
-# 2. Database tidak accessible → Check firewall/connection string
-# 3. Missing Cloudinary credentials → Set environment variables
-```
-
-### ❌ Database connection timeout
-```bash
-# Test connection dari local
-docker run --rm -it postgres:15 psql "YOUR_DATABASE_URL"
-
-# Jika berhasil, berarti masalah di environment variable
-gcloud run services describe swagsuite --format "yaml(spec.template.spec.containers[0].env)"
-```
-
-### ❌ Out of memory
-```bash
-# Increase memory limit
-gcloud run services update swagsuite --memory 2Gi
-```
-
-### ❌ Cold start lambat
-```bash
-# Set minimum instances
-gcloud run services update swagsuite --min-instances 1
-```
+### Open Console
+Buka: https://console.cloud.google.com/run
 
 ---
 
 ## 💰 Cost Optimization
 
-### Development/Testing
-```bash
-gcloud run services update swagsuite \
-  --min-instances 0 \
-  --max-instances 5 \
-  --memory 512Mi \
-  --cpu 1
+### Development (Hemat)
+```cmd
+gcloud run services update swagsuite --region asia-southeast2 --min-instances 0 --max-instances 3 --memory 512Mi
 ```
 
-### Production (Low Traffic)
-```bash
-gcloud run services update swagsuite \
-  --min-instances 1 \
-  --max-instances 10 \
-  --memory 1Gi \
-  --cpu 1
-```
-
-### Production (High Traffic)
-```bash
-gcloud run services update swagsuite \
-  --min-instances 2 \
-  --max-instances 100 \
-  --memory 2Gi \
-  --cpu 2
+### Production
+```cmd
+gcloud run services update swagsuite --region asia-southeast2 --min-instances 1 --max-instances 10 --memory 1Gi
 ```
 
 ---
 
-## 🔒 Security Checklist
+## 🗑️ Delete Service
 
-- [x] Secrets di-store di Secret Manager (bukan environment variables langsung)
-- [ ] Enable Cloud Armor untuk DDoS protection
-- [ ] Setup custom domain dengan SSL
-- [ ] Configure CORS sesuai domain
-- [ ] Enable audit logging
-- [ ] Setup backup strategy untuk database
-- [ ] Implement rate limiting
-- [ ] Regular security updates
+```cmd
+gcloud run services delete swagsuite --region asia-southeast2
+```
 
 ---
 
-## 📚 Documentation Links
+## 📝 Required Environment Variables
 
-- **Full Deployment Guide**: [CLOUD_RUN_DEPLOYMENT.md](./CLOUD_RUN_DEPLOYMENT.md)
-- **Environment Variables**: [ENVIRONMENT_VARIABLES.md](./ENVIRONMENT_VARIABLES.md)
-- **Cloud Run Docs**: https://cloud.google.com/run/docs
-
----
-
-## 🎉 Success!
-
-Jika health check mengembalikan response yang valid, berarti aplikasi sudah berjalan!
-
-**Next Steps:**
-1. Setup custom domain (optional)
-2. Configure CI/CD dari GitHub (optional)
-3. Setup monitoring alerts
-4. Configure database backup
-5. Test semua fitur aplikasi
+| Variable | Description | Example |
+|----------|-------------|---------|
+| DATABASE_URL | PostgreSQL connection string | `postgresql://user:pass@host/db` |
+| SESSION_SECRET | Random 32+ char string | `aB3xY9kL2mN7pQ4rS...` |
+| JWT_SECRET | Random 32+ char string | `hJ2kM5nP8qR1sT4u...` |
+| CLOUDINARY_CLOUD_NAME | Cloudinary cloud name | `my-cloud` |
+| CLOUDINARY_API_KEY | Cloudinary API key | `123456789012345` |
+| CLOUDINARY_API_SECRET | Cloudinary API secret | `abcdef123456...` |
 
 ---
 
-**Questions?** Check [CLOUD_RUN_DEPLOYMENT.md](./CLOUD_RUN_DEPLOYMENT.md) untuk panduan lengkap.
+## ✅ Deployment Checklist
+
+- [ ] Google Cloud SDK installed
+- [ ] `gcloud auth login` - logged in
+- [ ] Project ID sudah di-set
+- [ ] APIs enabled (run, cloudbuild, secretmanager, artifactregistry)
+- [ ] Permissions granted (secretAccessor, storage, run.admin, iam.serviceAccountUser)
+- [ ] Database PostgreSQL ready & accessible dari internet
+- [ ] Cloudinary account created
+- [ ] All 6 secrets created dan verified dengan `gcloud secrets list`
+- [ ] Deploy command executed
+- [ ] Health check passed

@@ -2,7 +2,9 @@ import { useState, useEffect, useCallback } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import lsdLogoPath from "@assets/Circle only_1756152840165.png";
+
+// Logo dari public folder
+const lsdLogoPath = "/circle-logo.png";
 
 interface Position {
   x: number;

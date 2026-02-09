@@ -78,9 +78,6 @@ replit.md
 scripts/*.ts
 !scripts/seed.ts
 
-# Attached assets (jika tidak diperlukan di runtime)
-attached_assets
-
 # Install command file
 install.cmd
 

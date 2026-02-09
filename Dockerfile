@@ -12,8 +12,7 @@ RUN apk add --no-cache python3 make g++
 COPY package*.json ./
 
 # Install semua dependencies (termasuk devDependencies untuk build)
-# Ignore optional dependencies yang gagal (@replit/object-storage)
-RUN npm ci --omit=optional || npm ci --no-optional || true
+RUN npm install --legacy-peer-deps
 
 # Copy semua source code
 COPY . .
@@ -33,8 +32,7 @@ RUN apk add --no-cache wget curl
 COPY package*.json ./
 
 # Install hanya production dependencies
-# Skip optional dependencies yang tidak diperlukan di Cloud Run
-RUN npm ci --omit=dev --omit=optional && npm cache clean --force
+RUN npm install --omit=dev --legacy-peer-deps && npm cache clean --force
 
 # Copy built files dari builder stage
 COPY --from=builder /app/dist ./dist
