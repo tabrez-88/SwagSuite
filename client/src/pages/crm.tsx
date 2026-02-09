@@ -11,7 +11,7 @@ import { apiRequest } from "@/lib/queryClient";
 import Companies from "./crm/companies";
 import Vendors from "./crm/vendors";
 import Leads from "./crm/leads";
-import Clients from "./crm/clients";
+import Contacts from "./crm/contacts";
 
 export default function CRM() {
   const [activeTab, setActiveTab] = useState("companies");
@@ -31,7 +31,7 @@ export default function CRM() {
       // Refresh all CRM data
       queryClient.invalidateQueries({ queryKey: ["/api/companies"] });
       queryClient.invalidateQueries({ queryKey: ["/api/suppliers"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/clients"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/contacts"] });
     },
     onError: (error: Error) => {
       console.error('Sync error:', error);
@@ -50,7 +50,7 @@ export default function CRM() {
           <div>
             <h1 className="text-3xl font-bold text-swag-navy">CRM</h1>
             <p className="text-muted-foreground">
-              Manage your customer relationships, vendors, sales leads, and clients
+              Manage your customer relationships, vendors, sales leads, and contacts
             </p>
           </div>
           <Button
@@ -79,9 +79,9 @@ export default function CRM() {
               <TrendingUp size={16} />
               Leads
             </TabsTrigger>
-            <TabsTrigger value="clients" className="flex items-center gap-2">
+            <TabsTrigger value="contacts" className="flex items-center gap-2">
               <UserCheck size={16} />
-              Clients
+              Contacts
             </TabsTrigger>
           </TabsList>
 
@@ -97,8 +97,8 @@ export default function CRM() {
             <Leads />
           </TabsContent>
 
-          <TabsContent value="clients">
-            <Clients />
+          <TabsContent value="contacts">
+            <Contacts />
           </TabsContent>
         </Tabs>
     </div>

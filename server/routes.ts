@@ -1226,10 +1226,59 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const companyId = req.query.companyId as string;
       const supplierId = req.query.supplierId as string;
       const contacts = await storage.getContacts(companyId, supplierId);
-      res.json(contacts);
+
+      // Enrich contacts with company/supplier names
+      const { db } = await import("./db");
+      const { companies, suppliers } = await import("../shared/schema");
+      const { eq } = await import("drizzle-orm");
+
+      const allCompanies = await db.select({ id: companies.id, name: companies.name }).from(companies);
+      const allSuppliers = await db.select({ id: suppliers.id, name: suppliers.name }).from(suppliers);
+
+      const companyMap = new Map(allCompanies.map(c => [c.id, c.name]));
+      const supplierMap = new Map(allSuppliers.map(s => [s.id, s.name]));
+
+      const enrichedContacts = contacts.map(contact => ({
+        ...contact,
+        companyName: contact.companyId ? companyMap.get(contact.companyId) || null : null,
+        supplierName: contact.supplierId ? supplierMap.get(contact.supplierId) || null : null,
+      }));
+
+      res.json(enrichedContacts);
     } catch (error) {
       console.error("Error fetching contacts:", error);
       res.status(500).json({ message: "Failed to fetch contacts" });
+    }
+  });
+
+  app.get('/api/contacts/:id', isAuthenticated, async (req, res) => {
+    try {
+      const contact = await storage.getContact(req.params.id);
+      if (!contact) {
+        return res.status(404).json({ message: "Contact not found" });
+      }
+
+      // Enrich with company/supplier name
+      const { db } = await import("./db");
+      const { companies, suppliers } = await import("../shared/schema");
+      const { eq } = await import("drizzle-orm");
+
+      let companyName = null;
+      let supplierName = null;
+
+      if (contact.companyId) {
+        const [company] = await db.select({ name: companies.name }).from(companies).where(eq(companies.id, contact.companyId));
+        companyName = company?.name || null;
+      }
+      if (contact.supplierId) {
+        const [supplier] = await db.select({ name: suppliers.name }).from(suppliers).where(eq(suppliers.id, contact.supplierId));
+        supplierName = supplier?.name || null;
+      }
+
+      res.json({ ...contact, companyName, supplierName });
+    } catch (error) {
+      console.error("Error fetching contact:", error);
+      res.status(500).json({ message: "Failed to fetch contact" });
     }
   });
 

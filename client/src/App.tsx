@@ -9,7 +9,7 @@ import Sidebar from "@/components/Sidebar";
 import Landing from "@/pages/landing";
 import Home from "@/pages/home";
 import CRM from "@/pages/crm";
-import ClientDetail from "@/pages/crm/client-detail";
+import ContactDetail from "@/pages/crm/contact-detail";
 import CompanyDetail from "@/pages/crm/company-detail";
 import Orders from "@/pages/orders";
 import Products from "@/pages/products";
@@ -94,7 +94,7 @@ function Router() {
           <Switch>
             <Route path="/" component={Home} />
             <Route path="/crm" component={CRM} />
-            <Route path="/crm/clients/:id" component={ClientDetail} />
+            <Route path="/crm/contacts/:id" component={ContactDetail} />
             <Route path="/crm/companies/:id" component={CompanyDetail} />
             <Route path="/orders" component={Orders} />
             <Route path="/orders/:orderId" component={OrderDetailsPage} />
