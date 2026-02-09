@@ -41,6 +41,7 @@ export function SendProofDialog({
   const [clientName, setClientName] = useState("");
   const [message, setMessage] = useState("");
   const [generatedLink, setGeneratedLink] = useState("");
+  const [emailSent, setEmailSent] = useState(false);
   const [copied, setCopied] = useState(false);
 
   const sendProofMutation = useMutation({
@@ -66,9 +67,12 @@ export function SendProofDialog({
     },
     onSuccess: (data) => {
       setGeneratedLink(data.approvalUrl);
+      setEmailSent(data.emailSent ?? false);
       toast({
         title: "Proof sent successfully",
-        description: `Approval link has been generated${clientEmail ? " and sent to " + clientEmail : ""}`,
+        description: data.emailSent
+          ? `Email sent to ${clientEmail} with approval link`
+          : "Approval link generated. Share it with your client.",
       });
       queryClient.invalidateQueries({ queryKey: [`/api/orders/${orderId}/approvals`] });
     },
@@ -96,6 +100,7 @@ export function SendProofDialog({
     setClientName("");
     setMessage("");
     setGeneratedLink("");
+    setEmailSent(false);
     setCopied(false);
     onClose();
   };
@@ -175,7 +180,7 @@ export function SendProofDialog({
                 <div className="flex-1">
                   <p className="font-medium text-green-900">Approval link generated!</p>
                   <p className="text-sm text-green-700 mt-1">
-                    {clientEmail
+                    {emailSent
                       ? `An email has been sent to ${clientEmail} with the approval link.`
                       : "Share the link below with your customer."}
                   </p>

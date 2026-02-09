@@ -846,6 +846,8 @@ export const integrationSettings = pgTable("integration_settings", {
   sageAcctId: varchar("sage_acct_id"),
   sageLoginId: varchar("sage_login_id"),
   sageApiKey: text("sage_api_key"),
+  // Mapbox Geocoding Integration (Address Autocomplete)
+  mapboxAccessToken: text("mapbox_access_token"),
   // Email Integration
   emailProvider: varchar("email_provider"),
   smtpHost: varchar("smtp_host"),

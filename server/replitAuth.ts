@@ -188,12 +188,13 @@ export async function setupAuth(app: Express) {
           if (err) {
             return res.status(500).send("Login failed");
           }
-          await upsertUser({
-            sub: "dev-user-id",
+          await storage.upsertUser({
+            id: "dev-user-id",
             email: "dev@example.com",
-            first_name: "Developer",
-            last_name: "Local",
-            profile_image_url: "https://via.placeholder.com/150",
+            firstName: "Developer",
+            lastName: "Local",
+            profileImageUrl: "https://via.placeholder.com/150",
+            role: "admin",
           });
           return res.redirect("/");
         }

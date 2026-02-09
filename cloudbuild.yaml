@@ -1,8 +1,10 @@
 # Google Cloud Build configuration untuk automated deployment
-# File ini akan digunakan oleh Cloud Build untuk build dan deploy aplikasi ke Cloud Run
+# Triggered on push to main branch via Cloud Build trigger
 
 substitutions:
-  _TAG: 'latest'
+  _REGION: 'asia-southeast2'
+  _REPO: 'cloud-run-source-deploy'
+  _TAG: '${SHORT_SHA}'
 
 steps:
   # Step 1: Build Docker image
@@ -10,17 +12,17 @@ steps:
     args:
       - 'build'
       - '-t'
-      - 'gcr.io/$PROJECT_ID/swagsuite:${_TAG}'
+      - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/swagsuite:${_TAG}'
       - '-t'
-      - 'gcr.io/$PROJECT_ID/swagsuite:latest'
+      - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/swagsuite:latest'
       - '.'
     id: 'build-image'
 
-  # Step 2: Push image ke Google Container Registry
+  # Step 2: Push image to Artifact Registry
   - name: 'gcr.io/cloud-builders/docker'
     args:
       - 'push'
-      - 'gcr.io/$PROJECT_ID/swagsuite:${_TAG}'
+      - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/swagsuite:${_TAG}'
     id: 'push-image'
     waitFor: ['build-image']
 
@@ -28,11 +30,11 @@ steps:
   - name: 'gcr.io/cloud-builders/docker'
     args:
       - 'push'
-      - 'gcr.io/$PROJECT_ID/swagsuite:latest'
+      - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/swagsuite:latest'
     id: 'push-latest'
     waitFor: ['build-image']
 
-  # Step 4: Deploy ke Cloud Run
+  # Step 4: Deploy ke Cloud Run (update-env-vars preserves existing secrets)
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     entrypoint: gcloud
     args:
@@ -40,9 +42,9 @@ steps:
       - 'deploy'
       - 'swagsuite'
       - '--image'
-      - 'gcr.io/$PROJECT_ID/swagsuite:${_TAG}'
+      - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/swagsuite:${_TAG}'
       - '--region'
-      - 'asia-southeast2' # Jakarta region, sesuaikan dengan kebutuhan
+      - '${_REGION}'
       - '--platform'
       - 'managed'
       - '--allow-unauthenticated'
@@ -53,23 +55,23 @@ steps:
       - '--min-instances'
       - '0'
       - '--max-instances'
-      - '10'
+      - '3'
       - '--timeout'
       - '300'
-      - '--set-env-vars'
+      - '--update-env-vars'
       - 'NODE_ENV=production'
     id: 'deploy-cloud-run'
     waitFor: ['push-image']
 
 # Images yang akan di-push ke registry
 images:
-  - 'gcr.io/$PROJECT_ID/swagsuite:${_TAG}'
-  - 'gcr.io/$PROJECT_ID/swagsuite:latest'
+  - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/swagsuite:${_TAG}'
+  - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/swagsuite:latest'
 
 # Options untuk build
 options:
-  machineType: 'N1_HIGHCPU_8'
+  machineType: 'E2_HIGHCPU_8'
   logging: CLOUD_LOGGING_ONLY
-  
+
 # Timeout untuk keseluruhan build process
 timeout: 1800s

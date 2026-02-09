@@ -42,6 +42,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "./ui/separator";
 import { Checkbox } from "@/components/ui/checkbox";
+import { AddressAutocomplete } from "@/components/ui/address-autocomplete";
 
 interface Contact {
   id: string;
@@ -197,7 +198,17 @@ const ContactFormFields = ({ form, sameAsBilling, setSameAsBilling }: { form: an
               <FormItem className="md:col-span-2">
                 <FormLabel>Street Address</FormLabel>
                 <FormControl>
-                  <Input placeholder="123 Main St" {...field} />
+                  <AddressAutocomplete
+                    value={field.value || ""}
+                    onChange={field.onChange}
+                    onAddressSelect={(addr) => {
+                      form.setValue("billingCity", addr.city);
+                      form.setValue("billingState", addr.state);
+                      form.setValue("billingZipCode", addr.zipCode);
+                      form.setValue("billingCountry", addr.country);
+                    }}
+                    placeholder="123 Main St"
+                  />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -282,7 +293,18 @@ const ContactFormFields = ({ form, sameAsBilling, setSameAsBilling }: { form: an
               <FormItem className="md:col-span-2">
                 <FormLabel>Street Address</FormLabel>
                 <FormControl>
-                  <Input placeholder="456 Oak Ave" {...field} disabled={sameAsBilling} />
+                  <AddressAutocomplete
+                    value={field.value || ""}
+                    onChange={field.onChange}
+                    onAddressSelect={(addr) => {
+                      form.setValue("shippingCity", addr.city);
+                      form.setValue("shippingState", addr.state);
+                      form.setValue("shippingZipCode", addr.zipCode);
+                      form.setValue("shippingCountry", addr.country);
+                    }}
+                    placeholder="456 Oak Ave"
+                    disabled={sameAsBilling}
+                  />
                 </FormControl>
                 <FormMessage />
               </FormItem>

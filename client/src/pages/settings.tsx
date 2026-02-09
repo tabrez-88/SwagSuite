@@ -45,6 +45,7 @@ import {
   List,
   Lock,
   Mail,
+  MapPin,
   Package,
   Palette,
   Plus,
@@ -600,6 +601,7 @@ export default function Settings() {
     sageAcctId: "",
     sageLoginId: "",
     sageApiKey: "",
+    mapboxAccessToken: "",
     quickbooksConnected: false,
     stripeConnected: false,
     shipmateConnected: false
@@ -611,7 +613,8 @@ export default function Settings() {
     sanmarPassword: false,
     slackBotToken: false,
     hubspotApiKey: false,
-    sageApiKey: false
+    sageApiKey: false,
+    mapboxAccessToken: false
   });
 
   // Update integrations when data is loaded
@@ -630,6 +633,7 @@ export default function Settings() {
         sageAcctId: settings.sageAcctId || "",
         sageLoginId: settings.sageLoginId || "",
         sageApiKey: settings.sageApiKey || "",
+        mapboxAccessToken: settings.mapboxAccessToken || "",
         quickbooksConnected: settings.quickbooksConnected || false,
         stripeConnected: settings.stripeConnected || false,
         shipmateConnected: settings.shipmateConnected || false
@@ -1966,6 +1970,51 @@ export default function Settings() {
                           )}
                         </Button>
                       </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Mapbox Geocoding */}
+                <div className="p-4 border rounded-lg">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <MapPin className="w-5 h-5 text-primary" />
+                      <h4 className="font-medium">Mapbox Geocoding</h4>
+                      <Badge variant={integrations.mapboxAccessToken ? "default" : "outline"}>
+                        {integrations.mapboxAccessToken ? "Connected" : "Not Connected"}
+                      </Badge>
+                    </div>
+                  </div>
+                  <p className="text-sm text-muted-foreground mb-3">
+                    Address autocomplete for all address forms. Get your token from{" "}
+                    <a href="https://account.mapbox.com/access-tokens/" target="_blank" rel="noopener noreferrer" className="text-primary underline">
+                      Mapbox Dashboard
+                    </a>.
+                  </p>
+                  <div className="space-y-2">
+                    <Label htmlFor="mapboxToken">Access Token</Label>
+                    <div className="relative">
+                      <Input
+                        id="mapboxToken"
+                        type={showFields.mapboxAccessToken ? "text" : "password"}
+                        placeholder="pk.eyJ1Ijoi..."
+                        value={integrations.mapboxAccessToken}
+                        onChange={(e) => setIntegrations(prev => ({ ...prev, mapboxAccessToken: e.target.value }))}
+                        className="pr-10"
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
+                        onClick={() => setShowFields(prev => ({ ...prev, mapboxAccessToken: !prev.mapboxAccessToken }))}
+                      >
+                        {showFields.mapboxAccessToken ? (
+                          <EyeOff className="h-4 w-4 text-gray-500" />
+                        ) : (
+                          <Eye className="h-4 w-4 text-gray-500" />
+                        )}
+                      </Button>
                     </div>
                   </div>
                 </div>

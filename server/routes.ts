@@ -1476,7 +1476,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const userEmail = requestingUser?.email || user.claims?.email || 'Unknown';
         
         if (adminEmails.length > 0) {
-          await emailService.send({
+          await emailService.sendEmail({
             to: adminEmails.join(','),
             subject: `[Action Required] Vendor Approval Request - ${supplier.name}`,
             html: `
@@ -1554,7 +1554,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       try {
         if (requester?.email) {
           const { emailService } = await import("./emailService");
-          await emailService.send({
+          await emailService.sendEmail({
             to: requester.email,
             subject: `Vendor Approval Request ${status === 'approved' ? 'Approved' : 'Rejected'} - ${supplier?.name}`,
             html: `
@@ -6967,6 +6967,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         sageAcctId: dbSettings?.sageAcctId || process.env.SAGE_ACCT_ID || "",
         sageLoginId: dbSettings?.sageLoginId || process.env.SAGE_LOGIN_ID || "",
         sageApiKey: dbSettings?.sageApiKey || process.env.SAGE_API_KEY || "",
+        mapboxAccessToken: dbSettings?.mapboxAccessToken || process.env.MAPBOX_ACCESS_TOKEN || "",
         quickbooksConnected: dbSettings?.quickbooksConnected || false,
         stripeConnected: dbSettings?.stripeConnected || false,
         shipmateConnected: dbSettings?.shipmateConnected || false
@@ -6997,6 +6998,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         sageAcctId: settings.sageAcctId ? '***' : '',
         sageLoginId: settings.sageLoginId ? '***' : '',
         sageApiKey: settings.sageApiKey ? '***' : '',
+        mapboxAccessToken: settings.mapboxAccessToken ? '***' : '',
         updatedBy: userId
       });
       
@@ -7018,6 +7020,59 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Error saving integration settings:', error);
       res.status(500).json({ error: 'Failed to save integration settings' });
+    }
+  });
+
+  // Mapbox Geocoding proxy - address autocomplete
+  app.get('/api/geocode/search', isAuthenticated, async (req, res) => {
+    try {
+      const { q } = req.query;
+
+      if (!q || typeof q !== 'string' || q.length < 3) {
+        return res.json({ suggestions: [] });
+      }
+
+      // Read token from DB settings first, then fallback to env
+      const dbSettings = await storage.getIntegrationSettings();
+      const mapboxToken = dbSettings?.mapboxAccessToken || process.env.MAPBOX_ACCESS_TOKEN;
+
+      if (!mapboxToken) {
+        return res.json({ suggestions: [], configured: false });
+      }
+
+      const encodedQuery = encodeURIComponent(q);
+      const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodedQuery}.json?access_token=${mapboxToken}&types=address&limit=5&autocomplete=true`;
+
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`Mapbox API returned ${response.status}`);
+      }
+
+      const data = await response.json();
+
+      const suggestions = (data.features || []).map((feature: any) => {
+        const context = feature.context || [];
+        const getContextValue = (id: string) =>
+          context.find((c: any) => c.id.startsWith(id))?.text || "";
+
+        return {
+          id: feature.id,
+          fullAddress: feature.place_name,
+          streetAddress: feature.address
+            ? `${feature.address} ${feature.text}`
+            : feature.text,
+          city: getContextValue("place"),
+          state: getContextValue("region"),
+          stateCode: context.find((c: any) => c.id.startsWith("region"))?.short_code?.replace(/^[A-Z]{2}-/, "") || "",
+          zipCode: getContextValue("postcode"),
+          country: context.find((c: any) => c.id.startsWith("country"))?.short_code?.toUpperCase() || "",
+        };
+      });
+
+      res.json({ suggestions });
+    } catch (error) {
+      console.error("Error fetching geocoding results:", error);
+      res.status(500).json({ message: "Failed to fetch address suggestions" });
     }
   });
 
@@ -8758,7 +8813,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
             // Log stage progression activity
             await storage.createActivity({
-              userId: 'system',
+              userId: order.assignedUserId || 'dev-user-id',
               entityType: 'order',
               entityId: order.id,
               action: 'stage_updated',
@@ -8776,7 +8831,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           for (const userId of usersToNotify) {
             const user = await storage.getUser(userId);
             if (user?.email) {
-              await emailService.send({
+              await emailService.sendEmail({
                 to: user.email,
                 subject: `✅ Artwork Approved - Order #${order.orderNumber}`,
                 html: `
@@ -8875,7 +8930,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           for (const userId of usersToNotify) {
             const user = await storage.getUser(userId);
             if (user?.email) {
-              await emailService.send({
+              await emailService.sendEmail({
                 to: user.email,
                 subject: `⚠️ Artwork Declined - Order #${order.orderNumber}`,
                 html: `
@@ -9185,7 +9240,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 for (const userId of usersToNotify) {
                   const user = await storage.getUser(userId);
                   if (user?.email) {
-                    await emailService.send({
+                    await emailService.sendEmail({
                       to: user.email,
                       subject: `✅ Artwork Approved - Order #${order.orderNumber}`,
                       html: `
@@ -9318,7 +9373,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 for (const userId of usersToNotify) {
                   const user = await storage.getUser(userId);
                   if (user?.email) {
-                    await emailService.send({
+                    await emailService.sendEmail({
                       to: user.email,
                       subject: `⚠️ Artwork Revision Requested - Order #${order.orderNumber}`,
                       html: `
@@ -9601,7 +9656,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           for (const userId of usersToNotify) {
             const user = await storage.getUser(userId);
             if (user?.email) {
-              await emailService.send({
+              await emailService.sendEmail({
                 to: user.email,
                 subject: `✅ Quote Approved - Order #${order.orderNumber} Ready for Production`,
                 html: `
@@ -9724,7 +9779,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           for (const userId of usersToNotify) {
             const user = await storage.getUser(userId);
             if (user?.email) {
-              await emailService.send({
+              await emailService.sendEmail({
                 to: user.email,
                 subject: `❌ Quote Declined - Order #${order.orderNumber}`,
                 html: `
@@ -10155,14 +10210,59 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const approvalUrl = `${req.protocol}://${req.get('host')}/approval/${token}`;
 
-      // TODO: Send email with approval link and message
-      // For now, just return the link
+      // Send email to client with approval link
+      let emailSent = false;
+      if (clientEmail) {
+        try {
+          const { emailService } = await import("./emailService");
+          const clientDisplayName = clientName || clientEmail;
+          const customMessage = message
+            ? `<p style="color: #374151; line-height: 1.6; font-size: 14px;">${(message as string).replace(/\n/g, '<br>')}</p>`
+            : '';
+
+          await emailService.sendEmail({
+            to: clientEmail,
+            subject: `Artwork Proof for Review - Order #${order.orderNumber}`,
+            html: `
+              <!DOCTYPE html>
+              <html>
+              <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+              <body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f3f4f6;">
+                <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff;">
+                  <div style="background-color: #2563eb; padding: 30px; text-align: center;">
+                    <h1 style="color: #ffffff; margin: 0; font-size: 24px;">Artwork Proof</h1>
+                    <p style="color: #dbeafe; margin: 5px 0 0 0; font-size: 14px;">Order #${order.orderNumber}</p>
+                  </div>
+                  <div style="padding: 30px;">
+                    <p style="color: #374151; line-height: 1.6; font-size: 14px;">Hi ${clientDisplayName},</p>
+                    <p style="color: #374151; line-height: 1.6; font-size: 14px;">Your artwork proof is ready for review. Please click the button below to view and approve the proof.</p>
+                    ${customMessage}
+                    <div style="text-align: center; margin: 30px 0;">
+                      <a href="${approvalUrl}" style="background-color: #2563eb; color: #ffffff; padding: 14px 32px; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px; display: inline-block;">Review &amp; Approve Artwork</a>
+                    </div>
+                    <p style="color: #6b7280; font-size: 12px; text-align: center;">Or copy this link: <a href="${approvalUrl}" style="color: #2563eb;">${approvalUrl}</a></p>
+                  </div>
+                  <div style="background-color: #f9fafb; padding: 20px; text-align: center; border-top: 1px solid #e5e7eb;">
+                    <p style="color: #6b7280; font-size: 12px; margin: 0;">Sent from SwagSuite</p>
+                  </div>
+                </div>
+              </body>
+              </html>
+            `,
+          });
+          emailSent = true;
+          console.log(`✓ Proof approval email sent to ${clientEmail} for order ${order.orderNumber}`);
+        } catch (emailError) {
+          console.error("Failed to send proof email to client:", emailError);
+        }
+      }
 
       res.json({
         success: true,
         message: "Approval request created",
         approval,
-        approvalUrl
+        approvalUrl,
+        emailSent
       });
     } catch (error) {
       console.error('Error requesting artwork approval:', error);

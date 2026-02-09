@@ -39,6 +39,7 @@ import { isUnauthorizedError } from "@/lib/authUtils";
 import type { Company, Order } from "@shared/schema";
 import { Separator } from "./ui/separator";
 import { Checkbox } from "@/components/ui/checkbox";
+import { AddressAutocomplete } from "@/components/ui/address-autocomplete";
 
 interface OrderModalProps {
   open: boolean;
@@ -932,11 +933,17 @@ export default function OrderModal({ open, onOpenChange, order, initialCompanyId
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="md:col-span-2">
                   <Label htmlFor="billingStreet">Street Address</Label>
-                  <Input
+                  <AddressAutocomplete
                     id="billingStreet"
-                    placeholder="123 Main St"
                     value={formData.billingStreet}
-                    onChange={(e) => handleFieldChange("billingStreet", e.target.value)}
+                    onChange={(val) => handleFieldChange("billingStreet", val)}
+                    onAddressSelect={(addr) => {
+                      handleFieldChange("billingCity", addr.city);
+                      handleFieldChange("billingState", addr.state);
+                      handleFieldChange("billingZipCode", addr.zipCode);
+                      handleFieldChange("billingCountry", addr.country);
+                    }}
+                    placeholder="123 Main St"
                   />
                 </div>
                 <div>
@@ -1013,11 +1020,17 @@ export default function OrderModal({ open, onOpenChange, order, initialCompanyId
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="md:col-span-2">
                   <Label htmlFor="shippingStreet">Street Address</Label>
-                  <Input
+                  <AddressAutocomplete
                     id="shippingStreet"
-                    placeholder="123 Main St"
                     value={formData.shippingStreet}
-                    onChange={(e) => handleFieldChange("shippingStreet", e.target.value)}
+                    onChange={(val) => handleFieldChange("shippingStreet", val)}
+                    onAddressSelect={(addr) => {
+                      handleFieldChange("shippingCity", addr.city);
+                      handleFieldChange("shippingState", addr.state);
+                      handleFieldChange("shippingZipCode", addr.zipCode);
+                      handleFieldChange("shippingCountry", addr.country);
+                    }}
+                    placeholder="123 Main St"
                     disabled={sameAsBilling}
                   />
                 </div>

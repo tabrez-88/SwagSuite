@@ -41,6 +41,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { apiRequest } from "@/lib/queryClient";
+import { AddressAutocomplete } from "@/components/ui/address-autocomplete";
 
 // Industry options
 const INDUSTRY_OPTIONS = [
@@ -783,7 +784,17 @@ export default function CompanyDetail() {
                   <FormItem>
                     <FormLabel>Address</FormLabel>
                     <FormControl>
-                      <Input placeholder="123 Business Ave" {...field} />
+                      <AddressAutocomplete
+                        value={field.value || ""}
+                        onChange={field.onChange}
+                        onAddressSelect={(addr) => {
+                          form.setValue("city", addr.city);
+                          form.setValue("state", addr.state);
+                          form.setValue("zipCode", addr.zipCode);
+                          form.setValue("country", addr.country);
+                        }}
+                        placeholder="123 Business Ave"
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

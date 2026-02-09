@@ -21,6 +21,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { isUnauthorizedError } from "@/lib/authUtils";
 import { Truck, Search, Plus, Mail, Phone, Globe, AlertTriangle, Star } from "lucide-react";
 import type { Supplier } from "@shared/schema";
+import { AddressAutocomplete } from "@/components/ui/address-autocomplete";
 
 export default function Suppliers() {
   const [searchQuery, setSearchQuery] = useState("");
@@ -195,10 +196,20 @@ export default function Suppliers() {
                 </div>
                 <div>
                   <Label htmlFor="address">Address</Label>
-                  <Input
+                  <AddressAutocomplete
                     id="address"
                     value={newSupplier.address}
-                    onChange={(e) => setNewSupplier(prev => ({ ...prev, address: e.target.value }))}
+                    onChange={(val) => setNewSupplier(prev => ({ ...prev, address: val }))}
+                    onAddressSelect={(addr) => {
+                      const fullAddress = [
+                        addr.street,
+                        addr.city,
+                        addr.state,
+                        addr.zipCode,
+                        addr.country,
+                      ].filter(Boolean).join(", ");
+                      setNewSupplier(prev => ({ ...prev, address: fullAddress }));
+                    }}
                     placeholder="Full address"
                   />
                 </div>
