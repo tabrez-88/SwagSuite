@@ -60,6 +60,7 @@ import { isUnauthorizedError } from "@/lib/authUtils";
 import { useLocation } from "wouter";
 import { STAGE_STATUS_MAP, type ProductionStage } from "@/lib/productionStages";
 import { useProductionStages } from "@/hooks/useProductionStages";
+import { useAuth } from "@/hooks/useAuth";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface ProductionOrder {
@@ -85,10 +86,15 @@ interface ProductionOrder {
   stageData?: Record<string, any>; // Custom data for each stage
   trackingNumber?: string;
   customNotes?: Record<string, string>; // Custom notes per stage
+  margin?: number;
+  isFirm?: boolean;
+  isRush?: boolean;
+  companyId?: string;
 }
 
 export default function ProductionReport() {
   const { stages, createStage, updateStage, deleteStage, reorderStages, resetStages, isCreating, isDeleting, isResetting } = useProductionStages();
+  const { user: currentUser } = useAuth();
   const [selectedOrder, setSelectedOrder] = useState<ProductionOrder | null>(null);
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
   const [isStageModalOpen, setIsStageModalOpen] = useState(false);
@@ -99,6 +105,7 @@ export default function ProductionReport() {
   const [filterAssignee, setFilterAssignee] = useState('all');
   const [filterPriority, setFilterPriority] = useState('all');
   const [filterStage, setFilterStage] = useState('all');
+  const [filterCompany, setFilterCompany] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [editingStageData, setEditingStageData] = useState<Record<string, any>>({});
   const [stageInputs, setStageInputs] = useState<Record<string, string>>({});
@@ -231,15 +238,16 @@ export default function ProductionReport() {
         id: order.id,
         orderNumber: order.orderNumber,
         companyName: company?.name || 'Unknown Company',
-        productName: 'Order Items', // We'll enhance this later with actual product names
-        quantity: 1, // Calculate from order items
+        companyId: order.companyId,
+        productName: 'Order Items',
+        quantity: 1,
         currentStage: order.currentStage || 'sales-booked',
         assignedTo: assignedUser ? `${assignedUser.firstName} ${assignedUser.lastName}` : undefined,
         csrAssignedTo: csrUser ? `${csrUser.firstName} ${csrUser.lastName}` : undefined,
-        assignedUser: assignedUser, // Store full user object for avatar
-        csrUser: csrUser, // Store full CSR user object for avatar
-        nextActionDate: order.stageData?.nextActionDate,
-        nextActionNotes: order.customNotes?.nextAction,
+        assignedUser: assignedUser,
+        csrUser: csrUser,
+        nextActionDate: order.nextActionDate || order.stageData?.nextActionDate,
+        nextActionNotes: order.nextActionNotes || order.customNotes?.nextAction,
         stagesCompleted: order.stagesCompleted || ['sales-booked'],
         priority: order.inHandsDate && new Date(order.inHandsDate) <= addDays(new Date(), 7) ? 'high' : 'medium',
         dueDate: order.inHandsDate,
@@ -247,6 +255,9 @@ export default function ProductionReport() {
         subtotal: Number(order.subtotal || 0),
         tax: Number(order.tax || 0),
         shipping: Number(order.shipping || 0),
+        margin: Number(order.margin || 0),
+        isFirm: order.isFirm || false,
+        isRush: order.isRush || false,
         stageData: order.stageData || {},
         trackingNumber: order.trackingNumber,
         customNotes: order.customNotes || {},
@@ -281,13 +292,37 @@ export default function ProductionReport() {
     return Math.round(((completedStages + currentStageBonus) / totalStages) * 100);
   };
 
-  const handleStageReorder = async (fromIndex: number, toIndex: number) => {
-    const newStages = Array.from(stages);
-    const [reorderedStage] = newStages.splice(fromIndex, 1);
-    newStages.splice(toIndex, 0, reorderedStage);
+  // Drag-and-drop state for live reordering preview
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
+  const [localStages, setLocalStages] = useState<typeof stages | null>(null);
+  const displayStages = localStages ?? stages;
 
+  const handleDragStart = (e: React.DragEvent, index: number) => {
+    setDragIndex(index);
+    setLocalStages(Array.from(stages));
+    e.dataTransfer.effectAllowed = 'move';
+    // Use a transparent drag image so we rely on our own visual feedback
+    const el = e.currentTarget as HTMLElement;
+    e.dataTransfer.setDragImage(el, 20, 20);
+  };
+
+  const handleDragOver = (e: React.DragEvent, overIndex: number) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (dragIndex === null || dragIndex === overIndex || !localStages) return;
+    // Reorder the local preview
+    const updated = Array.from(localStages);
+    const [moved] = updated.splice(dragIndex, 1);
+    updated.splice(overIndex, 0, moved);
+    setLocalStages(updated);
+    setDragIndex(overIndex);
+  };
+
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    if (!localStages) return;
     try {
-      await reorderStages(newStages.map(s => s.id));
+      await reorderStages(localStages.map(s => s.id));
       toast({
         title: "Stages Reordered",
         description: "Production stages have been updated successfully.",
@@ -295,22 +330,13 @@ export default function ProductionReport() {
     } catch {
       toast({ title: "Error", description: "Failed to reorder stages.", variant: "destructive" });
     }
+    setDragIndex(null);
+    setLocalStages(null);
   };
 
-  const handleDragStart = (e: React.DragEvent, index: number) => {
-    e.dataTransfer.setData('text/plain', index.toString());
-  };
-
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-  };
-
-  const handleDrop = (e: React.DragEvent, dropIndex: number) => {
-    e.preventDefault();
-    const dragIndex = parseInt(e.dataTransfer.getData('text/plain'));
-    if (dragIndex !== dropIndex) {
-      handleStageReorder(dragIndex, dropIndex);
-    }
+  const handleDragEnd = () => {
+    setDragIndex(null);
+    setLocalStages(null);
   };
 
   const handleOrderClick = (order: ProductionOrder) => {
@@ -547,6 +573,7 @@ export default function ProductionReport() {
     if (filterAssignee !== 'all' && order.assignedTo !== filterAssignee) return false;
     if (filterPriority !== 'all' && order.priority !== filterPriority) return false;
     if (filterStage !== 'all' && order.currentStage !== filterStage) return false;
+    if (filterCompany !== 'all' && order.companyId !== filterCompany) return false;
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
       const matchesOrderNumber = order.orderNumber.toLowerCase().includes(query);
@@ -624,6 +651,7 @@ export default function ProductionReport() {
               List
             </Button>
           </div>
+          {((currentUser as any)?.role === 'admin' || (currentUser as any)?.role === 'manager') ? (
           <Dialog open={isStageModalOpen} onOpenChange={setIsStageModalOpen}>
             <DialogTrigger asChild>
               <Button variant="outline">
@@ -639,19 +667,24 @@ export default function ProductionReport() {
                 {/* Stage List with Edit/Delete */}
                 <div>
                   <h3 className="font-medium mb-3">Current Stages (Drag to Reorder)</h3>
-                  <div className="space-y-2">
-                    {stages.map((stage, index) => (
+                  <div className="space-y-1">
+                    {displayStages.map((stage, index) => (
                       <div
                         key={stage.id}
                         draggable
                         onDragStart={(e) => handleDragStart(e, index)}
-                        onDragOver={handleDragOver}
-                        onDrop={(e) => handleDrop(e, index)}
-                        className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border cursor-move hover:bg-gray-100 transition-colors"
+                        onDragOver={(e) => handleDragOver(e, index)}
+                        onDrop={handleDrop}
+                        onDragEnd={handleDragEnd}
+                        className={`flex items-center justify-between p-3 rounded-lg border cursor-move transition-all duration-150 ${
+                          dragIndex === index
+                            ? 'bg-blue-50 border-blue-300 shadow-md scale-[1.02] ring-2 ring-blue-200'
+                            : 'bg-gray-50 border-gray-200 hover:bg-gray-100'
+                        }`}
                       >
                         <div className="flex items-center space-x-3">
-                          <GripVertical className="h-4 w-4 text-gray-400" />
-                          <span className="text-sm font-medium text-gray-500 w-5">#{stage.order}</span>
+                          <GripVertical className={`h-4 w-4 ${dragIndex === index ? 'text-blue-500' : 'text-gray-400'}`} />
+                          <span className="text-sm font-medium text-gray-500 w-5">#{index + 1}</span>
                           <Badge className={stage.color}>{stage.name}</Badge>
                           {stage.description && (
                             <span className="text-xs text-gray-500 hidden md:inline">{stage.description}</span>
@@ -842,6 +875,7 @@ export default function ProductionReport() {
               </div>
             </DialogContent>
           </Dialog>
+          ) : null}
         </div>
       </div>
 
@@ -916,10 +950,30 @@ export default function ProductionReport() {
                 </SelectContent>
               </Select>
             </div>
+
+            {/* Company Filter */}
+            <div>
+              <Label htmlFor="companyFilter">Filter by Company:</Label>
+              <Select value={filterCompany} onValueChange={setFilterCompany}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Companies</SelectItem>
+                  {companies
+                    .filter((c: any) => ordersToDisplay.some((o: ProductionOrder) => o.companyId === c.id))
+                    .map((company: any) => (
+                      <SelectItem key={company.id} value={company.id}>
+                        {company.name}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
           {/* Active Filters Summary */}
-          {(searchQuery || filterStage !== 'all' || filterAssignee !== 'all' || filterPriority !== 'all') && (
+          {(searchQuery || filterStage !== 'all' || filterAssignee !== 'all' || filterPriority !== 'all' || filterCompany !== 'all') && (
             <div className="flex items-center gap-2 mt-3 pt-3 border-t">
               <span className="text-sm text-gray-600">Active filters:</span>
               {searchQuery && (
@@ -954,6 +1008,14 @@ export default function ProductionReport() {
                   </button>
                 </Badge>
               )}
+              {filterCompany !== 'all' && (
+                <Badge variant="secondary" className="gap-1">
+                  Company: {companies.find((c: any) => c.id === filterCompany)?.name || filterCompany}
+                  <button onClick={() => setFilterCompany('all')} className="ml-1 hover:text-red-600">
+                    ×
+                  </button>
+                </Badge>
+              )}
               <Button
                 variant="ghost"
                 size="sm"
@@ -962,6 +1024,7 @@ export default function ProductionReport() {
                   setFilterStage('all');
                   setFilterAssignee('all');
                   setFilterPriority('all');
+                  setFilterCompany('all');
                 }}
                 className="text-xs"
               >
@@ -1028,9 +1091,21 @@ export default function ProductionReport() {
                               </Button>
                               <div>
                                 <div className="font-semibold">{order.orderNumber}</div>
-                                <Badge className={getPriorityColor(order.priority)} variant="outline">
-                                  {order.priority}
-                                </Badge>
+                                <div className="flex gap-1 flex-wrap">
+                                  <Badge className={getPriorityColor(order.priority)} variant="outline">
+                                    {order.priority}
+                                  </Badge>
+                                  {order.isFirm && (
+                                    <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-300 text-xs">
+                                      FIRM
+                                    </Badge>
+                                  )}
+                                  {order.isRush && (
+                                    <Badge variant="outline" className="bg-red-50 text-red-700 border-red-300 text-xs">
+                                      RUSH
+                                    </Badge>
+                                  )}
+                                </div>
                               </div>
                             </div>
                           </td>
@@ -1076,6 +1151,9 @@ export default function ProductionReport() {
                           </td>
                           <td className="px-4 py-4">
                             <div className="text-sm font-semibold">${order.orderValue.toLocaleString()}</div>
+                            {order.margin != null && order.margin > 0 && (
+                              <div className="text-xs text-green-600 font-medium">{order.margin}% margin</div>
+                            )}
                             <div className="text-xs text-gray-500">Due: {order.dueDate ? format(new Date(order.dueDate), 'MMM dd') : 'TBD'}</div>
                           </td>
                           <td className="px-4 py-4">
@@ -1195,6 +1273,16 @@ export default function ProductionReport() {
                         <Badge className={getPriorityColor(order.priority)}>
                           {order.priority.toUpperCase()}
                         </Badge>
+                        {order.isFirm && (
+                          <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-300">
+                            FIRM
+                          </Badge>
+                        )}
+                        {order.isRush && (
+                          <Badge variant="outline" className="bg-red-50 text-red-700 border-red-300">
+                            RUSH
+                          </Badge>
+                        )}
                       </div>
                       {order.nextActionDate === format(new Date(), 'yyyy-MM-dd') && (
                         <Badge variant="destructive" className="animate-pulse text-nowrap h-fit gap-2 flex">
@@ -1268,6 +1356,9 @@ export default function ProductionReport() {
                     </div>
                     <div className="text-right">
                       <p className="font-semibold">${order.orderValue.toLocaleString()}</p>
+                      {order.margin != null && order.margin > 0 && (
+                        <p className="text-sm text-green-600 font-medium">{order.margin}% margin</p>
+                      )}
                       <p className="text-sm text-gray-500">Due: {order.dueDate ? format(new Date(order.dueDate), 'MMM dd') : 'TBD'}</p>
                     </div>
                   </div>
@@ -1433,16 +1524,32 @@ export default function ProductionReport() {
                         <span>Total:</span>
                         <span className="text-green-600">${selectedOrder.orderValue.toLocaleString()}</span>
                       </div>
+                      {selectedOrder.margin != null && selectedOrder.margin > 0 && (
+                        <div className="flex justify-between pt-1 text-green-600 font-medium">
+                          <span>Margin:</span>
+                          <span>{selectedOrder.margin}%</span>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
                 <div>
                   <h3 className="font-medium mb-3">Production Details</h3>
                   <div className="space-y-2 text-sm">
-                    <p><span className="font-medium">Priority:</span>
-                      <Badge className={`ml-2 ${getPriorityColor(selectedOrder.priority)}`}>
+                    <p className="flex items-center flex-wrap gap-1"><span className="font-medium">Priority:</span>
+                      <Badge className={`ml-1 ${getPriorityColor(selectedOrder.priority)}`}>
                         {selectedOrder.priority.toUpperCase()}
                       </Badge>
+                      {selectedOrder.isFirm && (
+                        <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-300">
+                          FIRM
+                        </Badge>
+                      )}
+                      {selectedOrder.isRush && (
+                        <Badge variant="outline" className="bg-red-50 text-red-700 border-red-300">
+                          RUSH
+                        </Badge>
+                      )}
                     </p>
                     <p><span className="font-medium">Due Date:</span> {selectedOrder.dueDate ? format(new Date(selectedOrder.dueDate), 'MMM dd, yyyy') : 'TBD'}</p>
                     <div className="flex items-center justify-between">
@@ -1741,7 +1848,9 @@ export default function ProductionReport() {
                           customNotes: {
                             ...(selectedOrder.customNotes || {}),
                             nextAction: nextActionNotes || undefined,
-                          }
+                          },
+                          nextActionDate: nextActionDate || null,
+                          nextActionNotes: nextActionNotes || null,
                         }
                       });
                     }

@@ -5477,7 +5477,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.patch('/api/orders/:id/production', isAuthenticated, async (req, res) => {
     try {
-      const { currentStage, stagesCompleted, stageData, status, trackingNumber } = req.body;
+      const { currentStage, stagesCompleted, stageData, status, trackingNumber, customNotes, nextActionDate, nextActionNotes } = req.body;
 
       const updateData: any = {};
       if (currentStage) updateData.currentStage = currentStage;
@@ -5485,6 +5485,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (stageData) updateData.stageData = stageData;
       if (status) updateData.status = status;
       if (trackingNumber) updateData.trackingNumber = trackingNumber;
+      if (customNotes !== undefined) updateData.customNotes = customNotes;
+      // Save next action date/notes to proper columns for notification scheduler
+      if (nextActionDate !== undefined) updateData.nextActionDate = nextActionDate ? new Date(nextActionDate) : null;
+      if (nextActionNotes !== undefined) updateData.nextActionNotes = nextActionNotes || null;
 
       const order = await storage.updateOrder(req.params.id, updateData);
 
@@ -5517,6 +5521,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/production/stages', isAuthenticated, async (req, res) => {
     try {
+      const currentUser = await storage.getUser((req as any).user.claims.sub);
+      if (currentUser?.role !== 'admin' && currentUser?.role !== 'manager') {
+        return res.status(403).json({ message: "Only administrators and managers can create production stages" });
+      }
+
       const { name, description, color, icon } = req.body;
       if (!name) {
         return res.status(400).json({ message: 'Stage name is required' });
@@ -5542,6 +5551,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.put('/api/production/stages/:id', isAuthenticated, async (req, res) => {
     try {
+      const currentUser = await storage.getUser((req as any).user.claims.sub);
+      if (currentUser?.role !== 'admin' && currentUser?.role !== 'manager') {
+        return res.status(403).json({ message: "Only administrators and managers can update production stages" });
+      }
+
       const { name, description, color, icon } = req.body;
       const stage = await storage.updateProductionStage(req.params.id, {
         ...(name && { name }),
@@ -5558,6 +5572,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.delete('/api/production/stages/:id', isAuthenticated, async (req, res) => {
     try {
+      const currentUser = await storage.getUser((req as any).user.claims.sub);
+      if (currentUser?.role !== 'admin' && currentUser?.role !== 'manager') {
+        return res.status(403).json({ message: "Only administrators and managers can delete production stages" });
+      }
+
       await storage.deleteProductionStage(req.params.id);
       res.json({ success: true });
     } catch (error) {
@@ -5568,6 +5587,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/production/stages/reorder', isAuthenticated, async (req, res) => {
     try {
+      const currentUser = await storage.getUser((req as any).user.claims.sub);
+      if (currentUser?.role !== 'admin' && currentUser?.role !== 'manager') {
+        return res.status(403).json({ message: "Only administrators and managers can reorder production stages" });
+      }
+
       const { stageIds } = req.body;
       if (!Array.isArray(stageIds)) {
         return res.status(400).json({ message: 'stageIds array is required' });
@@ -5582,6 +5606,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/production/stages/reset', isAuthenticated, async (req, res) => {
     try {
+      const currentUser = await storage.getUser((req as any).user.claims.sub);
+      if (currentUser?.role !== 'admin' && currentUser?.role !== 'manager') {
+        return res.status(403).json({ message: "Only administrators and managers can reset production stages" });
+      }
+
       const { db: database } = await import("./db");
       const { productionStages } = await import("@shared/schema");
       await database.delete(productionStages);
@@ -5591,6 +5620,51 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Error resetting production stages:', error);
       res.status(500).json({ message: 'Failed to reset production stages' });
+    }
+  });
+
+  // Get orders with actions due today
+  app.get('/api/production/daily-actions', isAuthenticated, async (req, res) => {
+    try {
+      const { db } = await import("./db");
+      const { orders } = await import("@shared/schema");
+      const { and, isNotNull, sql: sqlFn } = await import("drizzle-orm");
+
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      const ordersWithActions = await db
+        .select()
+        .from(orders)
+        .where(
+          and(
+            isNotNull(orders.nextActionDate),
+            sqlFn`DATE(${orders.nextActionDate}) = DATE(${today})`
+          )
+        );
+
+      res.json({ orders: ordersWithActions, count: ordersWithActions.length });
+    } catch (error) {
+      console.error('Error fetching daily actions:', error);
+      res.status(500).json({ message: 'Failed to fetch daily actions' });
+    }
+  });
+
+  // Manually trigger daily notification processing (admin/manager only)
+  app.post('/api/production/process-daily-notifications', isAuthenticated, async (req, res) => {
+    try {
+      const currentUser = await storage.getUser((req as any).user.claims.sub);
+      if (currentUser?.role !== 'admin' && currentUser?.role !== 'manager') {
+        return res.status(403).json({ message: "Only administrators and managers can trigger notification processing" });
+      }
+
+      const { notificationScheduler } = await import("./notificationScheduler");
+      await notificationScheduler.processDailyNotifications();
+
+      res.json({ success: true, message: 'Daily notifications processed' });
+    } catch (error) {
+      console.error('Error processing daily notifications:', error);
+      res.status(500).json({ message: 'Failed to process daily notifications' });
     }
   });
 
@@ -9173,6 +9247,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         })
         .returning();
 
+      // Auto-update order status to pending_approval when approval link is generated
+      if (order.status === 'quote' || order.status === 'in_production') {
+        await db
+          .update(orders)
+          .set({ status: 'pending_approval', updatedAt: new Date() })
+          .where(eq(orders.id, orderId));
+      }
+
       res.json({
         ...newApproval,
         approvalUrl: `${req.protocol}://${req.get('host')}/approval/${token}`
@@ -9585,6 +9667,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         pdfPath: pdfPath || null,
         sentAt: new Date(),
       }).returning();
+
+      // Auto-update order status to pending_approval when quote approval is sent
+      if (order.status === 'quote') {
+        await db
+          .update(orders)
+          .set({ status: 'pending_approval', updatedAt: new Date() })
+          .where(eq(orders.id, orderId));
+      }
 
       res.json({
         ...approval,
@@ -10398,6 +10488,47 @@ export async function registerRoutes(app: Express): Promise<Server> {
         } catch (emailError) {
           console.error("Failed to send proof email to client:", emailError);
         }
+      }
+
+      // Auto-update order status to pending_approval when proof is sent to client
+      if (order.status !== 'pending_approval' && order.status !== 'approved') {
+        await db
+          .update(orders)
+          .set({ status: 'pending_approval', updatedAt: new Date() })
+          .where(eq(orders.id, orderId));
+      }
+
+      // Auto-advance production stage to 'proof-received' when proof is sent
+      try {
+        const stagesCompleted = Array.isArray(order.stagesCompleted)
+          ? order.stagesCompleted
+          : JSON.parse(JSON.stringify(order.stagesCompleted || '["sales-booked"]'));
+        const stagesArr = Array.isArray(stagesCompleted) ? stagesCompleted : JSON.parse(stagesCompleted);
+
+        if (!stagesArr.includes('proof-received')) {
+          const updatedCompleted = Array.from(new Set([...stagesArr, 'proof-received']));
+
+          await db
+            .update(orders)
+            .set({
+              currentStage: 'proof-received',
+              stagesCompleted: updatedCompleted,
+              updatedAt: new Date(),
+            })
+            .where(eq(orders.id, orderId));
+
+          await storage.createActivity({
+            userId: (req as any).user?.claims?.sub || (req.user as any)?.id,
+            entityType: 'order',
+            entityId: orderId,
+            action: 'stage_updated',
+            description: `Production stage auto-advanced to "Proof Received" when proof was sent to client`,
+          });
+
+          console.log(`✓ Order ${order.orderNumber} stage auto-advanced to proof-received`);
+        }
+      } catch (stageError) {
+        console.error("Failed to auto-advance production stage to proof-received:", stageError);
       }
 
       res.json({

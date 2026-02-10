@@ -633,20 +633,8 @@ SwagSuite Team`,
         </CardContent>
       </Card>
 
-      {/* Quote Generator */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <FileText className="w-5 h-5" />
-            Generate Quote
-          </CardTitle>
-          <CardDescription>
-            Create a professional quote document for your client
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {/* Off-screen element for PDF generation */}
-          <div ref={quoteRef} style={{ position: 'absolute', left: '-9999px', top: 0, visibility: 'hidden' }}>
+      {/* Hidden off-screen quote template for PDF generation */}
+      <div ref={quoteRef} style={{ position: 'absolute', left: '-9999px', top: 0, visibility: 'hidden' }}>
             <div className="p-8 bg-white" style={{ width: '794px', minHeight: '1123px' }}>
               <div className="flex justify-between items-start mb-6 pb-4 border-b-2 border-gray-300">
                 <div>
@@ -774,8 +762,6 @@ SwagSuite Team`,
               </div>
             </div>
           </div>
-        </CardContent>
-      </Card>
 
       {/* Hidden PO templates for PDF generation */}
       {orderVendors.map((vendor: any) => {

@@ -53,6 +53,14 @@ app.use((req, res, next) => {
     console.error("Failed to seed production stages:", e);
   }
 
+  // Start notification scheduler for daily action reminders
+  try {
+    const { notificationScheduler } = await import("./notificationScheduler");
+    notificationScheduler.start(3600000); // Check every hour
+  } catch (e) {
+    console.error("Failed to start notification scheduler:", e);
+  }
+
   const server = await registerRoutes(app);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {

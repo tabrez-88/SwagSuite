@@ -267,6 +267,7 @@ function OrderDetailsModal({ open, onOpenChange, orderId, pageMode }: OrderDetai
     inHandsDate: "",
     eventDate: "",
     isFirm: false,
+    isRush: false,
     shippingMethod: ""
   });
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -1751,6 +1752,7 @@ function OrderDetailsModal({ open, onOpenChange, orderId, pageMode }: OrderDetai
         ? new Date(order.eventDate).toISOString().split('T')[0]
         : "",
       isFirm: (order as any).isFirm || false,
+      isRush: (order as any).isRush || false,
       shippingMethod: (order as any).shippingMethod || ""
     });
     setIsEditShippingInfoOpen(true);
@@ -1822,6 +1824,7 @@ function OrderDetailsModal({ open, onOpenChange, orderId, pageMode }: OrderDetai
     if (shippingInfoForm.inHandsDate) data.inHandsDate = shippingInfoForm.inHandsDate;
     if (shippingInfoForm.eventDate) data.eventDate = shippingInfoForm.eventDate;
     data.isFirm = shippingInfoForm.isFirm;
+    data.isRush = shippingInfoForm.isRush;
     updateShippingInfoMutation.mutate(data);
   };
 
@@ -2438,6 +2441,11 @@ function OrderDetailsModal({ open, onOpenChange, orderId, pageMode }: OrderDetai
                           {(order as any).isFirm && (
                             <Badge variant="destructive" className="text-xs">
                               FIRM
+                            </Badge>
+                          )}
+                          {(order as any).isRush && (
+                            <Badge variant="outline" className="text-xs bg-red-50 text-red-700 border-red-300">
+                              RUSH
                             </Badge>
                           )}
                           {isRushOrder && (
@@ -4562,15 +4570,27 @@ function OrderDetailsModal({ open, onOpenChange, orderId, pageMode }: OrderDetai
                   onChange={(e) => setShippingInfoForm({ ...shippingInfoForm, eventDate: e.target.value })}
                 />
               </div>
-              <div className="flex items-center space-x-2 pt-6">
-                <input
-                  type="checkbox"
-                  id="is-firm"
-                  checked={shippingInfoForm.isFirm}
-                  onChange={(e) => setShippingInfoForm({ ...shippingInfoForm, isFirm: e.target.checked })}
-                  className="rounded"
-                />
-                <Label htmlFor="is-firm">Firm In-Hands Date</Label>
+              <div className="flex items-center gap-6 pt-6">
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    id="is-firm"
+                    checked={shippingInfoForm.isFirm}
+                    onChange={(e) => setShippingInfoForm({ ...shippingInfoForm, isFirm: e.target.checked })}
+                    className="rounded"
+                  />
+                  <Label htmlFor="is-firm">Firm In-Hands Date</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    id="is-rush"
+                    checked={shippingInfoForm.isRush}
+                    onChange={(e) => setShippingInfoForm({ ...shippingInfoForm, isRush: e.target.checked })}
+                    className="rounded"
+                  />
+                  <Label htmlFor="is-rush" className="text-red-600 font-medium">Rush Order</Label>
+                </div>
               </div>
             </div>
           </div>
