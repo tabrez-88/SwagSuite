@@ -9972,7 +9972,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         await db
           .update(orders)
           .set({
-            status: "revision_needed",
+            status: "pending_approval",
             updatedAt: new Date(),
           })
           .where(eq(orders.id, order.id));
@@ -10675,7 +10675,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const { db } = await import("./db");
       const { generatedDocuments } = await import("@shared/schema");
-      const userId = req.user?.id;
+      const userId = (req as any).user?.claims?.sub;
 
       if (!req.file) {
         console.error('No file in request');
@@ -10758,6 +10758,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Fetch PDF from Cloudinary
+      if (!document.fileUrl) {
+        return res.status(404).json({ message: 'Document file URL not found' });
+      }
       const response = await fetch(document.fileUrl);
 
       if (!response.ok) {
@@ -10825,7 +10828,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       if (document) {
         // Try to get Cloudinary public ID from metadata first
-        const cloudinaryPublicId = document.metadata?.cloudinaryPublicId;
+        const cloudinaryPublicId = (document.metadata as any)?.cloudinaryPublicId;
 
         if (cloudinaryPublicId) {
           try {
