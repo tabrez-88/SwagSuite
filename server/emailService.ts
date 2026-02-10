@@ -8,6 +8,7 @@ interface EmailOptions {
   subject: string;
   html: string;
   text?: string;
+  userId?: string;
 }
 
 class EmailService {
@@ -15,7 +16,7 @@ class EmailService {
 
   async initialize() {
     const settings = await storage.getIntegrationSettings();
-    
+
     if (!settings?.smtpHost || !settings?.smtpPort || !settings?.smtpUser || !settings?.smtpPassword) {
       throw new Error('SMTP credentials not configured. Please configure SMTP settings in Settings → Email Config.');
     }
@@ -39,20 +40,79 @@ class EmailService {
     await this.transporter.verify();
   }
 
-  async sendEmail(options: EmailOptions) {
+  // Create a per-user transporter from their SMTP settings
+  private async createUserTransporter(userId: string): Promise<Transporter<SMTPTransport.SentMessageInfo> | null> {
+    const userSettings = await storage.getUserEmailSettings(userId);
+
+    if (!userSettings?.smtpHost || !userSettings?.smtpPort ||
+        !userSettings?.smtpUser || !userSettings?.smtpPassword) {
+      return null;
+    }
+
+    return nodemailer.createTransport({
+      host: userSettings.smtpHost,
+      port: userSettings.smtpPort,
+      secure: userSettings.smtpPort === 465,
+      auth: {
+        user: userSettings.smtpUser,
+        pass: userSettings.smtpPassword,
+      },
+      tls: { rejectUnauthorized: false },
+    });
+  }
+
+  // Get the appropriate transporter (per-user or system fallback)
+  private async getTransporterForUser(userId?: string): Promise<{
+    transporter: Transporter<SMTPTransport.SentMessageInfo>;
+    fromEmail: string;
+    fromName: string;
+  }> {
+    // Try user-specific transporter first
+    if (userId) {
+      const userSettings = await storage.getUserEmailSettings(userId);
+      console.log(`📧 getTransporterForUser: userId=${userId}, hasUserSettings=${!!userSettings}, useDefault=${userSettings?.useDefaultForCompose}`);
+
+      if (userSettings && !userSettings.useDefaultForCompose) {
+        const userTransporter = await this.createUserTransporter(userId);
+        if (userTransporter) {
+          const user = await storage.getUser(userId);
+          const fromName = userSettings.hideNameOnSend
+            ? 'SwagSuite'
+            : `${user?.firstName || ''} ${user?.lastName || ''}`.trim() || 'SwagSuite';
+
+          console.log(`📧 Using per-user transporter: ${userSettings.smtpUser}`);
+          return {
+            transporter: userTransporter,
+            fromEmail: userSettings.smtpUser || '',
+            fromName,
+          };
+        }
+      }
+    }
+
+    console.log('📧 Using system-wide transporter (fallback)');
+
+    // Fallback to system-wide transporter
     if (!this.transporter) {
       await this.initialize();
     }
-
     if (!this.transporter) {
-      throw new Error('Email service not initialized');
+      throw new Error('No email transporter available');
     }
 
     const settings = await storage.getIntegrationSettings();
-    const fromName = settings?.emailFromName || 'SwagSuite';
-    const fromEmail = settings?.emailFromAddress || settings?.smtpUser || 'noreply@example.com';
+    // Use smtpUser as FROM since most SMTP servers only allow sending from the authenticated account
+    return {
+      transporter: this.transporter,
+      fromEmail: settings?.smtpUser || settings?.emailFromAddress || 'noreply@example.com',
+      fromName: settings?.emailFromName || 'SwagSuite',
+    };
+  }
 
-    const info = await this.transporter.sendMail({
+  async sendEmail(options: EmailOptions) {
+    const { transporter, fromEmail, fromName } = await this.getTransporterForUser(options.userId);
+
+    const info = await transporter.sendMail({
       from: `"${fromName}" <${fromEmail}>`,
       to: options.to,
       subject: options.subject,
@@ -65,6 +125,7 @@ class EmailService {
   }
 
   async sendClientEmail(data: {
+    userId?: string;
     from?: string;
     fromName?: string;
     to: string;
@@ -109,22 +170,17 @@ class EmailService {
       </html>
     `;
 
-    // Use custom from/fromName if provided
-    if (!this.transporter) {
-      await this.initialize();
-    }
+    const { transporter, fromEmail: defaultFrom, fromName: defaultFromName } =
+      await this.getTransporterForUser(data.userId);
 
-    if (!this.transporter) {
-      throw new Error('Email service not initialized');
-    }
-
-    // Get settings for fallback
-    const settings = await storage.getIntegrationSettings();
-    const fromEmail = data.from || settings?.emailFromAddress || settings?.smtpUser || 'noreply@example.com';
-    const fromName = data.fromName || settings?.emailFromName || 'SwagSuite';
+    // Always use the transporter's authenticated email as FROM address
+    // SMTP servers reject sending from domains that don't match the authenticated account
+    const fromEmail = defaultFrom;
+    const fromName = data.fromName || defaultFromName;
 
     const mailOptions: any = {
       from: `"${fromName}" <${fromEmail}>`,
+      replyTo: data.from || fromEmail,
       to: data.to,
       toName: data.toName,
       subject: data.subject,
@@ -157,13 +213,14 @@ class EmailService {
       );
     }
 
-    const info = await this.transporter.sendMail(mailOptions);
+    const info = await transporter.sendMail(mailOptions);
 
     console.log('✓ Email sent:', info.messageId);
     return { id: info.messageId, ...info };
   }
 
   async sendVendorEmail(data: {
+    userId?: string;
     from?: string;
     fromName?: string;
     to: string;
@@ -207,22 +264,16 @@ class EmailService {
       </html>
     `;
 
-    // Use custom from/fromName if provided
-    if (!this.transporter) {
-      await this.initialize();
-    }
+    const { transporter, fromEmail: defaultFrom, fromName: defaultFromName } =
+      await this.getTransporterForUser(data.userId);
 
-    if (!this.transporter) {
-      throw new Error('Email service not initialized');
-    }
-
-    // Get settings for fallback
-    const settings = await storage.getIntegrationSettings();
-    const fromEmail = data.from || settings?.emailFromAddress || settings?.smtpUser || 'noreply@example.com';
-    const fromName = data.fromName || settings?.emailFromName || 'SwagSuite';
+    // Always use the transporter's authenticated email as FROM address
+    const fromEmail = defaultFrom;
+    const fromName = data.fromName || defaultFromName;
 
     const vendorMailOptions: any = {
       from: `"${fromName}" <${fromEmail}>`,
+      replyTo: data.from || fromEmail,
       to: data.to,
       toName: data.toName,
       subject: data.subject,
@@ -255,7 +306,7 @@ class EmailService {
       );
     }
 
-    const info = await this.transporter.sendMail(vendorMailOptions);
+    const info = await transporter.sendMail(vendorMailOptions);
 
     console.log('✓ Email sent:', info.messageId);
     return { id: info.messageId, ...info };
@@ -266,22 +317,22 @@ class EmailService {
       // Force re-initialization to test current settings
       this.transporter = null;
       await this.initialize();
-      
+
       if (!this.transporter) {
         throw new Error('Failed to initialize email service');
       }
-      
+
       const transporter = this.transporter as Transporter<SMTPTransport.SentMessageInfo>;
-      
+
       // Verify SMTP connection
       await transporter.verify();
       console.log('✓ SMTP connection successful');
-      
+
       // If test email recipient provided, send test email
       if (testEmailTo) {
         const settings = await storage.getIntegrationSettings();
         const fromName = settings?.emailFromName || 'SwagSuite';
-        
+
         await this.sendEmail({
           to: testEmailTo,
           subject: 'SwagSuite - Test Email',
@@ -324,7 +375,7 @@ class EmailService {
         });
         console.log(`✓ Test email sent to ${testEmailTo}`);
       }
-      
+
       return true;
     } catch (error) {
       console.error('❌ SMTP connection failed:', error);

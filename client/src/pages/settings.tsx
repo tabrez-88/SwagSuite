@@ -67,6 +67,7 @@ import {
   Database
 } from "lucide-react";
 import { useState, useEffect } from "react";
+import { MailCredentialsDialog } from "@/components/MailCredentialsDialog";
 
 interface FeatureToggle {
   id: string;
@@ -94,6 +95,7 @@ function EmailConfigSection() {
   const [testingConnection, setTestingConnection] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [testEmailTo, setTestEmailTo] = useState('');
+  const [mailCredentialsOpen, setMailCredentialsOpen] = useState(false);
 
   const { data: settings, isLoading } = useQuery({
     queryKey: ['/api/settings/integration'],
@@ -193,10 +195,21 @@ function EmailConfigSection() {
     <form onSubmit={handleSubmit}>
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Mail className="h-5 w-5" />
-            Email Configuration (SMTP)
-          </CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle className="flex items-center gap-2">
+              <Mail className="h-5 w-5" />
+              Email Configuration (SMTP)
+            </CardTitle>
+            <Button
+              type="button"
+              variant="default"
+              size="sm"
+              onClick={() => setMailCredentialsOpen(true)}
+              className="bg-primary hover:bg-primary/20 text-white"
+            >
+              SMTP/IMAP Config
+            </Button>
+          </div>
           <p className="text-sm text-gray-600">
             Configure SMTP settings for sending emails to clients and vendors (Mailtrap, Gmail, etc.)
           </p>
@@ -389,6 +402,8 @@ function EmailConfigSection() {
           </div>
         </CardContent>
       </Card>
+
+      <MailCredentialsDialog open={mailCredentialsOpen} onOpenChange={setMailCredentialsOpen} />
     </form>
   );
 }

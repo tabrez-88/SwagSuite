@@ -104,6 +104,9 @@ import {
   productionStages as productionStagesTable,
   type ProductionStage,
   type InsertProductionStage,
+  userEmailSettings,
+  type UserEmailSettings,
+  type InsertUserEmailSettings,
 } from "@shared/schema";
 import {
   type Notification,
@@ -216,6 +219,11 @@ export interface IStorage {
   getIntegrationSettings(): Promise<IntegrationSettings | undefined>;
   upsertIntegrationSettings(settings: Partial<InsertIntegrationSettings>, userId?: string): Promise<IntegrationSettings>;
   updateIntegrationSettings(settings: Partial<InsertIntegrationSettings>): Promise<IntegrationSettings>;
+
+  // User Email Settings operations
+  getUserEmailSettings(userId: string): Promise<UserEmailSettings | undefined>;
+  upsertUserEmailSettings(userId: string, settings: Partial<InsertUserEmailSettings>): Promise<UserEmailSettings>;
+  deleteUserEmailSettings(id: string): Promise<void>;
 
   // SAGE Product operations
   getSageProductBySageId(sageId: string): Promise<SageProduct | undefined>;
@@ -2360,6 +2368,45 @@ export class DatabaseStorage implements IStorage {
         .returning();
       return created;
     }
+  }
+
+  // User Email Settings operations
+  async getUserEmailSettings(userId: string): Promise<UserEmailSettings | undefined> {
+    const [settings] = await db
+      .select()
+      .from(userEmailSettings)
+      .where(eq(userEmailSettings.userId, userId))
+      .limit(1);
+    return settings;
+  }
+
+  async upsertUserEmailSettings(userId: string, settings: Partial<InsertUserEmailSettings>): Promise<UserEmailSettings> {
+    const existing = await this.getUserEmailSettings(userId);
+
+    const settingsData = {
+      ...settings,
+      userId,
+      updatedAt: new Date(),
+    };
+
+    if (existing) {
+      const [updated] = await db
+        .update(userEmailSettings)
+        .set(settingsData)
+        .where(eq(userEmailSettings.id, existing.id))
+        .returning();
+      return updated;
+    } else {
+      const [created] = await db
+        .insert(userEmailSettings)
+        .values(settingsData as any)
+        .returning();
+      return created;
+    }
+  }
+
+  async deleteUserEmailSettings(id: string): Promise<void> {
+    await db.delete(userEmailSettings).where(eq(userEmailSettings.id, id));
   }
 
   // SAGE Product operations

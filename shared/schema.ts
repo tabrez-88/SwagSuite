@@ -465,6 +465,7 @@ export const weeklyReportLogs = pgTable("weekly_report_logs", {
 export const usersRelations = relations(users, ({ many }) => ({
   orders: many(orders),
   activities: many(activities),
+  emailSettings: many(userEmailSettings),
 }));
 
 export const companiesRelations = relations(companies, ({ many }) => ({
@@ -880,6 +881,42 @@ export const insertIntegrationSettingsSchema = createInsertSchema(integrationSet
   updatedAt: true,
 });
 
+// Per-user email credentials (SMTP + IMAP)
+export const userEmailSettings = pgTable("user_email_settings", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  // SMTP Settings
+  smtpHost: varchar("smtp_host"),
+  smtpPort: integer("smtp_port"),
+  smtpUser: varchar("smtp_user"),
+  smtpPassword: text("smtp_password"),
+  // IMAP Settings
+  imapHost: varchar("imap_host"),
+  imapPort: integer("imap_port"),
+  imapUser: varchar("imap_user"),
+  imapPassword: text("imap_password"),
+  // Preferences
+  isPrimary: boolean("is_primary").default(false),
+  useDefaultForCompose: boolean("use_default_for_compose").default(false),
+  hideNameOnSend: boolean("hide_name_on_send").default(false),
+  // Metadata
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const userEmailSettingsRelations = relations(userEmailSettings, ({ one }) => ({
+  user: one(users, {
+    fields: [userEmailSettings.userId],
+    references: [users.id],
+  }),
+}));
+
+export const insertUserEmailSettingsSchema = createInsertSchema(userEmailSettings).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 // System Branding and Theme Settings
 export const systemBranding = pgTable("system_branding", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -1108,6 +1145,8 @@ export type UserInvitation = typeof userInvitations.$inferSelect;
 export type InsertUserInvitation = typeof userInvitations.$inferInsert;
 export type PasswordReset = typeof passwordResets.$inferSelect;
 export type InsertPasswordReset = typeof passwordResets.$inferInsert;
+export type UserEmailSettings = typeof userEmailSettings.$inferSelect;
+export type InsertUserEmailSettings = z.infer<typeof insertUserEmailSettingsSchema>;
 
 // Sequence Builder Tables
 export const sequences = pgTable("sequences", {

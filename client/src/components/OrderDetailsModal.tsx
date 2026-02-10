@@ -1899,12 +1899,12 @@ function OrderDetailsModal({ open, onOpenChange, orderId, pageMode }: OrderDetai
             <TabsList className="w-full h-auto gap-2 flex flex-wrap justify-center overflow-x-auto">
               <TabsTrigger value="details" className="flex-shrink-0">Order Details</TabsTrigger>
               <TabsTrigger value="products" className="flex-shrink-0">Products ({orderItems.length})</TabsTrigger>
-              <TabsTrigger value="files" className="flex-shrink-0">Files</TabsTrigger>
               <TabsTrigger value="documents" className="flex-shrink-0">Documents</TabsTrigger>
-              <TabsTrigger value="activities" className="flex-shrink-0">Activities</TabsTrigger>
+              <TabsTrigger value="files" className="flex-shrink-0">Files</TabsTrigger>
               <TabsTrigger value="communication" className="flex-shrink-0">Internal Notes</TabsTrigger>
               <TabsTrigger value="email" className="flex-shrink-0">Client Communication</TabsTrigger>
               <TabsTrigger value="vendor" className="flex-shrink-0">Vendor Communication</TabsTrigger>
+              <TabsTrigger value="activities" className="flex-shrink-0">Activities</TabsTrigger>
             </TabsList>
 
             <TabsContent value="details" className="mt-6">

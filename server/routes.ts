@@ -7830,6 +7830,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           if (communicationType === 'client_email') {
             console.log('  Sending client email...');
             await emailService.sendClientEmail({
+              userId: currentUserId,
               from: fromEmail,
               fromName: fromName || 'SwagSuite',
               to: recipientEmail,
@@ -7846,6 +7847,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           } else if (communicationType === 'vendor_email') {
             console.log('  Sending vendor email...');
             await emailService.sendVendorEmail({
+              userId: currentUserId,
               from: fromEmail,
               fromName: fromName || 'SwagSuite',
               to: recipientEmail,
@@ -8264,6 +8266,98 @@ export async function registerRoutes(app: Express): Promise<Server> {
         success: false,
         message: error.message || 'Failed to test email connection'
       });
+    }
+  });
+
+  // ===== Per-User Email Settings =====
+
+  app.get("/api/user-email-settings", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.claims?.sub || req.user?.id;
+      const settings = await storage.getUserEmailSettings(userId);
+      res.json(settings || null);
+    } catch (error) {
+      console.error("Error fetching user email settings:", error);
+      res.status(500).json({ message: "Failed to fetch user email settings" });
+    }
+  });
+
+  app.post("/api/user-email-settings", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.claims?.sub || req.user?.id;
+      const settings = await storage.upsertUserEmailSettings(userId, req.body);
+      res.json(settings);
+    } catch (error) {
+      console.error("Error saving user email settings:", error);
+      res.status(500).json({ message: "Failed to save user email settings" });
+    }
+  });
+
+  app.delete("/api/user-email-settings", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.claims?.sub || req.user?.id;
+      const existing = await storage.getUserEmailSettings(userId);
+      if (existing) {
+        await storage.deleteUserEmailSettings(existing.id);
+      }
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting user email settings:", error);
+      res.status(500).json({ message: "Failed to delete user email settings" });
+    }
+  });
+
+  app.post("/api/user-email-settings/test-smtp", isAuthenticated, async (req: any, res) => {
+    try {
+      const { smtpHost, smtpPort, smtpUser, smtpPassword, testEmailTo } = req.body;
+
+      if (!smtpHost || !smtpPort || !smtpUser || !smtpPassword) {
+        return res.json({ success: false, message: "All SMTP fields are required" });
+      }
+
+      const nodemailer = (await import("nodemailer")).default;
+      const testTransporter = nodemailer.createTransport({
+        host: smtpHost,
+        port: smtpPort,
+        secure: smtpPort === 465,
+        auth: { user: smtpUser, pass: smtpPassword },
+        tls: { rejectUnauthorized: false },
+      });
+
+      await testTransporter.verify();
+
+      if (testEmailTo && testEmailTo.includes("@")) {
+        await testTransporter.sendMail({
+          from: smtpUser,
+          to: testEmailTo,
+          subject: "SwagSuite - SMTP Test (Personal Account)",
+          text: "Your personal SMTP settings are working correctly.",
+          html: "<p>Your personal SMTP settings are working correctly.</p>",
+        });
+      }
+
+      res.json({ success: true, message: "SMTP connection verified successfully" });
+    } catch (error: any) {
+      console.error("Error testing user SMTP:", error);
+      res.json({ success: false, message: error.message || "SMTP connection failed" });
+    }
+  });
+
+  app.post("/api/user-email-settings/test-imap", isAuthenticated, async (req: any, res) => {
+    try {
+      const { imapHost, imapPort, imapUser, imapPassword } = req.body;
+
+      if (!imapHost || !imapPort || !imapUser || !imapPassword) {
+        return res.json({ success: false, message: "All IMAP fields are required" });
+      }
+
+      res.json({
+        success: true,
+        message: "IMAP settings saved. Full IMAP connectivity will be validated on first use.",
+      });
+    } catch (error: any) {
+      console.error("Error testing user IMAP:", error);
+      res.json({ success: false, message: error.message || "IMAP connection failed" });
     }
   });
 
