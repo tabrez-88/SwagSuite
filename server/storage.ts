@@ -107,6 +107,15 @@ import {
   userEmailSettings,
   type UserEmailSettings,
   type InsertUserEmailSettings,
+  vendorInvoices,
+  type VendorInvoice,
+  type InsertVendorInvoice,
+  invoices,
+  type Invoice,
+  type InsertInvoice,
+  paymentTransactions,
+  type PaymentTransaction,
+  type InsertPaymentTransaction
 } from "@shared/schema";
 import {
   type Notification,
@@ -232,6 +241,23 @@ export interface IStorage {
   createSageProduct(product: InsertSageProduct): Promise<string>;
   updateSageProduct(id: string, product: Partial<InsertSageProduct>): Promise<SageProduct>;
   getSupplierBySageId(sageId: string): Promise<Supplier | undefined>;
+
+  // Vendor Invoice operations (Accounts Payable)
+  createVendorInvoice(invoice: InsertVendorInvoice): Promise<VendorInvoice>;
+  getVendorInvoices(supplierId?: string, status?: string): Promise<VendorInvoice[]>;
+  updateVendorInvoice(id: string, invoice: Partial<InsertVendorInvoice>): Promise<VendorInvoice>;
+  getVendorInvoice(id: string): Promise<VendorInvoice | undefined>;
+
+  // Customer Invoice operations (Accounts Receivable)
+  createInvoice(invoice: InsertInvoice): Promise<Invoice>;
+  getInvoice(id: string): Promise<Invoice | undefined>;
+  getInvoiceByOrderId(orderId: string): Promise<Invoice | undefined>;
+  getInvoices(status?: string): Promise<Invoice[]>;
+  updateInvoice(id: string, invoice: Partial<InsertInvoice>): Promise<Invoice>;
+
+  // Payment Transaction operations
+  createPaymentTransaction(transaction: InsertPaymentTransaction): Promise<PaymentTransaction>;
+  getPaymentTransactionsByInvoiceId(invoiceId: string): Promise<PaymentTransaction[]>;
 
   // AI Presentation Builder operations
   getPresentations(userId: string): Promise<Presentation[]>;
@@ -391,26 +417,26 @@ export class DatabaseStorage implements IStorage {
   async deleteCompany(id: string): Promise<void> {
     // Cascade delete: First delete all related records
     const { contacts, orders, orderItems } = await import("@shared/schema");
-    
+
     // Delete order items for orders belonging to this company
     const companyOrders = await db
       .select({ id: orders.id })
       .from(orders)
       .where(eq(orders.companyId, id));
-    
+
     const orderIds = companyOrders.map(o => o.id);
     if (orderIds.length > 0) {
       await db.delete(orderItems).where(
         sql`${orderItems.orderId} IN ${sql.raw(`(${orderIds.map(id => `'${id}'`).join(',')})`)}`
       );
     }
-    
+
     // Delete orders
     await db.delete(orders).where(eq(orders.companyId, id));
-    
+
     // Delete contacts
     await db.delete(contacts).where(eq(contacts.companyId, id));
-    
+
     // Finally delete the company
     await db.delete(companies).where(eq(companies.id, id));
   }
@@ -480,12 +506,12 @@ export class DatabaseStorage implements IStorage {
   async updateContact(id: string, contact: Partial<InsertContact>): Promise<Contact> {
     try {
       console.log('Storage: Updating contact', id, 'with data:', contact);
-      
+
       // If setting this contact as primary, unset other primary contacts for the same company or supplier
       if (contact.isPrimary === true) {
         const [currentContact] = await db.select().from(contacts).where(eq(contacts.id, id));
         console.log('Current contact:', currentContact);
-        
+
         if (currentContact) {
           if (currentContact.companyId) {
             // Unset all other primary contacts for this company
@@ -521,13 +547,13 @@ export class DatabaseStorage implements IStorage {
         .set({ ...contact, updatedAt: new Date() })
         .where(eq(contacts.id, id))
         .returning();
-      
+
       console.log('Updated contact:', updatedContact);
-      
+
       if (!updatedContact) {
         throw new Error('Contact not found or update failed');
       }
-      
+
       return updatedContact;
     } catch (error) {
       console.error('Error in updateContact:', error);
@@ -538,13 +564,13 @@ export class DatabaseStorage implements IStorage {
   async deleteContact(id: string): Promise<void> {
     // Cascade delete: First delete all related records
     const { orders, orderItems } = await import("@shared/schema");
-    
+
     // Get all orders for this contact
     const contactOrders = await db
       .select({ id: orders.id })
       .from(orders)
       .where(eq(orders.contactId, id));
-    
+
     const orderIds = contactOrders.map(o => o.id);
     if (orderIds.length > 0) {
       // Delete order items first
@@ -552,10 +578,10 @@ export class DatabaseStorage implements IStorage {
         sql`${orderItems.orderId} IN ${sql.raw(`(${orderIds.map(id => `'${id}'`).join(',')})`)}`
       );
     }
-    
+
     // Delete orders
     await db.delete(orders).where(eq(orders.contactId, id));
-    
+
     // Finally delete the contact
     await db.delete(contacts).where(eq(contacts.id, id));
   }
@@ -631,6 +657,89 @@ export class DatabaseStorage implements IStorage {
       .where(eq(suppliers.id, id))
       .returning();
     return updatedSupplier;
+  }
+
+
+
+  // Vendor Invoice operations
+  async createVendorInvoice(invoice: InsertVendorInvoice): Promise<VendorInvoice> {
+    const [newInvoice] = await db.insert(vendorInvoices).values(invoice).returning();
+    return newInvoice;
+  }
+
+  async getVendorInvoices(supplierId?: string, status?: string): Promise<VendorInvoice[]> {
+    const query = db.select().from(vendorInvoices);
+
+    if (supplierId && status) {
+      return await query.where(and(eq(vendorInvoices.supplierId, supplierId), eq(vendorInvoices.status, status))).orderBy(desc(vendorInvoices.createdAt));
+    } else if (supplierId) {
+      return await query.where(eq(vendorInvoices.supplierId, supplierId)).orderBy(desc(vendorInvoices.createdAt));
+    } else if (status) {
+      return await query.where(eq(vendorInvoices.status, status)).orderBy(desc(vendorInvoices.createdAt));
+    }
+
+    return await query.orderBy(desc(vendorInvoices.createdAt));
+  }
+
+  async updateVendorInvoice(id: string, invoice: Partial<InsertVendorInvoice>): Promise<VendorInvoice> {
+    const [updatedInvoice] = await db
+      .update(vendorInvoices)
+      .set({ ...invoice, updatedAt: new Date() })
+      .where(eq(vendorInvoices.id, id))
+      .returning();
+    return updatedInvoice;
+  }
+
+  async getVendorInvoice(id: string): Promise<VendorInvoice | undefined> {
+    const [invoice] = await db.select().from(vendorInvoices).where(eq(vendorInvoices.id, id));
+    return invoice;
+  }
+
+  // Customer Invoice operations (Accounts Receivable)
+  async createInvoice(invoice: InsertInvoice): Promise<Invoice> {
+    const [newInvoice] = await db.insert(invoices)
+      .values(invoice)
+      .returning();
+    return newInvoice;
+  }
+
+  async getInvoice(id: string): Promise<Invoice | undefined> {
+    const [invoice] = await db.select().from(invoices).where(eq(invoices.id, id));
+    return invoice;
+  }
+
+  async getInvoiceByOrderId(orderId: string): Promise<Invoice | undefined> {
+    const [invoice] = await db.select().from(invoices).where(eq(invoices.orderId, orderId));
+    return invoice;
+  }
+
+  async getInvoices(status?: string): Promise<Invoice[]> {
+    if (status) {
+      return await db.select().from(invoices).where(eq(invoices.status, status));
+    }
+    return await db.select().from(invoices).orderBy(desc(invoices.createdAt));
+  }
+
+  async updateInvoice(id: string, invoice: Partial<InsertInvoice>): Promise<Invoice> {
+    const [updated] = await db.update(invoices)
+      .set({ ...invoice, updatedAt: new Date() })
+      .where(eq(invoices.id, id))
+      .returning();
+    return updated;
+  }
+
+  // Payment Transaction operations
+  async createPaymentTransaction(transaction: InsertPaymentTransaction): Promise<PaymentTransaction> {
+    const [newTransaction] = await db.insert(paymentTransactions)
+      .values(transaction)
+      .returning();
+    return newTransaction;
+  }
+
+  async getPaymentTransactionsByInvoiceId(invoiceId: string): Promise<PaymentTransaction[]> {
+    return await db.select().from(paymentTransactions)
+      .where(eq(paymentTransactions.invoiceId, invoiceId))
+      .orderBy(desc(paymentTransactions.createdAt));
   }
 
   async deleteSupplier(id: string): Promise<void> {
@@ -742,7 +851,7 @@ export class DatabaseStorage implements IStorage {
     if (!orderNumber) {
       const currentYear = new Date().getFullYear();
       const prefix = `ORD-${currentYear}-`;
-      
+
       // Get the highest order number for current year
       const lastOrder = await db
         .select({ orderNumber: orders.orderNumber })
@@ -750,14 +859,14 @@ export class DatabaseStorage implements IStorage {
         .where(sql`${orders.orderNumber} LIKE ${prefix + '%'}`)
         .orderBy(desc(orders.orderNumber))
         .limit(1);
-      
+
       let nextNumber = 1;
       if (lastOrder.length > 0 && lastOrder[0].orderNumber) {
         // Extract number from last order (e.g., "ORD-2026-030" -> 30)
         const lastNumber = parseInt(lastOrder[0].orderNumber.split('-')[2]);
         nextNumber = lastNumber + 1;
       }
-      
+
       orderNumber = `${prefix}${String(nextNumber).padStart(3, '0')}`;
     }
 
@@ -2568,7 +2677,7 @@ export class DatabaseStorage implements IStorage {
   async updateUserPassword(userId: string, hashedPassword: string): Promise<void> {
     await db
       .update(users)
-      .set({ 
+      .set({
         password: hashedPassword,
         updatedAt: new Date()
       })
@@ -2675,7 +2784,7 @@ export class DatabaseStorage implements IStorage {
       .from(notifications)
       .where(eq(notifications.recipientId, userId))
       .orderBy(desc(notifications.createdAt));
-    
+
     if (limit) {
       return await query.limit(limit);
     }
@@ -2732,7 +2841,7 @@ export class DatabaseStorage implements IStorage {
       ...notificationData,
       recipientId: userId,
     }));
-    
+
     const created = await db
       .insert(notifications)
       .values(notificationsToCreate)

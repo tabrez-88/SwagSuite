@@ -236,6 +236,24 @@ export function IntegrationSettings() {
                   <RefreshCw className="h-4 w-4 mr-2" />
                   Test Connection
                 </Button>
+                
+                {config.integration === 'quickbooks' && (
+                   <Button 
+                      size="sm"
+                      className="w-full mt-2"
+                      onClick={async () => {
+                         const res = await fetch('/api/integrations/quickbooks/auth');
+                         if (res.ok) {
+                            const { url } = await res.json();
+                            window.location.href = url;
+                         } else {
+                            toast({ title: "Failed to start auth", variant: "destructive" });
+                         }
+                      }}
+                   >
+                     {config.isHealthy ? 'Reconnect QuickBooks' : 'Connect QuickBooks'}
+                   </Button>
+                )}
               </CardContent>
             </Card>
           ))

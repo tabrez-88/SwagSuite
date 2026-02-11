@@ -86,6 +86,10 @@ export const companies = pgTable("companies", {
   // HubSpot integration fields
   hubspotId: varchar("hubspot_id"),
   hubspotSyncedAt: timestamp("hubspot_synced_at"),
+  // Financial Integrations
+  qbCustomerId: varchar("qb_customer_id"), // Map to QuickBooks Customer
+  stripeCustomerId: varchar("stripe_customer_id"), // Map to Stripe Customer
+  taxExempt: boolean("tax_exempt").default(false), // TaxJar Exemption Flag
   // Social media integration
   socialMediaLinks: jsonb("social_media_links"), // { linkedin: "url", twitter: "url", facebook: "url" }
   socialMediaPosts: jsonb("social_media_posts"), // Array of recent posts with content and timestamps
@@ -266,6 +270,10 @@ export const orders = pgTable("orders", {
   billingAddress: text("billing_address"),
   trackingNumber: varchar("tracking_number"),
   shippingMethod: varchar("shipping_method"),
+  // Financial Integrations
+  qbInvoiceId: varchar("qb_invoice_id"), // Map to QuickBooks Invoice
+  stripePaymentIntentId: varchar("stripe_payment_intent_id"), // Track Stripe Charge
+  taxCalculatedAt: timestamp("tax_calculated_at"), // When TaxJar last ran
   currentStage: varchar("current_stage").notNull().default("sales-booked"),
   stagesCompleted: jsonb("stages_completed").notNull().default(sql`'["sales-booked"]'::jsonb`),
   stageData: jsonb("stage_data").notNull().default(sql`'{}'::jsonb`),
@@ -437,6 +445,56 @@ export const vendorApprovalRequests = pgTable("vendor_approval_requests", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+// Vendor Invoices (Vouching Process)
+export const vendorInvoices = pgTable("vendor_invoices", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  supplierId: varchar("supplier_id").references(() => suppliers.id),
+  orderId: varchar("order_id").references(() => orders.id), // The PO this is vouching against
+  invoiceNumber: varchar("invoice_number").notNull(),
+  amount: decimal("amount", { precision: 12, scale: 2 }).notNull(),
+  status: varchar("status").default("pending"), // pending, vouched, paid, rejection
+  qbBillId: varchar("qb_bill_id"), // Map to QuickBooks Bill
+  receivedDate: timestamp("received_date").defaultNow(),
+  dueDate: timestamp("due_date"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Customer Invoices (Sales Invoices for Orders)
+export const invoices = pgTable("invoices", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  orderId: varchar("order_id").references(() => orders.id),
+  invoiceNumber: varchar("invoice_number").notNull().unique(),
+  subtotal: decimal("subtotal", { precision: 12, scale: 2 }).notNull(),
+  taxAmount: decimal("tax_amount", { precision: 12, scale: 2 }).default("0"),
+  totalAmount: decimal("total_amount", { precision: 12, scale: 2 }).notNull(),
+  status: varchar("status").default("pending"), // pending, paid, overdue, cancelled
+  dueDate: timestamp("due_date"),
+  qbInvoiceId: varchar("qb_invoice_id"), // QuickBooks Invoice ID
+  qbSyncedAt: timestamp("qb_synced_at"),
+  stripePaymentIntentId: varchar("stripe_payment_intent_id"),
+  stripeInvoiceId: varchar("stripe_invoice_id"),
+  stripeInvoiceUrl: text("stripe_invoice_url"),
+  paymentMethod: varchar("payment_method"), // stripe, manual_card, check, wire, credit
+  paymentReference: varchar("payment_reference"), // Check #, Wire #, etc.
+  paidAt: timestamp("paid_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Payment Transactions
+export const paymentTransactions = pgTable("payment_transactions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  invoiceId: varchar("invoice_id").references(() => invoices.id),
+  amount: decimal("amount", { precision: 12, scale: 2 }).notNull(),
+  paymentMethod: varchar("payment_method").notNull(), // stripe, manual_card, check, wire, credit
+  paymentReference: varchar("payment_reference"), // Stripe charge ID, check number, etc.
+  status: varchar("status").default("pending"), // pending, completed, failed, refunded
+  metadata: jsonb("metadata"), // Store Stripe metadata, etc.
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 // Weekly Email Report Configuration
 export const weeklyReportConfig = pgTable("weekly_report_config", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -559,6 +617,17 @@ export const artworkFilesRelations = relations(artworkFiles, ({ one }) => ({
   uploadedByUser: one(users, {
     fields: [artworkFiles.uploadedBy],
     references: [users.id],
+  }),
+}));
+
+export const vendorInvoicesRelations = relations(vendorInvoices, ({ one }) => ({
+  supplier: one(suppliers, {
+    fields: [vendorInvoices.supplierId],
+    references: [suppliers.id],
+  }),
+  order: one(orders, {
+    fields: [vendorInvoices.orderId],
+    references: [orders.id],
   }),
 }));
 
@@ -865,6 +934,21 @@ export const integrationSettings = pgTable("integration_settings", {
   quickbooksConnected: boolean("quickbooks_connected").default(false),
   stripeConnected: boolean("stripe_connected").default(false),
   shipmateConnected: boolean("shipmate_connected").default(false),
+  // QuickBooks Integration (OAuth)
+  qbRealmId: varchar("qb_realm_id"),
+  qbAccessToken: text("qb_access_token"),
+  qbRefreshToken: text("qb_refresh_token"),
+  qbClientId: text("qb_client_id"),
+  qbClientSecret: text("qb_client_secret"),
+
+  // Stripe Integration
+  stripePublishableKey: text("stripe_publishable_key"),
+  stripeSecretKey: text("stripe_secret_key"),
+  stripeWebhookSecret: text("stripe_webhook_secret"),
+
+  // TaxJar Integration
+  taxjarApiKey: text("taxjar_api_key"),
+
   // Metadata
   updatedBy: varchar("updated_by").references(() => users.id),
   createdAt: timestamp("created_at").defaultNow(),
@@ -1559,6 +1643,13 @@ export type WeeklyReportConfig = typeof weeklyReportConfig.$inferSelect;
 export type InsertWeeklyReportLog = typeof weeklyReportLogs.$inferInsert;
 export type WeeklyReportLog = typeof weeklyReportLogs.$inferSelect;
 export type InsertDataUpload = z.infer<typeof insertDataUploadSchema>;
+export type VendorInvoice = typeof vendorInvoices.$inferSelect;
+export type InsertVendorInvoice = typeof vendorInvoices.$inferInsert;
+export type Invoice = typeof invoices.$inferSelect;
+export type InsertInvoice = typeof invoices.$inferInsert;
+export type PaymentTransaction = typeof paymentTransactions.$inferSelect;
+export type InsertPaymentTransaction = typeof paymentTransactions.$inferInsert;
+
 
 // Vendor Approval Request Types
 export type VendorApprovalRequest = typeof vendorApprovalRequests.$inferSelect;
