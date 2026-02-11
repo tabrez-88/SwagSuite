@@ -545,7 +545,7 @@ function OrderDetailsModal({
     let newUnitPrice = editedItem.unitPrice;
 
     if (cost > 0 && marginPercent < 100) {
-      newUnitPrice = cost / (1 - marginPercent / 100);
+      newUnitPrice = Math.round((cost / (1 - marginPercent / 100)) * 100) / 100;
     }
 
     updateEditedItem(itemId, {
@@ -588,6 +588,24 @@ function OrderDetailsModal({
   // Handler for UOM Factory change
   const handleUomFactoryChange = (itemId: string, uomFactory: number) => {
     updateEditedItem(itemId, { uomFactory });
+  };
+
+  // UX Helper: select all text on focus for numeric inputs
+  const handleSelectAll = (e: React.FocusEvent<HTMLInputElement>) => {
+    e.target.select();
+  };
+
+  // UX Helper: format number for display in input (empty string if 0 or NaN, max 2 decimals)
+  const formatInputValue = (
+    value: number | string | undefined | null,
+    allowZero = false,
+  ): string => {
+    if (value === undefined || value === null || value === "") return "";
+    const num = typeof value === "string" ? parseFloat(value) : value;
+    if (isNaN(num)) return "";
+    if (num === 0 && !allowZero) return "";
+    // Round to max 2 decimal places, remove trailing zeros
+    return parseFloat(num.toFixed(2)).toString();
   };
 
   // Artwork handlers

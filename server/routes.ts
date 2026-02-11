@@ -10932,7 +10932,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const invoice = await storage.createInvoice({
         orderId: order.id,
         invoiceNumber: `INV-${Date.now()}`,
-        subtotal: order.subtotal,
+        subtotal: order.subtotal ?? '0',
         taxAmount: taxAmount.toString(),
         totalAmount: totalAmount.toString(),
         status: 'pending',
@@ -11300,6 +11300,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!req.file) {
         console.error('No file in request');
         return res.status(400).json({ message: 'No PDF file uploaded' });
+      }
+
+      // Prevent duplicates: check if a document of this type already exists for this order/vendor
+      const { eq, and } = await import("drizzle-orm");
+      const existingConditions = [
+        eq(generatedDocuments.orderId, orderId),
+        eq(generatedDocuments.documentType, documentType),
+      ];
+      if (vendorId) {
+        existingConditions.push(eq(generatedDocuments.vendorId, vendorId));
+      }
+      const existingDocs = await db
+        .select()
+        .from(generatedDocuments)
+        .where(and(...existingConditions));
+
+      // If same type doc exists, delete old ones first to prevent duplicates
+      if (existingDocs.length > 0) {
+        console.log(`Found ${existingDocs.length} existing ${documentType} doc(s) for order ${orderId}, replacing...`);
+        for (const oldDoc of existingDocs) {
+          // Delete from Cloudinary if public ID exists
+          if (oldDoc.metadata && (oldDoc.metadata as any).cloudinaryPublicId) {
+            try {
+              const { deleteFromCloudinary } = await import("./cloudinary");
+              await deleteFromCloudinary((oldDoc.metadata as any).cloudinaryPublicId);
+            } catch (e) {
+              console.error('Error deleting old file from Cloudinary:', e);
+            }
+          }
+          await db.delete(generatedDocuments).where(eq(generatedDocuments.id, oldDoc.id));
+        }
       }
 
       // Get Cloudinary file info
