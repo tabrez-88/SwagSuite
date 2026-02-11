@@ -85,6 +85,8 @@ steps:
         QB_CLIENT_SECRET=QB_CLIENT_SECRET:latest,
         QB_REDIRECT_URI=QB_REDIRECT_URI:latest,
         TAXJAR_API_KEY=TAXJAR_API_KEY:latest
+      - '--remove-secrets'
+      - 'ANTHROPIC_API_KEY'
     id: 'deploy-cloud-run'
     waitFor: ['push-image']
 
