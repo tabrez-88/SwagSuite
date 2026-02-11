@@ -6889,9 +6889,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Products already have colors and sizes aggregated
       res.json(products);
-    } catch (error) {
+    } catch (error: any) {
       console.error("SanMar search error:", error);
-      res.status(500).json({ message: "Failed to search SanMar products" });
+      const isTimeout = error?.code === 'ECONNABORTED' || error?.message?.includes('timeout');
+      res.status(500).json({
+        message: isTimeout
+          ? "Search timed out. Try searching by style number (e.g., PC54, 5000) instead of brand name for faster results."
+          : `Failed to search SanMar products: ${error?.message || 'Unknown error'}`
+      });
     }
   });
 
@@ -9070,6 +9075,80 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // PUBLIC APPROVAL ENDPOINTS (No authentication required)
+
+  // Get approval details by token (PUBLIC)
+  app.get("/api/approvals/:token", async (req, res) => {
+    try {
+      const { token } = req.params;
+
+      const { db } = await import("./db");
+      const { artworkApprovals, orders, orderItems, products, companies } = await import("@shared/schema");
+      const { eq } = await import("drizzle-orm");
+
+      const [approval] = await db
+        .select({
+          id: artworkApprovals.id,
+          orderId: artworkApprovals.orderId,
+          orderItemId: artworkApprovals.orderItemId,
+          artworkFileId: artworkApprovals.artworkFileId,
+          approvalToken: artworkApprovals.approvalToken,
+          status: artworkApprovals.status,
+          approvedAt: artworkApprovals.approvedAt,
+          declinedAt: artworkApprovals.declinedAt,
+          declineReason: artworkApprovals.declineReason,
+          pdfPath: artworkApprovals.pdfPath,
+          orderNumber: orders.orderNumber,
+          companyId: orders.companyId,
+          companyName: companies.name,
+          productName: products.name,
+          productSku: products.sku,
+          itemQuantity: orderItems.quantity,
+          itemColor: orderItems.color,
+          itemSize: orderItems.size,
+        })
+        .from(artworkApprovals)
+        .leftJoin(orders, eq(artworkApprovals.orderId, orders.id))
+        .leftJoin(companies, eq(orders.companyId, companies.id))
+        .leftJoin(orderItems, eq(artworkApprovals.orderItemId, orderItems.id))
+        .leftJoin(products, eq(orderItems.productId, products.id))
+        .where(eq(artworkApprovals.approvalToken, token));
+
+      if (!approval) {
+        return res.status(404).json({ message: "Approval not found" });
+      }
+
+      // Format response
+      const response = {
+        id: approval.id,
+        orderId: approval.orderId,
+        orderItemId: approval.orderItemId,
+        approvalToken: approval.approvalToken,
+        status: approval.status,
+        artworkUrl: approval.pdfPath,
+        approvedAt: approval.approvedAt,
+        rejectedAt: approval.declinedAt,
+        comments: approval.declineReason,
+        order: {
+          orderNumber: approval.orderNumber,
+          companyName: approval.companyName || "Individual Client",
+        },
+        orderItem: {
+          productName: approval.productName || "Product",
+          productSku: approval.productSku,
+          quantity: approval.itemQuantity || 0,
+          color: approval.itemColor,
+          size: approval.itemSize,
+        },
+      };
+
+      res.json(response);
+    } catch (error) {
+      console.error('Error fetching approval:', error);
+      res.status(500).json({ message: 'Failed to fetch approval' });
+    }
+  });
+
   // Approve artwork (PUBLIC)
   app.post("/api/approvals/:token/approve", async (req, res) => {
     try {
@@ -9831,13 +9910,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         sentAt: new Date(),
       }).returning();
 
-      // Auto-update order status to pending_approval when quote approval is sent
-      if (order.status === 'quote') {
-        await db
-          .update(orders)
-          .set({ status: 'pending_approval', updatedAt: new Date() })
-          .where(eq(orders.id, orderId));
-      }
+      // NOTE: Status is NOT auto-updated here. It will be updated to 'pending_approval'
+      // only after the email with the approval link is actually sent by the user.
 
       res.json({
         ...approval,
@@ -10653,8 +10727,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      // Auto-update order status to pending_approval when proof is sent to client
-      if (order.status !== 'pending_approval' && order.status !== 'approved') {
+      // Only update order status to pending_approval if the proof email was actually sent
+      if (emailSent && order.status !== 'pending_approval' && order.status !== 'approved') {
         await db
           .update(orders)
           .set({ status: 'pending_approval', updatedAt: new Date() })

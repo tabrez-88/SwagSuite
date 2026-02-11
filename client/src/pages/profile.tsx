@@ -10,10 +10,11 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Shield, Mail, Calendar, User as UserIcon, Crown, CheckCircle2, XCircle, Sparkles, Camera, Upload } from "lucide-react";
+import { Shield, Mail, Calendar, User as UserIcon, Crown, CheckCircle2, XCircle, Sparkles, Camera, Upload, Settings } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
+import { MailCredentialsDialog } from "@/components/MailCredentialsDialog";
 
 interface User {
     id: string;
@@ -56,6 +57,7 @@ export default function ProfilePage() {
     const queryClient = useQueryClient();
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [isUploading, setIsUploading] = useState(false);
+    const [mailCredentialsOpen, setMailCredentialsOpen] = useState(false);
 
     const { data: user, isLoading, dataUpdatedAt } = useQuery<User>({
         queryKey: ["/api/auth/user"],
@@ -314,7 +316,7 @@ export default function ProfilePage() {
                                     ✅ Account Verified
                                 </h4>
                                 <p className="text-sm text-green-700 mt-1">
-                                    Your Replit Auth account is successfully registered in the SwagSuite database.
+                                    Your account is successfully registered in the SwagSuite database.
                                     All features are available based on your role.
                                 </p>
                             </div>
@@ -338,6 +340,34 @@ export default function ProfilePage() {
                     )}
                 </CardContent>
             </Card>
+
+            {/* Personal Email Settings */}
+            <Card>
+                <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                        <Mail className="h-5 w-5" />
+                        Email Settings
+                    </CardTitle>
+                    <CardDescription>Configure your personal SMTP/IMAP settings to send emails from your own account</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <div className="flex items-center justify-between p-4 border rounded-lg">
+                        <div>
+                            <p className="font-medium text-sm">Personal SMTP / IMAP</p>
+                            <p className="text-sm text-gray-500">Set up your email credentials to send and receive emails through SwagSuite using your own email address.</p>
+                        </div>
+                        <Button
+                            variant="outline"
+                            onClick={() => setMailCredentialsOpen(true)}
+                        >
+                            <Settings className="h-4 w-4 mr-2" />
+                            Configure
+                        </Button>
+                    </div>
+                </CardContent>
+            </Card>
+
+            <MailCredentialsDialog open={mailCredentialsOpen} onOpenChange={setMailCredentialsOpen} />
 
             {/* Permissions */}
             <Card>

@@ -96,7 +96,7 @@ ${body}
           'Content-Type': 'text/xml',
           'SOAPAction': action,
         },
-        timeout: 30000,
+        timeout: 60000,
       });
 
       return response.data;
@@ -106,93 +106,163 @@ ${body}
     }
   }
 
-  /**
-   * Search products by brand name
-   * SanMar returns one listResponse per size, so we aggregate by style ID
-   */
-  async searchProducts(query: string): Promise<SanMarProduct[]> {
-    try {
-      // Prepare credentials
-      const credentials = `
+  private getCredentialsXml(): string {
+    return `
         <sanMarCustomerNumber>${this.credentials.customerId}</sanMarCustomerNumber>
         <sanMarUserName>${this.credentials.username}</sanMarUserName>
         <sanMarUserPassword>${this.credentials.password}</sanMarUserPassword>
       `;
+  }
 
-      // SanMar SOAP API uses getProductInfoByBrand for search
-      // The query is treated as a brand name filter
+  /**
+   * Parse SOAP response XML and extract listResponse entries
+   */
+  private async parseSoapResponse(xmlResponse: string, action: string): Promise<any[]> {
+    let result: any;
+
+    await new Promise((resolve, reject) => {
+      parseString(xmlResponse, { explicitArray: false }, (err: any, parsed: any) => {
+        if (err) reject(err);
+        else {
+          result = parsed;
+          resolve(parsed);
+        }
+      });
+    });
+
+    const envelope = result?.['S:Envelope'] || result?.['soapenv:Envelope'] || result?.Envelope;
+    const body = envelope?.['S:Body'] || envelope?.['soapenv:Body'] || envelope?.Body;
+    const response = body?.[`ns2:${action}Response`] || body?.[`impl:${action}Response`] || body?.[`${action}Response`];
+    const returnData = response?.return;
+
+    if (!returnData || !returnData.listResponse) {
+      if (returnData?.errorOccured === 'true' || returnData?.errorOccured === true) {
+        console.log(`SanMar API error (${action}):`, returnData?.message);
+      }
+      return [];
+    }
+
+    return Array.isArray(returnData.listResponse)
+      ? returnData.listResponse
+      : [returnData.listResponse];
+  }
+
+  /**
+   * Aggregate listResponse entries into SanMarProduct array, with optional limit
+   */
+  private aggregateResponses(listResponses: any[], maxProducts?: number): SanMarProduct[] {
+    const productMap = new Map<string, any[]>();
+
+    for (const response of listResponses) {
+      const basicInfo = response.productBasicInfo;
+      if (!basicInfo) continue;
+
+      const styleId = basicInfo.style || basicInfo.styleId;
+      if (!productMap.has(styleId)) {
+        // Stop collecting new styles once we hit the limit
+        if (maxProducts && productMap.size >= maxProducts) continue;
+        productMap.set(styleId, []);
+      }
+      productMap.get(styleId)!.push(response);
+    }
+
+    const products: SanMarProduct[] = [];
+    for (const [, responses] of Array.from(productMap.entries())) {
+      const product = this.aggregateProduct(responses);
+      if (product) {
+        products.push(product);
+      }
+    }
+    return products;
+  }
+
+  /**
+   * Search product by style number (e.g., "5000", "PC54", "G500")
+   * This is much faster than brand search as it returns only one style
+   */
+  async searchByStyleNumber(styleNumber: string): Promise<SanMarProduct[]> {
+    try {
+      const action = 'getProductInfoByStyleNumber';
+      const soapBody = `      <impl:getProductInfoByStyleNumber>
+        <arg0>
+          <styleNumber>${styleNumber.trim()}</styleNumber>
+        </arg0>
+        <arg1>
+          ${this.getCredentialsXml()}
+        </arg1>
+      </impl:getProductInfoByStyleNumber>`;
+
+      console.log(`SanMar: searching by style number "${styleNumber}"...`);
+      const xmlResponse = await this.makeSoapRequest(action, soapBody);
+      const listResponses = await this.parseSoapResponse(xmlResponse, action);
+
+      if (listResponses.length === 0) return [];
+
+      return this.aggregateResponses(listResponses);
+    } catch (error) {
+      console.error('SanMar searchByStyleNumber error:', error);
+      throw new Error(`Failed to search SanMar by style: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Search products by brand name
+   * SanMar returns one listResponse per size/color, so we aggregate by style ID
+   * Results are limited to avoid timeout on large brands
+   */
+  async searchByBrand(brandName: string, maxProducts: number = 50): Promise<SanMarProduct[]> {
+    try {
       const action = 'getProductInfoByBrand';
       const soapBody = `      <impl:getProductInfoByBrand>
         <arg0>
-          <brandName>${query.trim()}</brandName>
+          <brandName>${brandName.trim()}</brandName>
         </arg0>
         <arg1>
-          ${credentials}
+          ${this.getCredentialsXml()}
         </arg1>
       </impl:getProductInfoByBrand>`;
 
+      console.log(`SanMar: searching by brand "${brandName}"...`);
       const xmlResponse = await this.makeSoapRequest(action, soapBody);
+      const listResponses = await this.parseSoapResponse(xmlResponse, action);
 
-      // Parse XML response
-      let result: any;
+      if (listResponses.length === 0) return [];
 
-      await new Promise((resolve, reject) => {
-        parseString(xmlResponse, { explicitArray: false }, (err: any, parsed: any) => {
-          if (err) reject(err);
-          else {
-            result = parsed;
-            resolve(parsed);
-          }
-        });
-      });
-
-      // Navigate to listResponse
-      const envelope = result?.['S:Envelope'] || result?.['soapenv:Envelope'] || result?.Envelope;
-      const body = envelope?.['S:Body'] || envelope?.['soapenv:Body'] || envelope?.Body;
-      const response = body?.[`ns2:${action}Response`] || body?.[`impl:${action}Response`] || body?.[`${action}Response`];
-      const returnData = response?.return;
-
-      if (!returnData || !returnData.listResponse) {
-        if (returnData?.errorOccured === 'true' || returnData?.errorOccured === true) {
-          console.log('SanMar API returned error for query "' + query + '":', returnData?.message);
-        }
-        return [];
-      }
-
-      // Parse the response
-      const listResponses = Array.isArray(returnData.listResponse)
-        ? returnData.listResponse
-        : [returnData.listResponse];
-
-      // Group by style ID and aggregate
-      const productMap = new Map<string, any[]>();
-
-      for (const response of listResponses) {
-        const basicInfo = response.productBasicInfo;
-        if (!basicInfo) continue;
-        
-        const styleId = basicInfo.style || basicInfo.styleId;
-        if (!productMap.has(styleId)) {
-          productMap.set(styleId, []);
-        }
-        productMap.get(styleId)!.push(response);
-      }
-      
-      // Convert grouped data to SanMarProduct array
-      const products: SanMarProduct[] = [];
-      
-      for (const [styleId, responses] of Array.from(productMap.entries())) {
-        const product = this.aggregateProduct(responses);
-        if (product) {
-          products.push(product);
-        }
-      }
-      
-      return products;
+      console.log(`SanMar: received ${listResponses.length} raw entries, aggregating (limit ${maxProducts} styles)...`);
+      return this.aggregateResponses(listResponses, maxProducts);
     } catch (error) {
-      console.error('SanMar search error:', error);
-      throw new Error(`Failed to search SanMar products: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      console.error('SanMar searchByBrand error:', error);
+      throw new Error(`Failed to search SanMar by brand: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
+  }
+
+  /**
+   * Smart search: detects if query is a style number or brand name
+   * Style numbers typically contain digits (e.g., "5000", "PC54", "G500", "DT6000")
+   * Brand names are typically all letters (e.g., "Nike", "Port Authority", "OGIO")
+   */
+  async searchProducts(query: string): Promise<SanMarProduct[]> {
+    const trimmed = query.trim();
+
+    // If query contains digits, try style number search first
+    const hasDigits = /\d/.test(trimmed);
+
+    if (hasDigits) {
+      console.log(`SanMar: query "${trimmed}" contains digits, trying style number search first...`);
+      try {
+        const products = await this.searchByStyleNumber(trimmed);
+        if (products.length > 0) {
+          console.log(`SanMar: found ${products.length} product(s) by style number`);
+          return products;
+        }
+      } catch {
+        console.log(`SanMar: style number search failed, falling back to brand search...`);
+      }
+    }
+
+    // Fall back to brand search (with limit to prevent huge responses)
+    console.log(`SanMar: searching by brand name "${trimmed}"...`);
+    return this.searchByBrand(trimmed, 50);
   }
 
   /**
@@ -268,7 +338,7 @@ ${body}
    */
   async getProductDetails(styleId: string): Promise<SanMarProduct | null> {
     try {
-      const products = await this.searchProducts(styleId);
+      const products = await this.searchByStyleNumber(styleId);
       return products.length > 0 ? products[0] : null;
     } catch (error) {
       console.error('SanMar getProductDetails error:', error);

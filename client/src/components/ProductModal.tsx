@@ -67,6 +67,37 @@ interface SageProduct {
   sizes?: string[];
 }
 
+interface SanMarProductResult {
+  styleId: string;
+  styleName: string;
+  brandName: string;
+  productTitle: string;
+  productDescription: string;
+  categoryName: string;
+  availableSizes: string;
+  caseSize: number;
+  pieceWeight?: number;
+  casePrice?: number;
+  caseSalePrice?: number;
+  dozenPrice?: number;
+  dozenSalePrice?: number;
+  piecePrice?: number;
+  pieceSalePrice?: number;
+  priceCode?: string;
+  priceText?: string;
+  colors: string[];
+  sizes: string[];
+  productImage?: string;
+  colorProductImage?: string;
+  frontModel?: string;
+  backModel?: string;
+  frontFlat?: string;
+  backFlat?: string;
+  thumbnailImage?: string;
+  brandLogoImage?: string;
+  productStatus?: string;
+}
+
 export default function ProductModal({ open, onOpenChange, product }: ProductModalProps) {
   const [activeTab, setActiveTab] = useState("manual");
   const [formData, setFormData] = useState({
@@ -85,10 +116,12 @@ export default function ProductModal({ open, onOpenChange, product }: ProductMod
   const [searchError, setSearchError] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [sageSearchQuery, setSageSearchQuery] = useState("");
+  const [sanmarSearchQuery, setSanmarSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<SsActivewearProduct[]>([]);
   const [sageSearchResults, setSageSearchResults] = useState<SageProduct[]>([]);
+  const [sanmarSearchResults, setSanmarSearchResults] = useState<SanMarProductResult[]>([]);
   const [selectedProductImage, setSelectedProductImage] = useState<string>("");
-  const [dataSource, setDataSource] = useState<"manual" | "ss-activewear" | "sage">("manual");
+  const [dataSource, setDataSource] = useState<"manual" | "ss-activewear" | "sage" | "sanmar">("manual");
   const [isCreatingSupplier, setIsCreatingSupplier] = useState(false);
   const [newSupplierData, setNewSupplierData] = useState({
     name: "",
@@ -98,6 +131,7 @@ export default function ProductModal({ open, onOpenChange, product }: ProductMod
   });
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [pendingSupplier, setPendingSupplier] = useState<{ name: string; website?: string; email?: string; phone?: string } | null>(null);
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -174,10 +208,13 @@ export default function ProductModal({ open, onOpenChange, product }: ProductMod
     setSelectedProductImage("");
     setImageFile(null);
     setIsUploadingImage(false);
+    setPendingSupplier(null);
     setSearchQuery("");
     setSageSearchQuery("");
+    setSanmarSearchQuery("");
     setSearchResults([]);
     setSageSearchResults([]);
+    setSanmarSearchResults([]);
     setSearchError("");
     setDataSource("manual");
     setActiveTab("manual");
@@ -243,30 +280,8 @@ export default function ProductModal({ open, onOpenChange, product }: ProductMod
       }
 
       if (products.length === 1) {
-        // If only one product found, auto-populate the form
-        const product = products[0];
-
-        // Try to find S&S Activewear in the suppliers list to auto-select
-        const ssSupplier = suppliers.find(s => s.name.toLowerCase().includes("s&s activewear") || s.name.toLowerCase().includes("ss activewear"));
-
-        setFormData({
-          sku: product.sku,
-          name: `${product.brandName} ${product.styleName} - ${product.colorName}`,
-          description: `${product.brandName} ${product.styleName} in ${product.colorName}, Size: ${product.sizeName}`,
-          price: product.piecePrice?.toString() || "",
-          supplierId: ssSupplier ? ssSupplier.id : "",
-          category: "",
-          brand: product.brandName,
-          style: product.styleName,
-          color: product.colorName,
-          size: product.sizeName || "",
-        });
-        setSelectedProductImage(product.colorFrontImage || "");
-        setDataSource("ss-activewear");
-        toast({
-          title: "Product Found",
-          description: `Found ${product.brandName} ${product.styleName} in S&S Activewear catalog`,
-        });
+        // Auto-import single result using the same function as manual click
+        selectProduct(products[0]);
       } else {
         toast({
           title: "Search Results",
@@ -314,18 +329,19 @@ export default function ProductModal({ open, onOpenChange, product }: ProductMod
       
       // Transform SAGE products to match expected interface
       return products.map((p: any) => ({
-        id: p.productId || p.spc || p.SPC || p.id,
-        name: p.productName || p.name,
-        description: p.description,
-        sku: p.productNumber || p.sku || p.productId,
+        id: p.productId || p.spc || p.SPC || p.id || '',
+        name: p.productName || p.name || 'Unnamed Product',
+        description: p.description || '',
+        sku: p.productNumber || p.sku || p.productId || '',
         price: p.pricingStructure?.minPrice ? parseFloat(p.pricingStructure.minPrice) : undefined,
-        imageUrl: p.imageGallery?.[0] || p.thumbPic,
-        brand: p.supplierName || p.brand,
-        category: p.category,
+        imageUrl: p.imageGallery?.[0] || p.thumbPic || '',
+        brand: p.supplierName || p.brand || '',
+        category: p.category || '',
         supplierName: p.supplierName || '',
         supplierId: p.supplierId || '',
         asiNumber: p.asiNumber || '',
-        colors: p.colors || [],
+        colors: Array.isArray(p.colors) ? p.colors : [],
+        sizes: Array.isArray(p.sizes) ? p.sizes : (p.dimensions ? [p.dimensions] : []),
       })) as SageProduct[];
     },
     onSuccess: (products) => {
@@ -342,31 +358,72 @@ export default function ProductModal({ open, onOpenChange, product }: ProductMod
       }
 
       if (products.length === 1) {
-        const product = products[0];
-        const sageSupplier = suppliers.find(s => s.name.toLowerCase().includes("sage"));
-
-        setFormData({
-          sku: product.sku,
-          name: product.name,
-          description: product.description || "",
-          price: product.price?.toString() || "",
-          supplierId: sageSupplier ? sageSupplier.id : "",
-          category: product.category || "",
-          brand: product.brand || "",
-          style: "",
-          color: "",
-          size: "",
-        });
-        setSelectedProductImage(product.imageUrl || "");
-        setDataSource("sage");
-        toast({
-          title: "Product Found",
-          description: `Found ${product.name} in SAGE catalog`,
-        });
+        // Auto-import single result using the same function as manual click
+        selectSageProduct(products[0]);
       } else {
         toast({
           title: "Search Results",
           description: `Found ${products.length} products in SAGE`,
+        });
+      }
+    },
+    onError: (error: Error) => {
+      if (isUnauthorizedError(error)) {
+        toast({
+          title: "Unauthorized",
+          description: "You are logged out. Logging in again...",
+          variant: "destructive",
+        });
+        setTimeout(() => {
+          window.location.href = "/api/login";
+        }, 500);
+        return;
+      }
+
+      setSearchError(error.message);
+      toast({
+        title: "Product Not Found",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const searchSanmarProductMutation = useMutation({
+    mutationFn: async (query: string) => {
+      const response = await fetch(`/api/sanmar/search?q=${encodeURIComponent(query)}`, {
+        credentials: "include",
+      });
+
+      if (!response.ok) {
+        if (response.status === 404) {
+          throw new Error("No products found in SanMar catalog");
+        }
+        const errorData = await response.json().catch(() => ({ message: 'Unknown error' }));
+        throw new Error(errorData.message || "Failed to search SanMar products");
+      }
+
+      return response.json() as Promise<SanMarProductResult[]>;
+    },
+    onSuccess: (products) => {
+      setSanmarSearchResults(products);
+      setSearchError("");
+
+      if (products.length === 0) {
+        toast({
+          title: "No Results",
+          description: "No products found in SanMar catalog",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      if (products.length === 1) {
+        selectSanmarProduct(products[0]);
+      } else {
+        toast({
+          title: "Search Results",
+          description: `Found ${products.length} products in SanMar`,
         });
       }
     },
@@ -520,49 +577,78 @@ export default function ProductModal({ open, onOpenChange, product }: ProductMod
     });
   };
 
+  const handleSanmarSearch = () => {
+    if (!sanmarSearchQuery.trim()) {
+      setSearchError("Please enter a search query");
+      return;
+    }
+
+    setIsSearching(true);
+    searchSanmarProductMutation.mutate(sanmarSearchQuery.trim(), {
+      onSettled: () => setIsSearching(false),
+    });
+  };
+
+  const selectSanmarProduct = (product: SanMarProductResult) => {
+    // Try to find SanMar in the suppliers list
+    const sanmarSupplier = suppliers.find(s =>
+      s.name.toLowerCase().includes("sanmar") || s.name.toLowerCase().includes("san mar")
+    );
+
+    const imageUrl = product.productImage || product.frontModel || product.frontFlat || product.colorProductImage || product.thumbnailImage || "";
+
+    if (!sanmarSupplier) {
+      // Set as pending supplier - will be created on form submit
+      setPendingSupplier({
+        name: "SanMar",
+        website: "https://www.sanmar.com",
+        phone: "(800) 426-6399",
+      });
+    } else {
+      setPendingSupplier(null);
+    }
+
+    setFormData({
+      sku: product.styleId,
+      name: product.productTitle || `${product.brandName} ${product.styleName}`,
+      description: product.productDescription || "",
+      price: product.piecePrice?.toString() || "",
+      supplierId: sanmarSupplier?.id || "pending-new",
+      category: product.categoryName || "",
+      brand: product.brandName || "",
+      style: product.styleName || "",
+      color: product.colors?.join(", ") || "",
+      size: product.sizes?.join(", ") || "",
+    });
+    setSelectedProductImage(imageUrl);
+    setSanmarSearchResults([]);
+    setSanmarSearchQuery("");
+    setDataSource("sanmar");
+    setActiveTab("manual");
+
+    toast({
+      title: "Product Imported from SanMar",
+      description: sanmarSupplier
+        ? `${product.brandName} ${product.styleName} - All fields auto-filled`
+        : `${product.brandName} ${product.styleName} - Supplier "SanMar" will be created on save`,
+    });
+  };
+
   const selectProduct = (product: SsActivewearProduct) => {
-    let ssSupplier = suppliers.find(s => 
-      s.name.toLowerCase().includes("s&s activewear") || 
+    const ssSupplier = suppliers.find(s =>
+      s.name.toLowerCase().includes("s&s activewear") ||
       s.name.toLowerCase().includes("ss activewear")
     );
 
     if (!ssSupplier) {
-      toast({
-        title: "Supplier Not Found",
-        description: "S&S Activewear supplier not found. Creating one...",
-      });
-      
-      createSupplierMutation.mutate({
+      setPendingSupplier({
         name: "S&S Activewear",
         website: "https://www.ssactivewear.com",
         email: "support@ssactivewear.com",
         phone: "(800) 523-2155",
-      }, {
-        onSuccess: (newSupplier) => {
-          setFormData({
-            sku: product.sku,
-            name: `${product.brandName} ${product.styleName} - ${product.colorName}`,
-            description: `${product.brandName} ${product.styleName} in ${product.colorName}, Size: ${product.sizeName}`,
-            price: product.piecePrice?.toString() || "",
-            supplierId: newSupplier.id,
-            category: "",
-            brand: product.brandName,
-            style: product.styleName,
-            color: product.colorName,
-            size: product.sizeName,
-          });
-          setSelectedProductImage(product.colorFrontImage || "");
-          setSearchResults([]);
-          setSearchQuery("");
-          setDataSource("ss-activewear");
-          setActiveTab("manual");
-          toast({
-            title: "Product Imported from S&S Activewear",
-            description: `${product.brandName} ${product.styleName} - Supplier "S&S Activewear" created. All fields auto-filled.`,
-          });
-        }
       });
-      return;
+    } else {
+      setPendingSupplier(null);
     }
 
     setFormData({
@@ -570,7 +656,7 @@ export default function ProductModal({ open, onOpenChange, product }: ProductMod
       name: `${product.brandName} ${product.styleName} - ${product.colorName}`,
       description: `${product.brandName} ${product.styleName} in ${product.colorName}, Size: ${product.sizeName}`,
       price: product.piecePrice?.toString() || "",
-      supplierId: ssSupplier.id,
+      supplierId: ssSupplier?.id || "pending-new",
       category: "",
       brand: product.brandName,
       style: product.styleName,
@@ -582,122 +668,75 @@ export default function ProductModal({ open, onOpenChange, product }: ProductMod
     setSearchQuery("");
     setDataSource("ss-activewear");
     setActiveTab("manual");
-    
+
     toast({
       title: "Product Imported from S&S Activewear",
-      description: `${product.brandName} ${product.styleName} - All fields auto-filled`,
+      description: ssSupplier
+        ? `${product.brandName} ${product.styleName} - All fields auto-filled`
+        : `${product.brandName} ${product.styleName} - Supplier "S&S Activewear" will be created on save`,
     });
   };
 
   const selectSageProduct = (product: SageProduct) => {
-    // Try to find existing supplier by name or SAGE ID
-    let sageSupplier = suppliers.find(s => 
+    console.log('selectSageProduct called with:', JSON.stringify(product, null, 2));
+
+    // Try to find existing supplier by name
+    let sageSupplier = suppliers.find(s =>
       product.supplierName && s.name.toLowerCase() === product.supplierName.toLowerCase()
     );
+
+    // Also try partial match on supplier name
+    if (!sageSupplier && product.supplierName) {
+      sageSupplier = suppliers.find(s =>
+        s.name.toLowerCase().includes(product.supplierName!.toLowerCase()) ||
+        product.supplierName!.toLowerCase().includes(s.name.toLowerCase())
+      );
+    }
 
     // If specific supplier not found, look for a generic SAGE supplier
     if (!sageSupplier && !product.supplierName) {
       sageSupplier = suppliers.find(s => s.name.toLowerCase().includes("sage"));
     }
 
-    if (!sageSupplier && product.supplierName) {
-      // Create supplier with actual supplier info from SAGE
-      toast({
-        title: "Creating Supplier",
-        description: `Creating supplier: ${product.supplierName}`,
-      });
-      
-      createSupplierMutation.mutate({
-        name: product.supplierName,
+    if (!sageSupplier) {
+      // Set as pending supplier - will be created on form submit
+      const supplierName = product.supplierName || "SAGE";
+      setPendingSupplier({
+        name: supplierName,
         website: "https://www.sageworld.com",
-        email: "",
-        // Store SAGE-specific info in notes or custom field if available
-      }, {
-        onSuccess: (newSupplier) => {
-          setFormData({
-            sku: product.sku,
-            name: product.name,
-            description: product.description || "",
-            price: product.price?.toString() || "",
-            supplierId: newSupplier.id,
-            category: product.category || "",
-            brand: product.brand || product.supplierName || "",
-            style: "",
-            color: product.colors?.join(", ") || "",
-            size: product.sizes?.join(", ") || "",
-          });
-          setSelectedProductImage(product.imageUrl || "");
-          setSageSearchResults([]);
-          setSageSearchQuery("");
-          setDataSource("sage");
-          setActiveTab("manual");
-          toast({
-            title: "Product Imported",
-            description: `Imported from SAGE - Supplier "${newSupplier.name}" created. All fields auto-filled.`,
-          });
-        }
+        email: product.supplierName ? "" : "support@sageworld.com",
       });
-      return;
-    } else if (!sageSupplier) {
-      // No supplier name from SAGE, create generic SAGE supplier
-      toast({
-        title: "Creating Supplier",
-        description: "Creating generic SAGE supplier",
-      });
-      
-      createSupplierMutation.mutate({
-        name: "SAGE",
-        website: "https://www.sageworld.com",
-        email: "support@sageworld.com",
-      }, {
-        onSuccess: (newSupplier) => {
-          setFormData({
-            sku: product.sku,
-            name: product.name,
-            description: product.description || "",
-            price: product.price?.toString() || "",
-            supplierId: newSupplier.id,
-            category: product.category || "",
-            brand: product.brand || "",
-            style: "",
-            color: product.colors?.join(", ") || "",
-            size: product.sizes?.join(", ") || "",
-          });
-          setSelectedProductImage(product.imageUrl || "");
-          setSageSearchResults([]);
-          setSageSearchQuery("");
-          setDataSource("sage");
-          setActiveTab("manual");
-          toast({
-            title: "Product Imported",
-            description: `Imported from SAGE with new supplier. All fields auto-filled.`,
-          });
-        }
-      });
-      return;
+    } else {
+      setPendingSupplier(null);
     }
 
-    setFormData({
-      sku: product.sku,
-      name: product.name,
+    const newFormData = {
+      sku: product.sku || "",
+      name: product.name || "",
       description: product.description || "",
-      price: product.price?.toString() || "",
-      supplierId: sageSupplier.id,
+      price: product.price != null ? product.price.toString() : "",
+      supplierId: sageSupplier?.id || "pending-new",
       category: product.category || "",
       brand: product.brand || product.supplierName || "",
       style: "",
       color: product.colors?.join(", ") || "",
       size: product.sizes?.join(", ") || "",
-    });
+    };
+    console.log('Setting formData to:', newFormData);
+
+    setFormData(newFormData);
     setSelectedProductImage(product.imageUrl || "");
     setSageSearchResults([]);
     setSageSearchQuery("");
     setDataSource("sage");
     setActiveTab("manual");
-    
+
+    const supplierLabel = product.supplierName || "SAGE";
     toast({
       title: "Product Imported from SAGE",
-      description: `${product.name} - All fields auto-filled`,
+      description: sageSupplier
+        ? `${product.name} - All fields auto-filled`
+        : `${product.name} - Supplier "${supplierLabel}" will be created on save`,
     });
   };
 
@@ -713,7 +752,7 @@ export default function ProductModal({ open, onOpenChange, product }: ProductMod
       return;
     }
 
-    if (!formData.supplierId) {
+    if (!formData.supplierId && !pendingSupplier) {
       toast({
         title: "Supplier Required",
         description: "Please select a supplier or create a new one",
@@ -730,7 +769,22 @@ export default function ProductModal({ open, onOpenChange, product }: ProductMod
         imageUrl = await handleImageUpload(imageFile);
         console.log('Image uploaded successfully, URL:', imageUrl);
         setSelectedProductImage(imageUrl);
-        setImageFile(null); // Clear file after successful upload
+        setImageFile(null);
+      }
+
+      // If there's a pending supplier, create it first
+      let resolvedSupplierId = formData.supplierId;
+      if (pendingSupplier) {
+        console.log('Creating pending supplier:', pendingSupplier.name);
+        const supplierResponse = await apiRequest("POST", "/api/suppliers", pendingSupplier);
+        const newSupplier = await supplierResponse.json();
+        resolvedSupplierId = newSupplier.id;
+        queryClient.invalidateQueries({ queryKey: ["/api/suppliers"] });
+        setPendingSupplier(null);
+        toast({
+          title: "Supplier Created",
+          description: `Supplier "${newSupplier.name}" created successfully`,
+        });
       }
 
       // Build colors and sizes arrays from comma-separated strings
@@ -742,7 +796,7 @@ export default function ProductModal({ open, onOpenChange, product }: ProductMod
         name: formData.name,
         description: formData.description,
         basePrice: (parseFloat(formData.price) || 0).toString(),
-        supplierId: formData.supplierId,
+        supplierId: resolvedSupplierId,
         brand: formData.brand || null,
         category: formData.category || null,
         colors: colorsArray.length > 0 ? colorsArray : null,
@@ -788,25 +842,29 @@ export default function ProductModal({ open, onOpenChange, product }: ProductMod
           <DialogDescription>
             {product
               ? 'Update product information below.'
-              : 'Search from S&S Activewear or SAGE catalogs, or enter details manually.'
+              : 'Search from S&S Activewear, SAGE, or SanMar catalogs, or enter details manually.'
             }
           </DialogDescription>
         </DialogHeader>
 
         {!product && (
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-3">
+            <TabsList className="grid w-full grid-cols-4">
               <TabsTrigger value="manual" className="flex items-center gap-2">
                 <Pencil className="h-4 w-4" />
-                Manual Entry
+                Manual
               </TabsTrigger>
               <TabsTrigger value="ss-activewear" className="flex items-center gap-2">
                 <ShoppingCart className="h-4 w-4" />
-                S&S Activewear
+                S&S
               </TabsTrigger>
               <TabsTrigger value="sage" className="flex items-center gap-2">
                 <Database className="h-4 w-4" />
                 SAGE
+              </TabsTrigger>
+              <TabsTrigger value="sanmar" className="flex items-center gap-2">
+                <Package className="h-4 w-4" />
+                SanMar
               </TabsTrigger>
             </TabsList>
 
@@ -1078,6 +1136,151 @@ export default function ProductModal({ open, onOpenChange, product }: ProductMod
               </Card>
             </TabsContent>
 
+            {/* SanMar Search Tab */}
+            <TabsContent value="sanmar" className="space-y-4 mt-4">
+              <Card>
+                <CardContent className="pt-6 space-y-4">
+                  <div>
+                    <h3 className="font-semibold text-lg mb-2 flex items-center gap-2">
+                      <Package className="h-5 w-5 text-orange-600" />
+                      Search SanMar Catalog
+                    </h3>
+                    <p className="text-sm text-muted-foreground">
+                      Enter a style number for fastest results (e.g., PC54, 5000, G500), or a brand name (e.g., OGIO, Port Authority).
+                    </p>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <div className="flex-1">
+                      <Input
+                        placeholder="Style # (PC54, 5000) or brand name (OGIO)"
+                        value={sanmarSearchQuery}
+                        onChange={(e) => setSanmarSearchQuery(e.target.value)}
+                        onKeyPress={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            handleSanmarSearch();
+                          }
+                        }}
+                      />
+                    </div>
+                    <Button
+                      onClick={handleSanmarSearch}
+                      disabled={isSearching || !sanmarSearchQuery.trim()}
+                    >
+                      {isSearching ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          Searching...
+                        </>
+                      ) : (
+                        <>
+                          <Search className="w-4 h-4 mr-2" />
+                          Search
+                        </>
+                      )}
+                    </Button>
+                  </div>
+
+                  {searchError && (
+                    <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+                      <p className="text-sm text-red-600">{searchError}</p>
+                    </div>
+                  )}
+
+                  {sanmarSearchResults.length > 0 && (
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <Label>Search Results</Label>
+                        <Badge variant="secondary">{sanmarSearchResults.length} found</Badge>
+                      </div>
+                      <div className="max-h-96 overflow-y-auto space-y-2">
+                        {sanmarSearchResults.map((product) => (
+                          <Card
+                            key={product.styleId}
+                            className="cursor-pointer hover:bg-accent transition-colors"
+                            onClick={() => selectSanmarProduct(product)}
+                          >
+                            <CardContent className="p-4">
+                              <div className="flex items-center gap-4">
+                                {(product.productImage || product.frontModel || product.thumbnailImage) && (
+                                  <img
+                                    src={product.productImage || product.frontModel || product.thumbnailImage}
+                                    alt={`${product.brandName} ${product.styleName}`}
+                                    className="w-20 h-20 object-cover rounded border"
+                                    onError={(e) => {
+                                      e.currentTarget.style.display = 'none';
+                                    }}
+                                  />
+                                )}
+                                <div className="flex-1 min-w-0">
+                                  <div className="font-semibold text-sm truncate">
+                                    {product.productTitle || `${product.brandName} ${product.styleName}`}
+                                  </div>
+                                  {product.productDescription && (
+                                    <div className="text-sm text-muted-foreground line-clamp-1">
+                                      {product.productDescription}
+                                    </div>
+                                  )}
+                                  <div className="flex flex-wrap items-center gap-2 mt-1">
+                                    <Badge variant="outline" className="text-xs">
+                                      Style: {product.styleId}
+                                    </Badge>
+                                    {product.piecePrice ? (
+                                      <Badge className="bg-green-100 text-green-800 text-xs">
+                                        ${product.piecePrice.toFixed(2)}
+                                      </Badge>
+                                    ) : null}
+                                    {product.brandName && (
+                                      <Badge variant="secondary" className="text-xs">
+                                        {product.brandName}
+                                      </Badge>
+                                    )}
+                                    {product.categoryName && (
+                                      <Badge variant="outline" className="text-xs">
+                                        {product.categoryName}
+                                      </Badge>
+                                    )}
+                                  </div>
+                                  {/* Colors display */}
+                                  {product.colors && product.colors.length > 0 && (
+                                    <div className="flex flex-wrap items-center gap-1 mt-2">
+                                      <span className="text-xs text-muted-foreground font-medium">Colors:</span>
+                                      {product.colors.slice(0, 5).map((color, idx) => (
+                                        <Badge key={idx} variant="secondary" className="text-xs">
+                                          {color}
+                                        </Badge>
+                                      ))}
+                                      {product.colors.length > 5 && (
+                                        <span className="text-xs text-muted-foreground">
+                                          +{product.colors.length - 5} more
+                                        </span>
+                                      )}
+                                    </div>
+                                  )}
+                                  {/* Sizes display */}
+                                  {product.availableSizes && (
+                                    <div className="flex items-center gap-1 mt-1">
+                                      <span className="text-xs text-muted-foreground font-medium">Sizes:</span>
+                                      <span className="text-xs text-muted-foreground">{product.availableSizes}</span>
+                                    </div>
+                                  )}
+                                </div>
+                                <Button size="sm" variant="default">
+                                  <CheckCircle2 className="h-4 w-4 mr-1" />
+                                  Import
+                                </Button>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
             <TabsContent value="manual" className="mt-4">
               {/* Form content will be here */}
             </TabsContent>
@@ -1087,8 +1290,12 @@ export default function ProductModal({ open, onOpenChange, product }: ProductMod
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Data Source Indicator */}
           {dataSource !== "manual" && !product && (
-            <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-center gap-2">
-              {dataSource === "ss-activewear" ? (
+            <div className={`p-3 rounded-lg flex items-center gap-2 ${
+              dataSource === "sanmar" ? "bg-orange-50 border border-orange-200" :
+              dataSource === "sage" ? "bg-purple-50 border border-purple-200" :
+              "bg-blue-50 border border-blue-200"
+            }`}>
+              {dataSource === "ss-activewear" && (
                 <>
                   <ShoppingCart className="h-5 w-5 text-blue-600" />
                   <div>
@@ -1096,12 +1303,22 @@ export default function ProductModal({ open, onOpenChange, product }: ProductMod
                     <p className="text-xs text-blue-700">Review and modify the details below before saving.</p>
                   </div>
                 </>
-              ) : (
+              )}
+              {dataSource === "sage" && (
                 <>
                   <Database className="h-5 w-5 text-purple-600" />
                   <div>
                     <p className="text-sm font-medium text-purple-900">Imported from SAGE</p>
                     <p className="text-xs text-purple-700">Review and modify the details below before saving.</p>
+                  </div>
+                </>
+              )}
+              {dataSource === "sanmar" && (
+                <>
+                  <Package className="h-5 w-5 text-orange-600" />
+                  <div>
+                    <p className="text-sm font-medium text-orange-900">Imported from SanMar</p>
+                    <p className="text-xs text-orange-700">Review and modify the details below before saving.</p>
                   </div>
                 </>
               )}
@@ -1257,34 +1474,59 @@ export default function ProductModal({ open, onOpenChange, product }: ProductMod
 
             <div>
               <Label htmlFor="supplier">Supplier *</Label>
-              <div className="flex gap-2">
-                <Select
-                  value={formData.supplierId}
-                  onValueChange={(value) => {
-                    if (value === "create-new") {
-                      setIsCreatingSupplier(true);
-                    } else {
-                      setFormData({ ...formData, supplierId: value });
-                    }
-                  }}
-                >
-                  <SelectTrigger className="flex-1">
-                    <SelectValue placeholder="Select supplier (required)" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="create-new" className="text-swag-primary font-medium">
-                      + Create New Supplier
-                    </SelectItem>
-                    {suppliers.map((supplier) => (
-                      <SelectItem key={supplier.id} value={supplier.id}>
-                        {supplier.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              {!formData.supplierId && (
-                <p className="text-xs text-red-500 mt-1">Supplier is required</p>
+              {pendingSupplier ? (
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 px-3 py-2 border rounded-md bg-orange-50 border-orange-200">
+                      <span className="text-orange-800 font-medium text-sm">{pendingSupplier.name}</span>
+                      <span className="text-orange-500 text-xs ml-2">(New - will be created on save)</span>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="text-xs"
+                      onClick={() => {
+                        setPendingSupplier(null);
+                        setFormData({ ...formData, supplierId: "" });
+                      }}
+                    >
+                      Change
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div className="flex gap-2">
+                    <Select
+                      value={formData.supplierId}
+                      onValueChange={(value) => {
+                        if (value === "create-new") {
+                          setIsCreatingSupplier(true);
+                        } else {
+                          setFormData({ ...formData, supplierId: value });
+                        }
+                      }}
+                    >
+                      <SelectTrigger className="flex-1">
+                        <SelectValue placeholder="Select supplier (required)" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="create-new" className="text-swag-primary font-medium">
+                          + Create New Supplier
+                        </SelectItem>
+                        {suppliers.map((supplier) => (
+                          <SelectItem key={supplier.id} value={supplier.id}>
+                            {supplier.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  {!formData.supplierId && (
+                    <p className="text-xs text-red-500 mt-1">Supplier is required</p>
+                  )}
+                </>
               )}
             </div>
           </div>

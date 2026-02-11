@@ -106,7 +106,7 @@ export function ProductDetailModal({ open, onOpenChange, product, supplierName, 
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <div className="flex items-center justify-between">
+          <div className="flex items-center mt-5 justify-between">
             <DialogTitle className="flex items-center gap-3">
               <Package className="w-6 h-6" />
               {product.name}

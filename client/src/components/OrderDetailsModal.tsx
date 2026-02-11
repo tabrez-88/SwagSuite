@@ -177,6 +177,7 @@ function OrderDetailsModal({ open, onOpenChange, orderId, pageMode }: OrderDetai
   const [vendorEmailCc, setVendorEmailCc] = useState("");
   const [vendorEmailBcc, setVendorEmailBcc] = useState("");
   const [vendorEmailAttachments, setVendorEmailAttachments] = useState<File[]>([]);
+  const [pendingStatusUpdate, setPendingStatusUpdate] = useState<string | null>(null);
   const [emailPreviewMode, setEmailPreviewMode] = useState<"compose" | "preview">("compose");
   const [vendorEmailPreviewMode, setVendorEmailPreviewMode] = useState<"compose" | "preview">("compose");
   const [mentionQuery, setMentionQuery] = useState("");
@@ -1056,7 +1057,7 @@ function OrderDetailsModal({ open, onOpenChange, orderId, pageMode }: OrderDetai
 
       return result;
     },
-    onSuccess: () => {
+    onSuccess: async () => {
       queryClient.invalidateQueries({
         queryKey: [`/api/orders/${order?.id}/communications`, { type: "client_email" }],
       });
@@ -1064,6 +1065,23 @@ function OrderDetailsModal({ open, onOpenChange, orderId, pageMode }: OrderDetai
         title: "Email sent",
         description: "Client email has been sent successfully.",
       });
+
+      // Update order status if this email was linked to a status transition
+      if (pendingStatusUpdate && order?.id) {
+        try {
+          await fetch(`/api/orders/${order.id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            credentials: "include",
+            body: JSON.stringify({ status: pendingStatusUpdate }),
+          });
+          queryClient.invalidateQueries({ queryKey: [`/api/orders/${order.id}`] });
+          queryClient.invalidateQueries({ queryKey: ["/api/orders"] });
+          setPendingStatusUpdate(null);
+        } catch (err) {
+          console.error("Failed to update order status after email:", err);
+        }
+      }
     },
     onError: (error: Error) => {
       console.error('Client email error:', error);
@@ -1072,6 +1090,7 @@ function OrderDetailsModal({ open, onOpenChange, orderId, pageMode }: OrderDetai
         description: error.message || "Failed to send client email. Please check Settings → Email Config.",
         variant: "destructive",
       });
+      // Don't clear pendingStatusUpdate on error - user might retry
     },
   });
 
@@ -3328,6 +3347,9 @@ function OrderDetailsModal({ open, onOpenChange, orderId, pageMode }: OrderDetai
                 getEditedItem={getEditedItem}
                 calculateItemTotals={calculateItemTotals}
                 onSendEmail={(data) => {
+                  // Track if status should be updated after email is sent
+                  setPendingStatusUpdate((data as any).updateStatusOnSend || null);
+
                   if (data.type === 'client') {
                     // Auto-fill client communication tab
                     setEmailTo(data.to);

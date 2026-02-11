@@ -43,6 +43,13 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "./ui/separator";
 import { Checkbox } from "@/components/ui/checkbox";
 import { AddressAutocomplete } from "@/components/ui/address-autocomplete";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface Contact {
   id: string;
@@ -57,6 +64,20 @@ interface Contact {
   shippingAddress?: string;
   createdAt?: string;
   updatedAt?: string;
+}
+
+// Normalize various country name/code formats to standard 2-letter codes
+function normalizeCountryCode(country: string): string {
+  if (!country) return "US";
+  const c = country.trim().toUpperCase();
+  if (c === "US" || c === "CA" || c === "MX") return c;
+  const mapping: Record<string, string> = {
+    "USA": "US", "U.S.": "US", "U.S.A.": "US",
+    "UNITED STATES": "US", "UNITED STATES OF AMERICA": "US",
+    "CANADA": "CA", "CAN": "CA",
+    "MEXICO": "MX", "MEX": "MX", "MÉXICO": "MX",
+  };
+  return mapping[c] || "US";
 }
 
 interface ContactsManagerProps {
@@ -259,9 +280,21 @@ const ContactFormFields = ({ form, sameAsBilling, setSameAsBilling }: { form: an
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Country</FormLabel>
-                <FormControl>
-                  <Input placeholder="US" {...field} />
-                </FormControl>
+                <Select
+                  value={field.value || "US"}
+                  onValueChange={field.onChange}
+                >
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    <SelectItem value="US">United States</SelectItem>
+                    <SelectItem value="CA">Canada</SelectItem>
+                    <SelectItem value="MX">Mexico</SelectItem>
+                  </SelectContent>
+                </Select>
                 <FormMessage />
               </FormItem>
             )}
@@ -355,9 +388,22 @@ const ContactFormFields = ({ form, sameAsBilling, setSameAsBilling }: { form: an
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Country</FormLabel>
-                <FormControl>
-                  <Input placeholder="US" {...field} disabled={sameAsBilling} />
-                </FormControl>
+                <Select
+                  value={field.value || "US"}
+                  onValueChange={field.onChange}
+                  disabled={sameAsBilling}
+                >
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    <SelectItem value="US">United States</SelectItem>
+                    <SelectItem value="CA">Canada</SelectItem>
+                    <SelectItem value="MX">Mexico</SelectItem>
+                  </SelectContent>
+                </Select>
                 <FormMessage />
               </FormItem>
             )}
@@ -633,7 +679,7 @@ export function ContactsManager({ companyId, companyName }: ContactsManagerProps
         billingCity = billing.city || "";
         billingState = billing.state || "";
         billingZipCode = billing.zipCode || "";
-        billingCountry = billing.country || "";
+        billingCountry = normalizeCountryCode(billing.country || "");
       } catch { }
     }
 
@@ -646,7 +692,7 @@ export function ContactsManager({ companyId, companyName }: ContactsManagerProps
         shippingCity = shipping.city || "";
         shippingState = shipping.state || "";
         shippingZipCode = shipping.zipCode || "";
-        shippingCountry = shipping.country || "";
+        shippingCountry = normalizeCountryCode(shipping.country || "");
       } catch { }
     }
 
