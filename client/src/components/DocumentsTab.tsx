@@ -80,6 +80,7 @@ export function DocumentsTab({
   const [isGenerating, setIsGenerating] = useState(false);
   const [autoGenerateTriggered, setAutoGenerateTriggered] = useState(false);
   const [syncingDocIds, setSyncingDocIds] = useState<Set<string>>(new Set());
+  const isSyncingRef = useRef(false);
 
   // Fetch generated documents
   const { data: documents = [] } = useQuery<any[]>({
@@ -354,7 +355,7 @@ export function DocumentsTab({
 
   // Smart sync: auto-regenerate stale draft docs and generate POs for new vendors
   useEffect(() => {
-    if (isGenerating || documents.length === 0) return;
+    if (isGenerating || documents.length === 0 || isSyncingRef.current) return;
 
     const docsToSync = Array.from(staleDraftDocIds);
     const vendorsToGenerate = Array.from(newVendorIds);
@@ -362,6 +363,10 @@ export function DocumentsTab({
     if (docsToSync.length === 0 && vendorsToGenerate.length === 0) return;
 
     const syncTimeout = setTimeout(async () => {
+      // Prevent concurrent syncs
+      if (isSyncingRef.current) return;
+      isSyncingRef.current = true;
+
       // Mark syncing docs
       setSyncingDocIds(new Set([...docsToSync, ...vendorsToGenerate]));
 
@@ -399,6 +404,7 @@ export function DocumentsTab({
         }
       } finally {
         setSyncingDocIds(new Set());
+        isSyncingRef.current = false;
       }
     }, 1500);
 

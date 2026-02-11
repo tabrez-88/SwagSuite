@@ -480,7 +480,7 @@ function OrderDetailsModal({ open, onOpenChange, orderId, pageMode }: OrderDetai
     let newUnitPrice = editedItem.unitPrice;
 
     if (cost > 0 && marginPercent < 100) {
-      newUnitPrice = cost / (1 - marginPercent / 100);
+      newUnitPrice = Math.round((cost / (1 - marginPercent / 100)) * 100) / 100;
     }
 
     updateEditedItem(itemId, {
@@ -516,6 +516,21 @@ function OrderDetailsModal({ open, onOpenChange, orderId, pageMode }: OrderDetai
   // Handler for UOM Factory change
   const handleUomFactoryChange = (itemId: string, uomFactory: number) => {
     updateEditedItem(itemId, { uomFactory });
+  };
+
+  // UX Helper: select all text on focus for numeric inputs
+  const handleSelectAll = (e: React.FocusEvent<HTMLInputElement>) => {
+    e.target.select();
+  };
+
+  // UX Helper: format number for display in input (empty string if 0 or NaN, max 2 decimals)
+  const formatInputValue = (value: number | string | undefined | null, allowZero = false): string => {
+    if (value === undefined || value === null || value === '') return '';
+    const num = typeof value === 'string' ? parseFloat(value) : value;
+    if (isNaN(num)) return '';
+    if (num === 0 && !allowZero) return '';
+    // Round to max 2 decimal places, remove trailing zeros
+    return parseFloat(num.toFixed(2)).toString();
   };
 
   // Artwork handlers
@@ -2992,7 +3007,8 @@ function OrderDetailsModal({ open, onOpenChange, orderId, pageMode }: OrderDetai
                                               step="0.01"
                                               className="w-[70px] h-7 text-xs text-center"
                                               placeholder="0.00"
-                                              value={editedItem.sizePricing[size]?.cost || ''}
+                                              value={formatInputValue(editedItem.sizePricing[size]?.cost)}
+                                              onFocus={handleSelectAll}
                                               onChange={(e) => handleSizePricingChange(item.id, size, 'cost', parseFloat(e.target.value) || 0)}
                                             />
                                           ))}
@@ -3010,7 +3026,8 @@ function OrderDetailsModal({ open, onOpenChange, orderId, pageMode }: OrderDetai
                                               step="0.01"
                                               className="w-[70px] h-7 text-xs text-center"
                                               placeholder="0.00"
-                                              value={editedItem.sizePricing[size]?.price || ''}
+                                              value={formatInputValue(editedItem.sizePricing[size]?.price)}
+                                              onFocus={handleSelectAll}
                                               onChange={(e) => handleSizePricingChange(item.id, size, 'price', parseFloat(e.target.value) || 0)}
                                             />
                                           ))}
@@ -3026,7 +3043,9 @@ function OrderDetailsModal({ open, onOpenChange, orderId, pageMode }: OrderDetai
                                               key={size}
                                               type="number"
                                               className="w-[70px] h-7 text-xs text-center"
-                                              value={editedItem.sizePricing[size]?.quantity || ''}
+                                              placeholder="0"
+                                              value={formatInputValue(editedItem.sizePricing[size]?.quantity)}
+                                              onFocus={handleSelectAll}
                                               onChange={(e) => handleSizePricingChange(item.id, size, 'quantity', parseInt(e.target.value) || 0)}
                                             />
                                           ))}
@@ -3065,24 +3084,29 @@ function OrderDetailsModal({ open, onOpenChange, orderId, pageMode }: OrderDetai
                                         step="0.01"
                                         className="h-8 text-sm"
                                         placeholder="0.00"
-                                        value={editedItem.cost || ''}
+                                        value={formatInputValue(editedItem.cost)}
+                                        onFocus={handleSelectAll}
                                         onChange={(e) => handleSimplePricingChange(item.id, 'cost', parseFloat(e.target.value) || 0)}
                                       />
                                       <Input
                                         type="number"
                                         step="0.01"
                                         className="h-8 text-sm"
-                                        value={editedItem.unitPrice || ''}
+                                        placeholder="0.00"
+                                        value={formatInputValue(editedItem.unitPrice)}
+                                        onFocus={handleSelectAll}
                                         onChange={(e) => handleSimplePricingChange(item.id, 'price', parseFloat(e.target.value) || 0)}
                                       />
                                       <Input
                                         type="number"
                                         className="h-8 text-sm"
-                                        value={editedItem.quantity || ''}
+                                        placeholder="0"
+                                        value={formatInputValue(editedItem.quantity)}
+                                        onFocus={handleSelectAll}
                                         onChange={(e) => handleSimplePricingChange(item.id, 'quantity', parseInt(e.target.value) || 0)}
                                       />
                                       <div className="h-8 flex items-center justify-center border rounded bg-gray-50 text-sm">
-                                        {(editedItem.quantity * editedItem.unitPrice).toFixed(2)}
+                                        ${((editedItem.quantity || 0) * (editedItem.unitPrice || 0)).toFixed(2)}
                                       </div>
                                     </div>
                                   </div>
@@ -3112,35 +3136,77 @@ function OrderDetailsModal({ open, onOpenChange, orderId, pageMode }: OrderDetai
                                   </div>
                                   <div className="flex items-center gap-2">
                                     <Input
-                                      type="number"
-                                      step="0.01"
+                                      type="text"
+                                      inputMode="decimal"
                                       className="h-7 text-sm"
                                       postfix="%"
-                                      value={currentProductMargin.toFixed(2)}
-                                      onChange={(e) => handleProductMarginChange(item.id, parseFloat(e.target.value) || 0)}
+                                      placeholder="0.00"
+                                      defaultValue={formatInputValue(currentProductMargin)}
+                                      key={`margin-${item.id}-${formatInputValue(currentProductMargin)}`}
+                                      onFocus={handleSelectAll}
+                                      onBlur={(e) => {
+                                        const val = e.target.value.replace(/[^0-9.\-]/g, '');
+                                        if (val === '' || val === '-') {
+                                          handleProductMarginChange(item.id, 0);
+                                          return;
+                                        }
+                                        const num = parseFloat(val);
+                                        if (!isNaN(num)) {
+                                          // Clamp to 2 decimal places
+                                          const rounded = Math.round(num * 100) / 100;
+                                          handleProductMarginChange(item.id, rounded);
+                                        }
+                                      }}
+                                      onKeyDown={(e) => {
+                                        if (e.key === 'Enter') {
+                                          (e.target as HTMLInputElement).blur();
+                                        }
+                                      }}
                                     />
                                   </div>
 
                                   <div className="flex items-center gap-2">
                                     <Input
-                                      type="number"
-                                      step="0.01"
+                                      type="text"
+                                      inputMode="decimal"
                                       className="h-7 text-sm"
                                       postfix="%"
                                       placeholder="0.00"
-                                      value={editedItem.decorationCost || ''}
-                                      onChange={(e) => handleDecorationChange(item.id, parseFloat(e.target.value) || 0)}
+                                      defaultValue={formatInputValue(editedItem.decorationCost)}
+                                      key={`deco-${item.id}-${formatInputValue(editedItem.decorationCost)}`}
+                                      onFocus={handleSelectAll}
+                                      onBlur={(e) => {
+                                        const val = e.target.value.replace(/[^0-9.\-]/g, '');
+                                        const num = parseFloat(val) || 0;
+                                        handleDecorationChange(item.id, Math.round(num * 100) / 100);
+                                      }}
+                                      onKeyDown={(e) => {
+                                        if (e.key === 'Enter') {
+                                          (e.target as HTMLInputElement).blur();
+                                        }
+                                      }}
                                     />
                                   </div>
                                   <div className="flex items-center gap-2">
                                     <Input
-                                      type="number"
-                                      step="0.01"
+                                      type="text"
+                                      inputMode="decimal"
                                       className="h-7 text-sm"
                                       postfix="%"
                                       placeholder="0.00"
-                                      value={editedItem.charges || ''}
-                                      onChange={(e) => handleChargesChange(item.id, parseFloat(e.target.value) || 0)}
+                                      defaultValue={formatInputValue(editedItem.charges)}
+                                      key={`charges-${item.id}-${formatInputValue(editedItem.charges)}`}
+                                      onFocus={handleSelectAll}
+                                      onBlur={(e) => {
+                                        const val = e.target.value.replace(/[^0-9.\-]/g, '');
+                                        const num = parseFloat(val) || 0;
+                                        handleChargesChange(item.id, Math.round(num * 100) / 100);
+                                      }}
+                                      onKeyDown={(e) => {
+                                        if (e.key === 'Enter') {
+                                          (e.target as HTMLInputElement).blur();
+                                        }
+                                      }}
                                     />
                                   </div>
                                   <div className="flex items-center gap-2">
@@ -3157,7 +3223,9 @@ function OrderDetailsModal({ open, onOpenChange, orderId, pageMode }: OrderDetai
                                     <Input
                                       type="number"
                                       className="h-7 text-center text-sm font-medium"
-                                      value={editedItem.quantity}
+                                      placeholder="0"
+                                      value={formatInputValue(editedItem.quantity)}
+                                      onFocus={handleSelectAll}
                                       onChange={(e) => handleQuantityChange(item.id, parseInt(e.target.value) || 0)}
                                     />
                                   </div>
@@ -3195,7 +3263,8 @@ function OrderDetailsModal({ open, onOpenChange, orderId, pageMode }: OrderDetai
                                       type="number"
                                       className="h-7 text-center text-sm font-medium"
                                       placeholder="e.g., 12"
-                                      value={editedItem.uomFactory || ''}
+                                      value={formatInputValue(editedItem.uomFactory)}
+                                      onFocus={handleSelectAll}
                                       onChange={(e) => handleUomFactoryChange(item.id, parseInt(e.target.value) || 0)}
                                     />
                                     {editedItem.uomFactory && editedItem.uomFactory > 0 && (
