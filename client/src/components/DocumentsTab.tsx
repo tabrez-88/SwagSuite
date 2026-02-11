@@ -7,6 +7,7 @@ import { format } from "date-fns";
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 import {
+  AlertTriangle,
   CheckCircle2,
   Clock,
   Download,
@@ -18,7 +19,7 @@ import {
   ShoppingCart,
   Trash2
 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { DocumentEditor } from "./DocumentEditor";
 
 interface DocumentEmailData {
@@ -43,6 +44,16 @@ interface DocumentsTabProps {
   onSendEmail?: (data: DocumentEmailData) => void;
 }
 
+// Build a fingerprint string for items to detect changes
+function buildItemsHash(items: any[], type: 'quote' | 'po'): string {
+  const sorted = [...items].sort((a, b) => (a.id || '').localeCompare(b.id || ''));
+  return JSON.stringify(sorted.map(i => ({
+    id: i.id,
+    qty: i.quantity,
+    price: type === 'quote' ? i.unitPrice : (i.cost || i.unitPrice),
+  })));
+}
+
 export function DocumentsTab({
   orderId,
   order,
@@ -58,11 +69,11 @@ export function DocumentsTab({
   const queryClient = useQueryClient();
   const quoteRef = useRef<HTMLDivElement>(null);
   const poRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
-  
+
   const [previewDocument, setPreviewDocument] = useState<any>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [autoGenerateTriggered, setAutoGenerateTriggered] = useState(false);
-  
+  const [syncingDocIds, setSyncingDocIds] = useState<Set<string>>(new Set());
 
   // Fetch generated documents
   const { data: documents = [] } = useQuery<any[]>({
@@ -99,26 +110,28 @@ export function DocumentsTab({
       return response.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ 
-        queryKey: [`/api/orders/${orderId}/quote-approvals`] 
+      queryClient.invalidateQueries({
+        queryKey: [`/api/orders/${orderId}/quote-approvals`]
       });
     },
   });
 
   // Generate PDF and upload
   const generateDocumentMutation = useMutation({
-    mutationFn: async ({ 
-      elementRef, 
-      documentType, 
-      documentNumber, 
-      vendorId, 
-      vendorName 
-    }: { 
-      elementRef: HTMLDivElement | null; 
-      documentType: string; 
-      documentNumber: string; 
-      vendorId?: string; 
-      vendorName?: string; 
+    mutationFn: async ({
+      elementRef,
+      documentType,
+      documentNumber,
+      vendorId,
+      vendorName,
+      itemsHash,
+    }: {
+      elementRef: HTMLDivElement | null;
+      documentType: string;
+      documentNumber: string;
+      vendorId?: string;
+      vendorName?: string;
+      itemsHash?: string;
     }) => {
       if (!elementRef) throw new Error('Element not found');
 
@@ -165,11 +178,10 @@ export function DocumentsTab({
 
       // Scale down if content is taller than page
       if (imgHeight > pageHeight) {
-        // Scale to fit height, may leave some width margin
         const scaleFactor = pageHeight / imgHeight;
         const scaledWidth = imgWidth * scaleFactor;
         const scaledHeight = pageHeight;
-        const xOffset = (pageWidth - scaledWidth) / 2; // Center horizontally
+        const xOffset = (pageWidth - scaledWidth) / 2;
         pdf.addImage(imgData, 'PNG', xOffset, 0, scaledWidth, scaledHeight);
       } else {
         pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight);
@@ -187,18 +199,19 @@ export function DocumentsTab({
       formData.append('vendorName', vendorName || '');
       formData.append('status', 'draft');
 
-      // Add metadata (without pdfData)
+      // Add metadata with items hash for change detection
       const metadata = {
         orderNumber: order?.orderNumber,
         itemCount: orderItems.length,
         generatedAt: new Date().toISOString(),
+        itemsHash: itemsHash || '',
       };
       formData.append('metadata', JSON.stringify(metadata));
 
       const response = await fetch(`/api/orders/${orderId}/documents`, {
         method: 'POST',
         credentials: 'include',
-        body: formData, // Send as FormData (no Content-Type header, browser sets it automatically)
+        body: formData,
       });
 
       if (!response.ok) {
@@ -247,10 +260,85 @@ export function DocumentsTab({
     },
   });
 
-  // Auto-generate documents on first load when order items exist
+  // Build current item hashes for change detection
+  const currentHashes = useMemo(() => {
+    const quoteHash = buildItemsHash(orderItems, 'quote');
+    const vendorHashes: Record<string, string> = {};
+    for (const vendor of orderVendors) {
+      const vendorItems = orderItems.filter((i: any) => i.supplierId === vendor.id);
+      vendorHashes[vendor.id] = buildItemsHash(vendorItems, 'po');
+    }
+    return { quoteHash, vendorHashes };
+  }, [orderItems, orderVendors]);
+
+  // Detect which documents are stale and which vendors need new POs
+  const { staleDocIds, staleDraftDocIds, newVendorIds } = useMemo(() => {
+    const stale = new Set<string>();
+    const staleDraft = new Set<string>();
+    const newVendors: string[] = [];
+
+    for (const doc of documents) {
+      const storedHash = doc.metadata?.itemsHash;
+      if (!storedHash) continue; // Old docs without hash — skip (don't auto-regenerate)
+
+      if (doc.documentType === 'quote') {
+        if (storedHash !== currentHashes.quoteHash) {
+          stale.add(doc.id);
+          if (doc.status === 'draft') staleDraft.add(doc.id);
+        }
+      } else if (doc.documentType === 'purchase_order' && doc.vendorId) {
+        const currentVendorHash = currentHashes.vendorHashes[doc.vendorId];
+        if (currentVendorHash && storedHash !== currentVendorHash) {
+          stale.add(doc.id);
+          if (doc.status === 'draft') staleDraft.add(doc.id);
+        }
+      }
+    }
+
+    // Detect new vendors that don't have a PO yet
+    for (const vendor of orderVendors) {
+      const hasDoc = documents.some(
+        (d: any) => d.documentType === 'purchase_order' && d.vendorId === vendor.id
+      );
+      if (!hasDoc) newVendors.push(vendor.id);
+    }
+
+    return { staleDocIds: stale, staleDraftDocIds: staleDraft, newVendorIds: newVendors };
+  }, [documents, currentHashes, orderVendors]);
+
+  // Generate a single document (quote or PO for a specific vendor)
+  const generateSingleDocument = useCallback(async (
+    type: 'quote' | 'purchase_order',
+    vendorId?: string
+  ) => {
+    if (type === 'quote') {
+      if (!quoteRef.current) return;
+      const hash = currentHashes.quoteHash;
+      await generateDocumentMutation.mutateAsync({
+        elementRef: quoteRef.current,
+        documentType: 'quote',
+        documentNumber: order?.orderNumber || 'DRAFT',
+        itemsHash: hash,
+      });
+    } else if (vendorId) {
+      const vendor = orderVendors.find((v: any) => v.id === vendorId);
+      if (!vendor || !poRefs.current[vendorId]) return;
+      const poNumber = `${order?.orderNumber}-${vendor.id.substring(0, 4).toUpperCase()}`;
+      const hash = currentHashes.vendorHashes[vendorId];
+      await generateDocumentMutation.mutateAsync({
+        elementRef: poRefs.current[vendorId],
+        documentType: 'purchase_order',
+        documentNumber: poNumber,
+        vendorId: vendor.id,
+        vendorName: vendor.name,
+        itemsHash: hash,
+      });
+    }
+  }, [currentHashes, order, orderVendors, generateDocumentMutation]);
+
+  // Initial auto-generate: only when no documents exist yet
   useEffect(() => {
     if (!autoGenerateTriggered && orderItems.length > 0 && documents.length === 0 && !isGenerating) {
-      // Small delay to ensure refs are ready
       const timer = setTimeout(() => {
         handleAutoGenerate();
       }, 1000);
@@ -258,16 +346,70 @@ export function DocumentsTab({
     }
   }, [orderItems.length, documents.length, autoGenerateTriggered, isGenerating]);
 
+  // Smart sync: auto-regenerate stale draft docs and generate POs for new vendors
+  useEffect(() => {
+    if (isGenerating || documents.length === 0) return;
+
+    const docsToSync = Array.from(staleDraftDocIds);
+    const vendorsToGenerate = Array.from(newVendorIds);
+
+    if (docsToSync.length === 0 && vendorsToGenerate.length === 0) return;
+
+    const syncTimeout = setTimeout(async () => {
+      // Mark syncing docs
+      setSyncingDocIds(new Set([...docsToSync, ...vendorsToGenerate]));
+
+      try {
+        // Regenerate stale draft documents
+        for (const docId of docsToSync) {
+          const doc = documents.find((d: any) => d.id === docId);
+          if (!doc) continue;
+
+          // Delete old document
+          await deleteDocumentMutation.mutateAsync(docId);
+
+          // Wait for refs to be ready after delete
+          await new Promise(resolve => setTimeout(resolve, 300));
+
+          // Regenerate
+          if (doc.documentType === 'quote') {
+            await generateSingleDocument('quote');
+          } else if (doc.documentType === 'purchase_order' && doc.vendorId) {
+            await generateSingleDocument('purchase_order', doc.vendorId);
+          }
+        }
+
+        // Generate POs for new vendors
+        for (const vendorId of vendorsToGenerate) {
+          await new Promise(resolve => setTimeout(resolve, 300));
+          await generateSingleDocument('purchase_order', vendorId);
+        }
+
+        if (docsToSync.length > 0 || vendorsToGenerate.length > 0) {
+          toast({
+            title: "Documents Synced",
+            description: `Updated ${docsToSync.length} document(s)${vendorsToGenerate.length > 0 ? `, generated ${vendorsToGenerate.length} new PO(s)` : ''}`,
+          });
+        }
+      } finally {
+        setSyncingDocIds(new Set());
+      }
+    }, 1500);
+
+    return () => clearTimeout(syncTimeout);
+  }, [staleDraftDocIds.size, newVendorIds.length]);
+
   const handleAutoGenerate = async () => {
     if (isGenerating || autoGenerateTriggered) return;
     setAutoGenerateTriggered(true);
-    
+
     // Generate Quote first
     if (quoteRef.current) {
       await generateDocumentMutation.mutateAsync({
         elementRef: quoteRef.current,
         documentType: 'quote',
         documentNumber: order?.orderNumber || 'DRAFT',
+        itemsHash: currentHashes.quoteHash,
       });
     }
 
@@ -281,6 +423,7 @@ export function DocumentsTab({
           documentNumber: poNumber,
           vendorId: vendor.id,
           vendorName: vendor.name,
+          itemsHash: currentHashes.vendorHashes[vendor.id],
         });
       }
     }
@@ -288,39 +431,6 @@ export function DocumentsTab({
     toast({
       title: "Documents Generated",
       description: `Generated Quote and ${orderVendors.length} Purchase Order(s)`,
-    });
-  };
-
-  const handleRegenerateAll = async () => {
-    // Delete all existing documents first
-    for (const doc of documents) {
-      await deleteDocumentMutation.mutateAsync(doc.id);
-    }
-    
-    setAutoGenerateTriggered(false);
-    
-    // Regenerate
-    setTimeout(() => {
-      handleAutoGenerate();
-    }, 500);
-  };
-
-  const handleGenerateQuote = () => {
-    generateDocumentMutation.mutate({
-      elementRef: quoteRef.current,
-      documentType: 'quote',
-      documentNumber: order?.orderNumber || 'DRAFT',
-    });
-  };
-
-  const handleGeneratePO = (vendor: any) => {
-    const poNumber = `${order?.orderNumber}-${vendor.id.substring(0, 4).toUpperCase()}`;
-    generateDocumentMutation.mutate({
-      elementRef: poRefs.current[vendor.id],
-      documentType: 'purchase_order',
-      documentNumber: poNumber,
-      vendorId: vendor.id,
-      vendorName: vendor.name,
     });
   };
 
@@ -409,40 +519,35 @@ SwagSuite Team`,
 
   return (
     <div className="space-y-6">
-      {/* Auto-generate status */}
-      {isGenerating && (
+      {/* Auto-generate / syncing status */}
+      {(isGenerating || syncingDocIds.size > 0) && (
         <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg flex items-center gap-3">
           <RefreshCw className="w-5 h-5 text-blue-600 animate-spin" />
           <div>
-            <p className="font-medium text-blue-900">Generating Documents...</p>
-            <p className="text-sm text-blue-700">Creating Quote and Purchase Orders automatically</p>
+            <p className="font-medium text-blue-900">
+              {syncingDocIds.size > 0 ? 'Syncing Documents...' : 'Generating Documents...'}
+            </p>
+            <p className="text-sm text-blue-700">
+              {syncingDocIds.size > 0
+                ? 'Updating documents to reflect latest changes'
+                : 'Creating Quote and Purchase Orders automatically'}
+            </p>
           </div>
         </div>
       )}
 
       {/* Generated Documents List */}
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
+        <CardHeader>
           <div>
             <CardTitle className="flex items-center gap-2">
               <Package className="w-5 h-5" />
               Generated Documents
             </CardTitle>
             <CardDescription>
-              Documents are auto-generated when you open this tab
+              Documents are auto-generated and synced when order items change
             </CardDescription>
           </div>
-          {documents.length > 0 && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleRegenerateAll}
-              disabled={isGenerating}
-            >
-              <RefreshCw className={`w-4 h-4 mr-2 ${isGenerating ? 'animate-spin' : ''}`} />
-              Regenerate All
-            </Button>
-          )}
         </CardHeader>
         <CardContent>
           {documents.length === 0 && !isGenerating ? (
@@ -476,158 +581,190 @@ SwagSuite Team`,
             </div>
           ) : (
             <div className="space-y-3">
-              {documents.map((doc: any) => (
-                <div
-                  key={doc.id}
-                  className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border hover:bg-gray-100 transition-colors"
-                >
-                  <div className="flex items-center gap-4">
-                    <div className="p-2 bg-blue-100 rounded">
-                      {doc.documentType === 'quote' ? (
-                        <FileText className="w-5 h-5 text-blue-600" />
-                      ) : (
-                        <ShoppingCart className="w-5 h-5 text-green-600" />
-                      )}
-                    </div>
-                    <div>
-                      <p className="font-medium">
-                        {doc.documentType === 'quote' ? 'Quote' : 'Purchase Order'} #{doc.documentNumber}
-                      </p>
-                      {doc.vendorName && (
-                        <p className="text-sm text-gray-600">Vendor: {doc.vendorName}</p>
-                      )}
-                      <div className="flex items-center gap-3 mt-1">
-                        <span className="text-xs text-gray-500 flex items-center gap-1">
-                          <Clock className="w-3 h-3" />
-                          {format(new Date(doc.createdAt), 'MMM dd, yyyy')}
-                        </span>
-                        {doc.fileSize && (
-                          <span className="text-xs text-gray-500">
-                            {formatFileSize(doc.fileSize)}
-                          </span>
+              {documents.map((doc: any) => {
+                const isStale = staleDocIds.has(doc.id);
+                const isProtected = doc.status === 'approved' || doc.status === 'sent';
+                const isSyncing = syncingDocIds.has(doc.id);
+
+                return (
+                  <div
+                    key={doc.id}
+                    className={`flex items-center justify-between p-4 rounded-lg border transition-colors ${
+                      isSyncing ? 'bg-blue-50 border-blue-200' :
+                      isStale && isProtected ? 'bg-amber-50 border-amber-200' :
+                      'bg-gray-50 hover:bg-gray-100'
+                    }`}
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className={`p-2 rounded ${
+                        isSyncing ? 'bg-blue-100' :
+                        doc.documentType === 'quote' ? 'bg-blue-100' : 'bg-green-100'
+                      }`}>
+                        {isSyncing ? (
+                          <RefreshCw className="w-5 h-5 text-blue-600 animate-spin" />
+                        ) : doc.documentType === 'quote' ? (
+                          <FileText className="w-5 h-5 text-blue-600" />
+                        ) : (
+                          <ShoppingCart className="w-5 h-5 text-green-600" />
                         )}
-                        <Badge 
-                          variant="outline" 
-                          className={`text-xs ${
-                            doc.status === 'approved' ? 'border-green-500 text-green-600 bg-green-50' :
-                            doc.status === 'sent' ? 'border-blue-500 text-blue-600 bg-blue-50' :
-                            doc.status === 'paid' ? 'border-emerald-500 text-emerald-600 bg-emerald-50' :
-                            doc.status === 'cancelled' ? 'border-red-500 text-red-600 bg-red-50' :
-                            'border-gray-400 text-gray-500'
-                          }`}
-                        >
-                          {doc.status}
-                        </Badge>
+                      </div>
+                      <div>
+                        <p className="font-medium">
+                          {doc.documentType === 'quote' ? 'Quote' : 'Purchase Order'} #{doc.documentNumber}
+                        </p>
+                        {doc.vendorName && (
+                          <p className="text-sm text-gray-600">Vendor: {doc.vendorName}</p>
+                        )}
+                        <div className="flex items-center gap-3 mt-1 flex-wrap">
+                          <span className="text-xs text-gray-500 flex items-center gap-1">
+                            <Clock className="w-3 h-3" />
+                            {format(new Date(doc.createdAt), 'MMM dd, yyyy')}
+                          </span>
+                          {doc.fileSize && (
+                            <span className="text-xs text-gray-500">
+                              {formatFileSize(doc.fileSize)}
+                            </span>
+                          )}
+                          <Badge
+                            variant="outline"
+                            className={`text-xs ${
+                              doc.status === 'approved' ? 'border-green-500 text-green-600 bg-green-50' :
+                              doc.status === 'sent' ? 'border-blue-500 text-blue-600 bg-blue-50' :
+                              doc.status === 'paid' ? 'border-emerald-500 text-emerald-600 bg-emerald-50' :
+                              doc.status === 'cancelled' ? 'border-red-500 text-red-600 bg-red-50' :
+                              'border-gray-400 text-gray-500'
+                            }`}
+                          >
+                            {doc.status}
+                          </Badge>
+                          {/* Warning badge for stale protected documents */}
+                          {isStale && isProtected && (
+                            <Badge
+                              variant="outline"
+                              className="text-xs border-amber-500 text-amber-600 bg-amber-50 flex items-center gap-1"
+                            >
+                              <AlertTriangle className="w-3 h-3" />
+                              Items changed since {doc.status}
+                            </Badge>
+                          )}
+                          {isSyncing && (
+                            <Badge
+                              variant="outline"
+                              className="text-xs border-blue-500 text-blue-600 bg-blue-50"
+                            >
+                              Syncing...
+                            </Badge>
+                          )}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {/* Generate Approval Link for Quotes */}
-                    {doc.documentType === 'quote' && (
+                    <div className="flex items-center gap-2">
+                      {/* Generate Approval Link for Quotes */}
+                      {doc.documentType === 'quote' && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={async () => {
+                            // Check for existing pending approval
+                            const existingApproval = quoteApprovals.find((a: any) => a.status === 'pending');
+                            if (existingApproval) {
+                              const approvalUrl = `${window.location.origin}/quote-approval/${existingApproval.approvalToken}`;
+                              navigator.clipboard.writeText(approvalUrl);
+                              toast({
+                                title: "Approval Link Copied",
+                                description: "The existing approval link has been copied to clipboard.",
+                              });
+                              return;
+                            }
+
+                            try {
+                              const result = await createQuoteApprovalMutation.mutateAsync({
+                                clientEmail: primaryContact?.email || '',
+                                clientName: primaryContact ? `${primaryContact.firstName} ${primaryContact.lastName}` : companyName,
+                                documentId: doc.id,
+                                pdfPath: doc.fileUrl,
+                                quoteTotal: order?.total,
+                              });
+
+                              const approvalUrl = `${window.location.origin}/quote-approval/${result.approvalToken}`;
+                              navigator.clipboard.writeText(approvalUrl);
+                              toast({
+                                title: "Approval Link Generated",
+                                description: "The approval link has been copied to clipboard. You can preview or share it with your client.",
+                              });
+                            } catch (error) {
+                              toast({
+                                title: "Error",
+                                description: "Failed to generate approval link",
+                                variant: "destructive",
+                              });
+                            }
+                          }}
+                          className="text-green-600 hover:text-green-700 hover:bg-green-50"
+                          disabled={createQuoteApprovalMutation.isPending}
+                        >
+                          <CheckCircle2 className="w-4 h-4 mr-1" />
+                          {quoteApprovals.find((a: any) => a.status === 'pending') ? 'Copy Approval Link' : 'Get Approval Link'}
+                        </Button>
+                      )}
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={async () => {
-                          // Check for existing pending approval
-                          const existingApproval = quoteApprovals.find((a: any) => a.status === 'pending');
-                          if (existingApproval) {
-                            const approvalUrl = `${window.location.origin}/quote-approval/${existingApproval.approvalToken}`;
-                            navigator.clipboard.writeText(approvalUrl);
-                            toast({
-                              title: "Approval Link Copied",
-                              description: "The existing approval link has been copied to clipboard.",
-                            });
-                            return;
-                          }
-                          
-                          try {
-                            const result = await createQuoteApprovalMutation.mutateAsync({
-                              clientEmail: primaryContact?.email || '',
-                              clientName: primaryContact ? `${primaryContact.firstName} ${primaryContact.lastName}` : companyName,
-                              documentId: doc.id,
-                              pdfPath: doc.fileUrl,
-                              quoteTotal: order?.total,
-                            });
-                            
-                            const approvalUrl = `${window.location.origin}/quote-approval/${result.approvalToken}`;
-                            navigator.clipboard.writeText(approvalUrl);
-                            toast({
-                              title: "Approval Link Generated",
-                              description: "The approval link has been copied to clipboard. You can preview or share it with your client.",
-                            });
-                          } catch (error) {
+                        onClick={() => handleEmailClick(doc)}
+                        className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                      >
+                        <Mail className="w-4 h-4 mr-1" />
+                        {doc.documentType === 'quote' ? 'Email Client' : 'Email Vendor'}
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setPreviewDocument(doc)}
+                      >
+                        <Eye className="w-4 h-4 mr-1" />
+                        Preview
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          // Download using Cloudinary URL
+                          if (doc.fileUrl) {
+                            const link = document.createElement('a');
+                            link.href = doc.fileUrl;
+                            let fileName = doc.fileName || `${doc.documentType}-${doc.documentNumber}`;
+                            if (!fileName.toLowerCase().endsWith('.pdf')) {
+                              fileName = fileName.replace(/\.[^/.]+$/, '') + '.pdf';
+                            }
+                            link.download = fileName;
+                            link.target = '_blank';
+                            document.body.appendChild(link);
+                            link.click();
+                            document.body.removeChild(link);
+                          } else {
                             toast({
                               title: "Error",
-                              description: "Failed to generate approval link",
+                              description: "PDF file not available",
                               variant: "destructive",
                             });
                           }
                         }}
-                        className="text-green-600 hover:text-green-700 hover:bg-green-50"
-                        disabled={createQuoteApprovalMutation.isPending}
                       >
-                        <CheckCircle2 className="w-4 h-4 mr-1" />
-                        {quoteApprovals.find((a: any) => a.status === 'pending') ? 'Copy Approval Link' : 'Get Approval Link'}
+                        <Download className="w-4 h-4 mr-1" />
+                        Download
                       </Button>
-                    )}
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleEmailClick(doc)}
-                      className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-                    >
-                      <Mail className="w-4 h-4 mr-1" />
-                      {doc.documentType === 'quote' ? 'Email Client' : 'Email Vendor'}
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setPreviewDocument(doc)}
-                    >
-                      <Eye className="w-4 h-4 mr-1" />
-                      Preview
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        // Download using Cloudinary URL
-                        if (doc.fileUrl) {
-                          const link = document.createElement('a');
-                          link.href = doc.fileUrl;
-                          // Ensure filename always ends with .pdf
-                          let fileName = doc.fileName || `${doc.documentType}-${doc.documentNumber}`;
-                          if (!fileName.toLowerCase().endsWith('.pdf')) {
-                            fileName = fileName.replace(/\.[^/.]+$/, '') + '.pdf';
-                          }
-                          link.download = fileName;
-                          link.target = '_blank';
-                          document.body.appendChild(link);
-                          link.click();
-                          document.body.removeChild(link);
-                        } else {
-                          toast({
-                            title: "Error",
-                            description: "PDF file not available",
-                            variant: "destructive",
-                          });
-                        }
-                      }}
-                    >
-                      <Download className="w-4 h-4 mr-1" />
-                      Download
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => deleteDocumentMutation.mutate(doc.id)}
-                      disabled={deleteDocumentMutation.isPending}
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => deleteDocumentMutation.mutate(doc.id)}
+                        disabled={deleteDocumentMutation.isPending}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </CardContent>
@@ -688,12 +825,10 @@ SwagSuite Team`,
                 <tbody>
                   {orderItems.map((item: any) => {
                     const editedItem = getEditedItem(item.id, item);
-                    console.log('Calculating totals for item:', item.id, editedItem); 
-                    // Same approach as PO: use parseFloat on editedItem first, then item
                     const unitPrice = parseFloat(editedItem.unitPrice) || parseFloat(item.unitPrice) || 0;
                     const quantity = editedItem.quantity || item.quantity || 0;
                     const itemTotal = unitPrice * quantity;
-                    
+
                     return (
                       <tr key={item.id} className="border-b border-gray-200">
                         <td className="py-2 text-sm">
@@ -766,7 +901,7 @@ SwagSuite Team`,
       {/* Hidden PO templates for PDF generation */}
       {orderVendors.map((vendor: any) => {
         const poNumber = `${order?.orderNumber}-${vendor.id.substring(0, 4).toUpperCase()}`;
-        
+
         return (
           <Card key={vendor.id} style={{ position: 'absolute', left: '-9999px', top: 0, visibility: 'hidden' }}>
             <CardContent>
@@ -823,7 +958,6 @@ SwagSuite Team`,
                         const item = orderItems.find((i: any) => i.id === product.id);
                         if (!item) return null;
                         const editedItem = getEditedItem(item.id, item);
-                        // Use cost first, fallback to unitPrice if cost is not available
                         const cost = parseFloat(editedItem.cost) || parseFloat(item.cost) || parseFloat(editedItem.unitPrice) || parseFloat(item.unitPrice) || 0;
                         const quantity = editedItem.quantity || item.quantity || 0;
                         const itemTotal = cost * quantity;

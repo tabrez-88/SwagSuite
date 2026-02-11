@@ -49,7 +49,7 @@ export default function GlobalSearch() {
   const [, setLocation] = useLocation();
   const searchRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  
+
   // Modal states
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
@@ -60,8 +60,8 @@ export default function GlobalSearch() {
     enabled: isProductModalOpen,
   });
 
-  const selectedProduct = selectedProductId 
-    ? allProducts.find(p => p.id === selectedProductId) 
+  const selectedProduct = selectedProductId
+    ? allProducts.find(p => p.id === selectedProductId)
     : null;
 
   // Fetch suppliers for ProductDetailModal
@@ -92,7 +92,7 @@ export default function GlobalSearch() {
       setIsOpen(false);
       return;
     }
-    
+
     searchMutation.mutate(searchQuery.trim());
   };
 
@@ -109,7 +109,7 @@ export default function GlobalSearch() {
     } else if (result.url) {
       setLocation(result.url);
     }
-    
+
     // Close search
     setIsOpen(false);
     setQuery("");
@@ -124,7 +124,7 @@ export default function GlobalSearch() {
         e.preventDefault();
         inputRef.current?.focus();
       }
-      
+
       // Escape to close
       if (e.key === "Escape") {
         setIsOpen(false);
@@ -185,8 +185,8 @@ export default function GlobalSearch() {
 
       {/* Results Dropdown */}
       {isOpen && (
-        <Card className="absolute top-full mt-2 w-full max-w-2xl z-50 shadow-lg border-gray-200">
-          <CardContent className="p-0">
+        <Card className="absolute top-full mt-2 w-full max-w-3xl z-50 shadow-lg border-gray-200">
+          <CardContent className="p-0 w-full flex flex-col">
             {results.length === 0 && !searchMutation.isPending && query.trim() && (
               <div className="p-4 text-center text-gray-500">
                 <Search className="h-8 w-8 mx-auto mb-2 text-gray-300" />
@@ -201,21 +201,20 @@ export default function GlobalSearch() {
                 <Button
                   key={`${result.type}-${result.id}-${index}`}
                   variant="ghost"
-                  className="w-full h-auto p-4 justify-start hover:bg-gray-50 rounded-none border-b border-gray-100 last:border-b-0"
+                  className="flex relative w-full h-auto p-4 justify-start hover:bg-gray-50 rounded-none border-b border-gray-100 last:border-b-0"
                   onClick={() => handleResultClick(result)}
                 >
-                  <div className="flex items-start gap-3 w-full">
+                  <div className="flex relative items-start gap-3 w-full">
                     <Icon className="h-5 w-5 mt-0.5 text-gray-400 flex-shrink-0" />
-                    <div className="flex-1 text-left">
+                    <div className="flex relative w-full flex-wrap flex-col text-left">
                       <div className="flex items-center gap-2 mb-1">
                         <span className="font-medium text-gray-900">{result.title}</span>
                         <Badge variant="secondary" className={`text-xs ${typeColors[result.type]}`}>
                           {result.type}
                         </Badge>
                       </div>
-                      <p className="text-sm text-gray-600 line-clamp-2">{result.description}</p>
                       {result.metadata && (
-                        <div className="flex gap-4 mt-2 text-xs text-gray-500">
+                        <div className="flex gap-4 text-xs text-gray-500">
                           {result.metadata.margin && (
                             <span>Margin: {result.metadata.margin}</span>
                           )}
