@@ -145,6 +145,12 @@ const statusDisplayMap = {
   cancelled: "Cancelled",
 };
 
+// Strip HTML tags and decode entities for plain text display
+function stripHtml(html: string): string {
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  return doc.body.textContent || '';
+}
+
 function OrderDetailsModal({ open, onOpenChange, orderId, pageMode }: OrderDetailsModalProps) {
   const [, setLocation] = useLocation();
   const { user: currentUser } = useAuth();
@@ -3729,7 +3735,7 @@ function OrderDetailsModal({ open, onOpenChange, orderId, pageMode }: OrderDetai
                                 })}
                               </span>
                             </div>
-                            <p className="text-sm text-gray-700 line-clamp-2">{comm.body}</p>
+                            <p className="text-sm text-gray-700 line-clamp-2">{stripHtml(comm.body)}</p>
                             {comm.recipientEmail && (
                               <p className="text-xs text-gray-500 mt-1">
                                 {isSent ? "To: " : "From: "}
@@ -4155,7 +4161,7 @@ function OrderDetailsModal({ open, onOpenChange, orderId, pageMode }: OrderDetai
                                     })}
                                   </span>
                                 </div>
-                                <p className="text-sm text-gray-700 line-clamp-2">{comm.body}</p>
+                                <p className="text-sm text-gray-700 line-clamp-2">{stripHtml(comm.body)}</p>
                                 {comm.recipientEmail && (
                                   <p className="text-xs text-gray-500 mt-1">
                                     {isSent ? "To: " : "From: "}

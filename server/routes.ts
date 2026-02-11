@@ -509,9 +509,63 @@ export async function registerRoutes(app: Express): Promise<Server> {
         expiresAt,
       });
 
-      // TODO: Send email with invitation link
+      // Send invitation email
       const invitationUrl = `${req.protocol}://${req.get('host')}/accept-invitation?token=${token}`;
       console.log(`Invitation URL: ${invitationUrl}`);
+
+      try {
+        const { emailService } = await import("./emailService");
+        await emailService.sendEmail({
+          to: email,
+          subject: `You're invited to join SwagSuite`,
+          userId: currentUser.id,
+          html: `
+            <!DOCTYPE html>
+            <html>
+            <head>
+              <meta charset="utf-8">
+              <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            </head>
+            <body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f3f4f6;">
+              <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff;">
+                <div style="background-color: #2563eb; padding: 30px; text-align: center;">
+                  <h1 style="color: #ffffff; margin: 0; font-size: 24px;">SwagSuite</h1>
+                </div>
+                <div style="padding: 30px;">
+                  <h2 style="color: #1f2937; margin-top: 0;">You're Invited!</h2>
+                  <p style="color: #374151; line-height: 1.6;">
+                    <strong>${currentUser.firstName} ${currentUser.lastName}</strong> has invited you to join SwagSuite as a <strong>${role || 'user'}</strong>.
+                  </p>
+                  <p style="color: #374151; line-height: 1.6;">
+                    Click the button below to create your account and get started.
+                  </p>
+                  <div style="text-align: center; margin: 30px 0;">
+                    <a href="${invitationUrl}" style="background-color: #2563eb; color: #ffffff; padding: 14px 32px; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px; display: inline-block;">
+                      Accept Invitation
+                    </a>
+                  </div>
+                  <p style="color: #6b7280; font-size: 13px;">
+                    Or copy and paste this link into your browser:<br>
+                    <a href="${invitationUrl}" style="color: #2563eb; word-break: break-all;">${invitationUrl}</a>
+                  </p>
+                  <div style="background-color: #fef3c7; border-left: 4px solid #f59e0b; padding: 12px 15px; margin-top: 20px; border-radius: 4px;">
+                    <p style="color: #92400e; margin: 0; font-size: 13px;">This invitation expires in 7 days.</p>
+                  </div>
+                </div>
+                <div style="background-color: #f9fafb; padding: 20px; text-align: center; border-top: 1px solid #e5e7eb;">
+                  <p style="color: #6b7280; font-size: 12px; margin: 0;">Sent from SwagSuite</p>
+                </div>
+              </div>
+            </body>
+            </html>
+          `,
+          text: `You're invited to join SwagSuite!\n\n${currentUser.firstName} ${currentUser.lastName} has invited you as a ${role || 'user'}.\n\nAccept your invitation: ${invitationUrl}\n\nThis invitation expires in 7 days.`,
+        });
+        console.log(`✓ Invitation email sent to ${email}`);
+      } catch (emailError) {
+        console.error(`⚠️ Failed to send invitation email to ${email}:`, emailError);
+        // Don't fail the invitation creation if email fails
+      }
 
       // Log activity
       await storage.createActivity({
