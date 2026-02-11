@@ -17,7 +17,7 @@ import {
   insertSequenceStepSchema,
   insertSupplierSchema
 } from "@shared/schema";
-import type { Express } from "express";
+import express, { type Express } from "express";
 import fs from "fs";
 import { createServer, type Server } from "http";
 import path from "path";
@@ -27,12 +27,15 @@ import { isAuthenticated, setupAuth } from "./replitAuth";
 import { SsActivewearService } from "./ssActivewearService";
 import { SageService, getSageCredentials } from "./sageService";
 import { storage } from "./storage";
+import { getQuickBooksCredentials } from "./quickbooksService";
+import { getStripeCredentials } from "./stripeService";
+import { getTaxJarCredentials } from "./taxjarService";
 
 // Helper function to get S&S Activewear credentials
 async function getSsActivewearCredentials() {
   // Try to get from database first
   const dbSettings = await storage.getIntegrationSettings();
-  
+
   return {
     accountNumber: dbSettings?.ssActivewearAccount || process.env.SS_ACTIVEWEAR_ACCOUNT || '',
     apiKey: dbSettings?.ssActivewearApiKey || process.env.SS_ACTIVEWEAR_API_KEY || ''
@@ -102,8 +105,8 @@ async function updateSupplierYtdSpending(supplierId: string) {
 
     // Calculate YTD spend from order items (vendors are now at item level)
     const [ytdResult] = await db
-      .select({ 
-        total: sql<string>`COALESCE(SUM(${orderItems.quantity} * ${orderItems.unitPrice}), 0)` 
+      .select({
+        total: sql<string>`COALESCE(SUM(${orderItems.quantity} * ${orderItems.unitPrice}), 0)`
       })
       .from(orderItems)
       .innerJoin(orders, eq(orderItems.orderId, orders.id))
@@ -405,22 +408,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = req.user.claims.sub;
       let user = await storage.getUser(userId);
-      
+
       // If user not found in database, auto-register them
       if (!user) {
         const claims = req.user.claims;
         const { db } = await import("./db");
         const { users } = await import("@shared/schema");
         const { count } = await import("drizzle-orm");
-        
+
         // Check if this is the first user (should be admin)
         const userCount = await db.select({ count: count() }).from(users);
         const isFirstUser = userCount[0].count === 0;
-        
+
         // Get default role from env or use 'user'
         const defaultRole = process.env.DEFAULT_USER_ROLE || "user";
         const role = isFirstUser ? "admin" : defaultRole;
-        
+
         // Create user from auth claims
         user = await storage.upsertUser({
           id: userId,
@@ -430,10 +433,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           profileImageUrl: claims.picture,
           role: role,
         });
-        
+
         console.log(`Auto-registered user ${userId} with role ${role}`);
       }
-      
+
       res.json(user);
     } catch (error) {
       console.error("Error fetching user:", error);
@@ -516,7 +519,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/invitations/pending', isAuthenticated, async (req, res) => {
     try {
       const currentUser = await storage.getUser((req as any).user.claims.sub);
-      
+
       if (!currentUser || !['admin', 'manager'].includes(currentUser.role || '')) {
         return res.status(403).json({ message: "Unauthorized" });
       }
@@ -535,7 +538,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Validate inputs
       const { validateUsername, validatePassword, hashPassword } = await import("./passwordUtils");
-      
+
       const usernameError = validateUsername(username);
       if (usernameError) {
         return res.status(400).json({ message: usernameError });
@@ -614,9 +617,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const invitation = await storage.getUserInvitationByToken(token);
 
       if (!invitation) {
-        return res.status(404).json({ 
+        return res.status(404).json({
           valid: false,
-          message: "Invalid or expired invitation" 
+          message: "Invalid or expired invitation"
         });
       }
 
@@ -733,7 +736,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/users', isAuthenticated, async (req, res) => {
     try {
       const allUsers = await storage.getAllUsers();
-      
+
       // Remove sensitive data
       const sanitizedUsers = allUsers.map(user => ({
         id: user.id,
@@ -968,14 +971,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { db } = await import("./db");
       const { companies, orders } = await import("@shared/schema");
       const { eq, and, gte, sql } = await import("drizzle-orm");
-      
+
       // Get all companies
       const allCompanies = await storage.getCompanies();
-      
+
       // Calculate YTD spending for each company
       const currentYear = new Date().getFullYear();
       const yearStart = new Date(currentYear, 0, 1);
-      
+
       const companiesWithYtd = await Promise.all(
         allCompanies.map(async (company) => {
           // Calculate YTD spend from orders
@@ -988,9 +991,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 gte(orders.createdAt, yearStart)
               )
             );
-          
+
           const ytdSpend = ytdResult?.total ? parseFloat(ytdResult.total) : 0;
-          
+
           // Update company's YTD spend if it has changed
           if (ytdSpend !== parseFloat(company.ytdSpend || '0')) {
             await db
@@ -998,14 +1001,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
               .set({ ytdSpend: ytdSpend.toFixed(2) })
               .where(eq(companies.id, company.id));
           }
-          
+
           return {
             ...company,
             ytdSpend: ytdSpend.toFixed(2)
           };
         })
       );
-      
+
       res.json(companiesWithYtd);
     } catch (error) {
       console.error("Error fetching companies:", error);
@@ -1163,22 +1166,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { id } = req.params;
       console.log('PATCH /api/contacts/:id - Updating contact:', id, 'with data:', req.body);
-      
+
       if (!id) {
         return res.status(400).json({ message: "Contact ID is required" });
       }
-      
+
       const contact = await storage.updateContact(id, req.body);
-      
+
       if (!contact) {
         return res.status(404).json({ message: "Contact not found" });
       }
-      
+
       console.log('Contact updated successfully:', contact);
       res.json(contact);
     } catch (error) {
       console.error("Error updating contact:", error);
-      res.status(500).json({ 
+      res.status(500).json({
         message: "Failed to update contact",
         error: error instanceof Error ? error.message : String(error)
       });
@@ -1203,20 +1206,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { db } = await import("./db");
       const { suppliers, orders, products, orderItems } = await import("@shared/schema");
       const { eq, and, gte, sql } = await import("drizzle-orm");
-      
+
       // Get all suppliers
       const allSuppliers = await storage.getSuppliers();
-      
+
       // Calculate YTD spending and product count for each supplier
       const currentYear = new Date().getFullYear();
       const yearStart = new Date(currentYear, 0, 1);
-      
+
       const suppliersWithData = await Promise.all(
         allSuppliers.map(async (supplier) => {
           // Calculate YTD spend from order items (vendors are now at item level)
           const [ytdResult] = await db
-            .select({ 
-              total: sql<string>`COALESCE(SUM(${orderItems.quantity} * ${orderItems.unitPrice}), 0)` 
+            .select({
+              total: sql<string>`COALESCE(SUM(${orderItems.quantity} * ${orderItems.unitPrice}), 0)`
             })
             .from(orderItems)
             .innerJoin(orders, eq(orderItems.orderId, orders.id))
@@ -1226,32 +1229,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 gte(orders.createdAt, yearStart)
               )
             );
-          
+
           const ytdSpend = ytdResult?.total ? parseFloat(ytdResult.total) : 0;
-          
+
           // Count products for this supplier
           const [countResult] = await db
             .select({ count: sql<number>`COUNT(*)` })
             .from(products)
             .where(eq(products.supplierId, supplier.id));
-          
+
           const productCount = countResult?.count || 0;
-          
+
           // Update supplier's YTD spend and product count if they have changed
-          const needsUpdate = 
+          const needsUpdate =
             ytdSpend !== parseFloat(supplier.ytdSpend || '0') ||
             productCount !== (supplier.productCount || 0);
-          
+
           if (needsUpdate) {
             await db
               .update(suppliers)
-              .set({ 
+              .set({
                 ytdSpend: ytdSpend.toFixed(2),
-                productCount 
+                productCount
               })
               .where(eq(suppliers.id, supplier.id));
           }
-          
+
           return {
             ...supplier,
             ytdSpend: ytdSpend.toFixed(2),
@@ -1259,7 +1262,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           };
         })
       );
-      
+
       res.json(suppliersWithData);
     } catch (error) {
       console.error("Error fetching suppliers:", error);
@@ -1286,7 +1289,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(supplier);
     } catch (error) {
       console.error("Error updating supplier:", error);
-      res.status(500).json({ 
+      res.status(500).json({
         message: "Failed to update supplier",
         error: error instanceof Error ? error.message : String(error)
       });
@@ -1307,20 +1310,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/products', isAuthenticated, async (req, res) => {
     try {
       const supplierId = req.query.supplierId as string;
-      
+
       console.log('GET /api/products - supplierId:', supplierId);
-      
+
       if (supplierId) {
         // Filter products by supplier
         const { db } = await import("./db");
         const { products } = await import("@shared/schema");
         const { eq } = await import("drizzle-orm");
-        
+
         const filteredProducts = await db
           .select()
           .from(products)
           .where(eq(products.supplierId, supplierId));
-        
+
         console.log(`Found ${filteredProducts.length} products for supplier ${supplierId}`);
         res.json(filteredProducts);
       } else {
@@ -1352,10 +1355,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/products', isAuthenticated, async (req, res) => {
     try {
       console.log('Creating product with data:', req.body);
-      
+
       // Normalize colors and sizes before validation
       const productData = { ...req.body };
-      
+
       // Normalize colors to array
       if (productData.colors !== undefined) {
         if (Array.isArray(productData.colors)) {
@@ -1380,7 +1383,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           productData.colors = null;
         }
       }
-      
+
       // Normalize sizes to array
       if (productData.sizes !== undefined) {
         if (Array.isArray(productData.sizes)) {
@@ -1405,7 +1408,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           productData.sizes = null;
         }
       }
-      
+
       console.log('Normalized product data:', productData);
       const validatedData = insertProductSchema.parse(productData);
       const product = await storage.createProduct(validatedData);
@@ -1436,10 +1439,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch('/api/products/:id', isAuthenticated, async (req, res) => {
     try {
       console.log('Updating product:', req.params.id, 'with data:', req.body);
-      
+
       // Normalize colors and sizes to arrays
       const updateData = { ...req.body };
-      
+
       // Normalize colors to array
       if (updateData.colors !== undefined) {
         if (Array.isArray(updateData.colors)) {
@@ -1465,7 +1468,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           updateData.colors = null;
         }
       }
-      
+
       // Normalize sizes to array
       if (updateData.sizes !== undefined) {
         if (Array.isArray(updateData.sizes)) {
@@ -1491,7 +1494,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           updateData.sizes = null;
         }
       }
-      
+
       console.log('Normalized data to save:', updateData);
       const product = await storage.updateProduct(req.params.id, updateData);
       console.log('Product updated successfully:', product);
@@ -1597,18 +1600,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { db } = await import("./db");
       const { clients, companies, orders } = await import("@shared/schema");
       const { eq, and, gte, like, or, sql } = await import("drizzle-orm");
-      
+
       // Get all clients
       const allClients = await storage.getClients();
-      
+
       // Calculate YTD spending for each client based on their company name
       const currentYear = new Date().getFullYear();
       const yearStart = new Date(currentYear, 0, 1);
-      
+
       const clientsWithYtd = await Promise.all(
         allClients.map(async (client) => {
           let totalSpent = 0;
-          
+
           // If client has a company name, find matching orders
           if (client.company) {
             // Find company by name
@@ -1617,7 +1620,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               .from(companies)
               .where(like(companies.name, `%${client.company}%`))
               .limit(1);
-            
+
             if (matchingCompany) {
               // Calculate YTD spend from orders for this company
               const [ytdResult] = await db
@@ -1629,18 +1632,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
                     gte(orders.createdAt, yearStart)
                   )
                 );
-              
+
               totalSpent = ytdResult?.total ? parseFloat(ytdResult.total) : 0;
             }
           }
-          
+
           return {
             ...client,
             totalSpent: totalSpent
           };
         })
       );
-      
+
       res.json(clientsWithYtd);
     } catch (error) {
       console.error("Error fetching clients:", error);
@@ -1758,7 +1761,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } else {
         orders = await storage.getOrders();
       }
-      
+
       res.json(orders);
     } catch (error) {
       console.error("Error fetching orders:", error);
@@ -1782,7 +1785,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/orders', isAuthenticated, async (req, res) => {
     try {
       const { items, ...orderData } = req.body;
-      
+
       const dataToValidate = {
         ...orderData,
         // Only set assignedUserId to current user if not provided from frontend
@@ -1852,11 +1855,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch('/api/orders/:id', isAuthenticated, async (req, res) => {
     try {
       const dataToValidate = { ...req.body };
-      
+
       // Extract items from request body before validation
       const items = req.body.items;
       delete dataToValidate.items; // Remove items from order data validation
-      
+
       // Convert date strings to Date objects for validation
       if (dataToValidate.inHandsDate) {
         dataToValidate.inHandsDate = new Date(dataToValidate.inHandsDate);
@@ -1867,9 +1870,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (dataToValidate.supplierInHandsDate) {
         dataToValidate.supplierInHandsDate = new Date(dataToValidate.supplierInHandsDate);
       }
-      
+
       const validatedData = insertOrderSchema.partial().parse(dataToValidate);
-      
+
       // Get old order to check if company/supplier changed
       const oldOrder = await storage.getOrder(req.params.id);
       const order = await storage.updateOrder(req.params.id, validatedData);
@@ -1879,7 +1882,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Get existing order items
         const existingItems = await storage.getOrderItems(order.id);
         const existingItemIds = new Set(existingItems.map(item => item.id));
-        
+
         // Process each item from the request
         for (const item of items) {
           // If item has an ID and exists in database, update it
@@ -1920,7 +1923,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             });
           }
         }
-        
+
         // Note: We don't auto-delete items here to prevent accidental data loss
         // and to avoid foreign key constraint violations with artwork_approvals.
         // Users should manually delete items through the UI if needed.
@@ -1939,7 +1942,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (order.companyId) {
         await updateCompanyYtdSpending(order.companyId);
       }
-      
+
       // Update YTD spending for all suppliers from order items
       const currentItems = await storage.getOrderItems(order.id);
       const currentSupplierIds = Array.from(new Set(currentItems.map(item => item.supplierId).filter(Boolean)));
@@ -1948,7 +1951,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           await updateSupplierYtdSpending(supplierId as string);
         }
       }
-      
+
       // Also update old company if it changed
       if (oldOrder?.companyId && oldOrder.companyId !== order.companyId) {
         await updateCompanyYtdSpending(oldOrder.companyId);
@@ -2088,9 +2091,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { db } = await import("./db");
       const { artworkApprovals } = await import("@shared/schema");
       const { eq } = await import("drizzle-orm");
-      
+
       await db.delete(artworkApprovals).where(eq(artworkApprovals.orderItemId, req.params.itemId));
-      
+
       // Now safe to delete the order item
       await storage.deleteOrderItem(req.params.itemId);
 
@@ -2148,7 +2151,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { db } = await import("./db");
       const { artworkItems } = await import("@shared/schema");
-      
+
       let filePath = null;
       let fileName = null;
 
@@ -2258,7 +2261,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const { orderId, companyId } = req.body;
-      
+
       // File is uploaded to Cloudinary via multer-storage-cloudinary
       // req.file.path contains the Cloudinary URL
       // req.file.filename contains the Cloudinary public_id
@@ -2340,7 +2343,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // File is uploaded to Cloudinary via multer-storage-cloudinary
       // req.file.path contains the Cloudinary URL
-      
+
       // Create upload record
       const dataUpload = await storage.createDataUpload({
         fileName: (req.file as any).filename || (req.file as any).public_id,
@@ -2935,18 +2938,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { db } = await import("./db");
       const { companies, suppliers, orders, products } = await import("@shared/schema");
       const { eq, and, gte, sql } = await import("drizzle-orm");
-      
+
       const currentYear = new Date().getFullYear();
       const yearStart = new Date(currentYear, 0, 1);
-      
+
       let companiesUpdated = 0;
       let suppliersUpdated = 0;
       let productCountsUpdated = 0;
-      
+
       // Get all companies
       const allCompanies = await storage.getCompanies();
       console.log(`Found ${allCompanies.length} companies to sync`);
-      
+
       // Update YTD for each company
       for (const company of allCompanies) {
         try {
@@ -2959,25 +2962,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 gte(orders.createdAt, yearStart)
               )
             );
-          
+
           const ytdSpend = ytdResult?.total ? parseFloat(ytdResult.total) : 0;
-          
+
           await db
             .update(companies)
             .set({ ytdSpend: ytdSpend.toFixed(2) })
             .where(eq(companies.id, company.id));
-          
+
           companiesUpdated++;
           console.log(`✓ Synced company ${company.name}: $${ytdSpend.toFixed(2)}`);
         } catch (err) {
           console.error(`Error syncing company ${company.name}:`, err);
         }
       }
-      
+
       // Get all suppliers
       const allSuppliers = await storage.getSuppliers();
       console.log(`Found ${allSuppliers.length} suppliers to sync`);
-      
+
       // Update YTD and product count for each supplier
       for (const supplier of allSuppliers) {
         try {
@@ -2993,25 +2996,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 gte(orders.createdAt, yearStart)
               )
             );
-          
+
           const ytdSpend = ytdResult?.total ? parseFloat(ytdResult.total) : 0;
-          
+
           // Count products
           const [countResult] = await db
             .select({ count: sql<number>`COUNT(*)` })
             .from(products)
             .where(eq(products.supplierId, supplier.id));
-          
+
           const productCount = countResult?.count || 0;
-          
+
           await db
             .update(suppliers)
-            .set({ 
+            .set({
               ytdSpend: ytdSpend.toFixed(2),
-              productCount 
+              productCount
             })
             .where(eq(suppliers.id, supplier.id));
-          
+
           suppliersUpdated++;
           productCountsUpdated++;
           console.log(`✓ Synced supplier ${supplier.name}: $${ytdSpend.toFixed(2)}, ${productCount} products`);
@@ -3019,9 +3022,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           console.error(`Error syncing supplier ${supplier.name}:`, err);
         }
       }
-      
+
       console.log(`Sync completed: ${companiesUpdated} companies, ${suppliersUpdated} suppliers, ${productCountsUpdated} product counts`);
-      
+
       res.json({
         message: 'YTD spending and product counts synced successfully',
         companiesUpdated,
@@ -3031,7 +3034,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error) {
       console.error('Error syncing YTD spending:', error);
-      res.status(500).json({ 
+      res.status(500).json({
         message: 'Failed to sync YTD spending',
         error: error instanceof Error ? error.message : 'Unknown error'
       });
@@ -4445,121 +4448,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Integration Configuration Routes
-  app.get('/api/integrations/configurations', isAuthenticated, async (req, res) => {
-    try {
-      // Get current integration settings to determine actual status
-      const currentSettings = await storage.getIntegrationSettings();
-      
-      // Check if SAGE is actually configured
-      const sageConfigured = !!(currentSettings?.sageAcctId && currentSettings?.sageLoginId && currentSettings?.sageApiKey);
-      
-      const configurations = [
-        {
-          id: 'config_esp',
-          integration: 'esp',
-          displayName: 'ASI ESP+',
-          description: 'Advertising Specialty Institute product database',
-          syncEnabled: false,
-          syncFrequency: 'daily',
-          isHealthy: true,
-          lastSync: null,
-          lastHealthCheck: new Date().toISOString(),
-          totalSyncs: 0,
-          totalRecordsSynced: 0,
-          status: 'Not Configured',
-          apiEndpoint: 'https://api.asicentral.com',
-          rateLimitPerHour: 1000,
-          maxApiCallsPerHour: 1000
-        },
-        {
-          id: 'config_sage',
-          integration: 'sage',
-          displayName: 'SAGE',
-          description: 'SAGE promotional product database',
-          syncEnabled: sageConfigured,
-          syncFrequency: 'daily',
-          isHealthy: sageConfigured,
-          lastSync: null,
-          lastHealthCheck: new Date().toISOString(),
-          totalSyncs: 0,
-          totalRecordsSynced: 0,
-          status: sageConfigured ? 'Ready' : 'Not Configured',
-          apiEndpoint: 'https://api.sageworld.com',
-          rateLimitPerHour: 500,
-          maxApiCallsPerHour: 500
-        },
-        {
-          id: 'config_dc',
-          integration: 'dc',
-          displayName: 'Distributor Central',
-          description: 'Distributor Central product catalog',
-          syncEnabled: true,
-          syncFrequency: 'daily',
-          isHealthy: true,
-          lastSync: new Date(Date.now() - 3600000).toISOString(),
-          lastHealthCheck: new Date().toISOString(),
-          totalSyncs: 12,
-          totalRecordsSynced: 2847,
-          status: 'Active',
-          apiEndpoint: 'https://api.distributorcentral.com',
-          rateLimitPerHour: 2000,
-          maxApiCallsPerHour: 2000
-        }
-      ];
-
-      res.json(configurations);
-    } catch (error) {
-      console.error('Error fetching integration configurations:', error);
-      res.status(500).json({ message: "Failed to fetch integration configurations" });
-    }
-  });
-
-  // Sync product data from external sources
-  app.post('/api/integrations/:source/sync', isAuthenticated, async (req, res) => {
-    try {
-      const { source } = req.params;
-      const { syncType = 'incremental', categories = [] } = req.body;
-
-      // Mock sync initiation - would trigger actual sync with ESP/SAGE/DC
-      const syncId = `sync_${source}_${Date.now()}`;
-
-      res.json({
-        syncId,
-        status: 'initiated',
-        source,
-        syncType,
-        estimatedDuration: '15-30 minutes',
-        message: `${source.toUpperCase()} product sync has been initiated. You will receive notifications upon completion.`
-      });
-    } catch (error) {
-      res.status(500).json({ message: `Failed to initiate ${req.params.source} sync` });
-    }
-  });
-
-  // Update integration configuration
-  app.patch('/api/integrations/configurations/:id', isAuthenticated, async (req, res) => {
-    try {
-      const { id } = req.params;
-      const updates = req.body;
-
-      // Mock update - would update database configuration
-      res.json({
-        id,
-        ...updates,
-        message: 'Configuration updated successfully'
-      });
-    } catch (error) {
-      res.status(500).json({ message: "Failed to update integration configuration" });
-    }
-  });
+  // Integration Configuration Routes - Consolidated for all integrations
 
   // API Credentials management
   app.get('/api/integrations/credentials', isAuthenticated, async (req, res) => {
     try {
       // Get current settings from database
       const currentSettings = await storage.getIntegrationSettings();
-      
+
       const credentials = [
         {
           integration: 'ssactivewear',
@@ -4632,24 +4528,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Prepare update object with only provided credentials
       const updates: any = {};
-      
+
       // S&S Activewear
       if (credentials.ssActivewearAccount) updates.ssActivewearAccount = credentials.ssActivewearAccount;
       if (credentials.ssActivewearApiKey) updates.ssActivewearApiKey = credentials.ssActivewearApiKey;
-      
+
       // SAGE
       if (credentials.sageAcctId) updates.sageAcctId = credentials.sageAcctId;
       if (credentials.sageLoginId) updates.sageLoginId = credentials.sageLoginId;
       if (credentials.sageApiKey) updates.sageApiKey = credentials.sageApiKey;
-      
+
       // SanMar
       if (credentials.sanmarCustomerId) updates.sanmarCustomerId = credentials.sanmarCustomerId;
       if (credentials.sanmarUsername) updates.sanmarUsername = credentials.sanmarUsername;
       if (credentials.sanmarPassword) updates.sanmarPassword = credentials.sanmarPassword;
-      
+
       // HubSpot
       if (credentials.hubspotApiKey) updates.hubspotApiKey = credentials.hubspotApiKey;
-      
+
       // Slack
       if (credentials.slackBotToken) updates.slackBotToken = credentials.slackBotToken;
       if (credentials.slackChannelId) updates.slackChannelId = credentials.slackChannelId;
@@ -4668,10 +4564,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/integrations/sage/test', isAuthenticated, async (req, res) => {
     try {
       const credentials = await getSageCredentials();
-      
+
       if (!credentials) {
-        return res.status(400).json({ 
-          message: 'SAGE credentials not configured. Please add your SAGE API credentials in settings.' 
+        return res.status(400).json({
+          message: 'SAGE credentials not configured. Please add your SAGE API credentials in settings.'
         });
       }
 
@@ -4679,19 +4575,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const isConnected = await sageService.testConnection();
 
       if (isConnected) {
-        res.json({ 
+        res.json({
           message: 'Successfully connected to SAGE API',
           status: 'connected'
         });
       } else {
-        res.status(400).json({ 
+        res.status(400).json({
           message: 'Failed to connect to SAGE API. Please check your credentials.',
           status: 'failed'
         });
       }
     } catch (error) {
       console.error('Error testing SAGE connection:', error);
-      res.status(500).json({ 
+      res.status(500).json({
         message: 'Error testing SAGE connection',
         error: error instanceof Error ? error.message : 'Unknown error'
       });
@@ -4708,8 +4604,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const credentials = await getSageCredentials();
       if (!credentials) {
-        return res.status(400).json({ 
-          message: 'SAGE credentials not configured' 
+        return res.status(400).json({
+          message: 'SAGE credentials not configured'
         });
       }
 
@@ -4720,13 +4616,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         maxResults: maxResults || 50
       });
 
-      res.json({ 
+      res.json({
         products,
         total: products.length
       });
     } catch (error) {
       console.error('Error searching SAGE products:', error);
-      res.status(500).json({ 
+      res.status(500).json({
         message: 'Failed to search SAGE products',
         error: error instanceof Error ? error.message : 'Unknown error'
       });
@@ -4743,13 +4639,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const credentials = await getSageCredentials();
       if (!credentials) {
-        return res.status(400).json({ 
-          message: 'SAGE credentials not configured' 
+        return res.status(400).json({
+          message: 'SAGE credentials not configured'
         });
       }
 
       const sageService = new SageService(credentials);
-      
+
       // Sync products to database
       const syncResults = {
         success: 0,
@@ -4773,7 +4669,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error) {
       console.error('Error syncing SAGE products:', error);
-      res.status(500).json({ 
+      res.status(500).json({
         message: 'Failed to sync SAGE products',
         error: error instanceof Error ? error.message : 'Unknown error'
       });
@@ -4783,27 +4679,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/sage/products', isAuthenticated, async (req, res) => {
     try {
       const { search, limit } = req.query;
-      
+
       if (search) {
         // Search directly from SAGE API
         const credentials = await getSageCredentials();
-        
+
         if (!credentials || !credentials.acctId || !credentials.loginId || !credentials.key) {
-          return res.status(400).json({ 
-            message: 'SAGE credentials not configured. Please configure in Settings → Integrations.' 
+          return res.status(400).json({
+            message: 'SAGE credentials not configured. Please configure in Settings → Integrations.'
           });
         }
-        
+
         const sageService = new SageService({
           acctId: credentials.acctId,
           loginId: credentials.loginId,
           key: credentials.key,
         });
-        
+
         const products = await sageService.searchProducts(search as string, {
           maxResults: parseInt(limit as string) || 50
         });
-        
+
         res.json(products);
       } else {
         // If no search query, return from database cache
@@ -4812,7 +4708,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
     } catch (error) {
       console.error('Error fetching SAGE products:', error);
-      res.status(500).json({ 
+      res.status(500).json({
         message: 'Failed to fetch SAGE products',
         error: error instanceof Error ? error.message : 'Unknown error'
       });
@@ -4822,7 +4718,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/sage/products/:id', isAuthenticated, async (req, res) => {
     try {
       const product = await storage.getSageProductBySageId(req.params.id);
-      
+
       if (!product) {
         return res.status(404).json({ message: 'Product not found' });
       }
@@ -4830,7 +4726,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(product);
     } catch (error) {
       console.error('Error fetching SAGE product:', error);
-      res.status(500).json({ 
+      res.status(500).json({
         message: 'Failed to fetch SAGE product',
         error: error instanceof Error ? error.message : 'Unknown error'
       });
@@ -4845,11 +4741,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Handle SAGE real connection test
       if (integration === 'sage') {
         const credentials = await getSageCredentials();
-        
+
         if (!credentials) {
-          return res.status(400).json({ 
+          return res.status(400).json({
             success: false,
-            message: 'SAGE credentials not configured. Please add your SAGE API credentials in settings.' 
+            message: 'SAGE credentials not configured. Please add your SAGE API credentials in settings.'
           });
         }
 
@@ -4858,13 +4754,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const isConnected = await sageService.testConnection();
 
           if (isConnected) {
-            return res.json({ 
+            return res.json({
               success: true,
               message: 'Successfully connected to SAGE API',
               details: 'Authentication successful, product database accessible'
             });
           } else {
-            return res.status(400).json({ 
+            return res.status(400).json({
               success: false,
               message: 'Failed to connect to SAGE API. Please check your credentials.',
               details: 'Authentication failed'
@@ -4872,7 +4768,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         } catch (error) {
           console.error('Error testing SAGE connection:', error);
-          return res.status(500).json({ 
+          return res.status(500).json({
             success: false,
             message: 'Error testing SAGE connection',
             details: error instanceof Error ? error.message : 'Unknown error'
@@ -5761,20 +5657,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const channelId = process.env.SLACK_CHANNEL_ID;
 
       if (!botToken || !channelId) {
-        return res.status(503).json({ 
-          message: "Slack is not configured. Please configure Slack integration in Settings." 
+        return res.status(503).json({
+          message: "Slack is not configured. Please configure Slack integration in Settings."
         });
       }
 
       // Import slack helper dynamically to avoid issues
       const { readSlackHistory, getSlackUserInfo } = await import('@shared/slack');
-      
+
       // Fetch messages from Slack
       const history = await readSlackHistory(channelId, 50, botToken);
-      
+
       if (!history || !history.messages) {
-        return res.status(503).json({ 
-          message: "Failed to fetch messages from Slack. Check your configuration." 
+        return res.status(503).json({
+          message: "Failed to fetch messages from Slack. Check your configuration."
         });
       }
 
@@ -5798,10 +5694,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const formattedMessages = history.messages
         .map((msg: any) => {
           const userInfo = msg.user ? userInfoMap.get(msg.user) : null;
-          const displayName = msg.username 
-            || userInfo?.displayName 
-            || userInfo?.realName 
-            || userInfo?.name 
+          const displayName = msg.username
+            || userInfo?.displayName
+            || userInfo?.realName
+            || userInfo?.name
             || (msg.bot_id ? 'SwagSuite' : 'Unknown');
 
           return {
@@ -5824,14 +5720,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ messages: formattedMessages });
     } catch (error: any) {
       console.error("Error syncing Slack messages:", error);
-      
+
       if (error?.code === 'slack_webapi_platform_error') {
         const slackError = error.data?.error;
-        return res.status(400).json({ 
-          message: `Slack error: ${slackError || 'Unknown error'}` 
+        return res.status(400).json({
+          message: `Slack error: ${slackError || 'Unknown error'}`
         });
       }
-      
+
       res.status(500).json({ message: "Failed to sync Slack messages" });
     }
   });
@@ -5840,7 +5736,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/slack/thread/:threadTs', isAuthenticated, async (req, res) => {
     try {
       const { threadTs } = req.params;
-      
+
       // Get Slack credentials from env vars only
       // TODO: Future - enable database config by uncommenting below
       // const credentials = await storage.getIntegrationSettings();
@@ -5850,16 +5746,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const channelId = process.env.SLACK_CHANNEL_ID;
 
       if (!botToken || !channelId) {
-        return res.status(503).json({ 
-          message: "Slack is not configured." 
+        return res.status(503).json({
+          message: "Slack is not configured."
         });
       }
 
       const { getSlackThreadReplies, getSlackUserInfo } = await import('@shared/slack');
-      
+
       // Fetch thread replies
       const threadData = await getSlackThreadReplies(channelId, threadTs, botToken);
-      
+
       if (!threadData || !threadData.messages) {
         return res.json({ replies: [] });
       }
@@ -5887,10 +5783,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Format replies
       const formattedReplies = threadData.messages.map((msg: any) => {
         const userInfo = msg.user ? userInfoMap.get(msg.user) : null;
-        const displayName = msg.username 
-          || userInfo?.displayName 
-          || userInfo?.realName 
-          || userInfo?.name 
+        const displayName = msg.username
+          || userInfo?.displayName
+          || userInfo?.realName
+          || userInfo?.name
           || (msg.bot_id ? 'SwagSuite' : 'Unknown');
 
         return {
@@ -5928,8 +5824,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const channelId = process.env.SLACK_CHANNEL_ID;
 
       if (!botToken || !channelId) {
-        return res.status(503).json({ 
-          message: "Slack is not configured. Please configure Slack integration in Settings." 
+        return res.status(503).json({
+          message: "Slack is not configured. Please configure Slack integration in Settings."
         });
       }
 
@@ -5942,8 +5838,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }, botToken);
 
       if (!messageResponse) {
-        return res.status(503).json({ 
-          message: "Failed to send message to Slack. Check your Slack configuration and token validity." 
+        return res.status(503).json({
+          message: "Failed to send message to Slack. Check your Slack configuration and token validity."
         });
       }
 
@@ -5958,30 +5854,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(message);
     } catch (error: any) {
       console.error("Error sending Slack message:", error);
-      
+
       // Handle specific Slack errors
       if (error?.code === 'slack_webapi_platform_error') {
         const slackError = error.data?.error;
-        
+
         if (slackError === 'channel_not_found') {
-          return res.status(400).json({ 
-            message: `Slack channel not found. Please check your SLACK_CHANNEL_ID (${process.env.SLACK_CHANNEL_ID}). Make sure the bot is added to the channel.` 
+          return res.status(400).json({
+            message: `Slack channel not found. Please check your SLACK_CHANNEL_ID (${process.env.SLACK_CHANNEL_ID}). Make sure the bot is added to the channel.`
           });
         } else if (slackError === 'invalid_auth') {
-          return res.status(401).json({ 
-            message: "Invalid Slack token. Please check your SLACK_BOT_TOKEN in environment variables." 
+          return res.status(401).json({
+            message: "Invalid Slack token. Please check your SLACK_BOT_TOKEN in environment variables."
           });
         } else if (slackError === 'not_in_channel') {
-          return res.status(403).json({ 
-            message: `Bot is not in the channel. Please invite the bot to channel ${process.env.SLACK_CHANNEL_ID}` 
+          return res.status(403).json({
+            message: `Bot is not in the channel. Please invite the bot to channel ${process.env.SLACK_CHANNEL_ID}`
           });
         }
-        
-        return res.status(400).json({ 
-          message: `Slack error: ${slackError || 'Unknown error'}` 
+
+        return res.status(400).json({
+          message: `Slack error: ${slackError || 'Unknown error'}`
         });
       }
-      
+
       res.status(500).json({ message: "Failed to send Slack message" });
     }
   });
@@ -6038,10 +5934,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/ss-activewear/brands', isAuthenticated, async (req, res) => {
     try {
       const credentials = await getSsActivewearCredentials();
-      
+
       if (!credentials.accountNumber || !credentials.apiKey) {
-        return res.status(400).json({ 
-          error: 'S&S Activewear credentials not configured. Please add your account number and API key in Settings.' 
+        return res.status(400).json({
+          error: 'S&S Activewear credentials not configured. Please add your account number and API key in Settings.'
         });
       }
 
@@ -6065,10 +5961,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const credentials = await getSsActivewearCredentials();
-      
+
       if (!credentials.accountNumber || !credentials.apiKey) {
-        return res.status(400).json({ 
-          error: 'S&S Activewear credentials not configured. Please configure in Settings → Integrations.' 
+        return res.status(400).json({
+          error: 'S&S Activewear credentials not configured. Please configure in Settings → Integrations.'
         });
       }
 
@@ -6078,8 +5974,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(products);
     } catch (error) {
       console.error('Error searching S&S Activewear products:', error);
-      res.status(500).json({ 
-        error: error instanceof Error ? error.message : 'Failed to search products' 
+      res.status(500).json({
+        error: error instanceof Error ? error.message : 'Failed to search products'
       });
     }
   });
@@ -6095,7 +5991,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Find or create S&S Activewear supplier
       let ssSupplier = await storage.getSupplierByName("S&S Activewear");
-      
+
       if (!ssSupplier) {
         // Also try alternate name
         ssSupplier = await storage.getSupplierByName("SS Activewear");
@@ -6144,7 +6040,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             sizes: [ssProduct.sizeName], // Store as string array
             imprintMethods: null, // S&S API doesn't provide this
             leadTime: null, // S&S API doesn't provide this directly
-            imageUrl: ssProduct.colorFrontImage 
+            imageUrl: ssProduct.colorFrontImage
               ? `https://www.ssactivewear.com/${ssProduct.colorFrontImage}`
               : null,
             productType: 'apparel',
@@ -6152,15 +6048,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
           // Check if product already exists
           const existingProduct = await storage.getProductBySku(ssProduct.sku);
-          
+
           if (existingProduct) {
             // Merge colors and sizes with existing data
             const existingColors = Array.isArray(existingProduct.colors) ? existingProduct.colors : [];
             const existingSizes = Array.isArray(existingProduct.sizes) ? existingProduct.sizes : [];
-            
+
             product.colors = Array.from(new Set([...existingColors, ...product.colors]));
             product.sizes = Array.from(new Set([...existingSizes, ...product.sizes]));
-            
+
             // Update existing product
             await storage.updateProduct(existingProduct.id, product);
           } else {
@@ -6187,7 +6083,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // ==================== SanMar Integration Routes ====================
-  
+
   // Test SanMar connection
   app.post('/api/sanmar/test-connection', isAuthenticated, async (req, res) => {
     try {
@@ -6199,7 +6095,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const { createSanMarService } = await import('./sanmarService');
       const sanmarService = createSanMarService({ customerId, username, password });
-      
+
       const isConnected = await sanmarService.testConnection();
 
       if (isConnected) {
@@ -6224,7 +6120,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Get credentials from integration settings
       const settings = await storage.getIntegrationSettings();
-      
+
       if (!settings?.sanmarCustomerId || !settings?.sanmarUsername || !settings?.sanmarPassword) {
         return res.status(400).json({ message: "SanMar credentials not configured. Please configure in Settings → Integrations." });
       }
@@ -6252,7 +6148,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { styleId } = req.params;
 
       const settings = await storage.getIntegrationSettings();
-      
+
       if (!settings?.sanmarCustomerId || !settings?.sanmarUsername || !settings?.sanmarPassword) {
         return res.status(400).json({ message: "SanMar credentials not configured" });
       }
@@ -6289,7 +6185,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Find or create SanMar supplier
       let sanmarSupplier = await storage.getSupplierByName("SanMar");
-      
+
       if (!sanmarSupplier) {
         sanmarSupplier = await storage.createSupplier({
           name: "SanMar",
@@ -6335,15 +6231,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
           // Check if product already exists
           const existingProduct = await storage.getProductBySku(sanmarProduct.styleId);
-          
+
           if (existingProduct) {
             // Merge colors and sizes with existing data
             const existingColors = Array.isArray(existingProduct.colors) ? existingProduct.colors : [];
             const existingSizes = Array.isArray(existingProduct.sizes) ? existingProduct.sizes : [];
-            
+
             product.colors = Array.from(new Set([...existingColors, ...product.colors]));
             product.sizes = Array.from(new Set([...existingSizes, ...product.sizes]));
-            
+
             await storage.updateProduct(existingProduct.id, product);
           } else {
             await storage.createProduct(product);
@@ -6409,7 +6305,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       // Fetch from database
       const dbSettings = await storage.getIntegrationSettings();
-      
+
       // Merge DB settings with environment variables (env as fallback)
       const settings = {
         ssActivewearAccount: dbSettings?.ssActivewearAccount || process.env.SS_ACTIVEWEAR_ACCOUNT || "",
@@ -6425,9 +6321,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         sageApiKey: dbSettings?.sageApiKey || process.env.SAGE_API_KEY || "",
         quickbooksConnected: dbSettings?.quickbooksConnected || false,
         stripeConnected: dbSettings?.stripeConnected || false,
-        shipmateConnected: dbSettings?.shipmateConnected || false
+        shipmateConnected: dbSettings?.shipmateConnected || false,
+        stripePublishableKey: dbSettings?.stripePublishableKey || process.env.STRIPE_PUBLISHABLE_KEY || "",
+        stripeSecretKey: dbSettings?.stripeSecretKey || process.env.STRIPE_SECRET_KEY || "",
+        stripeWebhookSecret: dbSettings?.stripeWebhookSecret || process.env.STRIPE_WEBHOOK_SECRET || "",
+        taxjarApiKey: dbSettings?.taxjarApiKey || process.env.TAXJAR_API_KEY || ""
       };
-      
+
       res.json(settings);
     } catch (error) {
       console.error('Error fetching integration settings:', error);
@@ -6439,7 +6339,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const settings = req.body;
       const userId = (req.user as any)?.id;
-      
+
       // Log masked values for security
       console.log('Saving integration settings:', {
         ssActivewearAccount: settings.ssActivewearAccount ? '***' : '',
@@ -6455,19 +6355,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
         sageApiKey: settings.sageApiKey ? '***' : '',
         updatedBy: userId
       });
-      
+
+      // Auto-update connected flags based on provided keys
+      if (settings.stripePublishableKey && settings.stripeSecretKey) {
+        settings.stripeConnected = true;
+      } else if (settings.stripePublishableKey === "" || settings.stripeSecretKey === "") {
+        settings.stripeConnected = false;
+      }
+
       // Save to database
       const savedSettings = await storage.upsertIntegrationSettings(settings, userId);
-      
+
       console.log('Settings saved successfully:', {
         id: savedSettings.id,
         hasSanmarCustomerId: !!savedSettings.sanmarCustomerId,
         hasSanmarUsername: !!savedSettings.sanmarUsername,
         hasSanmarPassword: !!savedSettings.sanmarPassword
       });
-      
-      res.json({ 
-        success: true, 
+
+      res.json({
+        success: true,
         message: 'Integration settings saved successfully',
         settings: savedSettings
       });
@@ -6777,7 +6684,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/projects/:orderId/activities", async (req, res) => {
     try {
       const { orderId } = req.params;
-      
+
       // Import dependencies
       const { db } = await import("./db");
       const { users } = await import("@shared/schema");
@@ -6819,7 +6726,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { orderId } = req.params;
       const { activityType, content, mentionedUsers } = req.body;
-      
+
       // Import dependencies
       const { db } = await import("./db");
       const { users } = await import("@shared/schema");
@@ -6973,14 +6880,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
           )
         );
 
-      const metadata = activity?.metadata as { 
-        cloudinaryUrl?: string; 
+      const metadata = activity?.metadata as {
+        cloudinaryUrl?: string;
         cloudinaryPublicId?: string;
         storagePath?: string; // legacy support
-        mimeType?: string; 
-        fileName?: string 
+        mimeType?: string;
+        fileName?: string
       } | undefined;
-      
+
       if (!activity || (!metadata?.cloudinaryUrl && !metadata?.storagePath)) {
         return res.status(404).json({ error: "File not found" });
       }
@@ -6992,7 +6899,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           flags: 'attachment',
           resource_type: 'auto',
         });
-        
+
         return res.redirect(downloadUrl);
       }
 
@@ -7019,7 +6926,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { db } = await import("./db");
       const { users } = await import("@shared/schema");
-      
+
       // Query all users from database
       const teamMembers = await db.select({
         id: users.id,
@@ -7040,7 +6947,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { orderId } = req.params;
       const { type } = req.query; // 'client_email' or 'vendor_email'
-      
+
       // Import dependencies
       const { db } = await import("./db");
       const { users } = await import("@shared/schema");
@@ -7109,7 +7016,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         metadata,
         attachmentIds,
       } = req.body;
-      
+
       // Import dependencies
       const { db } = await import("./db");
       const { users } = await import("@shared/schema");
@@ -7147,13 +7054,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Fetch attachment metadata for email sending
-      let emailAttachments: Array<{storagePath: string; originalFilename: string; mimeType: string}> = [];
+      let emailAttachments: Array<{ storagePath: string; originalFilename: string; mimeType: string }> = [];
       if (attachmentIds && attachmentIds.length > 0) {
         const attachmentRecords = await db
           .select()
           .from(attachments)
           .where(inArray(attachments.id, attachmentIds));
-        
+
         emailAttachments = attachmentRecords.map(att => ({
           storagePath: att.storagePath,
           originalFilename: att.originalFilename,
@@ -7169,15 +7076,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.log('  To:', recipientEmail, recipientName ? `(${recipientName})` : '');
         console.log('  Subject:', subject);
         console.log('  Attachments:', emailAttachments.length);
-        
+
         // Extract CC and BCC from request body
         const { cc, bcc } = req.body;
-        
+
         try {
           const order = await storage.getOrder(orderId);
           const company = order?.companyId ? await storage.getCompany(order.companyId) : null;
           const supplier = (order as any)?.supplierId ? await storage.getSupplier((order as any).supplierId) : null;
-          
+
           if (communicationType === 'client_email') {
             console.log('  Sending client email...');
             await emailService.sendClientEmail({
@@ -7498,24 +7405,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/settings/test-email", isAuthenticated, async (req, res) => {
     try {
       const { to } = req.body;
-      
+
       if (!to || typeof to !== 'string' || !to.includes('@')) {
-        return res.json({ 
-          success: false, 
+        return res.json({
+          success: false,
           message: 'Please provide a valid email address'
         });
       }
 
       const { emailService } = await import('./emailService');
       const success = await emailService.testConnection(to);
-      res.json({ 
-        success, 
+      res.json({
+        success,
         message: success ? `Test email sent to ${to}` : 'Failed to send test email'
       });
     } catch (error: any) {
       console.error("Error testing email connection:", error);
-      res.json({ 
-        success: false, 
+      res.json({
+        success: false,
         message: error.message || 'Failed to test email connection'
       });
     }
@@ -7523,16 +7430,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Attachment API Endpoints
   // Upload attachments to order
-  app.post("/api/orders/:orderId/attachments", 
-    isAuthenticated, 
-    upload.array('files', 10), 
+  app.post("/api/orders/:orderId/attachments",
+    isAuthenticated,
+    upload.array('files', 10),
     async (req, res) => {
       try {
         const { orderId } = req.params;
         const files = req.files as Express.Multer.File[];
         const { category = 'attachment' } = req.body;
         const userId = req.user?.claims?.sub;
-        
+
         if (!files || files.length === 0) {
           return res.status(400).json({ message: 'No files uploaded' });
         }
@@ -7573,7 +7480,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             uploadedBy: userId || null,
             orderId: orderId,
           };
-          
+
           const [attachment] = await db
             .insert(attachments)
             .values(attachmentData as any)
@@ -7594,17 +7501,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
   );
 
   // Download attachment
-  app.get("/api/attachments/:attachmentId/download", 
-    isAuthenticated, 
+  app.get("/api/attachments/:attachmentId/download",
+    isAuthenticated,
     async (req, res) => {
       try {
         const { attachmentId } = req.params;
-        
+
         const { db } = await import("./db");
         const { attachments } = await import("@shared/project-schema");
         const { eq } = await import("drizzle-orm");
         const { replitStorage } = await import("./replitStorage");
-        
+
         // Get attachment metadata
         const [attachment] = await db
           .select()
@@ -7636,17 +7543,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
   );
 
   // Delete attachment
-  app.delete("/api/attachments/:attachmentId", 
-    isAuthenticated, 
+  app.delete("/api/attachments/:attachmentId",
+    isAuthenticated,
     async (req, res) => {
       try {
         const { attachmentId } = req.params;
-        
+
         const { db } = await import("./db");
         const { attachments } = await import("@shared/project-schema");
         const { eq } = await import("drizzle-orm");
         const { replitStorage } = await import("./replitStorage");
-        
+
         // Get attachment metadata
         const [attachment] = await db
           .select()
@@ -7672,19 +7579,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
   );
 
   // List order attachments
-  app.get("/api/orders/:orderId/attachments", 
-    isAuthenticated, 
+  app.get("/api/orders/:orderId/attachments",
+    isAuthenticated,
     async (req, res) => {
       try {
         const { orderId } = req.params;
         const { category } = req.query;
-        
+
         const { db } = await import("./db");
         const { attachments } = await import("@shared/project-schema");
         const { eq, and } = await import("drizzle-orm");
-        
+
         let conditions = [eq(attachments.orderId, orderId)];
-        
+
         if (category) {
           conditions.push(eq(attachments.category, category as string));
         }
@@ -7710,11 +7617,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/approvals/:token", async (req, res) => {
     try {
       const { token } = req.params;
-      
+
       const { db } = await import("./db");
       const { artworkApprovals, orders, orderItems, products, artworkFiles, companies } = await import("@shared/schema");
       const { eq } = await import("drizzle-orm");
-      
+
       const [approval] = await db
         .select({
           id: artworkApprovals.id,
@@ -7800,11 +7707,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/approvals/:token/approve", async (req, res) => {
     try {
       const { token } = req.params;
-      
+
       const { db } = await import("./db");
       const { artworkApprovals, orders } = await import("@shared/schema");
       const { eq } = await import("drizzle-orm");
-      
+
       // Get approval
       const [approval] = await db
         .select()
@@ -7845,11 +7752,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { token } = req.params;
       const { reason } = req.body;
-      
+
       const { db } = await import("./db");
       const { artworkApprovals } = await import("@shared/schema");
       const { eq } = await import("drizzle-orm");
-      
+
       // Get approval
       const [approval] = await db
         .select()
@@ -7891,7 +7798,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { orderId } = req.params;
       const { orderItemId, artworkFileId, clientEmail, clientName } = req.body;
-      
+
       if (!clientEmail) {
         return res.status(400).json({ message: "Client email is required" });
       }
@@ -7900,7 +7807,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { artworkApprovals, orders } = await import("@shared/schema");
       const { eq, and } = await import("drizzle-orm");
       const crypto = await import("crypto");
-      
+
       // Verify order exists
       const [order] = await db
         .select()
@@ -7923,7 +7830,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (orderItemId) {
         conditions.push(eq(artworkApprovals.orderItemId, orderItemId));
       }
-      
+
       if (artworkFileId) {
         conditions.push(eq(artworkApprovals.artworkFileId, artworkFileId));
       }
@@ -7970,11 +7877,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/orders/:orderId/approvals", isAuthenticated, async (req, res) => {
     try {
       const { orderId } = req.params;
-      
+
       const { db } = await import("./db");
       const { artworkApprovals, orderItems, products, artworkFiles } = await import("@shared/schema");
       const { eq } = await import("drizzle-orm");
-      
+
       const approvals = await db
         .select({
           id: artworkApprovals.id,
@@ -8008,686 +7915,683 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // PUBLIC APPROVAL ENDPOINTS (No authentication required)
-  
-  // Get approval details by token (PUBLIC)
-  app.get("/api/approvals/:token", async (req, res) => {
+  // Configuration Endpoints (for IntegrationSettings.tsx) - Consolidated for ALL integrations
+  app.get('/api/integrations/configurations', isAuthenticated, async (req, res) => {
     try {
-      const { token } = req.params;
-      
-      const { db } = await import("./db");
-      const { artworkApprovals, orders, orderItems, products, companies } = await import("@shared/schema");
-      const { eq } = await import("drizzle-orm");
-      
-      const [approval] = await db
-        .select({
-          id: artworkApprovals.id,
-          orderId: artworkApprovals.orderId,
-          orderItemId: artworkApprovals.orderItemId,
-          artworkFileId: artworkApprovals.artworkFileId,
-          approvalToken: artworkApprovals.approvalToken,
-          status: artworkApprovals.status,
-          approvedAt: artworkApprovals.approvedAt,
-          declinedAt: artworkApprovals.declinedAt,
-          declineReason: artworkApprovals.declineReason,
-          pdfPath: artworkApprovals.pdfPath,
-          orderNumber: orders.orderNumber,
-          companyId: orders.companyId,
-          companyName: companies.name,
-          productName: products.name,
-          productSku: products.sku,
-          itemQuantity: orderItems.quantity,
-          itemColor: orderItems.color,
-          itemSize: orderItems.size,
-        })
-        .from(artworkApprovals)
-        .leftJoin(orders, eq(artworkApprovals.orderId, orders.id))
-        .leftJoin(companies, eq(orders.companyId, companies.id))
-        .leftJoin(orderItems, eq(artworkApprovals.orderItemId, orderItems.id))
-        .leftJoin(products, eq(orderItems.productId, products.id))
-        .where(eq(artworkApprovals.approvalToken, token));
+      const settings = await storage.getIntegrationSettings();
 
-      if (!approval) {
-        return res.status(404).json({ message: "Approval not found" });
-      }
+      // Check if SAGE is actually configured
+      const sageConfigured = !!(settings?.sageAcctId && settings?.sageLoginId && settings?.sageApiKey);
 
-      // Format response
-      const response = {
-        id: approval.id,
-        orderId: approval.orderId,
-        orderItemId: approval.orderItemId,
-        approvalToken: approval.approvalToken,
-        status: approval.status,
-        artworkUrl: approval.pdfPath,
-        approvedAt: approval.approvedAt,
-        rejectedAt: approval.declinedAt,
-        comments: approval.declineReason,
-        order: {
-          orderNumber: approval.orderNumber,
-          companyName: approval.companyName || "Individual Client",
+      const configs = [
+        // Financial Integrations
+        {
+          id: "quickbooks",
+          integration: "quickbooks",
+          displayName: "QuickBooks Online",
+          description: "Sync invoices and customers with QuickBooks.",
+          syncEnabled: !!settings?.quickbooksConnected,
+          isHealthy: !!settings?.quickbooksConnected,
+          status: settings?.quickbooksConnected ? "Active" : "Inactive",
+          apiEndpoint: "https://quickbooks.api.intuit.com",
+          totalSyncs: 0,
+          totalRecordsSynced: 0,
+          rateLimitPerHour: 500,
+          maxApiCallsPerHour: 500
         },
-        orderItem: {
-          productName: approval.productName || "Product",
-          productSku: approval.productSku,
-          quantity: approval.itemQuantity || 0,
-          color: approval.itemColor,
-          size: approval.itemSize,
+        {
+          id: "stripe",
+          integration: "stripe",
+          displayName: "Stripe Payments",
+          description: "Accept credit card payments via Stripe.",
+          syncEnabled: !!settings?.stripeConnected,
+          isHealthy: !!settings?.stripeConnected,
+          status: settings?.stripeConnected ? "Active" : "Inactive",
+          apiEndpoint: "https://api.stripe.com",
+          totalSyncs: 0,
+          totalRecordsSynced: 0,
+          rateLimitPerHour: 1000,
+          maxApiCallsPerHour: 1000
         },
-      };
-
-      res.json(response);
+        {
+          id: "taxjar",
+          integration: "taxjar",
+          displayName: "TaxJar",
+          description: "Automated sales tax calculations.",
+          syncEnabled: !!settings?.taxjarApiKey,
+          isHealthy: !!settings?.taxjarApiKey,
+          status: settings?.taxjarApiKey ? "Active" : "Inactive",
+          apiEndpoint: "https://api.taxjar.com",
+          totalSyncs: 0,
+          totalRecordsSynced: 0,
+          rateLimitPerHour: 1000,
+          maxApiCallsPerHour: 1000
+        },
+        // Product Database Integrations
+        {
+          id: 'config_sage',
+          integration: 'sage',
+          displayName: 'SAGE',
+          description: 'SAGE promotional product database',
+          syncEnabled: sageConfigured,
+          syncFrequency: 'daily',
+          isHealthy: sageConfigured,
+          lastSync: null,
+          lastHealthCheck: new Date().toISOString(),
+          totalSyncs: 0,
+          totalRecordsSynced: 0,
+          status: sageConfigured ? 'Ready' : 'Not Configured',
+          apiEndpoint: 'https://api.sageworld.com',
+          rateLimitPerHour: 500,
+          maxApiCallsPerHour: 500
+        },
+        {
+          id: 'config_esp',
+          integration: 'esp',
+          displayName: 'ASI ESP+',
+          description: 'Advertising Specialty Institute product database',
+          syncEnabled: false,
+          syncFrequency: 'daily',
+          isHealthy: true,
+          lastSync: null,
+          lastHealthCheck: new Date().toISOString(),
+          totalSyncs: 0,
+          totalRecordsSynced: 0,
+          status: 'Not Configured',
+          apiEndpoint: 'https://api.asicentral.com',
+          rateLimitPerHour: 1000,
+          maxApiCallsPerHour: 1000
+        }
+      ];
+      res.json(configs);
     } catch (error) {
-      console.error('Error fetching approval:', error);
-      res.status(500).json({ message: 'Failed to fetch approval' });
+      console.error("Error fetching integration configs:", error);
+      res.status(500).json({ message: "Failed to fetch configurations" });
     }
   });
 
-  // Approve artwork (PUBLIC)
-  app.post("/api/approvals/:token/approve", async (req, res) => {
+  app.patch('/api/integrations/configurations/:id', isAuthenticated, async (req, res) => {
+    res.json({ message: "Updated" });
+  });
+
+  app.get('/api/integrations/credentials', isAuthenticated, async (req, res) => {
     try {
-      const { token } = req.params;
-      const { comments } = req.body;
-      
-      const { db } = await import("./db");
-      const { artworkApprovals } = await import("@shared/schema");
-      const { projectActivities } = await import("@shared/project-schema");
-      const { eq } = await import("drizzle-orm");
-      
-      // Get approval
-      const [approval] = await db
-        .select()
-        .from(artworkApprovals)
-        .where(eq(artworkApprovals.approvalToken, token));
-
-      if (!approval) {
-        return res.status(404).json({ message: "Approval not found" });
-      }
-
-      if (approval.status !== "pending") {
-        return res.status(400).json({ message: "This approval has already been processed" });
-      }
-
-      // Update approval status
-      const [updated] = await db
-        .update(artworkApprovals)
-        .set({
-          status: "approved",
-          approvedAt: new Date(),
-          declineReason: comments || null,
-          updatedAt: new Date(),
-        })
-        .where(eq(artworkApprovals.id, approval.id))
-        .returning();
-
-      // Create activity log
-      if (approval.orderId) {
-        try {
-          await db.insert(projectActivities).values({
-            orderId: approval.orderId,
-            userId: "system", // System-generated activity
-            activityType: "artwork_approved",
-            content: `Artwork approved by client${comments ? `: ${comments}` : ''}`,
-            metadata: {
-              approvalId: approval.id,
-              clientEmail: approval.clientEmail,
-              orderItemId: approval.orderItemId,
-            },
-            mentionedUsers: [],
-            isSystemGenerated: true,
-          });
-        } catch (err) {
-          console.error('Error creating activity:', err);
+      const settings = await storage.getIntegrationSettings();
+      const credentials = [
+        // QuickBooks
+        {
+          integration: "quickbooks",
+          keyName: "qbClientId",
+          displayName: "Client ID",
+          isRequired: true,
+          isSecret: false,
+          value: settings?.qbClientId,
+          description: "From QuickBooks Developer Portal"
+        },
+        {
+          integration: "quickbooks",
+          keyName: "qbClientSecret",
+          displayName: "Client Secret",
+          isRequired: true,
+          isSecret: true,
+          value: settings?.qbClientSecret,
+          description: "From QuickBooks Developer Portal"
+        },
+        // Stripe
+        {
+          integration: "stripe",
+          keyName: "stripePublishableKey",
+          displayName: "Publishable Key",
+          isRequired: true,
+          isSecret: false,
+          value: settings?.stripePublishableKey,
+          description: "pk_test_..."
+        },
+        {
+          integration: "stripe",
+          keyName: "stripeSecretKey",
+          displayName: "Secret Key",
+          isRequired: true,
+          isSecret: true,
+          value: settings?.stripeSecretKey,
+          description: "sk_test_..."
+        },
+        {
+          integration: "stripe",
+          keyName: "stripeWebhookSecret",
+          displayName: "Webhook Secret",
+          isRequired: true,
+          isSecret: true,
+          value: settings?.stripeWebhookSecret,
+          description: "whsec_..."
+        },
+        // TaxJar
+        {
+          integration: "taxjar",
+          keyName: "taxjarApiKey",
+          displayName: "API Key",
+          isRequired: true,
+          isSecret: true,
+          value: settings?.taxjarApiKey,
+          description: "TaxJar API Token"
+        },
+        // SAGE
+        {
+          integration: 'sage',
+          keyName: 'sageAcctId',
+          displayName: 'Account ID',
+          isRequired: true,
+          isSecret: false,
+          value: settings?.sageAcctId,
+          description: 'Your SAGE account ID'
+        },
+        {
+          integration: 'sage',
+          keyName: 'sageLoginId',
+          displayName: 'Login ID',
+          isRequired: true,
+          isSecret: false,
+          value: settings?.sageLoginId,
+          description: 'Your SAGE login ID'
+        },
+        {
+          integration: 'sage',
+          keyName: 'sageApiKey',
+          displayName: 'API Key',
+          isRequired: true,
+          isSecret: true,
+          value: settings?.sageApiKey,
+          description: 'Your SAGE API key'
+        },
+        // S&S Activewear
+        {
+          integration: 'ssactivewear',
+          keyName: 'ssActivewearAccount',
+          displayName: 'Account Number',
+          isRequired: true,
+          isSecret: false,
+          value: settings?.ssActivewearAccount,
+          description: 'Your S&S Activewear account number'
+        },
+        {
+          integration: 'ssactivewear',
+          keyName: 'ssActivewearApiKey',
+          displayName: 'API Key',
+          isRequired: true,
+          isSecret: true,
+          value: settings?.ssActivewearApiKey,
+          description: 'Your S&S Activewear API key'
+        },
+        // SanMar
+        {
+          integration: 'sanmar',
+          keyName: 'sanmarCustomerId',
+          displayName: 'Customer ID',
+          isRequired: true,
+          isSecret: false,
+          value: settings?.sanmarCustomerId,
+          description: 'Your SanMar customer ID'
+        },
+        {
+          integration: 'sanmar',
+          keyName: 'sanmarUsername',
+          displayName: 'Username',
+          isRequired: true,
+          isSecret: false,
+          value: settings?.sanmarUsername,
+          description: 'Your SanMar API username'
+        },
+        {
+          integration: 'sanmar',
+          keyName: 'sanmarPassword',
+          displayName: 'Password',
+          isRequired: true,
+          isSecret: true,
+          value: settings?.sanmarPassword,
+          description: 'Your SanMar API password'
         }
-      }
-
-      res.json({ success: true, approval: updated });
+      ];
+      res.json(credentials);
     } catch (error) {
-      console.error('Error approving artwork:', error);
-      res.status(500).json({ message: 'Failed to approve artwork' });
+      console.error("Error fetching credentials:", error);
+      res.status(500).json({ message: "Failed" });
     }
   });
 
-  // Reject artwork (PUBLIC)
-  app.post("/api/approvals/:token/reject", async (req, res) => {
+  app.post('/api/integrations/credentials', isAuthenticated, async (req, res) => {
     try {
-      const { token } = req.params;
-      const { comments } = req.body;
-      
-      if (!comments || !comments.trim()) {
-        return res.status(400).json({ message: "Comments are required for rejection" });
-      }
-      
-      const { db } = await import("./db");
-      const { artworkApprovals } = await import("@shared/schema");
-      const { projectActivities } = await import("@shared/project-schema");
-      const { eq } = await import("drizzle-orm");
-      
-      // Get approval
-      const [approval] = await db
-        .select()
-        .from(artworkApprovals)
-        .where(eq(artworkApprovals.approvalToken, token));
+      const updates = req.body;
+      const allowedKeys = [
+        // QuickBooks
+        'qbClientId', 'qbClientSecret',
+        // Stripe
+        'stripePublishableKey', 'stripeSecretKey', 'stripeWebhookSecret',
+        // TaxJar
+        'taxjarApiKey',
+        // SAGE
+        'sageAcctId', 'sageLoginId', 'sageApiKey',
+        // S&S Activewear
+        'ssActivewearAccount', 'ssActivewearApiKey',
+        // SanMar
+        'sanmarCustomerId', 'sanmarUsername', 'sanmarPassword'
+      ];
+      const cleanUpdates: any = {};
 
-      if (!approval) {
-        return res.status(404).json({ message: "Approval not found" });
-      }
-
-      if (approval.status !== "pending") {
-        return res.status(400).json({ message: "This approval has already been processed" });
-      }
-
-      // Update approval status
-      const [updated] = await db
-        .update(artworkApprovals)
-        .set({
-          status: "declined",
-          declinedAt: new Date(),
-          declineReason: comments,
-          updatedAt: new Date(),
-        })
-        .where(eq(artworkApprovals.id, approval.id))
-        .returning();
-
-      // Create activity log
-      if (approval.orderId) {
-        try {
-          await db.insert(projectActivities).values({
-            orderId: approval.orderId,
-            userId: "system",
-            activityType: "artwork_rejected",
-            content: `Artwork revision requested by client: ${comments}`,
-            metadata: {
-              approvalId: approval.id,
-              clientEmail: approval.clientEmail,
-              orderItemId: approval.orderItemId,
-            },
-            mentionedUsers: [],
-            isSystemGenerated: true,
-          });
-        } catch (err) {
-          console.error('Error creating activity:', err);
+      for (const key of allowedKeys) {
+        if (updates[key] !== undefined) {
+          cleanUpdates[key] = updates[key];
         }
       }
 
-      res.json({ success: true, approval: updated });
+      await storage.updateIntegrationSettings(cleanUpdates);
+      res.json({ message: "Credentials saved" });
     } catch (error) {
-      console.error('Error rejecting artwork:', error);
-      res.status(500).json({ message: 'Failed to reject artwork' });
+      console.error("Error saving credentials:", error);
+      res.status(500).json({ message: "Failed to save credentials" });
     }
   });
 
-  // Get all files for an order
-  app.get("/api/orders/:orderId/files", isAuthenticated, async (req, res) => {
+  app.post('/api/integrations/:integration/test', isAuthenticated, async (req, res) => {
     try {
-      const { orderId } = req.params;
-      const { db } = await import("./db");
-      const { orderFiles, orderItems, products, artworkApprovals, artworkFiles } = await import("@shared/schema");
-      const { eq, and, sql } = await import("drizzle-orm");
-
-      const files = await db
-        .select({
-          id: orderFiles.id,
-          fileName: orderFiles.fileName,
-          originalName: orderFiles.originalName,
-          fileSize: orderFiles.fileSize,
-          mimeType: orderFiles.mimeType,
-          filePath: orderFiles.filePath,
-          thumbnailPath: orderFiles.thumbnailPath,
-          fileType: orderFiles.fileType,
-          tags: orderFiles.tags,
-          orderItemId: orderFiles.orderItemId,
-          notes: orderFiles.notes,
-          uploadedBy: orderFiles.uploadedBy,
-          createdAt: orderFiles.createdAt,
-          // Order item fields (will be null if no join)
-          itemId: orderItems.id,
-          itemColor: orderItems.color,
-          itemSize: orderItems.size,
-          itemQuantity: orderItems.quantity,
-          productId: orderItems.productId,
-          productName: products.name,
-          productSku: products.sku,
-        })
-        .from(orderFiles)
-        .leftJoin(orderItems, eq(orderFiles.orderItemId, orderItems.id))
-        .leftJoin(products, eq(orderItems.productId, products.id))
-        .where(eq(orderFiles.orderId, orderId))
-        .orderBy(orderFiles.createdAt);
-
-      // Get approval status by joining artworkApprovals with artworkFiles
-      // Match orderFiles.filePath with artworkFiles.filePath to find related approvals
-      let approvalMap = new Map();
-      
-      if (files.length > 0) {
-        const approvals = await db
-          .select({
-            artworkFilePath: artworkFiles.filePath,
-            status: artworkApprovals.status,
-            approvedAt: artworkApprovals.approvedAt,
-            declinedAt: artworkApprovals.declinedAt,
-            declineReason: artworkApprovals.declineReason,
-            approvalToken: artworkApprovals.approvalToken,
-          })
-          .from(artworkApprovals)
-          .innerJoin(artworkFiles, eq(artworkApprovals.artworkFileId, artworkFiles.id))
-          .where(eq(artworkApprovals.orderId, orderId));
-
-        // Map approvals by artwork file path (which matches orderFile path)
-        approvals.forEach(approval => {
-          if (approval.artworkFilePath) {
-            approvalMap.set(approval.artworkFilePath, {
-              status: approval.status,
-              approvedAt: approval.approvedAt,
-              declinedAt: approval.declinedAt,
-              feedback: approval.declineReason,
-              approvalToken: approval.approvalToken,
-            });
-          }
-        });
+      const { integration } = req.params;
+      if (integration === 'quickbooks') {
+        const svc = await getQuickBooksCredentials();
+        if (!svc) throw new Error("Not configured");
+        // For test, just check if we have tokens or auth URI
+        if (!svc.getAuthUri()) throw new Error("Auth URI generation failed");
+      } else if (integration === 'stripe') {
+        const svc = await getStripeCredentials();
+        if (!svc) throw new Error("Not configured");
+      } else if (integration === 'taxjar') {
+        const svc = await getTaxJarCredentials();
+        if (!svc) throw new Error("Not configured");
       }
-
-      // Transform to include nested orderItem object and approval status
-      const transformedFiles = files.map(file => ({
-        id: file.id,
-        fileName: file.fileName,
-        originalName: file.originalName,
-        fileSize: file.fileSize,
-        mimeType: file.mimeType,
-        filePath: file.filePath,
-        thumbnailPath: file.thumbnailPath,
-        fileType: file.fileType,
-        tags: file.tags,
-        orderItemId: file.orderItemId,
-        notes: file.notes,
-        uploadedBy: file.uploadedBy,
-        createdAt: file.createdAt,
-        orderItem: file.itemId ? {
-          id: file.itemId,
-          color: file.itemColor,
-          size: file.itemSize,
-          quantity: file.itemQuantity,
-          productId: file.productId,
-          productName: file.productName,
-          productSku: file.productSku,
-        } : null,
-        // Include approval info for customer_proof files
-        approval: file.fileType === 'customer_proof' && approvalMap.has(file.filePath) 
-          ? approvalMap.get(file.filePath) 
-          : null
-      }));
-
-      res.json(transformedFiles);
-    } catch (error) {
-      console.error('Error fetching order files:', error);
-      res.status(500).json({ message: 'Failed to fetch order files' });
+      res.json({ message: "Connection successful" });
+    } catch (e) {
+      res.status(400).json({ message: String(e) });
     }
   });
 
-  // Upload files to order
-  app.post("/api/orders/:orderId/files", isAuthenticated, upload.array("files", 10), async (req, res) => {
+  // QuickBooks Auth
+  app.get('/api/integrations/quickbooks/auth', isAuthenticated, async (req, res) => {
     try {
-      const { orderId } = req.params;
-      const { fileType = "customer_proof", notes, autoGenerateApproval } = req.body;
-      const files = req.files as Express.Multer.File[];
+      const qbService = await getQuickBooksCredentials();
+      if (!qbService) return res.status(400).json({ message: "QuickBooks not configured" });
+      res.json({ url: qbService.getAuthUri() });
+    } catch (error) {
+      console.error("QB Auth Error:", error);
+      res.status(500).json({ message: "Failed to initiate QB Auth" });
+    }
+  });
 
-      if (!files || files.length === 0) {
-        return res.status(400).json({ message: "No files uploaded" });
-      }
+  app.get('/api/integrations/quickbooks/callback', async (req, res) => {
+    try {
+      const { code, state, realmId } = req.query;
+      const qbService = await getQuickBooksCredentials();
+      if (!qbService) throw new Error("QB Service not ready");
 
-      // Parse productIds array from request body (for customer_proof with per-file assignments)
-      const productIds: (string | undefined)[] = [];
-      if (fileType === "customer_proof") {
-        // Check if multer already parsed it as array
-        if (Array.isArray(req.body.productIds)) {
-          productIds.push(...req.body.productIds);
-        } else if (req.body.productIds) {
-          productIds.push(req.body.productIds);
-        } else {
-          // Handle array format: productIds[0], productIds[1], etc.
-          Object.keys(req.body)
-            .filter(key => key.startsWith('productIds['))
-            .sort((a, b) => {
-              const indexA = parseInt(a.match(/\d+/)?.[0] || '0');
-              const indexB = parseInt(b.match(/\d+/)?.[0] || '0');
-              return indexA - indexB;
-            })
-            .forEach(key => {
-              productIds.push(req.body[key]);
-            });
-        }
-      }
+      const tokens = await qbService.exchangeCodeForToken(code as string);
 
-      const { db } = await import("./db");
-      const { orderFiles, orders, artworkFiles, artworkApprovals, orderItems, products } = await import("@shared/schema");
-      const { eq } = await import("drizzle-orm");
-
-      // Verify order exists
-      const [order] = await db.select().from(orders).where(eq(orders.id, orderId));
-      if (!order) {
-        return res.status(404).json({ message: "Order not found" });
-      }
-
-      const userId = (req.user as any)?.id;
-
-      // Create file records
-      const uploadedFiles = await Promise.all(
-        files.map(async (file, index) => {
-          // File is uploaded to Cloudinary
-          const cloudinaryUrl = (file as any).path;
-          const publicId = (file as any).filename || (file as any).public_id;
-          
-          // Get product ID for this file (if customer_proof)
-          const orderItemId = fileType === "customer_proof" && productIds[index] 
-            ? productIds[index] 
-            : null;
-          
-          const [fileRecord] = await db
-            .insert(orderFiles)
-            .values({
-              orderId,
-              orderItemId: orderItemId || null,
-              fileName: publicId,
-              originalName: file.originalname,
-              fileSize: file.size,
-              mimeType: file.mimetype,
-              filePath: cloudinaryUrl, // Store Cloudinary URL
-              fileType,
-              tags: [fileType],
-              notes: notes || null,
-              uploadedBy: userId,
-            })
-            .returning();
-
-          return { fileRecord, orderItemId };
-        })
-      );
-
-      // Auto-generate approval links for customer proofs
-      const approvalLinks = [];
-      if (fileType === "customer_proof" && autoGenerateApproval === "true") {
-        const crypto = await import("crypto");
-        
-        for (const { fileRecord, orderItemId } of uploadedFiles) {
-          if (!orderItemId) continue;
-
-          // Get product info
-          const [orderItem] = await db
-            .select({
-              productId: orderItems.productId,
-              productName: products.name,
-            })
-            .from(orderItems)
-            .leftJoin(products, eq(orderItems.productId, products.id))
-            .where(eq(orderItems.id, orderItemId));
-
-          // Copy file to artworkFiles table
-          const [newArtworkFile] = await db.insert(artworkFiles).values({
-            orderId,
-            fileName: fileRecord.fileName,
-            filePath: fileRecord.filePath,
-            originalName: fileRecord.originalName,
-            fileSize: fileRecord.fileSize,
-            mimeType: fileRecord.mimeType,
-            uploadedBy: userId,
-          }).returning();
-
-          // Generate approval token
-          const approvalToken = crypto.randomBytes(32).toString("hex");
-
-          // Create approval record
-          await db.insert(artworkApprovals).values({
-            orderId,
-            orderItemId,
-            artworkFileId: newArtworkFile.id,
-            approvalToken,
-            status: "pending",
-            sentAt: new Date(),
-          });
-
-          approvalLinks.push({
-            token: approvalToken,
-            productName: orderItem?.productName || 'Product',
-            fileId: fileRecord.id,
-          });
-        }
-      }
-
-      res.json({ 
-        files: uploadedFiles.map(f => f.fileRecord),
-        approvalLinks: approvalLinks.length > 0 ? approvalLinks : undefined,
+      await storage.updateIntegrationSettings({
+        qbRealmId: realmId as string,
+        qbAccessToken: tokens.access_token,
+        qbRefreshToken: tokens.refresh_token,
+        quickbooksConnected: true
       });
+
+      res.redirect('/settings?integration=quickbooks&status=success');
     } catch (error) {
-      console.error('Error uploading order files:', error);
-      res.status(500).json({ message: 'Failed to upload files' });
+      console.error("QB Callback Error:", error);
+      res.redirect('/settings?integration=quickbooks&status=error');
     }
   });
 
-  // Proxy endpoint to serve Cloudinary files (to avoid CORS/authentication issues)
-  app.get("/api/files/cloudinary-proxy", async (req, res) => {
+  // Manual Trigger for Sync
+  app.post('/api/orders/:id/quickbooks/sync', isAuthenticated, async (req, res) => {
     try {
-      const { url } = req.query;
-      
-      if (!url || typeof url !== 'string') {
-        return res.status(400).json({ message: "URL parameter is required" });
-      }
+      const qbService = await getQuickBooksCredentials();
+      if (!qbService) return res.status(400).json({ message: "QuickBooks not connected" });
 
-      // Validate it's a Cloudinary URL
-      if (!url.includes('cloudinary.com')) {
-        return res.status(400).json({ message: "Invalid Cloudinary URL" });
-      }
-
-      // Fetch the file from Cloudinary (use URL as-is)
-      const response = await fetch(url);
-      
-      if (!response.ok) {
-        return res.status(response.status).json({ message: "Failed to fetch file from Cloudinary" });
-      }
-
-      // Get content type
-      const contentType = response.headers.get('content-type');
-      if (contentType) {
-        res.setHeader('Content-Type', contentType);
-      }
-
-      // Set CORS headers to allow iframe embedding
-      res.setHeader('Access-Control-Allow-Origin', '*');
-      res.setHeader('X-Frame-Options', 'ALLOWALL');
-      
-      // Stream the response
-      const buffer = await response.arrayBuffer();
-      res.send(Buffer.from(buffer));
+      const invoiceId = await qbService.syncOrderToInvoice(req.params.id);
+      res.json({ message: "Synced to QuickBooks", invoiceId });
     } catch (error) {
-      console.error('Error proxying Cloudinary file:', error);
-      res.status(500).json({ message: 'Failed to proxy file' });
+      console.error("QB Sync Error:", error);
+      res.status(500).json({ message: "Sync failed", error: String(error) });
     }
   });
 
-  // Delete file from order
-  app.delete("/api/orders/:orderId/files/:fileId", isAuthenticated, async (req, res) => {
+  // Invoice Creation
+  app.post('/api/orders/:id/invoice', isAuthenticated, async (req, res) => {
     try {
-      const { orderId, fileId } = req.params;
-      const { db } = await import("./db");
-      const { orderFiles } = await import("@shared/schema");
-      const { eq, and } = await import("drizzle-orm");
+      const order = await storage.getOrder(req.params.id);
+      if (!order) return res.status(404).json({ message: "Order not found" });
 
-      // Get file info first
-      const [file] = await db
-        .select()
-        .from(orderFiles)
-        .where(and(eq(orderFiles.id, fileId), eq(orderFiles.orderId, orderId)));
-
-      if (!file) {
-        return res.status(404).json({ message: "File not found" });
+      // Check if invoice already exists
+      const existingInvoice = await storage.getInvoiceByOrderId(order.id);
+      if (existingInvoice) {
+        return res.json(existingInvoice);
       }
 
-      // Delete file from Cloudinary if it's stored there
-      if (file.fileName && file.fileName.includes('/')) {
-        try {
-          await deleteFromCloudinary(file.fileName);
-        } catch (err) {
-          console.error("Failed to delete from Cloudinary:", err);
-        }
-      } else {
-        // Legacy: Delete from local storage
-        try {
-          const fs = await import("fs");
-          const path = await import("path");
-          const filePath = path.join(process.cwd(), "uploads", file.fileName);
-          if (fs.existsSync(filePath)) {
-            fs.unlinkSync(filePath);
+      // Calculate tax using TaxJar
+      const taxService = await getTaxJarCredentials();
+      let taxAmount = 0;
+
+      if (taxService && order.companyId) {
+        const company = await storage.getCompany(order.companyId);
+        if (company && !company.taxExempt) {
+          try {
+            const taxCalc = await taxService.calculateTax({
+              from_country: 'US',
+              from_zip: '10001',
+              from_state: 'NY',
+              to_country: 'US',
+              to_zip: company.zipCode || '10001',
+              to_state: company.state || 'NY',
+              amount: Number(order.subtotal),
+              shipping: Number(order.shipping || 0)
+            });
+            taxAmount = taxCalc.amount_to_collect;
+          } catch (taxError) {
+            console.error("TaxJar calculation error:", taxError);
+            // Continue without tax if calculation fails
           }
-        } catch (err) {
-          console.error("Failed to delete file from local storage:", err);
         }
       }
 
-      // Delete from database
-      await db.delete(orderFiles).where(eq(orderFiles.id, fileId));
+      const totalAmount = Number(order.subtotal) + taxAmount + Number(order.shipping || 0);
 
-      res.json({ success: true });
+      // Create invoice
+      const invoice = await storage.createInvoice({
+        orderId: order.id,
+        invoiceNumber: `INV-${Date.now()}`,
+        subtotal: order.subtotal,
+        taxAmount: taxAmount.toString(),
+        totalAmount: totalAmount.toString(),
+        status: 'pending',
+        dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // 30 days
+      });
+
+      // Sync to QuickBooks
+      const qbService = await getQuickBooksCredentials();
+      if (qbService) {
+        try {
+          const qbInvoiceId = await qbService.syncOrderToInvoice(order.id);
+          await storage.updateInvoice(invoice.id, {
+            qbInvoiceId,
+            qbSyncedAt: new Date()
+          });
+        } catch (qbError) {
+          console.error("QB sync error during invoice creation:", qbError);
+          // Continue even if QB sync fails
+        }
+      }
+
+      res.json(invoice);
     } catch (error) {
-      console.error('Error deleting file:', error);
-      res.status(500).json({ message: 'Failed to delete file' });
+      console.error("Invoice creation error:", error);
+      res.status(500).json({ message: String(error) });
     }
   });
 
-  // Send proof to customer (generates approval link for a file)
-  app.post("/api/orders/:orderId/send-proof", isAuthenticated, async (req, res) => {
+  // Get Invoice by Order ID
+  app.get('/api/orders/:id/invoice', isAuthenticated, async (req, res) => {
     try {
-      const { orderId } = req.params;
-      const { fileId, orderItemId, clientEmail, clientName, message } = req.body;
+      const invoice = await storage.getInvoiceByOrderId(req.params.id);
+      if (!invoice) return res.status(404).json({ message: "Invoice not found" });
+      res.json(invoice);
+    } catch (error) {
+      res.status(500).json({ message: String(error) });
+    }
+  });
 
-      if (!clientEmail) {
-        return res.status(400).json({ message: "Client email is required" });
+  // Generate Stripe Hosted Invoice Link
+  app.post('/api/invoices/:id/payment-link', isAuthenticated, async (req, res) => {
+    try {
+      const invoice = await storage.getInvoice(req.params.id);
+      if (!invoice) return res.status(404).json({ message: "Invoice not found" });
+
+      console.log("Invoice payment-link:", invoice);
+
+      const stripeService = await getStripeCredentials();
+      if (!stripeService) return res.status(400).json({ message: "Stripe not configured" });
+
+      if (!invoice.orderId) {
+        return res.status(400).json({ message: "Invoice is not linked to an order" });
       }
 
-      const { db } = await import("./db");
-      const { artworkApprovals, orderFiles, orders, artworkFiles } = await import("@shared/schema");
-      const { eq } = await import("drizzle-orm");
-      const crypto = await import("crypto");
-
-      // Verify order and file
-      const [order] = await db.select().from(orders).where(eq(orders.id, orderId));
-      if (!order) {
-        return res.status(404).json({ message: "Order not found" });
+      // Get order and company details
+      const order = await storage.getOrder(invoice.orderId);
+      if (!order || !order.companyId) {
+        return res.status(400).json({ message: "Order or company not found" });
       }
 
-      let artworkFileId = null;
-      if (fileId) {
-        const [orderFile] = await db.select().from(orderFiles).where(eq(orderFiles.id, fileId));
-        if (!orderFile) {
-          return res.status(404).json({ message: "File not found" });
+      console.log("Order payment-link:", order);
+
+      const company = await storage.getCompany(order.companyId);
+      if (!company) {
+        return res.status(400).json({ message: "Company not found" });
+      }
+
+      console.log("Company payment-link:", company);
+
+      // Find or create Stripe customer
+      let stripeCustomer = await stripeService.searchCustomer(company.email || `${company.name}@example.com`);
+
+      if (!stripeCustomer) {
+        stripeCustomer = await stripeService.createCustomer(
+          company.email || `${company.name}@example.com`,
+          company.name
+        );
+      }
+
+      console.log("Stripe customer payment-link:", stripeCustomer);
+
+      // 1. Create draft invoice FIRST
+      // pending_invoice_items_behavior: 'exclude' ensures we don't pick up random pending items from other failed attempts
+      const stripeInvoice = await stripeService.createInvoice({
+        customerId: stripeCustomer.id,
+        collection_method: 'send_invoice',
+        days_until_due: 30,
+        pending_invoice_items_behavior: 'exclude',
+        metadata: {
+          invoiceId: invoice.id,
+          invoiceNumber: invoice.invoiceNumber,
+          orderId: order.id,
+          orderNumber: order.orderNumber
         }
+      });
 
-        // Copy file from orderFiles to artworkFiles
-        const [newArtworkFile] = await db
-          .insert(artworkFiles)
-          .values({
-            orderId: orderId,
-            fileName: orderFile.fileName,
-            filePath: orderFile.filePath,
-            originalName: orderFile.originalName,
-            fileSize: orderFile.fileSize,
-            mimeType: orderFile.mimeType,
-            uploadedBy: (req.user as any)?.id,
-          })
-          .returning();
+      console.log("stripe invoice payment-link: ", stripeInvoice);
 
-        artworkFileId = newArtworkFile.id;
+      // 2. Create detailed invoice line items
+      // Add Subtotal line item
+      const subtotalItem = await stripeService.createInvoiceItem({
+        customerId: stripeCustomer.id,
+        invoiceId: stripeInvoice.id,
+        amount: Math.round(Number(invoice.subtotal) * 100), // Convert to cents
+        currency: 'usd',
+        description: `Order ${order.orderNumber} - Products & Services`
+      });
+
+      console.log("invoice subtotal item: ", subtotalItem);
+
+      // Add Shipping line item (if > 0)
+      if (Number(order.shipping) > 0) {
+        const shippingItem = await stripeService.createInvoiceItem({
+          customerId: stripeCustomer.id,
+          invoiceId: stripeInvoice.id,
+          amount: Math.round(Number(order.shipping) * 100),
+          currency: 'usd',
+          description: 'Shipping & Handling'
+        });
+        console.log("invoice shipping item: ", shippingItem);
       }
 
-      // Generate unique token
-      const token = crypto.randomBytes(32).toString('hex');
+      // Add Tax line item (if > 0)
+      if (Number(invoice.taxAmount) > 0) {
+        const taxItem = await stripeService.createInvoiceItem({
+          customerId: stripeCustomer.id,
+          invoiceId: stripeInvoice.id,
+          amount: Math.round(Number(invoice.taxAmount) * 100),
+          currency: 'usd',
+          description: 'Sales Tax (calculated via TaxJar)'
+        });
+        console.log("invoice tax item: ", taxItem);
+      }
 
-      // Create approval
-      // Now artworkFileId properly references artworkFiles table
-      const [approval] = await db
-        .insert(artworkApprovals)
-        .values({
-          orderId,
-          orderItemId: orderItemId || null,
-          artworkFileId: artworkFileId, // Proper foreign key reference
-          approvalToken: token,
-          status: "pending",
-          clientEmail,
-          clientName: clientName || null,
-          sentAt: new Date(),
-        })
-        .returning();
+      console.log("invoice items created with detailed breakdown");
 
-      const approvalUrl = `${req.protocol}://${req.get('host')}/approval/${token}`;
+      // 3. Finalize invoice to get hosted URL
+      const finalizedInvoice = await stripeService.finalizeInvoice(stripeInvoice.id);
 
-      // TODO: Send email with approval link and message
-      // For now, just return the link
+      console.log("finalized invoice payment-link: ", finalizedInvoice);
+
+      // Update local invoice with Stripe details
+      await storage.updateInvoice(invoice.id, {
+        stripeInvoiceId: finalizedInvoice.id,
+        stripePaymentIntentId: finalizedInvoice.payment_intent,
+        stripeInvoiceUrl: finalizedInvoice.hosted_invoice_url
+      });
 
       res.json({
-        success: true,
-        message: "Approval request created",
-        approval,
-        approvalUrl
+        paymentLink: finalizedInvoice.hosted_invoice_url,
+        stripeInvoiceId: finalizedInvoice.id,
+        stripeInvoiceUrl: finalizedInvoice.hosted_invoice_url
       });
     } catch (error) {
-      console.error('Error requesting artwork approval:', error);
-      res.status(500).json({ message: 'Failed to request artwork approval' });
+      console.error("Payment link error:", error);
+      res.status(500).json({ message: String(error) });
     }
   });
 
-  // Cloudinary file utilities endpoints
-  
-  // Get optimized image URL
-  app.get("/api/files/cloudinary/optimize", isAuthenticated, async (req, res) => {
+  // Record Manual Payment
+  app.post('/api/invoices/:id/manual-payment', isAuthenticated, async (req, res) => {
     try {
-      const { publicId, width, height } = req.query;
-      
-      if (!publicId) {
-        return res.status(400).json({ message: "publicId is required" });
+      const { paymentMethod, paymentReference, amount } = req.body;
+      const invoice = await storage.getInvoice(req.params.id);
+
+      if (!invoice) return res.status(404).json({ message: "Invoice not found" });
+
+      const paymentAmount = amount || invoice.totalAmount;
+
+      // Create payment transaction
+      await storage.createPaymentTransaction({
+        invoiceId: invoice.id,
+        amount: paymentAmount,
+        paymentMethod, // 'check', 'wire', 'manual_card', 'credit'
+        paymentReference, // Check #, Wire #, etc.
+        status: 'completed'
+      });
+
+      // Update invoice status
+      await storage.updateInvoice(invoice.id, {
+        status: 'paid',
+        paymentMethod,
+        paymentReference,
+        paidAt: new Date()
+      });
+
+      // Sync to QuickBooks
+      const qbService = await getQuickBooksCredentials();
+      if (qbService && invoice.qbInvoiceId) {
+        try {
+          await qbService.markInvoiceAsPaid(invoice.qbInvoiceId, Number(paymentAmount));
+        } catch (qbError) {
+          console.error("QB payment sync error:", qbError);
+          // Continue even if QB sync fails
+        }
       }
 
-      const url = getOptimizedImageUrl(
-        publicId as string,
-        width ? parseInt(width as string) : undefined,
-        height ? parseInt(height as string) : undefined
-      );
-
-      res.json({ url });
+      res.json({ message: "Payment recorded successfully" });
     } catch (error) {
-      console.error('Error generating optimized image URL:', error);
-      res.status(500).json({ message: 'Failed to generate optimized URL' });
+      console.error("Manual payment error:", error);
+      res.status(500).json({ message: String(error) });
     }
   });
 
-  // Get direct Cloudinary URL
-  app.get("/api/files/cloudinary/url", isAuthenticated, async (req, res) => {
+  // Stripe
+  app.post('/api/integrations/stripe/payment-intent', isAuthenticated, async (req, res) => {
     try {
-      const { publicId } = req.query;
-      
-      if (!publicId) {
-        return res.status(400).json({ message: "publicId is required" });
+      const { amount, currency, orderId } = req.body;
+      const stripeService = await getStripeCredentials();
+      if (!stripeService) return res.status(400).json({ message: "Stripe not configured" });
+
+      const intent = await stripeService.createPaymentIntent({
+        amount, currency, orderId
+      });
+      res.json(intent);
+    } catch (error) {
+      res.status(500).json({ message: String(error) });
+    }
+  });
+
+  // Webhook
+  app.post('/api/webhooks/stripe', express.raw({ type: 'application/json' }), async (req, res) => {
+    try {
+      const stripeService = await getStripeCredentials();
+      if (!stripeService) return res.status(400).send("Stripe not configured");
+
+      const sig = req.headers['stripe-signature'] as string;
+
+      // In production, verify the signature
+      // const event = stripeService.constructEvent(req.body, sig);
+
+      // For development, parse the body directly
+      const event = JSON.parse(req.body.toString());
+
+      if (event.type === 'payment_intent.succeeded') {
+        const paymentIntent = event.data.object;
+        const invoiceId = paymentIntent.metadata?.invoiceId;
+
+        if (invoiceId) {
+          // Update invoice
+          await storage.updateInvoice(invoiceId, {
+            status: 'paid',
+            paymentMethod: 'stripe',
+            paymentReference: paymentIntent.id,
+            paidAt: new Date()
+          });
+
+          // Create payment transaction
+          await storage.createPaymentTransaction({
+            invoiceId,
+            amount: (paymentIntent.amount / 100).toString(),
+            paymentMethod: 'stripe',
+            paymentReference: paymentIntent.id,
+            status: 'completed',
+            metadata: paymentIntent
+          });
+
+          // Sync to QuickBooks
+          const invoice = await storage.getInvoice(invoiceId);
+          const qbService = await getQuickBooksCredentials();
+          if (qbService && invoice?.qbInvoiceId) {
+            try {
+              await qbService.markInvoiceAsPaid(invoice.qbInvoiceId, paymentIntent.amount / 100);
+            } catch (qbError) {
+              console.error("QB payment sync error in webhook:", qbError);
+            }
+          }
+        }
       }
 
-      const url = getCloudinaryUrl(publicId as string);
-
-      res.json({ url });
-    } catch (error) {
-      console.error('Error generating Cloudinary URL:', error);
-      res.status(500).json({ message: 'Failed to generate URL' });
+      res.json({ received: true });
+    } catch (err) {
+      console.error("Webhook error:", err);
+      res.status(400).send(`Webhook Error: ${err}`);
     }
   });
 
-  // Delete file from Cloudinary
-  app.delete("/api/files/cloudinary/:publicId", isAuthenticated, async (req, res) => {
+  // TaxJar
+  app.post('/api/integrations/taxjar/calculate', isAuthenticated, async (req, res) => {
     try {
-      const { publicId } = req.params;
-      
-      // Decode public ID (it might be URL encoded)
-      const decodedPublicId = decodeURIComponent(publicId);
-      
-      await deleteFromCloudinary(decodedPublicId);
+      const taxService = await getTaxJarCredentials();
+      if (!taxService) return res.status(400).json({ message: "TaxJar not configured" });
 
-      res.json({ success: true, message: "File deleted from Cloudinary" });
+      const tax = await taxService.calculateTax(req.body);
+      res.json(tax);
     } catch (error) {
-      console.error('Error deleting file from Cloudinary:', error);
-      res.status(500).json({ message: 'Failed to delete file from Cloudinary' });
+      res.status(500).json({ message: String(error) });
     }
   });
 

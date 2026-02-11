@@ -631,6 +631,42 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
     ? companies.find((c: any) => c.id === order.companyId)
     : null;
 
+  // Fetch invoice data
+  const { data: invoice, isLoading: invoiceLoading } = useQuery<any>({
+    queryKey: [`/api/orders/${orderId}/invoice`],
+    enabled: open && !!orderId,
+  });
+
+  // Create invoice mutation
+  const createInvoiceMutation = useMutation({
+    mutationFn: async () => {
+      const response = await fetch(`/api/orders/${orderId}/invoice`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: 'include',
+      });
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to create invoice');
+      }
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/orders/${orderId}/invoice`] });
+      toast({
+        title: "Invoice Created",
+        description: "Invoice has been generated successfully.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to create invoice.",
+        variant: "destructive"
+      });
+    }
+  });
+
   // Fetch team members for @ mentions
   const { data: teamMembers = [] } = useQuery<TeamMember[]>({
     queryKey: ["/api/users/team"],
@@ -1895,6 +1931,122 @@ function OrderDetailsModal({ open, onOpenChange, orderId }: OrderDetailsModalPro
                       </div>
                     )}
 
+                    {/* Invoice Information */}
+                    <div className="space-y-3">
+                      <Separator />
+                      <div className="flex items-center justify-between">
+                        <h3 className="text-xl font-semibold flex items-center gap-2">
+                          <CreditCard className="w-5 h-5" />
+                          Invoice Status
+                        </h3>
+                      </div>
+
+                      {invoiceLoading ? (
+                        <div className="bg-gray-50 rounded-lg p-4 text-center">
+                          <p className="text-sm text-gray-500">Loading invoice...</p>
+                        </div>
+                      ) : invoice ? (
+                        <div className={`border-l-4 rounded-lg p-4 ${invoice.status === 'paid' ? 'border-l-green-500 bg-green-50' : 'border-l-orange-500 bg-orange-50'}`}>
+                          <div className="flex items-center justify-between mb-3">
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-medium text-gray-700">Invoice #{invoice.invoiceNumber}</span>
+                              <Badge variant={invoice.status === 'paid' ? 'default' : 'secondary'}>
+                                {invoice.status.toUpperCase()}
+                              </Badge>
+                            </div>
+                            {invoice.stripeInvoiceUrl && (
+                              <Button variant="ghost" size="sm" className="h-7 text-xs" asChild>
+                                <a href={invoice.stripeInvoiceUrl} target="_blank" rel="noopener noreferrer">
+                                  <Eye className="w-3 h-3 mr-1" />
+                                  View
+                                </a>
+                              </Button>
+                            )}
+                          </div>
+                          
+                          {/* Detailed Breakdown */}
+                          <div className="space-y-1 mb-2">
+                            {/* Subtotal */}
+                            <div className="flex items-baseline justify-between text-sm">
+                              <span className="text-gray-600">Subtotal</span>
+                              <span className="font-medium text-gray-900">
+                                ${Number(invoice.subtotal).toLocaleString()}
+                              </span>
+                            </div>
+                            
+                            {/* Shipping */}
+                            {Number(order?.shipping) > 0 && (
+                              <div className="flex items-baseline justify-between text-sm">
+                                <span className="text-gray-600">Shipping</span>
+                                <span className="font-medium text-gray-900">
+                                  ${Number(order.shipping).toLocaleString()}
+                                </span>
+                              </div>
+                            )}
+                            
+                            {/* Tax */}
+                            {invoice.taxAmount && Number(invoice.taxAmount) > 0 && (
+                              <div className="flex items-baseline justify-between text-sm">
+                                <span className="text-gray-600">Tax</span>
+                                <span className="font-medium text-gray-900">
+                                  ${Number(invoice.taxAmount).toFixed(2)}
+                                </span>
+                              </div>
+                            )}
+                            
+                            {/* Total with separator */}
+                            <div className="pt-2 border-t border-gray-300">
+                              <div className="flex items-baseline justify-between">
+                                <span className="text-sm font-semibold text-gray-900">Total Amount</span>
+                                <span className="text-lg font-bold text-gray-900">
+                                  ${Number(invoice.totalAmount).toLocaleString()}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                          
+                          {invoice.dueDate && invoice.status === 'pending' && (
+                            <div className="flex items-center justify-between text-sm mt-2">
+                              <span className="text-gray-600 flex items-center gap-1">
+                                <Clock className="w-3 h-3" />
+                                Due Date
+                              </span>
+                              <span className="font-medium text-orange-600">
+                                {format(new Date(invoice.dueDate), 'MMM dd, yyyy')}
+                              </span>
+                            </div>
+                          )}
+                          {invoice.paidAt && (
+                            <div className="flex items-center gap-1 mt-2 text-xs text-green-700">
+                              <CheckCircle className="w-3 h-3" />
+                              <span>Paid on {format(new Date(invoice.paidAt), 'MMM dd, yyyy')}</span>
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="text-sm font-medium text-gray-900">No Invoice Generated</p>
+                              <p className="text-xs text-gray-500 mt-1">Create an invoice to enable payment processing</p>
+                            </div>
+                            <Button
+                              size="sm"
+                              onClick={() => createInvoiceMutation.mutate()}
+                              disabled={order?.status !== 'approved' || createInvoiceMutation.isPending}
+                            >
+                              <Plus className="w-4 h-4 mr-2" />
+                              {createInvoiceMutation.isPending ? "Creating..." : "Generate Invoice"}
+                            </Button>
+                          </div>
+                          {order?.status !== 'approved' && (
+                            <p className="text-xs text-orange-600 mt-2">
+                              Order must be approved first
+                            </p>
+                          )}
+                        </div>
+                      )}
+                    </div>
 
                   </CardContent>
                 </Card>

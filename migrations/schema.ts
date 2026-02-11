@@ -92,9 +92,6 @@ export const companies = pgTable("companies", {
 	billingAddress: jsonb("billing_address"),
 	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
 	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow(),
-	qbCustomerId: varchar("qb_customer_id"),
-	stripeCustomerId: varchar("stripe_customer_id"),
-	taxExempt: boolean("tax_exempt").default(false),
 });
 
 export const artworkFiles = pgTable("artwork_files", {
@@ -124,6 +121,33 @@ export const artworkFiles = pgTable("artwork_files", {
 			columns: [table.uploadedBy],
 			foreignColumns: [users.id],
 			name: "artwork_files_uploaded_by_users_id_fk"
+		}),
+]);
+
+export const contacts = pgTable("contacts", {
+	id: varchar().default(gen_random_uuid()).primaryKey().notNull(),
+	companyId: varchar("company_id"),
+	firstName: varchar("first_name").notNull(),
+	lastName: varchar("last_name").notNull(),
+	email: varchar(),
+	phone: varchar(),
+	title: varchar(),
+	isPrimary: boolean("is_primary").default(false),
+	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow(),
+	supplierId: varchar("supplier_id"),
+	billingAddress: text("billing_address"),
+	shippingAddress: text("shipping_address"),
+}, (table) => [
+	foreignKey({
+			columns: [table.companyId],
+			foreignColumns: [companies.id],
+			name: "contacts_company_id_companies_id_fk"
+		}),
+	foreignKey({
+			columns: [table.supplierId],
+			foreignColumns: [suppliers.id],
+			name: "contacts_supplier_id_suppliers_id_fk"
 		}),
 ]);
 
@@ -197,31 +221,6 @@ export const automationTasks = pgTable("automation_tasks", {
 			columns: [table.assignedTo],
 			foreignColumns: [users.id],
 			name: "automation_tasks_assigned_to_users_id_fk"
-		}),
-]);
-
-export const contacts = pgTable("contacts", {
-	id: varchar().default(gen_random_uuid()).primaryKey().notNull(),
-	companyId: varchar("company_id"),
-	firstName: varchar("first_name").notNull(),
-	lastName: varchar("last_name").notNull(),
-	email: varchar(),
-	phone: varchar(),
-	title: varchar(),
-	isPrimary: boolean("is_primary").default(false),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
-	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow(),
-	supplierId: varchar("supplier_id"),
-}, (table) => [
-	foreignKey({
-			columns: [table.companyId],
-			foreignColumns: [companies.id],
-			name: "contacts_company_id_companies_id_fk"
-		}),
-	foreignKey({
-			columns: [table.supplierId],
-			foreignColumns: [suppliers.id],
-			name: "contacts_supplier_id_suppliers_id_fk"
 		}),
 ]);
 
@@ -616,38 +615,6 @@ export const newsletterSubscribers = pgTable("newsletter_subscribers", {
 	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow(),
 });
 
-export const orderItems = pgTable("order_items", {
-	id: varchar().default(gen_random_uuid()).primaryKey().notNull(),
-	orderId: varchar("order_id"),
-	productId: varchar("product_id"),
-	quantity: integer().notNull(),
-	unitPrice: numeric("unit_price", { precision: 10, scale:  2 }).notNull(),
-	totalPrice: numeric("total_price", { precision: 12, scale:  2 }).notNull(),
-	color: varchar(),
-	size: varchar(),
-	imprintLocation: varchar("imprint_location"),
-	imprintMethod: varchar("imprint_method"),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
-	supplierId: varchar("supplier_id"),
-	notes: text(),
-}, (table) => [
-	foreignKey({
-			columns: [table.orderId],
-			foreignColumns: [orders.id],
-			name: "order_items_order_id_orders_id_fk"
-		}),
-	foreignKey({
-			columns: [table.productId],
-			foreignColumns: [products.id],
-			name: "order_items_product_id_products_id_fk"
-		}),
-	foreignKey({
-			columns: [table.supplierId],
-			foreignColumns: [suppliers.id],
-			name: "order_items_supplier_id_suppliers_id_fk"
-		}),
-]);
-
 export const orders = pgTable("orders", {
 	id: varchar().default(gen_random_uuid()).primaryKey().notNull(),
 	orderNumber: varchar("order_number").notNull(),
@@ -682,9 +649,6 @@ export const orders = pgTable("orders", {
 	customerPo: varchar("customer_po"),
 	paymentTerms: varchar("payment_terms").default('Net 30'),
 	orderDiscount: numeric("order_discount", { precision: 12, scale:  2 }).default('0'),
-	qbInvoiceId: varchar("qb_invoice_id"),
-	stripePaymentIntentId: varchar("stripe_payment_intent_id"),
-	taxCalculatedAt: timestamp("tax_calculated_at", { mode: 'string' }),
 }, (table) => [
 	foreignKey({
 			columns: [table.companyId],
@@ -707,6 +671,43 @@ export const orders = pgTable("orders", {
 			name: "orders_csr_user_id_users_id_fk"
 		}),
 	unique("orders_order_number_unique").on(table.orderNumber),
+]);
+
+export const orderItems = pgTable("order_items", {
+	id: varchar().default(gen_random_uuid()).primaryKey().notNull(),
+	orderId: varchar("order_id"),
+	productId: varchar("product_id"),
+	quantity: integer().notNull(),
+	unitPrice: numeric("unit_price", { precision: 10, scale:  2 }).notNull(),
+	totalPrice: numeric("total_price", { precision: 12, scale:  2 }).notNull(),
+	color: varchar(),
+	size: varchar(),
+	imprintLocation: varchar("imprint_location"),
+	imprintMethod: varchar("imprint_method"),
+	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
+	supplierId: varchar("supplier_id"),
+	notes: text(),
+	cost: numeric({ precision: 10, scale:  2 }),
+	decorationCost: numeric("decoration_cost", { precision: 10, scale:  2 }),
+	charges: numeric({ precision: 10, scale:  2 }),
+	sizePricing: jsonb("size_pricing"),
+	uomFactory: integer("uom_factory"),
+}, (table) => [
+	foreignKey({
+			columns: [table.orderId],
+			foreignColumns: [orders.id],
+			name: "order_items_order_id_orders_id_fk"
+		}),
+	foreignKey({
+			columns: [table.productId],
+			foreignColumns: [products.id],
+			name: "order_items_product_id_products_id_fk"
+		}),
+	foreignKey({
+			columns: [table.supplierId],
+			foreignColumns: [suppliers.id],
+			name: "order_items_supplier_id_suppliers_id_fk"
+		}),
 ]);
 
 export const productSearchIndex = pgTable("product_search_index", {
@@ -1076,8 +1077,14 @@ export const users = pgTable("users", {
 	lastEmailReportSent: timestamp("last_email_report_sent", { mode: 'string' }),
 	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
 	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow(),
+	password: varchar(),
+	authProvider: varchar("auth_provider").default('local'),
+	isActive: boolean("is_active").default(true),
+	lastLoginAt: timestamp("last_login_at", { mode: 'string' }),
+	username: varchar(),
 }, (table) => [
 	unique("users_email_unique").on(table.email),
+	unique("users_username_unique").on(table.username),
 ]);
 
 export const sessions = pgTable("sessions", {
@@ -1251,50 +1258,6 @@ export const projectActivities = pgTable("project_activities", {
 		}),
 ]);
 
-export const integrationSettings = pgTable("integration_settings", {
-	id: varchar().default(gen_random_uuid()).primaryKey().notNull(),
-	ssActivewearAccount: varchar("ss_activewear_account"),
-	ssActivewearApiKey: text("ss_activewear_api_key"),
-	slackBotToken: text("slack_bot_token"),
-	slackChannelId: varchar("slack_channel_id"),
-	hubspotApiKey: text("hubspot_api_key"),
-	quickbooksConnected: boolean("quickbooks_connected").default(false),
-	stripeConnected: boolean("stripe_connected").default(false),
-	shipmateConnected: boolean("shipmate_connected").default(false),
-	updatedBy: varchar("updated_by"),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
-	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow(),
-	sageAcctId: varchar("sage_acct_id"),
-	sageLoginId: varchar("sage_login_id"),
-	sageApiKey: text("sage_api_key"),
-	emailProvider: varchar("email_provider"),
-	smtpHost: varchar("smtp_host"),
-	smtpPort: integer("smtp_port"),
-	smtpUser: varchar("smtp_user"),
-	smtpPassword: text("smtp_password"),
-	emailFromAddress: varchar("email_from_address"),
-	emailFromName: varchar("email_from_name"),
-	emailReplyTo: varchar("email_reply_to"),
-	sanmarCustomerId: varchar("sanmar_customer_id"),
-	sanmarUsername: varchar("sanmar_username"),
-	sanmarPassword: text("sanmar_password"),
-	qbRealmId: varchar("qb_realm_id"),
-	qbAccessToken: text("qb_access_token"),
-	qbRefreshToken: text("qb_refresh_token"),
-	qbClientId: text("qb_client_id"),
-	qbClientSecret: text("qb_client_secret"),
-	stripePublishableKey: text("stripe_publishable_key"),
-	stripeSecretKey: text("stripe_secret_key"),
-	stripeWebhookSecret: text("stripe_webhook_secret"),
-	taxjarApiKey: text("taxjar_api_key"),
-}, (table) => [
-	foreignKey({
-			columns: [table.updatedBy],
-			foreignColumns: [users.id],
-			name: "integration_settings_updated_by_users_id_fk"
-		}),
-]);
-
 export const artworkApprovals = pgTable("artwork_approvals", {
 	id: varchar().default(gen_random_uuid()).primaryKey().notNull(),
 	orderId: varchar("order_id").notNull(),
@@ -1362,6 +1325,41 @@ export const attachments = pgTable("attachments", {
 		}),
 ]);
 
+export const integrationSettings = pgTable("integration_settings", {
+	id: varchar().default(gen_random_uuid()).primaryKey().notNull(),
+	ssActivewearAccount: varchar("ss_activewear_account"),
+	ssActivewearApiKey: text("ss_activewear_api_key"),
+	slackBotToken: text("slack_bot_token"),
+	slackChannelId: varchar("slack_channel_id"),
+	hubspotApiKey: text("hubspot_api_key"),
+	quickbooksConnected: boolean("quickbooks_connected").default(false),
+	stripeConnected: boolean("stripe_connected").default(false),
+	shipmateConnected: boolean("shipmate_connected").default(false),
+	updatedBy: varchar("updated_by"),
+	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow(),
+	sageAcctId: varchar("sage_acct_id"),
+	sageLoginId: varchar("sage_login_id"),
+	sageApiKey: text("sage_api_key"),
+	emailProvider: varchar("email_provider"),
+	smtpHost: varchar("smtp_host"),
+	smtpPort: integer("smtp_port"),
+	smtpUser: varchar("smtp_user"),
+	smtpPassword: text("smtp_password"),
+	emailFromAddress: varchar("email_from_address"),
+	emailFromName: varchar("email_from_name"),
+	emailReplyTo: varchar("email_reply_to"),
+	sanmarCustomerId: varchar("sanmar_customer_id"),
+	sanmarUsername: varchar("sanmar_username"),
+	sanmarPassword: text("sanmar_password"),
+}, (table) => [
+	foreignKey({
+			columns: [table.updatedBy],
+			foreignColumns: [users.id],
+			name: "integration_settings_updated_by_users_id_fk"
+		}),
+]);
+
 export const presentationProducts = pgTable("presentation_products", {
 	id: varchar().default(gen_random_uuid()).primaryKey().notNull(),
 	presentationId: varchar("presentation_id").notNull(),
@@ -1382,32 +1380,6 @@ export const presentationProducts = pgTable("presentation_products", {
 			columns: [table.productId],
 			foreignColumns: [products.id],
 			name: "presentation_products_product_id_products_id_fk"
-		}),
-]);
-
-export const vendorInvoices = pgTable("vendor_invoices", {
-	id: varchar().default(gen_random_uuid()).primaryKey().notNull(),
-	supplierId: varchar("supplier_id"),
-	orderId: varchar("order_id"),
-	invoiceNumber: varchar("invoice_number").notNull(),
-	amount: numeric({ precision: 12, scale:  2 }).notNull(),
-	status: varchar().default('pending'),
-	qbBillId: varchar("qb_bill_id"),
-	receivedDate: timestamp("received_date", { mode: 'string' }).defaultNow(),
-	dueDate: timestamp("due_date", { mode: 'string' }),
-	notes: text(),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
-	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow(),
-}, (table) => [
-	foreignKey({
-			columns: [table.supplierId],
-			foreignColumns: [suppliers.id],
-			name: "vendor_invoices_supplier_id_suppliers_id_fk"
-		}),
-	foreignKey({
-			columns: [table.orderId],
-			foreignColumns: [orders.id],
-			name: "vendor_invoices_order_id_orders_id_fk"
 		}),
 ]);
 
@@ -1445,47 +1417,58 @@ export const orderFiles = pgTable("order_files", {
 		}),
 ]);
 
-export const paymentTransactions = pgTable("payment_transactions", {
+export const passwordResets = pgTable("password_resets", {
 	id: varchar().default(gen_random_uuid()).primaryKey().notNull(),
-	invoiceId: varchar("invoice_id"),
-	amount: numeric({ precision: 12, scale:  2 }).notNull(),
-	paymentMethod: varchar("payment_method").notNull(),
-	paymentReference: varchar("payment_reference"),
-	status: varchar().default('pending'),
-	metadata: jsonb(),
+	userId: varchar("user_id").notNull(),
+	token: varchar().notNull(),
+	expiresAt: timestamp("expires_at", { mode: 'string' }).notNull(),
+	usedAt: timestamp("used_at", { mode: 'string' }),
 	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
 }, (table) => [
 	foreignKey({
-			columns: [table.invoiceId],
-			foreignColumns: [invoices.id],
-			name: "payment_transactions_invoice_id_invoices_id_fk"
+			columns: [table.userId],
+			foreignColumns: [users.id],
+			name: "password_resets_user_id_users_id_fk"
 		}),
+	unique("password_resets_token_unique").on(table.token),
 ]);
 
-export const invoices = pgTable("invoices", {
+export const userInvitations = pgTable("user_invitations", {
 	id: varchar().default(gen_random_uuid()).primaryKey().notNull(),
-	orderId: varchar("order_id"),
-	invoiceNumber: varchar("invoice_number").notNull(),
-	subtotal: numeric({ precision: 12, scale:  2 }).notNull(),
-	taxAmount: numeric("tax_amount", { precision: 12, scale:  2 }).default('0'),
-	totalAmount: numeric("total_amount", { precision: 12, scale:  2 }).notNull(),
-	status: varchar().default('pending'),
-	dueDate: timestamp("due_date", { mode: 'string' }),
-	qbInvoiceId: varchar("qb_invoice_id"),
-	qbSyncedAt: timestamp("qb_synced_at", { mode: 'string' }),
-	stripePaymentIntentId: varchar("stripe_payment_intent_id"),
-	paymentMethod: varchar("payment_method"),
-	paymentReference: varchar("payment_reference"),
-	paidAt: timestamp("paid_at", { mode: 'string' }),
+	email: varchar().notNull(),
+	role: varchar().default('user').notNull(),
+	token: varchar().notNull(),
+	invitedBy: varchar("invited_by"),
+	acceptedAt: timestamp("accepted_at", { mode: 'string' }),
+	expiresAt: timestamp("expires_at", { mode: 'string' }).notNull(),
 	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
-	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow(),
-	stripeInvoiceId: varchar("stripe_invoice_id"),
-	stripeInvoiceUrl: text("stripe_invoice_url"),
 }, (table) => [
 	foreignKey({
-			columns: [table.orderId],
-			foreignColumns: [orders.id],
-			name: "invoices_order_id_orders_id_fk"
+			columns: [table.invitedBy],
+			foreignColumns: [users.id],
+			name: "user_invitations_invited_by_users_id_fk"
 		}),
-	unique("invoices_invoice_number_unique").on(table.invoiceNumber),
+	unique("user_invitations_token_unique").on(table.token),
+]);
+
+export const artworkItems = pgTable("artwork_items", {
+	id: varchar().default(gen_random_uuid()).primaryKey().notNull(),
+	orderItemId: varchar("order_item_id").notNull(),
+	name: varchar({ length: 255 }).notNull(),
+	artworkType: varchar("artwork_type", { length: 100 }),
+	location: varchar({ length: 255 }),
+	color: varchar({ length: 100 }),
+	size: varchar({ length: 100 }),
+	status: varchar({ length: 50 }).default('pending').notNull(),
+	fileName: varchar("file_name", { length: 500 }),
+	filePath: varchar("file_path", { length: 500 }),
+	notes: text(),
+	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow(),
+}, (table) => [
+	foreignKey({
+			columns: [table.orderItemId],
+			foreignColumns: [orderItems.id],
+			name: "artwork_items_order_item_id_order_items_id_fk"
+		}),
 ]);

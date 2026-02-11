@@ -48,7 +48,7 @@ we need to integrate the products with ESP/ASI/Sage for product details and pric
 ```
 
 ```
-connect slack to this Access Token xoxe.xoxp-1-Mi0yLTU2MzY1NTU0MzczMS01NzgzMTM1MDI3NTUtODU3OTEzMTE1NjExOC05Mjc2NjM4MjAwODk5LTczOTczMDQ5NDdiMWFlYzU3MjNmNzQ1Zjk3NWM4YTNiZmYwOWY0YWI4OGMzNDY3OWZjNGE3ZGU3MzYwYjRmYzk
+connect slack to this Access Token [REMOVED - Use environment variable SLACK_ACCESS_TOKEN]
 ```
 
 ```

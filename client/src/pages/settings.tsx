@@ -602,6 +602,9 @@ export default function Settings() {
     sageApiKey: "",
     quickbooksConnected: false,
     stripeConnected: false,
+    stripePublishableKey: "",
+    stripeSecretKey: "",
+    taxjarApiKey: "",
     shipmateConnected: false
   });
 
@@ -611,7 +614,9 @@ export default function Settings() {
     sanmarPassword: false,
     slackBotToken: false,
     hubspotApiKey: false,
-    sageApiKey: false
+    sageApiKey: false,
+    stripeSecretKey: false,
+    taxjarApiKey: false
   });
 
   // Update integrations when data is loaded
@@ -632,6 +637,9 @@ export default function Settings() {
         sageApiKey: settings.sageApiKey || "",
         quickbooksConnected: settings.quickbooksConnected || false,
         stripeConnected: settings.stripeConnected || false,
+        stripePublishableKey: settings.stripePublishableKey || "",
+        stripeSecretKey: settings.stripeSecretKey || "",
+        taxjarApiKey: settings.taxjarApiKey || "",
         shipmateConnected: settings.shipmateConnected || false
       });
     }
@@ -1554,6 +1562,149 @@ export default function Settings() {
               {/* Core Integrations */}
               <div className="space-y-4">
                 <h3 className="font-medium text-sm text-gray-900">Core Integrations</h3>
+
+                {/* QuickBooks */}
+                <div className="p-4 border rounded-lg">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <FileSpreadsheet className="w-5 h-5 text-green-600" />
+                      <h4 className="font-medium">QuickBooks Online</h4>
+                      <Badge variant={integrations.quickbooksConnected ? "default" : "outline"}>
+                        {integrations.quickbooksConnected ? "Connected" : "Not Connected"}
+                      </Badge>
+                    </div>
+                  </div>
+                  <div className="space-y-3">
+                    <p className="text-sm text-gray-600">
+                      Sync invoices and customers with QuickBooks Online for seamless accounting integration.
+                    </p>
+                    <Button
+                      onClick={async () => {
+                        try {
+                          const res = await fetch('/api/integrations/quickbooks/auth');
+                          if (res.ok) {
+                            const { url } = await res.json();
+                            window.location.href = url;
+                          } else {
+                            toast({
+                              title: "Failed to start authentication",
+                              description: "Unable to connect to QuickBooks. Please try again.",
+                              variant: "destructive"
+                            });
+                          }
+                        } catch (error) {
+                          toast({
+                            title: "Error",
+                            description: "An error occurred while connecting to QuickBooks.",
+                            variant: "destructive"
+                          });
+                        }
+                      }}
+                      className="w-full"
+                    >
+                      {integrations.quickbooksConnected ? 'Reconnect QuickBooks' : 'Connect to QuickBooks'}
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Stripe */}
+                <div className="p-4 border rounded-lg">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <Globe className="w-5 h-5 text-purple-600" />
+                      <h4 className="font-medium">Stripe Payments</h4>
+                      <Badge variant={integrations.stripeConnected ? "default" : "outline"}>
+                        {integrations.stripeConnected ? "Connected" : "Not Connected"}
+                      </Badge>
+                    </div>
+                  </div>
+                  <div className="space-y-3">
+                    <p className="text-sm text-gray-600">
+                      Accept credit card payments and manage billing through Stripe.
+                    </p>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="stripePublishableKey">Publishable Key</Label>
+                        <Input
+                          id="stripePublishableKey"
+                          placeholder="pk_test_..."
+                          value={integrations.stripePublishableKey || ''}
+                          onChange={(e) => setIntegrations(prev => ({ ...prev, stripePublishableKey: e.target.value }))}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="stripeSecretKey">Secret Key</Label>
+                        <div className="relative">
+                          <Input
+                            id="stripeSecretKey"
+                            type={showFields.stripeSecretKey ? "text" : "password"}
+                            placeholder="sk_test_..."
+                            value={integrations.stripeSecretKey || ''}
+                            onChange={(e) => setIntegrations(prev => ({ ...prev, stripeSecretKey: e.target.value }))}
+                            className="pr-10"
+                          />
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
+                            onClick={() => setShowFields(prev => ({ ...prev, stripeSecretKey: !prev.stripeSecretKey }))}
+                          >
+                            {showFields.stripeSecretKey ? (
+                              <EyeOff className="h-4 w-4 text-gray-500" />
+                            ) : (
+                              <Eye className="h-4 w-4 text-gray-500" />
+                            )}
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* TaxJar */}
+                <div className="p-4 border rounded-lg">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <BarChart3 className="w-5 h-5 text-orange-600" />
+                      <h4 className="font-medium">TaxJar</h4>
+                      <Badge variant={integrations.taxjarApiKey ? "default" : "outline"}>
+                        {integrations.taxjarApiKey ? "Connected" : "Not Connected"}
+                      </Badge>
+                    </div>
+                  </div>
+                  <div className="space-y-3">
+                    <p className="text-sm text-gray-600">
+                      Automated sales tax calculations and reporting.
+                    </p>
+                    <div className="space-y-2">
+                      <Label htmlFor="taxjarApiKey">API Key</Label>
+                      <div className="relative">
+                        <Input
+                          id="taxjarApiKey"
+                          type={showFields.taxjarApiKey ? "text" : "password"}
+                          placeholder="Enter TaxJar API key"
+                          value={integrations.taxjarApiKey || ''}
+                          onChange={(e) => setIntegrations(prev => ({ ...prev, taxjarApiKey: e.target.value }))}
+                          className="pr-10"
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
+                          onClick={() => setShowFields(prev => ({ ...prev, taxjarApiKey: !prev.taxjarApiKey }))}
+                        >
+                          {showFields.taxjarApiKey ? (
+                            <EyeOff className="h-4 w-4 text-gray-500" />
+                          ) : (
+                            <Eye className="h-4 w-4 text-gray-500" />
+                          )}
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
 
                 {/* S&S Activewear */}
                 <div className="p-4 border rounded-lg">
