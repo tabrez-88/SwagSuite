@@ -6961,9 +6961,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Products already have colors and sizes aggregated
       res.json(products);
-    } catch (error) {
+    } catch (error: any) {
       console.error("SanMar search error:", error);
-      res.status(500).json({ message: "Failed to search SanMar products" });
+      const isTimeout = error?.code === 'ECONNABORTED' || error?.message?.includes('timeout');
+      res.status(500).json({
+        message: isTimeout
+          ? "Search timed out. Try searching by style number (e.g., PC54, 5000) instead of brand name for faster results."
+          : `Failed to search SanMar products: ${error?.message || 'Unknown error'}`
+      });
     }
   });
 

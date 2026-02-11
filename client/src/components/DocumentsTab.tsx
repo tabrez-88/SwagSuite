@@ -118,6 +118,13 @@ export function DocumentsTab({
       queryClient.invalidateQueries({
         queryKey: [`/api/orders/${orderId}/quote-approvals`]
       });
+      // Refresh order data since status changes to pending_approval
+      queryClient.invalidateQueries({
+        queryKey: [`/api/orders/${orderId}`]
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["/api/orders"]
+      });
     },
   });
 
@@ -448,18 +455,36 @@ export function DocumentsTab({
   };
 
   // Handle email click - auto-fill and switch to communication tab
-  const handleEmailClick = (doc: any) => {
+  const handleEmailClick = async (doc: any) => {
     if (!onSendEmail) return;
 
     const isQuote = doc.documentType === 'quote';
 
     if (isQuote) {
-      // Check for existing pending quote approval
-      const existingApproval = quoteApprovals.find((a: any) => a.status === 'pending');
+      // Auto-create quote approval if none exists, so the link is ready
       let approvalUrl = '';
+      const existingApproval = quoteApprovals.find((a: any) => a.status === 'pending');
 
       if (existingApproval) {
         approvalUrl = `${window.location.origin}/quote-approval/${existingApproval.approvalToken}`;
+      } else {
+        try {
+          const clientName = primaryContact
+            ? `${primaryContact.firstName} ${primaryContact.lastName}`
+            : companyName;
+          const result = await createQuoteApprovalMutation.mutateAsync({
+            clientEmail: primaryContact?.email || '',
+            clientName: clientName || '',
+            documentId: doc.id,
+            pdfPath: doc.fileUrl,
+            quoteTotal: order?.total,
+          });
+          if (result?.approvalToken) {
+            approvalUrl = `${window.location.origin}/quote-approval/${result.approvalToken}`;
+          }
+        } catch (err) {
+          console.error('Failed to create quote approval:', err);
+        }
       }
 
       onSendEmail({
@@ -477,10 +502,8 @@ Quote Details:
 - Date: ${format(new Date(), 'MMMM dd, yyyy')}
 ${order?.inHandsDate ? `- In-Hands Date: ${format(new Date(order.inHandsDate), 'MMMM dd, yyyy')}` : ''}
 ${(order as any)?.eventDate ? `- Event Date: ${format(new Date((order as any).eventDate), 'MMMM dd, yyyy')}` : ''}
-
-📎 View Quote PDF: ${doc.fileUrl || '[Document Link]'}
-${approvalUrl ? `\n✅ APPROVE OR REQUEST CHANGES: ${approvalUrl}\nClick the link above to review and approve this quote online.\n` : '\n[Approval link will be generated when you send this email]\n'}
-Please review and let us know if you have any questions or would like to proceed with this order.
+${approvalUrl ? `\n✅ Review & Approve Quote: ${approvalUrl}\nClick the link above to review your quote and approve or request changes.\n` : ''}
+Please let us know if you have any questions.
 
 Thank you for your business!
 

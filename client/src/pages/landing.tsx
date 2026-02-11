@@ -5,6 +5,7 @@ import { Label } from "@/components/ui/label";
 import { Box, Loader2 } from "lucide-react";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
+import { useTheme } from "@/providers/ThemeProvider";
 
 export default function Landing() {
   const [username, setUsername] = useState("");
@@ -12,6 +13,7 @@ export default function Landing() {
   const [isLoading, setIsLoading] = useState(false);
   const [showLoginForm, setShowLoginForm] = useState(false);
   const { toast } = useToast();
+  const { theme } = useTheme();
 
   // Check if we're in local dev mode (no REPL_ID or REPL_ID is "local-dev")
   const isLocalDev = !import.meta.env.VITE_REPL_ID || import.meta.env.VITE_REPL_ID === "local-dev";
@@ -66,15 +68,19 @@ export default function Landing() {
       <Card className="w-full max-w-md">
         <CardContent className="pt-8 pb-8 px-8">
           <div className="text-center mb-8">
-            <div className="flex justify-center mb-4">
-              <div className="w-16 h-16 bg-swag-primary rounded-xl flex items-center justify-center">
-                <Box className="text-white" size={32} />
-              </div>
+            <div className="flex justify-center">
+              {theme?.logoUrl ? (
+                <img src={theme.logoUrl} alt={theme?.companyName || 'Logo'} className="h-20 object-contain" />
+              ) : (
+                <div className="w-16 h-16 bg-swag-primary rounded-xl flex items-center justify-center">
+                  <Box className="text-white" size={32} />
+                </div>
+              )}
             </div>
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">SwagSuite</h1>
-            <p className="text-gray-600 mb-1">by Liquid Screen Design</p>
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">{theme?.companyName || 'SwagSuite'}</h1>
+            {theme?.tagline && <p className="text-gray-600 mb-1">{theme.tagline}</p>}
             <p className="text-sm text-gray-500">
-              Promotional Products ERP System
+              Order Management System
             </p>
           </div>
 
@@ -82,7 +88,7 @@ export default function Landing() {
             <>
               <div className="space-y-4 mb-8">
                 <div className="text-center">
-                  <h2 className="text-xl font-semibold text-gray-900 mb-4">
+                  <h2 className="text-xl font-semibold text-gray-900 mb-2">
                     Welcome to SwagSuite
                   </h2>
                   <p className="text-gray-600 text-sm mb-6">
@@ -91,7 +97,7 @@ export default function Landing() {
                   </p>
                 </div>
 
-                <div className="grid grid-cols-1 gap-3 text-sm">
+                <div className="grid grid-cols-1 gap-2 text-sm">
                   <div className="flex items-center space-x-2">
                     <div className="w-2 h-2 bg-swag-primary rounded-full"></div>
                     <span>Order Management & CRM</span>
@@ -135,7 +141,7 @@ export default function Landing() {
                   className="w-full"
                   size="lg"
                 >
-                  {isLocalDev ? "Quick Dev Login (Auto)" : "Sign in with Replit"}
+                  {isLocalDev ? "Quick Dev Login (Auto)" : "Sign in with SSO"}
                 </Button>
 
                 <div className="mt-6 text-center">
@@ -211,7 +217,7 @@ export default function Landing() {
                     size="lg"
                     disabled={isLoading}
                   >
-                    {isLocalDev ? "Quick Dev Login (Auto)" : "Sign in with Replit"}
+                    {isLocalDev ? "Quick Dev Login (Auto)" : "Sign in with SSO"}
                   </Button>
                   
                   <Button
