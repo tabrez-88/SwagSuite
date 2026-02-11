@@ -41,6 +41,28 @@ import { Separator } from "./ui/separator";
 import { Checkbox } from "@/components/ui/checkbox";
 import { AddressAutocomplete } from "@/components/ui/address-autocomplete";
 
+// Normalize various country name/code formats to standard 2-letter codes
+function normalizeCountryCode(country: string): string {
+  if (!country) return "US";
+  const c = country.trim().toUpperCase();
+  // Already a valid code
+  if (c === "US" || c === "CA" || c === "MX") return c;
+  // Common name variants
+  const mapping: Record<string, string> = {
+    "USA": "US",
+    "U.S.": "US",
+    "U.S.A.": "US",
+    "UNITED STATES": "US",
+    "UNITED STATES OF AMERICA": "US",
+    "CANADA": "CA",
+    "CAN": "CA",
+    "MEXICO": "MX",
+    "MEX": "MX",
+    "MÉXICO": "MX",
+  };
+  return mapping[c] || "US";
+}
+
 interface OrderModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -148,7 +170,7 @@ export default function OrderModal({ open, onOpenChange, order, initialCompanyId
               shippingCity = parsed.city || "";
               shippingState = parsed.state || "";
               shippingZipCode = parsed.zipCode || "";
-              shippingCountry = parsed.country || "US";
+              shippingCountry = normalizeCountryCode(parsed.country || "US");
               shippingPhone = parsed.phone || "";
               shippingContact = parsed.contactName || "";
               shippingEmail = parsed.email || "";
@@ -178,7 +200,7 @@ export default function OrderModal({ open, onOpenChange, order, initialCompanyId
               billingCity = parsed.city || "";
               billingState = parsed.state || "";
               billingZipCode = parsed.zipCode || "";
-              billingCountry = parsed.country || "US";
+              billingCountry = normalizeCountryCode(parsed.country || "US");
               billingPhone = parsed.phone || "";
               billingContact = parsed.contactName || "";
               billingEmail = parsed.email || "";
@@ -298,7 +320,7 @@ export default function OrderModal({ open, onOpenChange, order, initialCompanyId
       if (selectedContact) {
         const contactFullName = `${selectedContact.firstName} ${selectedContact.lastName}`;
         const contactEmail = selectedContact.email || "";
-        
+
         // Parse billing address from contact if available
         if (selectedContact.billingAddress) {
           try {
@@ -311,7 +333,7 @@ export default function OrderModal({ open, onOpenChange, order, initialCompanyId
               billingCity: billingAddr.city || "",
               billingState: billingAddr.state || "",
               billingZipCode: billingAddr.zipCode || "",
-              billingCountry: billingAddr.country || "US",
+              billingCountry: normalizeCountryCode(billingAddr.country || "US"),
               billingPhone: selectedContact.phone || "",
             }));
           } catch {
@@ -345,7 +367,7 @@ export default function OrderModal({ open, onOpenChange, order, initialCompanyId
               shippingCity: shippingAddr.city || "",
               shippingState: shippingAddr.state || "",
               shippingZipCode: shippingAddr.zipCode || "",
-              shippingCountry: shippingAddr.country || "US",
+              shippingCountry: normalizeCountryCode(shippingAddr.country || "US"),
               shippingPhone: shippingAddr.phone || "",
             }));
           } catch {
@@ -813,7 +835,7 @@ export default function OrderModal({ open, onOpenChange, order, initialCompanyId
               </Select>
             </div>
 
-            
+
           </div>
 
           {/* Sales Rep Row */}
@@ -907,7 +929,6 @@ export default function OrderModal({ open, onOpenChange, order, initialCompanyId
                 value={formData.inHandsDate}
                 onChange={(e) => handleFieldChange("inHandsDate", e.target.value)}
               />
-              <p className="text-xs text-gray-500 mt-1">Visible to customer on purchase orders</p>
             </div>
             <div>
               <Label htmlFor="eventDate">Event Date</Label>
@@ -917,7 +938,6 @@ export default function OrderModal({ open, onOpenChange, order, initialCompanyId
                 value={formData.eventDate}
                 onChange={(e) => handleFieldChange("eventDate", e.target.value)}
               />
-              <p className="text-xs text-gray-500 mt-1">Customer's event date</p>
             </div>
           </div>
 
@@ -961,7 +981,7 @@ export default function OrderModal({ open, onOpenChange, order, initialCompanyId
                       handleFieldChange("billingCity", addr.city);
                       handleFieldChange("billingState", addr.state);
                       handleFieldChange("billingZipCode", addr.zipCode);
-                      handleFieldChange("billingCountry", addr.country);
+                      handleFieldChange("billingCountry", normalizeCountryCode(addr.country));
                     }}
                     placeholder="123 Main St"
                   />
@@ -1048,7 +1068,7 @@ export default function OrderModal({ open, onOpenChange, order, initialCompanyId
                       handleFieldChange("shippingCity", addr.city);
                       handleFieldChange("shippingState", addr.state);
                       handleFieldChange("shippingZipCode", addr.zipCode);
-                      handleFieldChange("shippingCountry", addr.country);
+                      handleFieldChange("shippingCountry", normalizeCountryCode(addr.country));
                     }}
                     placeholder="123 Main St"
                     disabled={sameAsBilling}

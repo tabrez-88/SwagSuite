@@ -30,6 +30,7 @@ interface DocumentEmailData {
   subject: string;
   body: string;
   vendorId?: string;
+  updateStatusOnSend?: 'pending_approval';
 }
 
 interface DocumentsTabProps {
@@ -117,13 +118,6 @@ export function DocumentsTab({
     onSuccess: () => {
       queryClient.invalidateQueries({
         queryKey: [`/api/orders/${orderId}/quote-approvals`]
-      });
-      // Refresh order data since status changes to pending_approval
-      queryClient.invalidateQueries({
-        queryKey: [`/api/orders/${orderId}`]
-      });
-      queryClient.invalidateQueries({
-        queryKey: ["/api/orders"]
       });
     },
   });
@@ -493,6 +487,7 @@ export function DocumentsTab({
         to: primaryContact?.email || "",
         toName: primaryContact ? `${primaryContact.firstName} ${primaryContact.lastName}` : companyName,
         subject: `Quote #${doc.documentNumber} - ${companyName || 'Your Order'} - Action Required`,
+        updateStatusOnSend: order?.status === 'quote' ? 'pending_approval' : undefined,
         body: `Dear ${primaryContact?.firstName || 'Customer'},
 
 Please find attached the quote for your order #${order?.orderNumber}.

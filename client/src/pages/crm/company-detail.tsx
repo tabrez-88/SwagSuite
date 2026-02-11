@@ -43,6 +43,20 @@ import * as z from "zod";
 import { apiRequest } from "@/lib/queryClient";
 import { AddressAutocomplete } from "@/components/ui/address-autocomplete";
 
+// Normalize various country name/code formats to standard 2-letter codes
+function normalizeCountryCode(country: string): string {
+  if (!country) return "US";
+  const c = country.trim().toUpperCase();
+  if (c === "US" || c === "CA" || c === "MX") return c;
+  const mapping: Record<string, string> = {
+    "USA": "US", "U.S.": "US", "U.S.A.": "US",
+    "UNITED STATES": "US", "UNITED STATES OF AMERICA": "US",
+    "CANADA": "CA", "CAN": "CA",
+    "MEXICO": "MX", "MEX": "MX", "MÉXICO": "MX",
+  };
+  return mapping[c] || "US";
+}
+
 // Industry options
 const INDUSTRY_OPTIONS = [
   "Technology",
@@ -214,7 +228,7 @@ export default function CompanyDetail() {
       city: company.city || "",
       state: company.state || "",
       zipCode: company.zipCode || "",
-      country: company.country || "",
+      country: normalizeCountryCode(company.country || ""),
       industry: company.industry || "",
       notes: company.notes || "",
       linkedinUrl: company.socialMediaLinks?.linkedin || "",
@@ -759,9 +773,21 @@ export default function CompanyDetail() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Country</FormLabel>
-                      <FormControl>
-                        <Input placeholder="US" {...field} />
-                      </FormControl>
+                      <Select
+                        value={field.value || "US"}
+                        onValueChange={field.onChange}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="US">United States</SelectItem>
+                          <SelectItem value="CA">Canada</SelectItem>
+                          <SelectItem value="MX">Mexico</SelectItem>
+                        </SelectContent>
+                      </Select>
                       <FormMessage />
                     </FormItem>
                   )}

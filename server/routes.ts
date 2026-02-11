@@ -9306,13 +9306,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         })
         .returning();
 
-      // Auto-update order status to pending_approval when approval link is generated
-      if (order.status === 'quote' || order.status === 'in_production') {
-        await db
-          .update(orders)
-          .set({ status: 'pending_approval', updatedAt: new Date() })
-          .where(eq(orders.id, orderId));
-      }
+      // NOTE: Status is NOT auto-updated here. It will be updated to 'pending_approval'
+      // only after the email with the approval link is actually sent by the user.
 
       res.json({
         ...newApproval,
@@ -9727,13 +9722,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         sentAt: new Date(),
       }).returning();
 
-      // Auto-update order status to pending_approval when quote approval is sent
-      if (order.status === 'quote') {
-        await db
-          .update(orders)
-          .set({ status: 'pending_approval', updatedAt: new Date() })
-          .where(eq(orders.id, orderId));
-      }
+      // NOTE: Status is NOT auto-updated here. It will be updated to 'pending_approval'
+      // only after the email with the approval link is actually sent by the user.
 
       res.json({
         ...approval,
@@ -10549,8 +10539,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      // Auto-update order status to pending_approval when proof is sent to client
-      if (order.status !== 'pending_approval' && order.status !== 'approved') {
+      // Only update order status to pending_approval if the proof email was actually sent
+      if (emailSent && order.status !== 'pending_approval' && order.status !== 'approved') {
         await db
           .update(orders)
           .set({ status: 'pending_approval', updatedAt: new Date() })
