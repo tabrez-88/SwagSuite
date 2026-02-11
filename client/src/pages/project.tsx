@@ -279,6 +279,7 @@ export default function ProjectPage() {
     queryKey: [`/api/orders/${orderId}/invoice`],
     enabled: !!orderId,
     retry: false, // Don't retry if invoice doesn't exist yet
+    staleTime: 0, // Always fetch fresh data to ensure UI updates immediately
   });
 
   // Create invoice mutation
@@ -291,10 +292,15 @@ export default function ProjectPage() {
       );
       return response.json();
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
+      // Immediately update the invoice query data for instant UI update
+      queryClient.setQueryData([`/api/orders/${orderId}/invoice`], data);
+
+      // Also invalidate to refetch and ensure consistency
       queryClient.invalidateQueries({
         queryKey: [`/api/orders/${orderId}/invoice`],
       });
+
       toast({
         title: "Invoice Created",
         description: "Invoice has been generated successfully.",
@@ -329,12 +335,20 @@ export default function ProjectPage() {
         title: "Payment Link Generated",
         description: "Stripe payment link has been created.",
       });
-      // Copy link to clipboard
-      navigator.clipboard.writeText(data.paymentLink);
-      toast({
-        title: "Link Copied",
-        description: "Payment link copied to clipboard!",
-      });
+
+      // Try to copy link to clipboard (may fail if document is not focused)
+      navigator.clipboard
+        .writeText(data.paymentLink)
+        .then(() => {
+          toast({
+            title: "Link Copied",
+            description: "Payment link copied to clipboard!",
+          });
+        })
+        .catch((err) => {
+          console.warn("Failed to copy to clipboard:", err);
+          // Silently fail - user can still manually copy the link from the UI
+        });
     },
     onError: (error: any) => {
       toast({
