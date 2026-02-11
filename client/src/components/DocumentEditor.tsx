@@ -79,7 +79,10 @@ interface EditableFields {
   documentNumber: string;
   documentDate: string;
   inHandsDate: string;
-  
+  eventDate: string;
+  supplierNotes: string;
+  additionalInformation: string;
+
   // Company Info
   companyTitle: string;
   companySubtitle: string;
@@ -171,8 +174,13 @@ export function DocumentEditor({
       documentTitle: isQuote ? 'QUOTE' : 'PURCHASE ORDER',
       documentNumber: doc.documentNumber || order?.orderNumber || 'N/A',
       documentDate: order?.createdAt ? format(new Date(order.createdAt), 'MMMM dd, yyyy') : format(new Date(), 'MMMM dd, yyyy'),
-      inHandsDate: order?.inHandsDate ? format(new Date(order.inHandsDate), 'MMMM dd, yyyy') : '',
-      
+      inHandsDate: isQuote
+        ? (order?.inHandsDate ? format(new Date(order.inHandsDate), 'MMMM dd, yyyy') : '')
+        : ((order as any)?.supplierInHandsDate ? format(new Date((order as any).supplierInHandsDate), 'MMMM dd, yyyy') : ''),
+      eventDate: (order as any)?.eventDate ? format(new Date((order as any).eventDate), 'MMMM dd, yyyy') : '',
+      supplierNotes: (order as any)?.supplierNotes || '',
+      additionalInformation: (order as any)?.additionalInformation || '',
+
       companyTitle: 'SwagSuite',
       companySubtitle: 'Your Promotional Products Partner',
       
@@ -187,8 +195,10 @@ export function DocumentEditor({
       vendorAddress: '',
       vendorEmail: '',
       
-      specialInstructions: order?.notes || '',
-      footerNote: isQuote 
+      specialInstructions: isQuote
+        ? (order?.notes || '')
+        : [order?.notes, (order as any)?.supplierNotes].filter(Boolean).join('\n\n') || '',
+      footerNote: isQuote
         ? 'Thank you for your business! This quote is valid for 30 days.'
         : 'Please confirm receipt of this PO and provide production timeline.',
       
@@ -364,7 +374,7 @@ export function DocumentEditor({
 
   return (
     <Dialog open={true} onOpenChange={() => onClose()}>
-      <DialogContent className="max-w-7xl h-[95vh] flex flex-col">
+      <DialogContent className="max-w-[90vw] h-[95vh] flex flex-col">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             {isQuote ? <FileText className="w-5 h-5" /> : <ShoppingCart className="w-5 h-5" />}
@@ -378,7 +388,7 @@ export function DocumentEditor({
             {/* Document Info */}
             <div className="space-y-3">
               <h3 className="font-semibold text-sm text-gray-700">Document Information</h3>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-3 p-2">
                 <div>
                   <Label className="text-xs">Document Title</Label>
                   <Input 
@@ -404,21 +414,32 @@ export function DocumentEditor({
                   />
                 </div>
                 <div>
-                  <Label className="text-xs">In-Hands Date</Label>
-                  <Input 
+                  <Label className="text-xs">{isQuote ? 'In-Hands Date' : 'Supplier IHD (Required by)'}</Label>
+                  <Input
                     value={fields.inHandsDate}
                     onChange={(e) => updateField('inHandsDate', e.target.value)}
                     className="h-8 text-sm"
                     placeholder="Optional"
                   />
                 </div>
+                {isQuote && (
+                  <div>
+                    <Label className="text-xs">Event Date</Label>
+                    <Input
+                      value={fields.eventDate}
+                      onChange={(e) => updateField('eventDate', e.target.value)}
+                      className="h-8 text-sm"
+                      placeholder="Optional"
+                    />
+                  </div>
+                )}
               </div>
             </div>
 
             <Separator />
 
             {/* Company Branding */}
-            <div className="space-y-3">
+            <div className="space-y-3 p-2">
               <h3 className="font-semibold text-sm text-gray-700">Company Branding</h3>
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -443,7 +464,7 @@ export function DocumentEditor({
             <Separator />
 
             {/* Bill To */}
-            <div className="space-y-3">
+            <div className="space-y-3 p-2">
               <h3 className="font-semibold text-sm text-gray-700">Bill To</h3>
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -484,7 +505,7 @@ export function DocumentEditor({
             <Separator />
 
             {/* Ship To */}
-            <div className="space-y-3">
+            <div className="space-y-3 p-2">
               <h3 className="font-semibold text-sm text-gray-700">Ship To</h3>
               <Textarea 
                 value={fields.shipToAddress}
@@ -499,7 +520,7 @@ export function DocumentEditor({
               <>
                 <Separator />
                 {/* Vendor Info (for PO) */}
-                <div className="space-y-3">
+                <div className="space-y-3 p-2">
                   <h3 className="font-semibold text-sm text-gray-700">Vendor Information</h3>
                   <div className="grid grid-cols-2 gap-3">
                     <div className="col-span-2">
@@ -534,7 +555,7 @@ export function DocumentEditor({
             <Separator />
 
             {/* Line Items */}
-            <div className="space-y-3">
+            <div className="space-y-3 p-2">
               <h3 className="font-semibold text-sm text-gray-700">Line Items</h3>
               <div className="space-y-2">
                 {fields.items.map((item, index) => (
@@ -591,7 +612,7 @@ export function DocumentEditor({
             <Separator />
 
             {/* Totals */}
-            <div className="space-y-3">
+            <div className="space-y-3 p-2">
               <h3 className="font-semibold text-sm text-gray-700">Totals</h3>
               <div className="grid grid-cols-3 gap-3">
                 <div>
@@ -631,7 +652,7 @@ export function DocumentEditor({
             <Separator />
 
             {/* Notes */}
-            <div className="space-y-3">
+            <div className="space-y-3 p-2">
               <h3 className="font-semibold text-sm text-gray-700">Notes & Instructions</h3>
               <div>
                 <Label className="text-xs">Special Instructions</Label>
@@ -665,11 +686,16 @@ export function DocumentEditor({
                 {/* Header */}
                 <div className="flex justify-between items-start mb-6 pb-4 border-b-2 border-gray-300">
                   <div>
-                    <h1 className="text-4xl font-bold text-blue-600 mb-2">{fields.documentTitle}</h1>
+                    <h1 className={`text-4xl font-bold mb-2 ${isQuote ? 'text-blue-600' : 'text-green-600'}`}>{fields.documentTitle}</h1>
                     <p className="text-sm text-gray-700">{fields.documentTitle} #{fields.documentNumber}</p>
                     <p className="text-sm text-gray-700">Date: {fields.documentDate}</p>
                     {fields.inHandsDate && (
-                      <p className="text-sm text-gray-700">In-Hands Date: {fields.inHandsDate}</p>
+                      isQuote
+                        ? <p className="text-sm text-gray-700">In-Hands Date: {fields.inHandsDate}</p>
+                        : <p className="text-sm font-bold text-red-600">Required by: {fields.inHandsDate}</p>
+                    )}
+                    {isQuote && fields.eventDate && (
+                      <p className="text-sm text-gray-700">Event Date: {fields.eventDate}</p>
                     )}
                   </div>
                   <div className="text-right">
@@ -767,11 +793,29 @@ export function DocumentEditor({
                   </div>
                 </div>
 
-                {/* Special Instructions */}
-                {fields.specialInstructions && (
+                {/* Notes / Special Instructions */}
+                {(fields.specialInstructions || fields.additionalInformation) && (
                   <div className="mb-6 pt-4 border-t">
-                    <h3 className="text-sm font-bold text-gray-800 mb-2">SPECIAL INSTRUCTIONS:</h3>
-                    <p className="text-sm text-gray-700 whitespace-pre-line">{fields.specialInstructions}</p>
+                    {fields.specialInstructions && (
+                      <>
+                        <h3 className="text-sm font-bold text-gray-800 mb-2">
+                          {isQuote ? 'NOTES:' : 'SPECIAL INSTRUCTIONS:'}
+                        </h3>
+                        {!isQuote && fields.inHandsDate && (
+                          <p className="text-sm font-bold text-red-600 mb-1">⚠️ RUSH ORDER - Must ship by {fields.inHandsDate}</p>
+                        )}
+                        <p className="text-sm text-gray-700 whitespace-pre-line">{fields.specialInstructions}</p>
+                      </>
+                    )}
+                    {isQuote && fields.additionalInformation && (
+                      <>
+                        <h3 className="text-sm font-bold text-gray-800 mb-2 mt-3">ADDITIONAL INFORMATION:</h3>
+                        <p className="text-sm text-gray-700 whitespace-pre-line">{fields.additionalInformation}</p>
+                      </>
+                    )}
+                    {!isQuote && (
+                      <p className="text-sm text-gray-700 mt-2">Please confirm receipt of this PO and provide production timeline.</p>
+                    )}
                   </div>
                 )}
 

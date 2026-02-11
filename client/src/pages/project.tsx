@@ -81,6 +81,8 @@ interface Order {
   supplierInHandsDate: string | null;
   isFirm: boolean;
   notes: string | null;
+  supplierNotes: string | null;
+  additionalInformation: string | null;
   customerNotes: string | null;
   internalNotes: string | null;
   trackingNumber: string | null;
@@ -714,6 +716,16 @@ export default function ProjectPage() {
                   </p>
                 </div>
               )}
+              {order.supplierInHandsDate && (
+                <div>
+                  <p className="text-sm text-gray-500">Supplier IHD</p>
+                  <p className="text-sm flex items-center gap-1">
+                    <Calendar className="w-4 h-4" />
+                    {format(new Date(order.supplierInHandsDate), 'MMM dd, yyyy')}
+                    {order.isFirm && <Badge variant="outline" className="ml-1 text-xs">Firm</Badge>}
+                  </p>
+                </div>
+              )}
 
               <div>
                 <p className="text-sm text-gray-500">Created</p>
@@ -721,6 +733,19 @@ export default function ProjectPage() {
                   {format(new Date(order.createdAt), 'MMM dd, yyyy')}
                 </p>
               </div>
+
+              {order.additionalInformation && (
+                <div>
+                  <p className="text-sm text-gray-500">Additional Information</p>
+                  <p className="text-sm whitespace-pre-wrap">{order.additionalInformation}</p>
+                </div>
+              )}
+              {order.supplierNotes && (
+                <div>
+                  <p className="text-sm text-gray-500">Supplier Notes</p>
+                  <p className="text-sm text-orange-700 whitespace-pre-wrap">{order.supplierNotes}</p>
+                </div>
+              )}
             </CardContent>
           </Card>
 

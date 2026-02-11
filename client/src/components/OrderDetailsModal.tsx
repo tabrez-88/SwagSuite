@@ -2015,6 +2015,26 @@ function OrderDetailsModal({ open, onOpenChange, orderId, pageMode }: OrderDetai
                         </div>
                       </div>
                     )}
+                    {(order as any).supplierNotes && (
+                      <div className="flex flex-col gap-2">
+                        <p className="font-semibold">
+                          Supplier Notes
+                        </p>
+                        <div className="bg-orange-50 border border-orange-200 p-4 rounded-lg">
+                          <p className="text-sm text-orange-800 whitespace-pre-line">{(order as any).supplierNotes}</p>
+                        </div>
+                      </div>
+                    )}
+                    {(order as any).additionalInformation && (
+                      <div className="flex flex-col gap-2">
+                        <p className="font-semibold">
+                          Additional Information
+                        </p>
+                        <div className="bg-blue-50 border border-blue-200 p-4 rounded-lg">
+                          <p className="text-sm text-blue-800 whitespace-pre-line">{(order as any).additionalInformation}</p>
+                        </div>
+                      </div>
+                    )}
 
                     {orderItems.length > 0 && (
                       <div className="space-y-3">

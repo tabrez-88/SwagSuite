@@ -654,8 +654,9 @@ export default function OrderModal({ open, onOpenChange, order, initialCompanyId
     // Include firm in-hands date flag
     payload.isFirm = formData.isFirm;
 
-    // Prepare billing address with contact info
-    if (formData.billingStreet || formData.billingCity) {
+    // Prepare billing address with contact info (always build JSON so phone/country changes are saved)
+    const hasBillingData = formData.billingStreet || formData.billingCity || formData.billingPhone || formData.billingContact || formData.billingEmail;
+    if (hasBillingData) {
       payload.billingAddress = JSON.stringify({
         street: formData.billingStreet,
         city: formData.billingCity,
@@ -668,8 +669,9 @@ export default function OrderModal({ open, onOpenChange, order, initialCompanyId
       });
     }
 
-    // Prepare shipping address with contact info
-    if (formData.shippingStreet || formData.shippingCity) {
+    // Prepare shipping address with contact info (always build JSON so phone/country changes are saved)
+    const hasShippingData = formData.shippingStreet || formData.shippingCity || formData.shippingPhone || formData.shippingContact || formData.shippingEmail;
+    if (hasShippingData) {
       payload.shippingAddress = JSON.stringify({
         street: formData.shippingStreet,
         city: formData.shippingCity,
@@ -681,6 +683,24 @@ export default function OrderModal({ open, onOpenChange, order, initialCompanyId
         email: formData.shippingEmail,
       });
     }
+
+    // Remove individual billing/shipping form fields that are not DB columns
+    delete payload.billingContact;
+    delete payload.billingEmail;
+    delete payload.billingStreet;
+    delete payload.billingCity;
+    delete payload.billingState;
+    delete payload.billingZipCode;
+    delete payload.billingCountry;
+    delete payload.billingPhone;
+    delete payload.shippingContact;
+    delete payload.shippingEmail;
+    delete payload.shippingStreet;
+    delete payload.shippingCity;
+    delete payload.shippingState;
+    delete payload.shippingZipCode;
+    delete payload.shippingCountry;
+    delete payload.shippingPhone;
 
     // Only add items to payload when creating new order
     // When editing, items should be managed via the Products tab

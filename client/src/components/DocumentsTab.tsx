@@ -44,14 +44,19 @@ interface DocumentsTabProps {
   onSendEmail?: (data: DocumentEmailData) => void;
 }
 
-// Build a fingerprint string for items to detect changes
-function buildItemsHash(items: any[], type: 'quote' | 'po'): string {
+// Build a fingerprint string for items + order-level fields to detect changes
+function buildItemsHash(items: any[], type: 'quote' | 'po', order?: any): string {
   const sorted = [...items].sort((a, b) => (a.id || '').localeCompare(b.id || ''));
-  return JSON.stringify(sorted.map(i => ({
+  const itemsData = sorted.map(i => ({
     id: i.id,
     qty: i.quantity,
     price: type === 'quote' ? i.unitPrice : (i.cost || i.unitPrice),
-  })));
+  }));
+  const orderFields = order ? (type === 'quote'
+    ? { notes: order.notes || '', additionalInfo: order.additionalInformation || '', ihd: order.inHandsDate || '', eventDate: order.eventDate || '' }
+    : { notes: order.notes || '', supplierNotes: order.supplierNotes || '', supplierIhd: order.supplierInHandsDate || '' }
+  ) : {};
+  return JSON.stringify({ items: itemsData, ...orderFields });
 }
 
 export function DocumentsTab({
@@ -260,16 +265,16 @@ export function DocumentsTab({
     },
   });
 
-  // Build current item hashes for change detection
+  // Build current item hashes for change detection (includes order-level fields)
   const currentHashes = useMemo(() => {
-    const quoteHash = buildItemsHash(orderItems, 'quote');
+    const quoteHash = buildItemsHash(orderItems, 'quote', order);
     const vendorHashes: Record<string, string> = {};
     for (const vendor of orderVendors) {
       const vendorItems = orderItems.filter((i: any) => i.supplierId === vendor.id);
-      vendorHashes[vendor.id] = buildItemsHash(vendorItems, 'po');
+      vendorHashes[vendor.id] = buildItemsHash(vendorItems, 'po', order);
     }
     return { quoteHash, vendorHashes };
-  }, [orderItems, orderVendors]);
+  }, [orderItems, orderVendors, order]);
 
   // Detect which documents are stale and which vendors need new POs
   const { staleDocIds, staleDraftDocIds, newVendorIds } = useMemo(() => {
@@ -471,6 +476,7 @@ Quote Details:
 - Quote Number: ${doc.documentNumber}
 - Date: ${format(new Date(), 'MMMM dd, yyyy')}
 ${order?.inHandsDate ? `- In-Hands Date: ${format(new Date(order.inHandsDate), 'MMMM dd, yyyy')}` : ''}
+${(order as any)?.eventDate ? `- Event Date: ${format(new Date((order as any).eventDate), 'MMMM dd, yyyy')}` : ''}
 
 📎 View Quote PDF: ${doc.fileUrl || '[Document Link]'}
 ${approvalUrl ? `\n✅ APPROVE OR REQUEST CHANGES: ${approvalUrl}\nClick the link above to review and approve this quote online.\n` : '\n[Approval link will be generated when you send this email]\n'}
@@ -499,7 +505,7 @@ PO Details:
 - PO Number: ${doc.documentNumber}
 - Date: ${format(new Date(), 'MMMM dd, yyyy')}
 ${(order as any)?.supplierInHandsDate ? `- Required Ship Date: ${format(new Date((order as any).supplierInHandsDate), 'MMMM dd, yyyy')}` : ''}
-
+${(order as any)?.supplierNotes ? `\nSupplier Notes:\n${(order as any).supplierNotes}\n` : ''}
 You can view and download the PO using the link below:
 ${doc.fileUrl || '[Document Link]'}
 
@@ -781,6 +787,9 @@ SwagSuite Team`,
                   {order?.inHandsDate && (
                     <p className="text-sm text-gray-700">In-Hands Date: {format(new Date(order.inHandsDate), 'MMMM dd, yyyy')}</p>
                   )}
+                  {(order as any)?.eventDate && (
+                    <p className="text-sm text-gray-700">Event Date: {format(new Date((order as any).eventDate), 'MMMM dd, yyyy')}</p>
+                  )}
                 </div>
                 <div className="text-right">
                   <h2 className="text-2xl font-bold mb-1">SwagSuite</h2>
@@ -884,10 +893,20 @@ SwagSuite Team`,
                 </div>
               </div>
 
-              {order?.notes && (
+              {(order?.notes || (order as any)?.additionalInformation) && (
                 <div className="mb-6 pt-4 border-t">
-                  <h3 className="text-sm font-bold text-gray-800 mb-2">NOTES:</h3>
-                  <p className="text-sm text-gray-700 whitespace-pre-wrap">{order.notes}</p>
+                  {order?.notes && (
+                    <>
+                      <h3 className="text-sm font-bold text-gray-800 mb-2">NOTES:</h3>
+                      <p className="text-sm text-gray-700 whitespace-pre-wrap mb-3">{order.notes}</p>
+                    </>
+                  )}
+                  {(order as any)?.additionalInformation && (
+                    <>
+                      <h3 className="text-sm font-bold text-gray-800 mb-2">ADDITIONAL INFORMATION:</h3>
+                      <p className="text-sm text-gray-700 whitespace-pre-wrap">{(order as any).additionalInformation}</p>
+                    </>
+                  )}
                 </div>
               )}
 
@@ -1005,7 +1024,10 @@ SwagSuite Team`,
                       {(order as any)?.supplierInHandsDate && (
                         <p className="font-bold text-red-600">⚠️ RUSH ORDER - Must ship by {format(new Date((order as any).supplierInHandsDate), 'MMMM dd, yyyy')}</p>
                       )}
-                      {order?.notes && <p>{order.notes}</p>}
+                      {(order as any)?.supplierNotes && (
+                        <p className="whitespace-pre-wrap">{(order as any).supplierNotes}</p>
+                      )}
+                      {order?.notes && <p className="whitespace-pre-wrap">{order.notes}</p>}
                       <p>Please confirm receipt of this PO and provide production timeline.</p>
                     </div>
                   </div>
