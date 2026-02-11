@@ -123,6 +123,10 @@ export class StripeService {
     return await this.request(`invoices/${invoiceId}/finalize`, 'POST');
   }
 
+  async getInvoice(invoiceId: string) {
+    return await this.request(`invoices/${invoiceId}`, 'GET');
+  }
+
   constructEvent(payload: string | Buffer, signature: string) {
     const secret = this.config.webhookSecret;
     if (!secret) throw new Error("Webhook secret not configured");

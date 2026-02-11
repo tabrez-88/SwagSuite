@@ -11156,49 +11156,96 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Webhook
   app.post('/api/webhooks/stripe', express.raw({ type: 'application/json' }), async (req, res) => {
     try {
+      let event;
+      if (typeof req.body === 'object' && req.body !== null && !Buffer.isBuffer(req.body)) {
+        // Body already parsed by middleware
+        event = req.body;
+      } else if (Buffer.isBuffer(req.body)) {
+        // Raw buffer from express.raw()
+        event = JSON.parse(req.body.toString());
+      } else if (typeof req.body === 'string') {
+        // String body
+        event = JSON.parse(req.body);
+      } else {
+        throw new Error("Invalid request body format");
+      }
+
+      console.log("Webhook event type:", event.type);
+
+      // Get Stripe credentials for API calls (optional for webhook receiving)
       const stripeService = await getStripeCredentials();
-      if (!stripeService) return res.status(400).send("Stripe not configured");
 
-      const sig = req.headers['stripe-signature'] as string;
-
-      // In production, verify the signature
-      // const event = stripeService.constructEvent(req.body, sig);
-
-      // For development, parse the body directly
-      const event = JSON.parse(req.body.toString());
-
-      if (event.type === 'payment_intent.succeeded') {
+      // Handle payment_intent.succeeded event
+      if (event.type === 'payment_intent.succeeded' || event.type === 'charge.succeeded') {
         const paymentIntent = event.data.object;
-        const invoiceId = paymentIntent.metadata?.invoiceId;
+        // Get the Stripe invoice ID from the payment intent
+        const stripeInvoiceId = paymentIntent.invoice;
 
-        if (invoiceId) {
-          // Update invoice
-          await storage.updateInvoice(invoiceId, {
-            status: 'paid',
-            paymentMethod: 'stripe',
-            paymentReference: paymentIntent.id,
-            paidAt: new Date()
-          });
+        if (!stripeInvoiceId) {
+          return res.json({ received: true, message: "No invoice associated" });
+        }
 
-          // Create payment transaction
-          await storage.createPaymentTransaction({
-            invoiceId,
-            amount: (paymentIntent.amount / 100).toString(),
-            paymentMethod: 'stripe',
-            paymentReference: paymentIntent.id,
-            status: 'completed',
-            metadata: paymentIntent
-          });
+        // If we have Stripe service, fetch the invoice to get metadata
+        let invoiceId = null;
+        if (stripeService) {
+          try {
+            const stripeInvoice = await stripeService.getInvoice(stripeInvoiceId);
+            invoiceId = stripeInvoice.metadata?.invoiceId;
+          } catch (err) {
+            console.error("Error fetching Stripe invoice:", err);
+          }
+        }
 
-          // Sync to QuickBooks
-          const invoice = await storage.getInvoice(invoiceId);
-          const qbService = await getQuickBooksCredentials();
-          if (qbService && invoice?.qbInvoiceId) {
-            try {
-              await qbService.markInvoiceAsPaid(invoice.qbInvoiceId, paymentIntent.amount / 100);
-            } catch (qbError) {
-              console.error("QB payment sync error in webhook:", qbError);
+        // Fallback: Try to find invoice by Stripe invoice ID in our database
+        if (!invoiceId) {
+          const invoice = await storage.getInvoiceByStripeInvoiceId(stripeInvoiceId);
+          if (invoice) {
+            invoiceId = invoice.id;
+          }
+        }
+
+        // If still no invoice ID, try parsing from description
+        if (!invoiceId && paymentIntent.description) {
+          const match = paymentIntent.description.match(/Invoice\s+([A-Z0-9-]+)/i);
+          if (match) {
+            const invoiceNumber = match[1];
+            const invoice = await storage.getInvoiceByNumber(invoiceNumber);
+            if (invoice) {
+              invoiceId = invoice.id;
             }
+          }
+        }
+
+        if (!invoiceId) {
+          return res.json({ received: true, message: "Invoice not found" });
+        }
+
+        // Update invoice status
+        await storage.updateInvoice(invoiceId, {
+          status: 'paid',
+          paymentMethod: 'stripe',
+          paymentReference: paymentIntent.id,
+          paidAt: new Date()
+        });
+
+        // Create payment transaction
+        await storage.createPaymentTransaction({
+          invoiceId,
+          amount: (paymentIntent.amount / 100).toString(),
+          paymentMethod: 'stripe',
+          paymentReference: paymentIntent.id,
+          status: 'completed',
+          metadata: paymentIntent
+        });
+
+        // Sync to QuickBooks if configured
+        const invoice = await storage.getInvoice(invoiceId);
+        const qbService = await getQuickBooksCredentials();
+        if (qbService && invoice?.qbInvoiceId) {
+          try {
+            await qbService.markInvoiceAsPaid(invoice.qbInvoiceId, paymentIntent.amount / 100);
+          } catch (qbError) {
+            console.error("QB payment sync error in webhook:", qbError);
           }
         }
       }
@@ -11206,7 +11253,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ received: true });
     } catch (err) {
       console.error("Webhook error:", err);
-      res.status(400).send(`Webhook Error: ${err}`);
+      res.status(400).send(`Webhook Error: ${err instanceof Error ? err.message : String(err)}`);
     }
   });
 
