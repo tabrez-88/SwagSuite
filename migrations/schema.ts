@@ -18,10 +18,10 @@ export const activities = pgTable("activities", {
 	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
 }, (table) => [
 	foreignKey({
-			columns: [table.userId],
-			foreignColumns: [users.id],
-			name: "activities_user_id_users_id_fk"
-		}),
+		columns: [table.userId],
+		foreignColumns: [users.id],
+		name: "activities_user_id_users_id_fk"
+	}),
 ]);
 
 export const contacts = pgTable("contacts", {
@@ -41,15 +41,15 @@ export const contacts = pgTable("contacts", {
 	receiveOrderEmails: boolean("receive_order_emails").default(true),
 }, (table) => [
 	foreignKey({
-			columns: [table.companyId],
-			foreignColumns: [companies.id],
-			name: "contacts_company_id_companies_id_fk"
-		}),
+		columns: [table.companyId],
+		foreignColumns: [companies.id],
+		name: "contacts_company_id_companies_id_fk"
+	}),
 	foreignKey({
-			columns: [table.supplierId],
-			foreignColumns: [suppliers.id],
-			name: "contacts_supplier_id_suppliers_id_fk"
-		}),
+		columns: [table.supplierId],
+		foreignColumns: [suppliers.id],
+		name: "contacts_supplier_id_suppliers_id_fk"
+	}),
 ]);
 
 export const artworkCards = pgTable("artwork_cards", {
@@ -71,25 +71,25 @@ export const artworkCards = pgTable("artwork_cards", {
 	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow(),
 }, (table) => [
 	foreignKey({
-			columns: [table.columnId],
-			foreignColumns: [artworkColumns.id],
-			name: "artwork_cards_column_id_artwork_columns_id_fk"
-		}).onDelete("cascade"),
+		columns: [table.columnId],
+		foreignColumns: [artworkColumns.id],
+		name: "artwork_cards_column_id_artwork_columns_id_fk"
+	}).onDelete("cascade"),
 	foreignKey({
-			columns: [table.orderId],
-			foreignColumns: [orders.id],
-			name: "artwork_cards_order_id_orders_id_fk"
-		}).onDelete("set null"),
+		columns: [table.orderId],
+		foreignColumns: [orders.id],
+		name: "artwork_cards_order_id_orders_id_fk"
+	}).onDelete("set null"),
 	foreignKey({
-			columns: [table.companyId],
-			foreignColumns: [companies.id],
-			name: "artwork_cards_company_id_companies_id_fk"
-		}).onDelete("set null"),
+		columns: [table.companyId],
+		foreignColumns: [companies.id],
+		name: "artwork_cards_company_id_companies_id_fk"
+	}).onDelete("set null"),
 	foreignKey({
-			columns: [table.assignedUserId],
-			foreignColumns: [users.id],
-			name: "artwork_cards_assigned_user_id_users_id_fk"
-		}).onDelete("set null"),
+		columns: [table.assignedUserId],
+		foreignColumns: [users.id],
+		name: "artwork_cards_assigned_user_id_users_id_fk"
+	}).onDelete("set null"),
 ]);
 
 export const companies = pgTable("companies", {
@@ -105,7 +105,7 @@ export const companies = pgTable("companies", {
 	country: varchar().default('US'),
 	industry: varchar(),
 	notes: text(),
-	ytdSpend: numeric("ytd_spend", { precision: 12, scale:  2 }).default('0'),
+	ytdSpend: numeric("ytd_spend", { precision: 12, scale: 2 }).default('0'),
 	hubspotId: varchar("hubspot_id"),
 	hubspotSyncedAt: timestamp("hubspot_synced_at", { mode: 'string' }),
 	socialMediaLinks: jsonb("social_media_links"),
@@ -136,20 +136,47 @@ export const artworkFiles = pgTable("artwork_files", {
 	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
 }, (table) => [
 	foreignKey({
-			columns: [table.orderId],
-			foreignColumns: [orders.id],
-			name: "artwork_files_order_id_orders_id_fk"
-		}),
+		columns: [table.orderId],
+		foreignColumns: [orders.id],
+		name: "artwork_files_order_id_orders_id_fk"
+	}),
 	foreignKey({
-			columns: [table.companyId],
-			foreignColumns: [companies.id],
-			name: "artwork_files_company_id_companies_id_fk"
-		}),
+		columns: [table.companyId],
+		foreignColumns: [companies.id],
+		name: "artwork_files_company_id_companies_id_fk"
+	}),
 	foreignKey({
-			columns: [table.uploadedBy],
-			foreignColumns: [users.id],
-			name: "artwork_files_uploaded_by_users_id_fk"
-		}),
+		columns: [table.uploadedBy],
+		foreignColumns: [users.id],
+		name: "artwork_files_uploaded_by_users_id_fk"
+	}),
+]);
+
+export const contacts = pgTable("contacts", {
+	id: varchar().default(gen_random_uuid()).primaryKey().notNull(),
+	companyId: varchar("company_id"),
+	firstName: varchar("first_name").notNull(),
+	lastName: varchar("last_name").notNull(),
+	email: varchar(),
+	phone: varchar(),
+	title: varchar(),
+	isPrimary: boolean("is_primary").default(false),
+	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow(),
+	supplierId: varchar("supplier_id"),
+	billingAddress: text("billing_address"),
+	shippingAddress: text("shipping_address"),
+}, (table) => [
+	foreignKey({
+		columns: [table.companyId],
+		foreignColumns: [companies.id],
+		name: "contacts_company_id_companies_id_fk"
+	}),
+	foreignKey({
+		columns: [table.supplierId],
+		foreignColumns: [suppliers.id],
+		name: "contacts_supplier_id_suppliers_id_fk"
+	}),
 ]);
 
 export const dataUploads = pgTable("data_uploads", {
@@ -168,10 +195,10 @@ export const dataUploads = pgTable("data_uploads", {
 	processedAt: timestamp("processed_at", { mode: 'string' }),
 }, (table) => [
 	foreignKey({
-			columns: [table.uploadedBy],
-			foreignColumns: [users.id],
-			name: "data_uploads_uploaded_by_users_id_fk"
-		}),
+		columns: [table.uploadedBy],
+		foreignColumns: [users.id],
+		name: "data_uploads_uploaded_by_users_id_fk"
+	}),
 ]);
 
 export const clients = pgTable("clients", {
@@ -193,10 +220,10 @@ export const clients = pgTable("clients", {
 	status: varchar().default('active').notNull(),
 	notes: text(),
 	totalOrders: integer("total_orders").default(0),
-	totalSpent: numeric("total_spent", { precision: 12, scale:  2 }).default('0'),
+	totalSpent: numeric("total_spent", { precision: 12, scale: 2 }).default('0'),
 	lastOrderDate: timestamp("last_order_date", { mode: 'string' }),
 	accountManager: varchar("account_manager"),
-	creditLimit: numeric("credit_limit", { precision: 12, scale:  2 }),
+	creditLimit: numeric("credit_limit", { precision: 12, scale: 2 }),
 	paymentTerms: varchar("payment_terms"),
 	socialMediaLinks: jsonb("social_media_links"),
 	socialMediaPosts: jsonb("social_media_posts"),
@@ -219,10 +246,10 @@ export const automationTasks = pgTable("automation_tasks", {
 	completedAt: timestamp("completed_at", { mode: 'string' }),
 }, (table) => [
 	foreignKey({
-			columns: [table.assignedTo],
-			foreignColumns: [users.id],
-			name: "automation_tasks_assigned_to_users_id_fk"
-		}),
+		columns: [table.assignedTo],
+		foreignColumns: [users.id],
+		name: "automation_tasks_assigned_to_users_id_fk"
+	}),
 ]);
 
 export const systemBranding = pgTable("system_branding", {
@@ -253,10 +280,10 @@ export const systemBranding = pgTable("system_branding", {
 	borderColor: varchar("border_color").default('#e5e7eb'),
 }, (table) => [
 	foreignKey({
-			columns: [table.updatedBy],
-			foreignColumns: [users.id],
-			name: "system_branding_updated_by_users_id_fk"
-		}),
+		columns: [table.updatedBy],
+		foreignColumns: [users.id],
+		name: "system_branding_updated_by_users_id_fk"
+	}),
 ]);
 
 export const artworkColumns = pgTable("artwork_columns", {
@@ -279,7 +306,7 @@ export const errors = pgTable("errors", {
 	vendorName: varchar("vendor_name"),
 	responsibleParty: responsibleParty("responsible_party").notNull(),
 	resolution: resolutionType().notNull(),
-	costToLsd: numeric("cost_to_lsd", { precision: 12, scale:  2 }).default('0'),
+	costToLsd: numeric("cost_to_lsd", { precision: 12, scale: 2 }).default('0'),
 	productionRep: varchar("production_rep"),
 	orderRep: varchar("order_rep"),
 	clientRep: varchar("client_rep"),
@@ -292,20 +319,20 @@ export const errors = pgTable("errors", {
 	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow(),
 }, (table) => [
 	foreignKey({
-			columns: [table.orderId],
-			foreignColumns: [orders.id],
-			name: "errors_order_id_orders_id_fk"
-		}),
+		columns: [table.orderId],
+		foreignColumns: [orders.id],
+		name: "errors_order_id_orders_id_fk"
+	}),
 	foreignKey({
-			columns: [table.resolvedBy],
-			foreignColumns: [users.id],
-			name: "errors_resolved_by_users_id_fk"
-		}),
+		columns: [table.resolvedBy],
+		foreignColumns: [users.id],
+		name: "errors_resolved_by_users_id_fk"
+	}),
 	foreignKey({
-			columns: [table.createdBy],
-			foreignColumns: [users.id],
-			name: "errors_created_by_users_id_fk"
-		}),
+		columns: [table.createdBy],
+		foreignColumns: [users.id],
+		name: "errors_created_by_users_id_fk"
+	}),
 ]);
 
 export const espProducts = pgTable("esp_products", {
@@ -336,10 +363,10 @@ export const espProducts = pgTable("esp_products", {
 	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow(),
 }, (table) => [
 	foreignKey({
-			columns: [table.supplierId],
-			foreignColumns: [suppliers.id],
-			name: "esp_products_supplier_id_suppliers_id_fk"
-		}),
+		columns: [table.supplierId],
+		foreignColumns: [suppliers.id],
+		name: "esp_products_supplier_id_suppliers_id_fk"
+	}),
 	unique("esp_products_esp_product_id_unique").on(table.espProductId),
 ]);
 
@@ -368,10 +395,10 @@ export const distributorCentralProducts = pgTable("distributor_central_products"
 	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow(),
 }, (table) => [
 	foreignKey({
-			columns: [table.supplierId],
-			foreignColumns: [suppliers.id],
-			name: "distributor_central_products_supplier_id_suppliers_id_fk"
-		}),
+		columns: [table.supplierId],
+		foreignColumns: [suppliers.id],
+		name: "distributor_central_products_supplier_id_suppliers_id_fk"
+	}),
 	unique("distributor_central_products_dc_product_id_unique").on(table.dcProductId),
 ]);
 
@@ -416,16 +443,16 @@ export const kpiMetrics = pgTable("kpi_metrics", {
 	metricType: varchar("metric_type").notNull(),
 	period: varchar().notNull(),
 	periodDate: timestamp("period_date", { mode: 'string' }).notNull(),
-	value: numeric({ precision: 12, scale:  2 }).notNull(),
-	target: numeric({ precision: 12, scale:  2 }),
+	value: numeric({ precision: 12, scale: 2 }).notNull(),
+	target: numeric({ precision: 12, scale: 2 }),
 	metadata: jsonb(),
 	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
 }, (table) => [
 	foreignKey({
-			columns: [table.userId],
-			foreignColumns: [users.id],
-			name: "kpi_metrics_user_id_users_id_fk"
-		}),
+		columns: [table.userId],
+		foreignColumns: [users.id],
+		name: "kpi_metrics_user_id_users_id_fk"
+	}),
 ]);
 
 export const marketingSequences = pgTable("marketing_sequences", {
@@ -441,10 +468,10 @@ export const marketingSequences = pgTable("marketing_sequences", {
 	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow(),
 }, (table) => [
 	foreignKey({
-			columns: [table.createdBy],
-			foreignColumns: [users.id],
-			name: "marketing_sequences_created_by_users_id_fk"
-		}),
+		columns: [table.createdBy],
+		foreignColumns: [users.id],
+		name: "marketing_sequences_created_by_users_id_fk"
+	}),
 ]);
 
 export const newsletterCampaigns = pgTable("newsletter_campaigns", {
@@ -475,20 +502,20 @@ export const newsletterCampaigns = pgTable("newsletter_campaigns", {
 	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow(),
 }, (table) => [
 	foreignKey({
-			columns: [table.listId],
-			foreignColumns: [newsletterLists.id],
-			name: "newsletter_campaigns_list_id_newsletter_lists_id_fk"
-		}),
+		columns: [table.listId],
+		foreignColumns: [newsletterLists.id],
+		name: "newsletter_campaigns_list_id_newsletter_lists_id_fk"
+	}),
 	foreignKey({
-			columns: [table.templateId],
-			foreignColumns: [newsletterTemplates.id],
-			name: "newsletter_campaigns_template_id_newsletter_templates_id_fk"
-		}),
+		columns: [table.templateId],
+		foreignColumns: [newsletterTemplates.id],
+		name: "newsletter_campaigns_template_id_newsletter_templates_id_fk"
+	}),
 	foreignKey({
-			columns: [table.createdBy],
-			foreignColumns: [users.id],
-			name: "newsletter_campaigns_created_by_users_id_fk"
-		}),
+		columns: [table.createdBy],
+		foreignColumns: [users.id],
+		name: "newsletter_campaigns_created_by_users_id_fk"
+	}),
 ]);
 
 export const newsTracking = pgTable("news_tracking", {
@@ -520,15 +547,15 @@ export const newsletterAutomations = pgTable("newsletter_automations", {
 	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow(),
 }, (table) => [
 	foreignKey({
-			columns: [table.listId],
-			foreignColumns: [newsletterLists.id],
-			name: "newsletter_automations_list_id_newsletter_lists_id_fk"
-		}),
+		columns: [table.listId],
+		foreignColumns: [newsletterLists.id],
+		name: "newsletter_automations_list_id_newsletter_lists_id_fk"
+	}),
 	foreignKey({
-			columns: [table.createdBy],
-			foreignColumns: [users.id],
-			name: "newsletter_automations_created_by_users_id_fk"
-		}),
+		columns: [table.createdBy],
+		foreignColumns: [users.id],
+		name: "newsletter_automations_created_by_users_id_fk"
+	}),
 ]);
 
 export const vendorApprovalRequests = pgTable("vendor_approval_requests", {
@@ -546,30 +573,30 @@ export const vendorApprovalRequests = pgTable("vendor_approval_requests", {
 	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow(),
 }, (table) => [
 	foreignKey({
-			columns: [table.supplierId],
-			foreignColumns: [suppliers.id],
-			name: "vendor_approval_requests_supplier_id_suppliers_id_fk"
-		}),
+		columns: [table.supplierId],
+		foreignColumns: [suppliers.id],
+		name: "vendor_approval_requests_supplier_id_suppliers_id_fk"
+	}),
 	foreignKey({
-			columns: [table.productId],
-			foreignColumns: [products.id],
-			name: "vendor_approval_requests_product_id_products_id_fk"
-		}),
+		columns: [table.productId],
+		foreignColumns: [products.id],
+		name: "vendor_approval_requests_product_id_products_id_fk"
+	}),
 	foreignKey({
-			columns: [table.orderId],
-			foreignColumns: [orders.id],
-			name: "vendor_approval_requests_order_id_orders_id_fk"
-		}),
+		columns: [table.orderId],
+		foreignColumns: [orders.id],
+		name: "vendor_approval_requests_order_id_orders_id_fk"
+	}),
 	foreignKey({
-			columns: [table.requestedBy],
-			foreignColumns: [users.id],
-			name: "vendor_approval_requests_requested_by_users_id_fk"
-		}),
+		columns: [table.requestedBy],
+		foreignColumns: [users.id],
+		name: "vendor_approval_requests_requested_by_users_id_fk"
+	}),
 	foreignKey({
-			columns: [table.reviewedBy],
-			foreignColumns: [users.id],
-			name: "vendor_approval_requests_reviewed_by_users_id_fk"
-		}),
+		columns: [table.reviewedBy],
+		foreignColumns: [users.id],
+		name: "vendor_approval_requests_reviewed_by_users_id_fk"
+	}),
 ]);
 
 export const knowledgeBase = pgTable("knowledge_base", {
@@ -586,10 +613,10 @@ export const knowledgeBase = pgTable("knowledge_base", {
 	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
 }, (table) => [
 	foreignKey({
-			columns: [table.createdBy],
-			foreignColumns: [users.id],
-			name: "knowledge_base_created_by_users_id_fk"
-		}),
+		columns: [table.createdBy],
+		foreignColumns: [users.id],
+		name: "knowledge_base_created_by_users_id_fk"
+	}),
 ]);
 
 export const newsletterTemplates = pgTable("newsletter_templates", {
@@ -607,10 +634,10 @@ export const newsletterTemplates = pgTable("newsletter_templates", {
 	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow(),
 }, (table) => [
 	foreignKey({
-			columns: [table.createdBy],
-			foreignColumns: [users.id],
-			name: "newsletter_templates_created_by_users_id_fk"
-		}),
+		columns: [table.createdBy],
+		foreignColumns: [users.id],
+		name: "newsletter_templates_created_by_users_id_fk"
+	}),
 ]);
 
 export const newsletterLists = pgTable("newsletter_lists", {
@@ -624,10 +651,10 @@ export const newsletterLists = pgTable("newsletter_lists", {
 	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow(),
 }, (table) => [
 	foreignKey({
-			columns: [table.createdBy],
-			foreignColumns: [users.id],
-			name: "newsletter_lists_created_by_users_id_fk"
-		}),
+		columns: [table.createdBy],
+		foreignColumns: [users.id],
+		name: "newsletter_lists_created_by_users_id_fk"
+	}),
 ]);
 
 export const newsletterForms = pgTable("newsletter_forms", {
@@ -647,15 +674,15 @@ export const newsletterForms = pgTable("newsletter_forms", {
 	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow(),
 }, (table) => [
 	foreignKey({
-			columns: [table.listId],
-			foreignColumns: [newsletterLists.id],
-			name: "newsletter_forms_list_id_newsletter_lists_id_fk"
-		}),
+		columns: [table.listId],
+		foreignColumns: [newsletterLists.id],
+		name: "newsletter_forms_list_id_newsletter_lists_id_fk"
+	}),
 	foreignKey({
-			columns: [table.createdBy],
-			foreignColumns: [users.id],
-			name: "newsletter_forms_created_by_users_id_fk"
-		}),
+		columns: [table.createdBy],
+		foreignColumns: [users.id],
+		name: "newsletter_forms_created_by_users_id_fk"
+	}),
 ]);
 
 export const presentationFiles = pgTable("presentation_files", {
@@ -668,10 +695,10 @@ export const presentationFiles = pgTable("presentation_files", {
 	uploadedAt: timestamp("uploaded_at", { mode: 'string' }).defaultNow(),
 }, (table) => [
 	foreignKey({
-			columns: [table.presentationId],
-			foreignColumns: [presentations.id],
-			name: "presentation_files_presentation_id_presentations_id_fk"
-		}).onDelete("cascade"),
+		columns: [table.presentationId],
+		foreignColumns: [presentations.id],
+		name: "presentation_files_presentation_id_presentations_id_fk"
+	}).onDelete("cascade"),
 ]);
 
 export const newsletterSubscribers = pgTable("newsletter_subscribers", {
@@ -699,11 +726,11 @@ export const orders = pgTable("orders", {
 	assignedUserId: varchar("assigned_user_id"),
 	status: orderStatus().default('quote'),
 	orderType: varchar("order_type").default('quote'),
-	subtotal: numeric({ precision: 12, scale:  2 }).default('0'),
-	tax: numeric({ precision: 12, scale:  2 }).default('0'),
-	shipping: numeric({ precision: 12, scale:  2 }).default('0'),
-	total: numeric({ precision: 12, scale:  2 }).default('0'),
-	margin: numeric({ precision: 5, scale:  2 }).default('0'),
+	subtotal: numeric({ precision: 12, scale: 2 }).default('0'),
+	tax: numeric({ precision: 12, scale: 2 }).default('0'),
+	shipping: numeric({ precision: 12, scale: 2 }).default('0'),
+	total: numeric({ precision: 12, scale: 2 }).default('0'),
+	margin: numeric({ precision: 5, scale: 2 }).default('0'),
 	inHandsDate: timestamp("in_hands_date", { mode: 'string' }),
 	eventDate: timestamp("event_date", { mode: 'string' }),
 	supplierInHandsDate: timestamp("supplier_in_hands_date", { mode: 'string' }),
@@ -724,36 +751,36 @@ export const orders = pgTable("orders", {
 	csrUserId: varchar("csr_user_id"),
 	customerPo: varchar("customer_po"),
 	paymentTerms: varchar("payment_terms").default('Net 30'),
-	orderDiscount: numeric("order_discount", { precision: 12, scale:  2 }).default('0'),
+	orderDiscount: numeric("order_discount", { precision: 12, scale: 2 }).default('0'),
 	supplierNotes: text("supplier_notes"),
 	additionalInformation: text("additional_information"),
 	productionManagerId: varchar("production_manager_id"),
 }, (table) => [
 	foreignKey({
-			columns: [table.companyId],
-			foreignColumns: [companies.id],
-			name: "orders_company_id_companies_id_fk"
-		}),
+		columns: [table.companyId],
+		foreignColumns: [companies.id],
+		name: "orders_company_id_companies_id_fk"
+	}),
 	foreignKey({
-			columns: [table.contactId],
-			foreignColumns: [contacts.id],
-			name: "orders_contact_id_contacts_id_fk"
-		}),
+		columns: [table.contactId],
+		foreignColumns: [contacts.id],
+		name: "orders_contact_id_contacts_id_fk"
+	}),
 	foreignKey({
-			columns: [table.assignedUserId],
-			foreignColumns: [users.id],
-			name: "orders_assigned_user_id_users_id_fk"
-		}),
+		columns: [table.assignedUserId],
+		foreignColumns: [users.id],
+		name: "orders_assigned_user_id_users_id_fk"
+	}),
 	foreignKey({
-			columns: [table.csrUserId],
-			foreignColumns: [users.id],
-			name: "orders_csr_user_id_users_id_fk"
-		}),
+		columns: [table.csrUserId],
+		foreignColumns: [users.id],
+		name: "orders_csr_user_id_users_id_fk"
+	}),
 	foreignKey({
-			columns: [table.productionManagerId],
-			foreignColumns: [users.id],
-			name: "orders_production_manager_id_users_id_fk"
-		}),
+		columns: [table.productionManagerId],
+		foreignColumns: [users.id],
+		name: "orders_production_manager_id_users_id_fk"
+	}),
 	unique("orders_order_number_unique").on(table.orderNumber),
 ]);
 
@@ -765,7 +792,7 @@ export const quoteApprovals = pgTable("quote_approvals", {
 	status: varchar({ length: 50 }).default('pending').notNull(),
 	clientEmail: varchar("client_email", { length: 255 }),
 	clientName: varchar("client_name", { length: 255 }),
-	quoteTotal: numeric("quote_total", { precision: 12, scale:  2 }),
+	quoteTotal: numeric("quote_total", { precision: 12, scale: 2 }),
 	sentAt: timestamp("sent_at", { mode: 'string' }),
 	viewedAt: timestamp("viewed_at", { mode: 'string' }),
 	approvedAt: timestamp("approved_at", { mode: 'string' }),
@@ -778,10 +805,10 @@ export const quoteApprovals = pgTable("quote_approvals", {
 	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow(),
 }, (table) => [
 	foreignKey({
-			columns: [table.orderId],
-			foreignColumns: [orders.id],
-			name: "quote_approvals_order_id_orders_id_fk"
-		}),
+		columns: [table.orderId],
+		foreignColumns: [orders.id],
+		name: "quote_approvals_order_id_orders_id_fk"
+	}),
 	unique("quote_approvals_approval_token_unique").on(table.approvalToken),
 ]);
 
@@ -790,8 +817,8 @@ export const orderItems = pgTable("order_items", {
 	orderId: varchar("order_id"),
 	productId: varchar("product_id"),
 	quantity: integer().notNull(),
-	unitPrice: numeric("unit_price", { precision: 10, scale:  2 }).notNull(),
-	totalPrice: numeric("total_price", { precision: 12, scale:  2 }).notNull(),
+	unitPrice: numeric("unit_price", { precision: 10, scale: 2 }).notNull(),
+	totalPrice: numeric("total_price", { precision: 12, scale: 2 }).notNull(),
 	color: varchar(),
 	size: varchar(),
 	imprintLocation: varchar("imprint_location"),
@@ -799,27 +826,27 @@ export const orderItems = pgTable("order_items", {
 	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
 	supplierId: varchar("supplier_id"),
 	notes: text(),
-	cost: numeric({ precision: 10, scale:  2 }),
-	decorationCost: numeric("decoration_cost", { precision: 10, scale:  2 }),
-	charges: numeric({ precision: 10, scale:  2 }),
+	cost: numeric({ precision: 10, scale: 2 }),
+	decorationCost: numeric("decoration_cost", { precision: 10, scale: 2 }),
+	charges: numeric({ precision: 10, scale: 2 }),
 	sizePricing: jsonb("size_pricing"),
 	uomFactory: integer("uom_factory"),
 }, (table) => [
 	foreignKey({
-			columns: [table.orderId],
-			foreignColumns: [orders.id],
-			name: "order_items_order_id_orders_id_fk"
-		}),
+		columns: [table.orderId],
+		foreignColumns: [orders.id],
+		name: "order_items_order_id_orders_id_fk"
+	}),
 	foreignKey({
-			columns: [table.productId],
-			foreignColumns: [products.id],
-			name: "order_items_product_id_products_id_fk"
-		}),
+		columns: [table.productId],
+		foreignColumns: [products.id],
+		name: "order_items_product_id_products_id_fk"
+	}),
 	foreignKey({
-			columns: [table.supplierId],
-			foreignColumns: [suppliers.id],
-			name: "order_items_supplier_id_suppliers_id_fk"
-		}),
+		columns: [table.supplierId],
+		foreignColumns: [suppliers.id],
+		name: "order_items_supplier_id_suppliers_id_fk"
+	}),
 ]);
 
 export const productSearchIndex = pgTable("product_search_index", {
@@ -865,10 +892,10 @@ export const productionNotifications = pgTable("production_notifications", {
 	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
 }, (table) => [
 	foreignKey({
-			columns: [table.trackingId],
-			foreignColumns: [productionTracking.id],
-			name: "production_notifications_tracking_id_production_tracking_id_fk"
-		}).onDelete("cascade"),
+		columns: [table.trackingId],
+		foreignColumns: [productionTracking.id],
+		name: "production_notifications_tracking_id_production_tracking_id_fk"
+	}).onDelete("cascade"),
 ]);
 
 export const reportTemplates = pgTable("report_templates", {
@@ -886,10 +913,10 @@ export const reportTemplates = pgTable("report_templates", {
 	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow(),
 }, (table) => [
 	foreignKey({
-			columns: [table.createdBy],
-			foreignColumns: [users.id],
-			name: "report_templates_created_by_users_id_fk"
-		}),
+		columns: [table.createdBy],
+		foreignColumns: [users.id],
+		name: "report_templates_created_by_users_id_fk"
+	}),
 ]);
 
 export const productionStages = pgTable("production_stages", {
@@ -918,15 +945,15 @@ export const productionTracking = pgTable("production_tracking", {
 	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow(),
 }, (table) => [
 	foreignKey({
-			columns: [table.orderId],
-			foreignColumns: [orders.id],
-			name: "production_tracking_order_id_orders_id_fk"
-		}).onDelete("cascade"),
+		columns: [table.orderId],
+		foreignColumns: [orders.id],
+		name: "production_tracking_order_id_orders_id_fk"
+	}).onDelete("cascade"),
 	foreignKey({
-			columns: [table.currentStageId],
-			foreignColumns: [productionStages.id],
-			name: "production_tracking_current_stage_id_production_stages_id_fk"
-		}),
+		columns: [table.currentStageId],
+		foreignColumns: [productionStages.id],
+		name: "production_tracking_current_stage_id_production_stages_id_fk"
+	}),
 ]);
 
 export const sageProducts = pgTable("sage_products", {
@@ -942,7 +969,7 @@ export const sageProducts = pgTable("sage_products", {
 	features: text().array(),
 	materials: text().array(),
 	dimensions: varchar(),
-	weight: numeric({ precision: 10, scale:  4 }),
+	weight: numeric({ precision: 10, scale: 4 }),
 	eqpLevel: varchar("eqp_level"),
 	pricingStructure: jsonb("pricing_structure"),
 	quantityBreaks: jsonb("quantity_breaks"),
@@ -958,10 +985,10 @@ export const sageProducts = pgTable("sage_products", {
 	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow(),
 }, (table) => [
 	foreignKey({
-			columns: [table.supplierId],
-			foreignColumns: [suppliers.id],
-			name: "sage_products_supplier_id_suppliers_id_fk"
-		}),
+		columns: [table.supplierId],
+		foreignColumns: [suppliers.id],
+		name: "sage_products_supplier_id_suppliers_id_fk"
+	}),
 	unique("sage_products_sage_id_unique").on(table.sageId),
 ]);
 
@@ -977,13 +1004,13 @@ export const sequenceAnalytics = pgTable("sequence_analytics", {
 	totalBounced: integer("total_bounced").default(0),
 	totalMeetingsBooked: integer("total_meetings_booked").default(0),
 	totalDealsCreated: integer("total_deals_created").default(0),
-	totalRevenue: numeric("total_revenue", { precision: 10, scale:  2 }).default('0.00'),
+	totalRevenue: numeric("total_revenue", { precision: 10, scale: 2 }).default('0.00'),
 }, (table) => [
 	foreignKey({
-			columns: [table.sequenceId],
-			foreignColumns: [sequences.id],
-			name: "sequence_analytics_sequence_id_sequences_id_fk"
-		}).onDelete("cascade"),
+		columns: [table.sequenceId],
+		foreignColumns: [sequences.id],
+		name: "sequence_analytics_sequence_id_sequences_id_fk"
+	}).onDelete("cascade"),
 ]);
 
 export const sequenceEnrollments = pgTable("sequence_enrollments", {
@@ -1000,10 +1027,10 @@ export const sequenceEnrollments = pgTable("sequence_enrollments", {
 	unenrollReason: varchar("unenroll_reason"),
 }, (table) => [
 	foreignKey({
-			columns: [table.sequenceId],
-			foreignColumns: [sequences.id],
-			name: "sequence_enrollments_sequence_id_sequences_id_fk"
-		}).onDelete("cascade"),
+		columns: [table.sequenceId],
+		foreignColumns: [sequences.id],
+		name: "sequence_enrollments_sequence_id_sequences_id_fk"
+	}).onDelete("cascade"),
 ]);
 
 export const sequenceStepExecutions = pgTable("sequence_step_executions", {
@@ -1020,15 +1047,15 @@ export const sequenceStepExecutions = pgTable("sequence_step_executions", {
 	metadata: text(),
 }, (table) => [
 	foreignKey({
-			columns: [table.stepId],
-			foreignColumns: [sequenceSteps.id],
-			name: "sequence_step_executions_step_id_sequence_steps_id_fk"
-		}).onDelete("cascade"),
+		columns: [table.stepId],
+		foreignColumns: [sequenceSteps.id],
+		name: "sequence_step_executions_step_id_sequence_steps_id_fk"
+	}).onDelete("cascade"),
 	foreignKey({
-			columns: [table.enrollmentId],
-			foreignColumns: [sequenceEnrollments.id],
-			name: "sequence_step_executions_enrollment_id_sequence_enrollments_id_"
-		}).onDelete("cascade"),
+		columns: [table.enrollmentId],
+		foreignColumns: [sequenceEnrollments.id],
+		name: "sequence_step_executions_enrollment_id_sequence_enrollments_id_"
+	}).onDelete("cascade"),
 ]);
 
 export const sequenceSteps = pgTable("sequence_steps", {
@@ -1046,10 +1073,10 @@ export const sequenceSteps = pgTable("sequence_steps", {
 	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow(),
 }, (table) => [
 	foreignKey({
-			columns: [table.sequenceId],
-			foreignColumns: [sequences.id],
-			name: "sequence_steps_sequence_id_sequences_id_fk"
-		}).onDelete("cascade"),
+		columns: [table.sequenceId],
+		foreignColumns: [sequences.id],
+		name: "sequence_steps_sequence_id_sequences_id_fk"
+	}).onDelete("cascade"),
 ]);
 
 export const sequenceTemplates = pgTable("sequence_templates", {
@@ -1071,7 +1098,7 @@ export const products = pgTable("products", {
 	description: text(),
 	sku: varchar(),
 	supplierSku: varchar("supplier_sku"),
-	basePrice: numeric("base_price", { precision: 10, scale:  2 }),
+	basePrice: numeric("base_price", { precision: 10, scale: 2 }),
 	minimumQuantity: integer("minimum_quantity").default(1),
 	sizes: text().array(),
 	imprintMethods: text("imprint_methods"),
@@ -1085,15 +1112,15 @@ export const products = pgTable("products", {
 	colors: text().array(),
 }, (table) => [
 	foreignKey({
-			columns: [table.supplierId],
-			foreignColumns: [suppliers.id],
-			name: "products_supplier_id_suppliers_id_fk"
-		}),
+		columns: [table.supplierId],
+		foreignColumns: [suppliers.id],
+		name: "products_supplier_id_suppliers_id_fk"
+	}),
 	foreignKey({
-			columns: [table.categoryId],
-			foreignColumns: [productCategories.id],
-			name: "products_category_id_product_categories_id_fk"
-		}),
+		columns: [table.categoryId],
+		foreignColumns: [productCategories.id],
+		name: "products_category_id_product_categories_id_fk"
+	}),
 ]);
 
 export const slackMessages = pgTable("slack_messages", {
@@ -1133,12 +1160,12 @@ export const ssActivewearProducts = pgTable("ss_activewear_products", {
 	colorCode: varchar("color_code"),
 	sizeName: varchar("size_name"),
 	sizeCode: varchar("size_code"),
-	unitWeight: numeric("unit_weight", { precision: 10, scale:  4 }),
+	unitWeight: numeric("unit_weight", { precision: 10, scale: 4 }),
 	caseQty: integer("case_qty"),
-	piecePrice: numeric("piece_price", { precision: 10, scale:  2 }),
-	dozenPrice: numeric("dozen_price", { precision: 10, scale:  2 }),
-	casePrice: numeric("case_price", { precision: 10, scale:  2 }),
-	customerPrice: numeric("customer_price", { precision: 10, scale:  2 }),
+	piecePrice: numeric("piece_price", { precision: 10, scale: 2 }),
+	dozenPrice: numeric("dozen_price", { precision: 10, scale: 2 }),
+	casePrice: numeric("case_price", { precision: 10, scale: 2 }),
+	customerPrice: numeric("customer_price", { precision: 10, scale: 2 }),
 	qty: integer().default(0),
 	colorFrontImage: varchar("color_front_image"),
 	colorBackImage: varchar("color_back_image"),
@@ -1233,8 +1260,8 @@ export const suppliers = pgTable("suppliers", {
 	notes: text(),
 	isPreferred: boolean("is_preferred").default(false),
 	doNotOrder: boolean("do_not_order").default(false),
-	ytdSpend: numeric("ytd_spend", { precision: 12, scale:  2 }).default('0'),
-	lastYearSpend: numeric("last_year_spend", { precision: 12, scale:  2 }).default('0'),
+	ytdSpend: numeric("ytd_spend", { precision: 12, scale: 2 }).default('0'),
+	lastYearSpend: numeric("last_year_spend", { precision: 12, scale: 2 }).default('0'),
 	preferredBenefits: jsonb("preferred_benefits"),
 	vendorOffers: jsonb("vendor_offers"),
 	autoNotifications: boolean("auto_notifications").default(true),
@@ -1262,15 +1289,15 @@ export const newsletterAnalytics = pgTable("newsletter_analytics", {
 	timestamp: timestamp({ mode: 'string' }).defaultNow(),
 }, (table) => [
 	foreignKey({
-			columns: [table.campaignId],
-			foreignColumns: [newsletterCampaigns.id],
-			name: "newsletter_analytics_campaign_id_newsletter_campaigns_id_fk"
-		}),
+		columns: [table.campaignId],
+		foreignColumns: [newsletterCampaigns.id],
+		name: "newsletter_analytics_campaign_id_newsletter_campaigns_id_fk"
+	}),
 	foreignKey({
-			columns: [table.subscriberId],
-			foreignColumns: [newsletterSubscribers.id],
-			name: "newsletter_analytics_subscriber_id_newsletter_subscribers_id_fk"
-		}),
+		columns: [table.subscriberId],
+		foreignColumns: [newsletterSubscribers.id],
+		name: "newsletter_analytics_subscriber_id_newsletter_subscribers_id_fk"
+	}),
 ]);
 
 export const presentations = pgTable("presentations", {
@@ -1302,15 +1329,15 @@ export const communications = pgTable("communications", {
 	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
 }, (table) => [
 	foreignKey({
-			columns: [table.orderId],
-			foreignColumns: [orders.id],
-			name: "communications_order_id_orders_id_fk"
-		}).onDelete("cascade"),
+		columns: [table.orderId],
+		foreignColumns: [orders.id],
+		name: "communications_order_id_orders_id_fk"
+	}).onDelete("cascade"),
 	foreignKey({
-			columns: [table.userId],
-			foreignColumns: [users.id],
-			name: "communications_user_id_users_id_fk"
-		}),
+		columns: [table.userId],
+		foreignColumns: [users.id],
+		name: "communications_user_id_users_id_fk"
+	}),
 ]);
 
 export const notifications = pgTable("notifications", {
@@ -1326,25 +1353,25 @@ export const notifications = pgTable("notifications", {
 	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
 }, (table) => [
 	foreignKey({
-			columns: [table.recipientId],
-			foreignColumns: [users.id],
-			name: "notifications_recipient_id_users_id_fk"
-		}),
+		columns: [table.recipientId],
+		foreignColumns: [users.id],
+		name: "notifications_recipient_id_users_id_fk"
+	}),
 	foreignKey({
-			columns: [table.senderId],
-			foreignColumns: [users.id],
-			name: "notifications_sender_id_users_id_fk"
-		}),
+		columns: [table.senderId],
+		foreignColumns: [users.id],
+		name: "notifications_sender_id_users_id_fk"
+	}),
 	foreignKey({
-			columns: [table.orderId],
-			foreignColumns: [orders.id],
-			name: "notifications_order_id_orders_id_fk"
-		}),
+		columns: [table.orderId],
+		foreignColumns: [orders.id],
+		name: "notifications_order_id_orders_id_fk"
+	}),
 	foreignKey({
-			columns: [table.activityId],
-			foreignColumns: [projectActivities.id],
-			name: "notifications_activity_id_project_activities_id_fk"
-		}),
+		columns: [table.activityId],
+		foreignColumns: [projectActivities.id],
+		name: "notifications_activity_id_project_activities_id_fk"
+	}),
 ]);
 
 export const projectActivities = pgTable("project_activities", {
@@ -1359,15 +1386,15 @@ export const projectActivities = pgTable("project_activities", {
 	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
 }, (table) => [
 	foreignKey({
-			columns: [table.orderId],
-			foreignColumns: [orders.id],
-			name: "project_activities_order_id_orders_id_fk"
-		}).onDelete("cascade"),
+		columns: [table.orderId],
+		foreignColumns: [orders.id],
+		name: "project_activities_order_id_orders_id_fk"
+	}).onDelete("cascade"),
 	foreignKey({
-			columns: [table.userId],
-			foreignColumns: [users.id],
-			name: "project_activities_user_id_users_id_fk"
-		}),
+		columns: [table.userId],
+		foreignColumns: [users.id],
+		name: "project_activities_user_id_users_id_fk"
+	}),
 ]);
 
 export const artworkApprovals = pgTable("artwork_approvals", {
@@ -1389,20 +1416,20 @@ export const artworkApprovals = pgTable("artwork_approvals", {
 	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow(),
 }, (table) => [
 	foreignKey({
-			columns: [table.orderId],
-			foreignColumns: [orders.id],
-			name: "artwork_approvals_order_id_orders_id_fk"
-		}),
+		columns: [table.orderId],
+		foreignColumns: [orders.id],
+		name: "artwork_approvals_order_id_orders_id_fk"
+	}),
 	foreignKey({
-			columns: [table.orderItemId],
-			foreignColumns: [orderItems.id],
-			name: "artwork_approvals_order_item_id_order_items_id_fk"
-		}),
+		columns: [table.orderItemId],
+		foreignColumns: [orderItems.id],
+		name: "artwork_approvals_order_item_id_order_items_id_fk"
+	}),
 	foreignKey({
-			columns: [table.artworkFileId],
-			foreignColumns: [artworkFiles.id],
-			name: "artwork_approvals_artwork_file_id_artwork_files_id_fk"
-		}),
+		columns: [table.artworkFileId],
+		foreignColumns: [artworkFiles.id],
+		name: "artwork_approvals_artwork_file_id_artwork_files_id_fk"
+	}),
 	unique("artwork_approvals_approval_token_unique").on(table.approvalToken),
 ]);
 
@@ -1421,20 +1448,20 @@ export const attachments = pgTable("attachments", {
 	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow(),
 }, (table) => [
 	foreignKey({
-			columns: [table.orderId],
-			foreignColumns: [orders.id],
-			name: "attachments_order_id_orders_id_fk"
-		}).onDelete("cascade"),
+		columns: [table.orderId],
+		foreignColumns: [orders.id],
+		name: "attachments_order_id_orders_id_fk"
+	}).onDelete("cascade"),
 	foreignKey({
-			columns: [table.communicationId],
-			foreignColumns: [communications.id],
-			name: "attachments_communication_id_communications_id_fk"
-		}).onDelete("cascade"),
+		columns: [table.communicationId],
+		foreignColumns: [communications.id],
+		name: "attachments_communication_id_communications_id_fk"
+	}).onDelete("cascade"),
 	foreignKey({
-			columns: [table.uploadedBy],
-			foreignColumns: [users.id],
-			name: "attachments_uploaded_by_users_id_fk"
-		}),
+		columns: [table.uploadedBy],
+		foreignColumns: [users.id],
+		name: "attachments_uploaded_by_users_id_fk"
+	}),
 ]);
 
 export const integrationSettings = pgTable("integration_settings", {
@@ -1466,10 +1493,10 @@ export const integrationSettings = pgTable("integration_settings", {
 	sanmarPassword: text("sanmar_password"),
 }, (table) => [
 	foreignKey({
-			columns: [table.updatedBy],
-			foreignColumns: [users.id],
-			name: "integration_settings_updated_by_users_id_fk"
-		}),
+		columns: [table.updatedBy],
+		foreignColumns: [users.id],
+		name: "integration_settings_updated_by_users_id_fk"
+	}),
 ]);
 
 export const presentationProducts = pgTable("presentation_products", {
@@ -1477,22 +1504,22 @@ export const presentationProducts = pgTable("presentation_products", {
 	presentationId: varchar("presentation_id").notNull(),
 	productId: varchar("product_id"),
 	productName: varchar("product_name").notNull(),
-	suggestedPrice: numeric("suggested_price", { precision: 10, scale:  2 }),
+	suggestedPrice: numeric("suggested_price", { precision: 10, scale: 2 }),
 	suggestedQuantity: integer("suggested_quantity"),
 	reasoning: text(),
 	isIncluded: boolean("is_included").default(true),
 	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
 }, (table) => [
 	foreignKey({
-			columns: [table.presentationId],
-			foreignColumns: [presentations.id],
-			name: "presentation_products_presentation_id_presentations_id_fk"
-		}).onDelete("cascade"),
+		columns: [table.presentationId],
+		foreignColumns: [presentations.id],
+		name: "presentation_products_presentation_id_presentations_id_fk"
+	}).onDelete("cascade"),
 	foreignKey({
-			columns: [table.productId],
-			foreignColumns: [products.id],
-			name: "presentation_products_product_id_products_id_fk"
-		}),
+		columns: [table.productId],
+		foreignColumns: [products.id],
+		name: "presentation_products_product_id_products_id_fk"
+	}),
 ]);
 
 export const orderFiles = pgTable("order_files", {
@@ -1513,20 +1540,20 @@ export const orderFiles = pgTable("order_files", {
 	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow(),
 }, (table) => [
 	foreignKey({
-			columns: [table.orderId],
-			foreignColumns: [orders.id],
-			name: "order_files_order_id_orders_id_fk"
-		}),
+		columns: [table.orderId],
+		foreignColumns: [orders.id],
+		name: "order_files_order_id_orders_id_fk"
+	}),
 	foreignKey({
-			columns: [table.orderItemId],
-			foreignColumns: [orderItems.id],
-			name: "order_files_order_item_id_order_items_id_fk"
-		}),
+		columns: [table.orderItemId],
+		foreignColumns: [orderItems.id],
+		name: "order_files_order_item_id_order_items_id_fk"
+	}),
 	foreignKey({
-			columns: [table.uploadedBy],
-			foreignColumns: [users.id],
-			name: "order_files_uploaded_by_users_id_fk"
-		}),
+		columns: [table.uploadedBy],
+		foreignColumns: [users.id],
+		name: "order_files_uploaded_by_users_id_fk"
+	}),
 ]);
 
 export const passwordResets = pgTable("password_resets", {
@@ -1538,10 +1565,10 @@ export const passwordResets = pgTable("password_resets", {
 	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
 }, (table) => [
 	foreignKey({
-			columns: [table.userId],
-			foreignColumns: [users.id],
-			name: "password_resets_user_id_users_id_fk"
-		}),
+		columns: [table.userId],
+		foreignColumns: [users.id],
+		name: "password_resets_user_id_users_id_fk"
+	}),
 	unique("password_resets_token_unique").on(table.token),
 ]);
 
@@ -1556,33 +1583,11 @@ export const userInvitations = pgTable("user_invitations", {
 	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
 }, (table) => [
 	foreignKey({
-			columns: [table.invitedBy],
-			foreignColumns: [users.id],
-			name: "user_invitations_invited_by_users_id_fk"
-		}),
+		columns: [table.invitedBy],
+		foreignColumns: [users.id],
+		name: "user_invitations_invited_by_users_id_fk"
+	}),
 	unique("user_invitations_token_unique").on(table.token),
-]);
-
-export const artworkItems = pgTable("artwork_items", {
-	id: varchar().default(gen_random_uuid()).primaryKey().notNull(),
-	orderItemId: varchar("order_item_id").notNull(),
-	name: varchar({ length: 255 }).notNull(),
-	artworkType: varchar("artwork_type", { length: 100 }),
-	location: varchar({ length: 255 }),
-	color: varchar({ length: 100 }),
-	size: varchar({ length: 100 }),
-	status: varchar({ length: 50 }).default('pending').notNull(),
-	fileName: varchar("file_name", { length: 500 }),
-	filePath: varchar("file_path", { length: 500 }),
-	notes: text(),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
-	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow(),
-}, (table) => [
-	foreignKey({
-			columns: [table.orderItemId],
-			foreignColumns: [orderItems.id],
-			name: "artwork_items_order_item_id_order_items_id_fk"
-		}),
 ]);
 
 export const generatedDocuments = pgTable("generated_documents", {
@@ -1603,18 +1608,40 @@ export const generatedDocuments = pgTable("generated_documents", {
 	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow(),
 }, (table) => [
 	foreignKey({
-			columns: [table.orderId],
-			foreignColumns: [orders.id],
-			name: "generated_documents_order_id_orders_id_fk"
-		}).onDelete("cascade"),
+		columns: [table.orderId],
+		foreignColumns: [orders.id],
+		name: "generated_documents_order_id_orders_id_fk"
+	}).onDelete("cascade"),
 	foreignKey({
-			columns: [table.vendorId],
-			foreignColumns: [suppliers.id],
-			name: "generated_documents_vendor_id_suppliers_id_fk"
-		}),
+		columns: [table.vendorId],
+		foreignColumns: [suppliers.id],
+		name: "generated_documents_vendor_id_suppliers_id_fk"
+	}),
 	foreignKey({
-			columns: [table.generatedBy],
-			foreignColumns: [users.id],
-			name: "generated_documents_generated_by_users_id_fk"
-		}),
+		columns: [table.generatedBy],
+		foreignColumns: [users.id],
+		name: "generated_documents_generated_by_users_id_fk"
+	}),
+]);
+
+export const artworkItems = pgTable("artwork_items", {
+	id: varchar().default(gen_random_uuid()).primaryKey().notNull(),
+	orderItemId: varchar("order_item_id").notNull(),
+	name: varchar({ length: 255 }).notNull(),
+	artworkType: varchar("artwork_type", { length: 100 }),
+	location: varchar({ length: 255 }),
+	color: varchar({ length: 100 }),
+	size: varchar({ length: 100 }),
+	status: varchar({ length: 50 }).default('pending').notNull(),
+	fileName: varchar("file_name", { length: 500 }),
+	filePath: varchar("file_path", { length: 500 }),
+	notes: text(),
+	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow(),
+}, (table) => [
+	foreignKey({
+		columns: [table.orderItemId],
+		foreignColumns: [orderItems.id],
+		name: "artwork_items_order_item_id_order_items_id_fk"
+	}),
 ]);

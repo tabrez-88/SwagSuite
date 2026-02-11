@@ -1,14 +1,15 @@
 import { relations } from "drizzle-orm/relations";
 import { users, activities, companies, contacts, suppliers, artworkColumns, artworkCards, orders, artworkFiles, dataUploads, automationTasks, systemBranding, errors, espProducts, distributorCentralProducts, kpiMetrics, marketingSequences, newsletterLists, newsletterCampaigns, newsletterTemplates, newsletterAutomations, vendorApprovalRequests, products, knowledgeBase, newsletterForms, presentations, presentationFiles, quoteApprovals, orderItems, productionTracking, productionNotifications, reportTemplates, productionStages, sageProducts, sequences, sequenceAnalytics, sequenceEnrollments, sequenceSteps, sequenceStepExecutions, productCategories, newsletterAnalytics, newsletterSubscribers, communications, notifications, projectActivities, artworkApprovals, attachments, integrationSettings, presentationProducts, orderFiles, passwordResets, userInvitations, artworkItems, generatedDocuments } from "./schema";
+import { users, activities, artworkColumns, artworkCards, orders, companies, artworkFiles, contacts, suppliers, dataUploads, automationTasks, errors, espProducts, distributorCentralProducts, kpiMetrics, marketingSequences, newsletterLists, newsletterCampaigns, newsletterTemplates, newsletterAutomations, knowledgeBase, newsletterForms, presentations, presentationFiles, orderItems, products, productionTracking, productionNotifications, reportTemplates, productionStages, sageProducts, sequences, sequenceAnalytics, sequenceEnrollments, sequenceSteps, sequenceStepExecutions, productCategories, newsletterAnalytics, newsletterSubscribers, communications, notifications, projectActivities, artworkApprovals, attachments, integrationSettings, presentationProducts, orderFiles, passwordResets, userInvitations, artworkItems } from "./schema";
 
-export const activitiesRelations = relations(activities, ({one}) => ({
+export const activitiesRelations = relations(activities, ({ one }) => ({
 	user: one(users, {
 		fields: [activities.userId],
 		references: [users.id]
 	}),
 }));
 
-export const usersRelations = relations(users, ({many}) => ({
+export const usersRelations = relations(users, ({ many }) => ({
 	activities: many(activities),
 	artworkCards: many(artworkCards),
 	artworkFiles: many(artworkFiles),
@@ -61,7 +62,7 @@ export const usersRelations = relations(users, ({many}) => ({
 	generatedDocuments: many(generatedDocuments),
 }));
 
-export const contactsRelations = relations(contacts, ({one, many}) => ({
+export const contactsRelations = relations(contacts, ({ one, many }) => ({
 	company: one(companies, {
 		fields: [contacts.companyId],
 		references: [companies.id]
@@ -73,14 +74,14 @@ export const contactsRelations = relations(contacts, ({one, many}) => ({
 	orders: many(orders),
 }));
 
-export const companiesRelations = relations(companies, ({many}) => ({
+export const companiesRelations = relations(companies, ({ many }) => ({
 	contacts: many(contacts),
 	artworkCards: many(artworkCards),
 	artworkFiles: many(artworkFiles),
 	orders: many(orders),
 }));
 
-export const suppliersRelations = relations(suppliers, ({many}) => ({
+export const suppliersRelations = relations(suppliers, ({ many }) => ({
 	contacts: many(contacts),
 	espProducts: many(espProducts),
 	distributorCentralProducts: many(distributorCentralProducts),
@@ -91,7 +92,7 @@ export const suppliersRelations = relations(suppliers, ({many}) => ({
 	generatedDocuments: many(generatedDocuments),
 }));
 
-export const artworkCardsRelations = relations(artworkCards, ({one}) => ({
+export const artworkCardsRelations = relations(artworkCards, ({ one }) => ({
 	artworkColumn: one(artworkColumns, {
 		fields: [artworkCards.columnId],
 		references: [artworkColumns.id]
@@ -110,11 +111,11 @@ export const artworkCardsRelations = relations(artworkCards, ({one}) => ({
 	}),
 }));
 
-export const artworkColumnsRelations = relations(artworkColumns, ({many}) => ({
+export const artworkColumnsRelations = relations(artworkColumns, ({ many }) => ({
 	artworkCards: many(artworkCards),
 }));
 
-export const ordersRelations = relations(orders, ({one, many}) => ({
+export const ordersRelations = relations(orders, ({ one, many }) => ({
 	artworkCards: many(artworkCards),
 	artworkFiles: many(artworkFiles),
 	errors: many(errors),
@@ -154,7 +155,7 @@ export const ordersRelations = relations(orders, ({one, many}) => ({
 	generatedDocuments: many(generatedDocuments),
 }));
 
-export const artworkFilesRelations = relations(artworkFiles, ({one, many}) => ({
+export const artworkFilesRelations = relations(artworkFiles, ({ one, many }) => ({
 	order: one(orders, {
 		fields: [artworkFiles.orderId],
 		references: [orders.id]
@@ -170,28 +171,28 @@ export const artworkFilesRelations = relations(artworkFiles, ({one, many}) => ({
 	artworkApprovals: many(artworkApprovals),
 }));
 
-export const dataUploadsRelations = relations(dataUploads, ({one}) => ({
-	user: one(users, {
-		fields: [dataUploads.uploadedBy],
-		references: [users.id]
-	}),
-}));
-
-export const automationTasksRelations = relations(automationTasks, ({one}) => ({
-	user: one(users, {
-		fields: [automationTasks.assignedTo],
-		references: [users.id]
-	}),
-}));
-
-export const systemBrandingRelations = relations(systemBranding, ({one}) => ({
+export const systemBrandingRelations = relations(systemBranding, ({ one }) => ({
 	user: one(users, {
 		fields: [systemBranding.updatedBy],
 		references: [users.id]
 	}),
 }));
 
-export const errorsRelations = relations(errors, ({one}) => ({
+export const dataUploadsRelations = relations(dataUploads, ({ one }) => ({
+	user: one(users, {
+		fields: [dataUploads.uploadedBy],
+		references: [users.id]
+	}),
+}));
+
+export const automationTasksRelations = relations(automationTasks, ({ one }) => ({
+	user: one(users, {
+		fields: [automationTasks.assignedTo],
+		references: [users.id]
+	}),
+}));
+
+export const errorsRelations = relations(errors, ({ one }) => ({
 	order: one(orders, {
 		fields: [errors.orderId],
 		references: [orders.id]
@@ -208,35 +209,35 @@ export const errorsRelations = relations(errors, ({one}) => ({
 	}),
 }));
 
-export const espProductsRelations = relations(espProducts, ({one}) => ({
+export const espProductsRelations = relations(espProducts, ({ one }) => ({
 	supplier: one(suppliers, {
 		fields: [espProducts.supplierId],
 		references: [suppliers.id]
 	}),
 }));
 
-export const distributorCentralProductsRelations = relations(distributorCentralProducts, ({one}) => ({
+export const distributorCentralProductsRelations = relations(distributorCentralProducts, ({ one }) => ({
 	supplier: one(suppliers, {
 		fields: [distributorCentralProducts.supplierId],
 		references: [suppliers.id]
 	}),
 }));
 
-export const kpiMetricsRelations = relations(kpiMetrics, ({one}) => ({
+export const kpiMetricsRelations = relations(kpiMetrics, ({ one }) => ({
 	user: one(users, {
 		fields: [kpiMetrics.userId],
 		references: [users.id]
 	}),
 }));
 
-export const marketingSequencesRelations = relations(marketingSequences, ({one}) => ({
+export const marketingSequencesRelations = relations(marketingSequences, ({ one }) => ({
 	user: one(users, {
 		fields: [marketingSequences.createdBy],
 		references: [users.id]
 	}),
 }));
 
-export const newsletterCampaignsRelations = relations(newsletterCampaigns, ({one, many}) => ({
+export const newsletterCampaignsRelations = relations(newsletterCampaigns, ({ one, many }) => ({
 	newsletterList: one(newsletterLists, {
 		fields: [newsletterCampaigns.listId],
 		references: [newsletterLists.id]
@@ -252,7 +253,7 @@ export const newsletterCampaignsRelations = relations(newsletterCampaigns, ({one
 	newsletterAnalytics: many(newsletterAnalytics),
 }));
 
-export const newsletterListsRelations = relations(newsletterLists, ({one, many}) => ({
+export const newsletterListsRelations = relations(newsletterLists, ({ one, many }) => ({
 	newsletterCampaigns: many(newsletterCampaigns),
 	newsletterAutomations: many(newsletterAutomations),
 	user: one(users, {
@@ -262,7 +263,7 @@ export const newsletterListsRelations = relations(newsletterLists, ({one, many})
 	newsletterForms: many(newsletterForms),
 }));
 
-export const newsletterTemplatesRelations = relations(newsletterTemplates, ({one, many}) => ({
+export const newsletterTemplatesRelations = relations(newsletterTemplates, ({ one, many }) => ({
 	newsletterCampaigns: many(newsletterCampaigns),
 	user: one(users, {
 		fields: [newsletterTemplates.createdBy],
@@ -270,7 +271,7 @@ export const newsletterTemplatesRelations = relations(newsletterTemplates, ({one
 	}),
 }));
 
-export const newsletterAutomationsRelations = relations(newsletterAutomations, ({one}) => ({
+export const newsletterAutomationsRelations = relations(newsletterAutomations, ({ one }) => ({
 	newsletterList: one(newsletterLists, {
 		fields: [newsletterAutomations.listId],
 		references: [newsletterLists.id]
@@ -281,7 +282,7 @@ export const newsletterAutomationsRelations = relations(newsletterAutomations, (
 	}),
 }));
 
-export const vendorApprovalRequestsRelations = relations(vendorApprovalRequests, ({one}) => ({
+export const vendorApprovalRequestsRelations = relations(vendorApprovalRequests, ({ one }) => ({
 	supplier: one(suppliers, {
 		fields: [vendorApprovalRequests.supplierId],
 		references: [suppliers.id]
@@ -306,7 +307,7 @@ export const vendorApprovalRequestsRelations = relations(vendorApprovalRequests,
 	}),
 }));
 
-export const productsRelations = relations(products, ({one, many}) => ({
+export const productsRelations = relations(products, ({ one, many }) => ({
 	vendorApprovalRequests: many(vendorApprovalRequests),
 	orderItems: many(orderItems),
 	supplier: one(suppliers, {
@@ -320,14 +321,14 @@ export const productsRelations = relations(products, ({one, many}) => ({
 	presentationProducts: many(presentationProducts),
 }));
 
-export const knowledgeBaseRelations = relations(knowledgeBase, ({one}) => ({
+export const knowledgeBaseRelations = relations(knowledgeBase, ({ one }) => ({
 	user: one(users, {
 		fields: [knowledgeBase.createdBy],
 		references: [users.id]
 	}),
 }));
 
-export const newsletterFormsRelations = relations(newsletterForms, ({one}) => ({
+export const newsletterFormsRelations = relations(newsletterForms, ({ one }) => ({
 	newsletterList: one(newsletterLists, {
 		fields: [newsletterForms.listId],
 		references: [newsletterLists.id]
@@ -338,26 +339,26 @@ export const newsletterFormsRelations = relations(newsletterForms, ({one}) => ({
 	}),
 }));
 
-export const presentationFilesRelations = relations(presentationFiles, ({one}) => ({
+export const presentationFilesRelations = relations(presentationFiles, ({ one }) => ({
 	presentation: one(presentations, {
 		fields: [presentationFiles.presentationId],
 		references: [presentations.id]
 	}),
 }));
 
-export const presentationsRelations = relations(presentations, ({many}) => ({
+export const presentationsRelations = relations(presentations, ({ many }) => ({
 	presentationFiles: many(presentationFiles),
 	presentationProducts: many(presentationProducts),
 }));
 
-export const quoteApprovalsRelations = relations(quoteApprovals, ({one}) => ({
+export const quoteApprovalsRelations = relations(quoteApprovals, ({ one }) => ({
 	order: one(orders, {
 		fields: [quoteApprovals.orderId],
 		references: [orders.id]
 	}),
 }));
 
-export const orderItemsRelations = relations(orderItems, ({one, many}) => ({
+export const orderItemsRelations = relations(orderItems, ({ one, many }) => ({
 	order: one(orders, {
 		fields: [orderItems.orderId],
 		references: [orders.id]
@@ -375,14 +376,14 @@ export const orderItemsRelations = relations(orderItems, ({one, many}) => ({
 	artworkItems: many(artworkItems),
 }));
 
-export const productionNotificationsRelations = relations(productionNotifications, ({one}) => ({
+export const productionNotificationsRelations = relations(productionNotifications, ({ one }) => ({
 	productionTracking: one(productionTracking, {
 		fields: [productionNotifications.trackingId],
 		references: [productionTracking.id]
 	}),
 }));
 
-export const productionTrackingRelations = relations(productionTracking, ({one, many}) => ({
+export const productionTrackingRelations = relations(productionTracking, ({ one, many }) => ({
 	productionNotifications: many(productionNotifications),
 	order: one(orders, {
 		fields: [productionTracking.orderId],
@@ -394,38 +395,38 @@ export const productionTrackingRelations = relations(productionTracking, ({one, 
 	}),
 }));
 
-export const reportTemplatesRelations = relations(reportTemplates, ({one}) => ({
+export const reportTemplatesRelations = relations(reportTemplates, ({ one }) => ({
 	user: one(users, {
 		fields: [reportTemplates.createdBy],
 		references: [users.id]
 	}),
 }));
 
-export const productionStagesRelations = relations(productionStages, ({many}) => ({
+export const productionStagesRelations = relations(productionStages, ({ many }) => ({
 	productionTrackings: many(productionTracking),
 }));
 
-export const sageProductsRelations = relations(sageProducts, ({one}) => ({
+export const sageProductsRelations = relations(sageProducts, ({ one }) => ({
 	supplier: one(suppliers, {
 		fields: [sageProducts.supplierId],
 		references: [suppliers.id]
 	}),
 }));
 
-export const sequenceAnalyticsRelations = relations(sequenceAnalytics, ({one}) => ({
+export const sequenceAnalyticsRelations = relations(sequenceAnalytics, ({ one }) => ({
 	sequence: one(sequences, {
 		fields: [sequenceAnalytics.sequenceId],
 		references: [sequences.id]
 	}),
 }));
 
-export const sequencesRelations = relations(sequences, ({many}) => ({
+export const sequencesRelations = relations(sequences, ({ many }) => ({
 	sequenceAnalytics: many(sequenceAnalytics),
 	sequenceEnrollments: many(sequenceEnrollments),
 	sequenceSteps: many(sequenceSteps),
 }));
 
-export const sequenceEnrollmentsRelations = relations(sequenceEnrollments, ({one, many}) => ({
+export const sequenceEnrollmentsRelations = relations(sequenceEnrollments, ({ one, many }) => ({
 	sequence: one(sequences, {
 		fields: [sequenceEnrollments.sequenceId],
 		references: [sequences.id]
@@ -433,7 +434,7 @@ export const sequenceEnrollmentsRelations = relations(sequenceEnrollments, ({one
 	sequenceStepExecutions: many(sequenceStepExecutions),
 }));
 
-export const sequenceStepExecutionsRelations = relations(sequenceStepExecutions, ({one}) => ({
+export const sequenceStepExecutionsRelations = relations(sequenceStepExecutions, ({ one }) => ({
 	sequenceStep: one(sequenceSteps, {
 		fields: [sequenceStepExecutions.stepId],
 		references: [sequenceSteps.id]
@@ -444,7 +445,7 @@ export const sequenceStepExecutionsRelations = relations(sequenceStepExecutions,
 	}),
 }));
 
-export const sequenceStepsRelations = relations(sequenceSteps, ({one, many}) => ({
+export const sequenceStepsRelations = relations(sequenceSteps, ({ one, many }) => ({
 	sequenceStepExecutions: many(sequenceStepExecutions),
 	sequence: one(sequences, {
 		fields: [sequenceSteps.sequenceId],
@@ -452,11 +453,11 @@ export const sequenceStepsRelations = relations(sequenceSteps, ({one, many}) => 
 	}),
 }));
 
-export const productCategoriesRelations = relations(productCategories, ({many}) => ({
+export const productCategoriesRelations = relations(productCategories, ({ many }) => ({
 	products: many(products),
 }));
 
-export const newsletterAnalyticsRelations = relations(newsletterAnalytics, ({one}) => ({
+export const newsletterAnalyticsRelations = relations(newsletterAnalytics, ({ one }) => ({
 	newsletterCampaign: one(newsletterCampaigns, {
 		fields: [newsletterAnalytics.campaignId],
 		references: [newsletterCampaigns.id]
@@ -467,11 +468,11 @@ export const newsletterAnalyticsRelations = relations(newsletterAnalytics, ({one
 	}),
 }));
 
-export const newsletterSubscribersRelations = relations(newsletterSubscribers, ({many}) => ({
+export const newsletterSubscribersRelations = relations(newsletterSubscribers, ({ many }) => ({
 	newsletterAnalytics: many(newsletterAnalytics),
 }));
 
-export const communicationsRelations = relations(communications, ({one, many}) => ({
+export const communicationsRelations = relations(communications, ({ one, many }) => ({
 	order: one(orders, {
 		fields: [communications.orderId],
 		references: [orders.id]
@@ -483,7 +484,7 @@ export const communicationsRelations = relations(communications, ({one, many}) =
 	attachments: many(attachments),
 }));
 
-export const notificationsRelations = relations(notifications, ({one}) => ({
+export const notificationsRelations = relations(notifications, ({ one }) => ({
 	user_recipientId: one(users, {
 		fields: [notifications.recipientId],
 		references: [users.id],
@@ -504,7 +505,7 @@ export const notificationsRelations = relations(notifications, ({one}) => ({
 	}),
 }));
 
-export const projectActivitiesRelations = relations(projectActivities, ({one, many}) => ({
+export const projectActivitiesRelations = relations(projectActivities, ({ one, many }) => ({
 	notifications: many(notifications),
 	order: one(orders, {
 		fields: [projectActivities.orderId],
@@ -516,7 +517,7 @@ export const projectActivitiesRelations = relations(projectActivities, ({one, ma
 	}),
 }));
 
-export const artworkApprovalsRelations = relations(artworkApprovals, ({one}) => ({
+export const artworkApprovalsRelations = relations(artworkApprovals, ({ one }) => ({
 	order: one(orders, {
 		fields: [artworkApprovals.orderId],
 		references: [orders.id]
@@ -531,7 +532,7 @@ export const artworkApprovalsRelations = relations(artworkApprovals, ({one}) => 
 	}),
 }));
 
-export const attachmentsRelations = relations(attachments, ({one}) => ({
+export const attachmentsRelations = relations(attachments, ({ one }) => ({
 	order: one(orders, {
 		fields: [attachments.orderId],
 		references: [orders.id]
@@ -546,14 +547,14 @@ export const attachmentsRelations = relations(attachments, ({one}) => ({
 	}),
 }));
 
-export const integrationSettingsRelations = relations(integrationSettings, ({one}) => ({
+export const integrationSettingsRelations = relations(integrationSettings, ({ one }) => ({
 	user: one(users, {
 		fields: [integrationSettings.updatedBy],
 		references: [users.id]
 	}),
 }));
 
-export const presentationProductsRelations = relations(presentationProducts, ({one}) => ({
+export const presentationProductsRelations = relations(presentationProducts, ({ one }) => ({
 	presentation: one(presentations, {
 		fields: [presentationProducts.presentationId],
 		references: [presentations.id]
@@ -564,7 +565,7 @@ export const presentationProductsRelations = relations(presentationProducts, ({o
 	}),
 }));
 
-export const orderFilesRelations = relations(orderFiles, ({one}) => ({
+export const orderFilesRelations = relations(orderFiles, ({ one }) => ({
 	order: one(orders, {
 		fields: [orderFiles.orderId],
 		references: [orders.id]
@@ -579,28 +580,28 @@ export const orderFilesRelations = relations(orderFiles, ({one}) => ({
 	}),
 }));
 
-export const passwordResetsRelations = relations(passwordResets, ({one}) => ({
+export const passwordResetsRelations = relations(passwordResets, ({ one }) => ({
 	user: one(users, {
 		fields: [passwordResets.userId],
 		references: [users.id]
 	}),
 }));
 
-export const userInvitationsRelations = relations(userInvitations, ({one}) => ({
+export const userInvitationsRelations = relations(userInvitations, ({ one }) => ({
 	user: one(users, {
 		fields: [userInvitations.invitedBy],
 		references: [users.id]
 	}),
 }));
 
-export const artworkItemsRelations = relations(artworkItems, ({one}) => ({
+export const artworkItemsRelations = relations(artworkItems, ({ one }) => ({
 	orderItem: one(orderItems, {
 		fields: [artworkItems.orderItemId],
 		references: [orderItems.id]
 	}),
 }));
 
-export const generatedDocumentsRelations = relations(generatedDocuments, ({one}) => ({
+export const generatedDocumentsRelations = relations(generatedDocuments, ({ one }) => ({
 	order: one(orders, {
 		fields: [generatedDocuments.orderId],
 		references: [orders.id]
