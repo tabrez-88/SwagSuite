@@ -34,7 +34,9 @@ steps:
     id: 'push-latest'
     waitFor: ['build-image']
 
-  # Step 4: Deploy ke Cloud Run (update-env-vars preserves existing secrets)
+  # Step 4: Deploy ke Cloud Run
+  # --update-env-vars: untuk plain env vars
+  # --update-secrets: untuk env vars dari Secret Manager (harus sudah dibuat di Secret Manager)
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     entrypoint: gcloud
     args:
@@ -59,7 +61,31 @@ steps:
       - '--timeout'
       - '300'
       - '--update-env-vars'
-      - 'NODE_ENV=production'
+      - 'NODE_ENV=production,QB_ENVIRONMENT=sandbox,DEFAULT_USER_ROLE=admin'
+      - '--update-secrets'
+      - >-
+        DATABASE_URL=DATABASE_URL:latest,
+        SESSION_SECRET=SESSION_SECRET:latest,
+        JWT_SECRET=JWT_SECRET:latest,
+        CLOUDINARY_CLOUD_NAME=CLOUDINARY_CLOUD_NAME:latest,
+        CLOUDINARY_API_KEY=CLOUDINARY_API_KEY:latest,
+        CLOUDINARY_API_SECRET=CLOUDINARY_API_SECRET:latest,
+        SAGE_ACCT_ID=SAGE_ACCT_ID:latest,
+        SAGE_LOGIN_ID=SAGE_LOGIN_ID:latest,
+        SAGE_API_KEY=SAGE_API_KEY:latest,
+        SLACK_BOT_TOKEN=SLACK_BOT_TOKEN:latest,
+        SLACK_CHANNEL_ID=SLACK_CHANNEL_ID:latest,
+        EMAIL_PASSWORD=EMAIL_PASSWORD:latest,
+        ANTHROPIC_API_KEY=ANTHROPIC_API_KEY:latest,
+        SS_ACTIVEWEAR_ACCOUNT=SS_ACTIVEWEAR_ACCOUNT:latest,
+        SS_ACTIVEWEAR_API_KEY=SS_ACTIVEWEAR_API_KEY:latest,
+        STRIPE_PUBLISHABLE_KEY=STRIPE_PUBLISHABLE_KEY:latest,
+        STRIPE_SECRET_KEY=STRIPE_SECRET_KEY:latest,
+        STRIPE_WEBHOOK_SECRET=STRIPE_WEBHOOK_SECRET:latest,
+        QB_CLIENT_ID=QB_CLIENT_ID:latest,
+        QB_CLIENT_SECRET=QB_CLIENT_SECRET:latest,
+        QB_REDIRECT_URI=QB_REDIRECT_URI:latest,
+        TAXJAR_API_KEY=TAXJAR_API_KEY:latest
     id: 'deploy-cloud-run'
     waitFor: ['push-image']
 
