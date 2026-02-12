@@ -37,8 +37,8 @@ async function getSsActivewearCredentials() {
   const dbSettings = await storage.getIntegrationSettings();
 
   return {
-    accountNumber: dbSettings?.ssActivewearAccount || process.env.SS_ACTIVEWEAR_ACCOUNT || '',
-    apiKey: dbSettings?.ssActivewearApiKey || process.env.SS_ACTIVEWEAR_API_KEY || ''
+    accountNumber: dbSettings?.ssActivewearAccount || process.env.SS_ACTIVEWEAR_ACCOUNT?.trim() || '',
+    apiKey: dbSettings?.ssActivewearApiKey || process.env.SS_ACTIVEWEAR_API_KEY?.trim() || ''
   };
 }
 
@@ -54,8 +54,8 @@ interface SocialMediaPost {
 // Multer is now configured in cloudinary.ts with Cloudinary storage
 
 // Initialize Anthropic client
-const anthropic = process.env.ANTHROPIC_API_KEY ? new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
+const anthropic = process.env.ANTHROPIC_API_KEY?.trim() ? new Anthropic({
+  apiKey: process.env.ANTHROPIC_API_KEY.trim(),
 }) : null;
 
 // Helper function to update YTD spending for a company
@@ -3307,12 +3307,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { message, channel } = req.body;
 
-      if (!process.env.SLACK_BOT_TOKEN) {
+      if (!process.env.SLACK_BOT_TOKEN?.trim()) {
         return res.status(400).json({ message: "Slack bot token not configured" });
       }
 
       const { WebClient } = await import("@slack/web-api");
-      const slack = new WebClient(process.env.SLACK_BOT_TOKEN);
+      const slack = new WebClient(process.env.SLACK_BOT_TOKEN.trim());
 
       const testMessage = message || "🎉 SwagSuite is now connected! This is a test message from your promotional products ERP system.";
 
@@ -3345,12 +3345,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Message and channel are required" });
       }
 
-      if (!process.env.SLACK_BOT_TOKEN) {
+      if (!process.env.SLACK_BOT_TOKEN?.trim()) {
         return res.status(400).json({ message: "Slack bot token not configured" });
       }
 
       const { WebClient } = await import("@slack/web-api");
-      const slack = new WebClient(process.env.SLACK_BOT_TOKEN);
+      const slack = new WebClient(process.env.SLACK_BOT_TOKEN.trim());
 
       const result = await slack.chat.postMessage({
         channel: channel,
@@ -3373,12 +3373,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get Slack Channels
   app.get('/api/integrations/slack/channels', isAuthenticated, async (req, res) => {
     try {
-      if (!process.env.SLACK_BOT_TOKEN) {
+      if (!process.env.SLACK_BOT_TOKEN?.trim()) {
         return res.status(400).json({ message: "Slack bot token not configured" });
       }
 
       const { WebClient } = await import("@slack/web-api");
-      const slack = new WebClient(process.env.SLACK_BOT_TOKEN);
+      const slack = new WebClient(process.env.SLACK_BOT_TOKEN.trim());
 
       const result = await slack.conversations.list({
         exclude_archived: true,
@@ -3416,15 +3416,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get('/api/integrations/slack/messages', isAuthenticated, async (req, res) => {
     try {
-      if (!process.env.SLACK_BOT_TOKEN || !process.env.SLACK_CHANNEL_ID) {
+      if (!process.env.SLACK_BOT_TOKEN?.trim() || !process.env.SLACK_CHANNEL_ID?.trim()) {
         return res.status(400).json({ message: "Slack configuration incomplete" });
       }
 
       const { WebClient } = await import("@slack/web-api");
-      const slack = new WebClient(process.env.SLACK_BOT_TOKEN);
+      const slack = new WebClient(process.env.SLACK_BOT_TOKEN.trim());
 
       const result = await slack.conversations.history({
-        channel: process.env.SLACK_CHANNEL_ID,
+        channel: process.env.SLACK_CHANNEL_ID.trim(),
         limit: 10
       });
 
@@ -3433,7 +3433,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         content: msg.text || '',
         user: msg.user || 'Unknown',
         timestamp: new Date(parseFloat(msg.ts || '0') * 1000).toISOString(),
-        channel: process.env.SLACK_CHANNEL_ID
+        channel: process.env.SLACK_CHANNEL_ID?.trim()
       })) || [];
 
       res.json(messages);
@@ -6406,8 +6406,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // const credentials = await storage.getIntegrationSettings();
       // const botToken = credentials?.slackBotToken || process.env.SLACK_BOT_TOKEN;
       // const channelId = credentials?.slackChannelId || process.env.SLACK_CHANNEL_ID;
-      const botToken = process.env.SLACK_BOT_TOKEN;
-      const channelId = process.env.SLACK_CHANNEL_ID;
+      const botToken = process.env.SLACK_BOT_TOKEN?.trim();
+      const channelId = process.env.SLACK_CHANNEL_ID?.trim();
 
       if (!botToken || !channelId) {
         return res.status(503).json({
@@ -6495,8 +6495,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // const credentials = await storage.getIntegrationSettings();
       // const botToken = credentials?.slackBotToken || process.env.SLACK_BOT_TOKEN;
       // const channelId = credentials?.slackChannelId || process.env.SLACK_CHANNEL_ID;
-      const botToken = process.env.SLACK_BOT_TOKEN;
-      const channelId = process.env.SLACK_CHANNEL_ID;
+      const botToken = process.env.SLACK_BOT_TOKEN?.trim();
+      const channelId = process.env.SLACK_CHANNEL_ID?.trim();
 
       if (!botToken || !channelId) {
         return res.status(503).json({
@@ -6573,8 +6573,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // const credentials = await storage.getIntegrationSettings();
       // const botToken = credentials?.slackBotToken || process.env.SLACK_BOT_TOKEN;
       // const channelId = credentials?.slackChannelId || process.env.SLACK_CHANNEL_ID;
-      const botToken = process.env.SLACK_BOT_TOKEN;
-      const channelId = process.env.SLACK_CHANNEL_ID;
+      const botToken = process.env.SLACK_BOT_TOKEN?.trim();
+      const channelId = process.env.SLACK_CHANNEL_ID?.trim();
 
       if (!botToken || !channelId) {
         return res.status(503).json({
@@ -7066,25 +7066,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Merge DB settings with environment variables (env as fallback)
       const settings = {
-        ssActivewearAccount: dbSettings?.ssActivewearAccount || process.env.SS_ACTIVEWEAR_ACCOUNT || "",
-        ssActivewearApiKey: dbSettings?.ssActivewearApiKey || process.env.SS_ACTIVEWEAR_API_KEY || "",
-        sanmarCustomerId: dbSettings?.sanmarCustomerId || process.env.SANMAR_CUSTOMER_ID || "",
-        sanmarUsername: dbSettings?.sanmarUsername || process.env.SANMAR_USERNAME || "",
-        sanmarPassword: dbSettings?.sanmarPassword || process.env.SANMAR_PASSWORD || "",
-        hubspotApiKey: dbSettings?.hubspotApiKey || process.env.HUBSPOT_API_KEY || "",
-        slackBotToken: dbSettings?.slackBotToken || process.env.SLACK_BOT_TOKEN || "",
-        slackChannelId: dbSettings?.slackChannelId || process.env.SLACK_CHANNEL_ID || "",
-        sageAcctId: dbSettings?.sageAcctId || process.env.SAGE_ACCT_ID || "",
-        sageLoginId: dbSettings?.sageLoginId || process.env.SAGE_LOGIN_ID || "",
-        sageApiKey: dbSettings?.sageApiKey || process.env.SAGE_API_KEY || "",
-        mapboxAccessToken: dbSettings?.mapboxAccessToken || process.env.MAPBOX_ACCESS_TOKEN || "",
+        ssActivewearAccount: dbSettings?.ssActivewearAccount || process.env.SS_ACTIVEWEAR_ACCOUNT?.trim() || "",
+        ssActivewearApiKey: dbSettings?.ssActivewearApiKey || process.env.SS_ACTIVEWEAR_API_KEY?.trim() || "",
+        sanmarCustomerId: dbSettings?.sanmarCustomerId || process.env.SANMAR_CUSTOMER_ID?.trim() || "",
+        sanmarUsername: dbSettings?.sanmarUsername || process.env.SANMAR_USERNAME?.trim() || "",
+        sanmarPassword: dbSettings?.sanmarPassword || process.env.SANMAR_PASSWORD?.trim() || "",
+        hubspotApiKey: dbSettings?.hubspotApiKey || process.env.HUBSPOT_API_KEY?.trim() || "",
+        slackBotToken: dbSettings?.slackBotToken || process.env.SLACK_BOT_TOKEN?.trim() || "",
+        slackChannelId: dbSettings?.slackChannelId || process.env.SLACK_CHANNEL_ID?.trim() || "",
+        sageAcctId: dbSettings?.sageAcctId || process.env.SAGE_ACCT_ID?.trim() || "",
+        sageLoginId: dbSettings?.sageLoginId || process.env.SAGE_LOGIN_ID?.trim() || "",
+        sageApiKey: dbSettings?.sageApiKey || process.env.SAGE_API_KEY?.trim() || "",
+        mapboxAccessToken: dbSettings?.mapboxAccessToken || process.env.MAPBOX_ACCESS_TOKEN?.trim() || "",
         quickbooksConnected: dbSettings?.quickbooksConnected || false,
         stripeConnected: dbSettings?.stripeConnected || false,
         shipmateConnected: dbSettings?.shipmateConnected || false,
-        stripePublishableKey: dbSettings?.stripePublishableKey || process.env.STRIPE_PUBLISHABLE_KEY || "",
-        stripeSecretKey: dbSettings?.stripeSecretKey || process.env.STRIPE_SECRET_KEY || "",
-        stripeWebhookSecret: dbSettings?.stripeWebhookSecret || process.env.STRIPE_WEBHOOK_SECRET || "",
-        taxjarApiKey: dbSettings?.taxjarApiKey || process.env.TAXJAR_API_KEY || ""
+        stripePublishableKey: dbSettings?.stripePublishableKey || process.env.STRIPE_PUBLISHABLE_KEY?.trim() || "",
+        stripeSecretKey: dbSettings?.stripeSecretKey || process.env.STRIPE_SECRET_KEY?.trim() || "",
+        stripeWebhookSecret: dbSettings?.stripeWebhookSecret || process.env.STRIPE_WEBHOOK_SECRET?.trim() || "",
+        taxjarApiKey: dbSettings?.taxjarApiKey || process.env.TAXJAR_API_KEY?.trim() || ""
       };
 
       res.json(settings);
@@ -7155,7 +7155,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Read token from DB settings first, then fallback to env
       const dbSettings = await storage.getIntegrationSettings();
-      const mapboxToken = dbSettings?.mapboxAccessToken || process.env.MAPBOX_ACCESS_TOKEN;
+      const mapboxToken = dbSettings?.mapboxAccessToken || process.env.MAPBOX_ACCESS_TOKEN?.trim();
 
       if (!mapboxToken) {
         return res.json({ suggestions: [], configured: false });

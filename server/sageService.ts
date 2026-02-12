@@ -555,9 +555,9 @@ export async function getSageCredentials(): Promise<SageConfig | null> {
     try {
         const dbSettings = await storage.getIntegrationSettings();
 
-        const acctId = dbSettings?.sageAcctId || process.env.SAGE_ACCT_ID || '';
-        const loginId = dbSettings?.sageLoginId || process.env.SAGE_LOGIN_ID || '';
-        const key = dbSettings?.sageApiKey || process.env.SAGE_API_KEY || '';
+        const acctId = dbSettings?.sageAcctId || process.env.SAGE_ACCT_ID?.trim() || '';
+        const loginId = dbSettings?.sageLoginId || process.env.SAGE_LOGIN_ID?.trim() || '';
+        const key = dbSettings?.sageApiKey || process.env.SAGE_API_KEY?.trim() || '';
 
         if (!acctId || !loginId || !key) {
             return null;

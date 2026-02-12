@@ -2,7 +2,7 @@ import { type ChatPostMessageArguments, WebClient } from "@slack/web-api"
 
 // Helper to get Slack client with credentials
 function getSlackClient(botToken?: string): WebClient | null {
-  const token = botToken || process.env.SLACK_BOT_TOKEN;
+  const token = botToken || process.env.SLACK_BOT_TOKEN?.trim();
   return token ? new WebClient(token) : null;
 }
 

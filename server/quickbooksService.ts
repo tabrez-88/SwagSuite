@@ -218,7 +218,7 @@ export class QuickBooksService {
                         Country: 'USA'
                     } : undefined
                 });
-                qbCustomerId = newQbCustomer.Id;
+                qbCustomerId = newQbCustomer.Id ?? null;
             }
 
             // Save mapping
@@ -282,10 +282,10 @@ export async function getQuickBooksCredentials(): Promise<QuickBooksService | nu
 
     // In a real app, clientID/secret should probably come from env vars for security, 
     // but reading from settings if they are stored there (user input) is also valid for some SaaS models.
-    const clientId = settings.qbClientId || process.env.QB_CLIENT_ID || '';
-    const clientSecret = settings.qbClientSecret || process.env.QB_CLIENT_SECRET || '';
-    const redirectUri = process.env.QB_REDIRECT_URI || 'http://localhost:5000/api/integrations/quickbooks/callback';
-    const environment = (process.env.QB_ENVIRONMENT as 'sandbox' | 'production') || 'sandbox';
+    const clientId = settings.qbClientId || process.env.QB_CLIENT_ID?.trim() || '';
+    const clientSecret = settings.qbClientSecret || process.env.QB_CLIENT_SECRET?.trim() || '';
+    const redirectUri = process.env.QB_REDIRECT_URI?.trim() || 'http://localhost:5000/api/integrations/quickbooks/callback';
+    const environment = (process.env.QB_ENVIRONMENT?.trim() as 'sandbox' | 'production') || 'sandbox';
 
     if (!clientId || !clientSecret) return null;
 

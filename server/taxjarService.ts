@@ -88,7 +88,7 @@ export class TaxJarService {
 
 export async function getTaxJarCredentials(): Promise<TaxJarService | null> {
   const settings = await storage.getIntegrationSettings();
-  const apiKey = settings?.taxjarApiKey || process.env.TAXJAR_API_KEY;
+  const apiKey = settings?.taxjarApiKey || process.env.TAXJAR_API_KEY?.trim();
 
   if (!apiKey) return null;
 

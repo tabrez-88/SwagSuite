@@ -44,7 +44,7 @@ export function getSession() {
     tableName: "sessions",
   });
   return session({
-    secret: process.env.SESSION_SECRET!,
+    secret: process.env.SESSION_SECRET?.trim()!,
     store: sessionStore,
     resave: false,
     saveUninitialized: false,

@@ -160,9 +160,9 @@ export class StripeService {
 export async function getStripeCredentials(): Promise<StripeService | null> {
   const settings = await storage.getIntegrationSettings();
 
-  const secretKey = settings?.stripeSecretKey || process.env.STRIPE_SECRET_KEY;
-  const webhookSecret = settings?.stripeWebhookSecret || process.env.STRIPE_WEBHOOK_SECRET;
-  const publishableKey = settings?.stripePublishableKey || process.env.STRIPE_PUBLISHABLE_KEY;
+  const secretKey = settings?.stripeSecretKey || process.env.STRIPE_SECRET_KEY?.trim();
+  const webhookSecret = settings?.stripeWebhookSecret || process.env.STRIPE_WEBHOOK_SECRET?.trim();
+  const publishableKey = settings?.stripePublishableKey || process.env.STRIPE_PUBLISHABLE_KEY?.trim();
 
   console.log("Stripe credentials:", {
     secretKey,
