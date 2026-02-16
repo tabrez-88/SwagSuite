@@ -667,7 +667,7 @@ export default function Settings() {
     sageAcctId: "",
     sageLoginId: "",
     sageApiKey: "",
-    mapboxAccessToken: "",
+    geoapifyApiKey: "",
     quickbooksConnected: false,
     stripeConnected: false,
     stripePublishableKey: "",
@@ -683,7 +683,7 @@ export default function Settings() {
     slackBotToken: false,
     hubspotApiKey: false,
     sageApiKey: false,
-    mapboxAccessToken: false,
+    geoapifyApiKey: false,
     stripeSecretKey: false,
     taxjarApiKey: false,
   });
@@ -704,7 +704,7 @@ export default function Settings() {
         sageAcctId: settings.sageAcctId || "",
         sageLoginId: settings.sageLoginId || "",
         sageApiKey: settings.sageApiKey || "",
-        mapboxAccessToken: settings.mapboxAccessToken || "",
+        geoapifyApiKey: settings.geoapifyApiKey || "",
         quickbooksConnected: settings.quickbooksConnected || false,
         stripeConnected: settings.stripeConnected || false,
         stripePublishableKey: settings.stripePublishableKey || "",
@@ -2683,50 +2683,50 @@ export default function Settings() {
                   </div>
                 </div>
 
-                {/* Mapbox Geocoding */}
+                {/* Geoapify Geocoding */}
                 <div className="p-4 border rounded-lg">
                   <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-2">
                       <MapPin className="w-5 h-5 text-primary" />
-                      <h4 className="font-medium">Mapbox Geocoding</h4>
+                      <h4 className="font-medium">Geoapify Geocoding</h4>
                       <Badge
                         variant={
-                          integrations.mapboxAccessToken ? "default" : "outline"
+                          integrations.geoapifyApiKey ? "default" : "outline"
                         }
                       >
-                        {integrations.mapboxAccessToken
+                        {integrations.geoapifyApiKey
                           ? "Connected"
                           : "Not Connected"}
                       </Badge>
                     </div>
                   </div>
                   <p className="text-sm text-muted-foreground mb-3">
-                    Address autocomplete for all address forms. Get your token
+                    Address autocomplete for all address forms. Get your API key
                     from{" "}
                     <a
-                      href="https://account.mapbox.com/access-tokens/"
+                      href="https://myprojects.geoapify.com/"
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-primary underline"
                     >
-                      Mapbox Dashboard
+                      Geoapify Dashboard
                     </a>
                     .
                   </p>
                   <div className="space-y-2">
-                    <Label htmlFor="mapboxToken">Access Token</Label>
+                    <Label htmlFor="geoapifyKey">API Key</Label>
                     <div className="relative">
                       <Input
-                        id="mapboxToken"
+                        id="geoapifyKey"
                         type={
-                          showFields.mapboxAccessToken ? "text" : "password"
+                          showFields.geoapifyApiKey ? "text" : "password"
                         }
-                        placeholder="pk.eyJ1Ijoi..."
-                        value={integrations.mapboxAccessToken}
+                        placeholder="your-geoapify-api-key"
+                        value={integrations.geoapifyApiKey}
                         onChange={(e) =>
                           setIntegrations((prev) => ({
                             ...prev,
-                            mapboxAccessToken: e.target.value,
+                            geoapifyApiKey: e.target.value,
                           }))
                         }
                         className="pr-10"
@@ -2739,11 +2739,11 @@ export default function Settings() {
                         onClick={() =>
                           setShowFields((prev) => ({
                             ...prev,
-                            mapboxAccessToken: !prev.mapboxAccessToken,
+                            geoapifyApiKey: !prev.geoapifyApiKey,
                           }))
                         }
                       >
-                        {showFields.mapboxAccessToken ? (
+                        {showFields.geoapifyApiKey ? (
                           <EyeOff className="h-4 w-4 text-gray-500" />
                         ) : (
                           <Eye className="h-4 w-4 text-gray-500" />

@@ -49,9 +49,6 @@ RUN mkdir -p uploads
 ENV NODE_ENV=production
 ENV PORT=8080
 
-# Set REPL_ID untuk trigger local dev mode (username/password auth)
-ENV REPL_ID=
-
 # User non-root untuk keamanan
 RUN addgroup -g 1001 -S nodejs && \
     adduser -S nodejs -u 1001 && \

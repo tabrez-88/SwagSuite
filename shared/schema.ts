@@ -37,7 +37,7 @@ export const users = pgTable("users", {
   lastName: varchar("last_name"),
   profileImageUrl: varchar("profile_image_url"),
   role: varchar("role").default("user"), // user, admin, manager
-  authProvider: varchar("auth_provider").default("local"), // local, replit, google, etc
+  authProvider: varchar("auth_provider").default("local"), // local, google, etc
   isActive: boolean("is_active").default(true),
   lastLoginAt: timestamp("last_login_at"),
   emailReportsEnabled: boolean("email_reports_enabled").default(true),
@@ -242,7 +242,6 @@ export const orders = pgTable("orders", {
   contactId: varchar("contact_id").references(() => contacts.id),
   assignedUserId: varchar("assigned_user_id").references(() => users.id),
   csrUserId: varchar("csr_user_id").references(() => users.id), // Customer Service Representative
-  productionManagerId: varchar("production_manager_id").references(() => users.id), // Production Manager
   // Note: supplierId removed - vendors are now tracked at order_items level
   status: orderStatusEnum("status").default("quote"),
   orderType: varchar("order_type").default("quote"), // quote, sales_order, rush_order
@@ -919,8 +918,8 @@ export const integrationSettings = pgTable("integration_settings", {
   sageAcctId: varchar("sage_acct_id"),
   sageLoginId: varchar("sage_login_id"),
   sageApiKey: text("sage_api_key"),
-  // Mapbox Geocoding Integration (Address Autocomplete)
-  mapboxAccessToken: text("mapbox_access_token"),
+  // Geoapify Geocoding Integration (Address Autocomplete)
+  geoapifyApiKey: text("geoapify_api_key"),
   // Email Integration
   emailProvider: varchar("email_provider"),
   smtpHost: varchar("smtp_host"),

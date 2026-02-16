@@ -1342,7 +1342,7 @@ export const integrationSettings = pgTable("integration_settings", {
 	sanmarCustomerId: varchar("sanmar_customer_id"),
 	sanmarUsername: varchar("sanmar_username"),
 	sanmarPassword: text("sanmar_password"),
-	mapboxAccessToken: text("mapbox_access_token"),
+	geoapifyApiKey: text("geoapify_api_key"),
 }, (table) => [
 	foreignKey({
 			columns: [table.updatedBy],

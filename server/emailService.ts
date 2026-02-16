@@ -137,6 +137,7 @@ class EmailService {
     orderNumber?: string;
     companyName?: string;
     attachments?: Array<{ storagePath: string; originalFilename: string; mimeType?: string }>;
+    directAttachments?: Array<{ filename: string; content: Buffer; contentType: string }>;
   }) {
     const html = `
       <!DOCTYPE html>
@@ -200,10 +201,18 @@ class EmailService {
 
     // Add attachments if provided
     if (data.attachments && data.attachments.length > 0) {
-      const { replitStorage } = await import('./replitStorage');
+      const { storageService } = await import('./storageService');
       mailOptions.attachments = await Promise.all(
         data.attachments.map(async (att) => {
-          const buffer = await replitStorage.downloadFile(att.storagePath);
+          let buffer: Buffer | null = null;
+          // If storagePath is a full URL (Cloudinary), download directly
+          if (att.storagePath.startsWith('http://') || att.storagePath.startsWith('https://')) {
+            const axios = (await import('axios')).default;
+            const response = await axios.get(att.storagePath, { responseType: 'arraybuffer' });
+            buffer = Buffer.from(response.data);
+          } else {
+            buffer = await storageService.downloadFile(att.storagePath);
+          }
           return {
             filename: att.originalFilename,
             content: buffer,
@@ -211,6 +220,12 @@ class EmailService {
           };
         })
       );
+    }
+
+    // Merge direct attachments (pre-downloaded buffers, e.g. auto-attached Quote PDF)
+    if (data.directAttachments && data.directAttachments.length > 0) {
+      if (!mailOptions.attachments) mailOptions.attachments = [];
+      mailOptions.attachments.push(...data.directAttachments);
     }
 
     const info = await transporter.sendMail(mailOptions);
@@ -230,6 +245,7 @@ class EmailService {
     orderNumber?: string;
     supplierName?: string;
     attachments?: Array<{ storagePath: string; originalFilename: string; mimeType?: string }>;
+    directAttachments?: Array<{ filename: string; content: Buffer; contentType: string }>;
   }) {
     const html = `
       <!DOCTYPE html>
@@ -293,10 +309,18 @@ class EmailService {
 
     // Add attachments if provided
     if (data.attachments && data.attachments.length > 0) {
-      const { replitStorage } = await import('./replitStorage');
+      const { storageService } = await import('./storageService');
       vendorMailOptions.attachments = await Promise.all(
         data.attachments.map(async (att) => {
-          const buffer = await replitStorage.downloadFile(att.storagePath);
+          let buffer: Buffer | null = null;
+          // If storagePath is a full URL (Cloudinary), download directly
+          if (att.storagePath.startsWith('http://') || att.storagePath.startsWith('https://')) {
+            const axios = (await import('axios')).default;
+            const response = await axios.get(att.storagePath, { responseType: 'arraybuffer' });
+            buffer = Buffer.from(response.data);
+          } else {
+            buffer = await storageService.downloadFile(att.storagePath);
+          }
           return {
             filename: att.originalFilename,
             content: buffer,
@@ -304,6 +328,14 @@ class EmailService {
           };
         })
       );
+    }
+
+    // Add direct buffer attachments (e.g. PO document PDF downloaded from Cloudinary)
+    if (data.directAttachments && data.directAttachments.length > 0) {
+      if (!vendorMailOptions.attachments) {
+        vendorMailOptions.attachments = [];
+      }
+      vendorMailOptions.attachments.push(...data.directAttachments);
     }
 
     const info = await transporter.sendMail(vendorMailOptions);

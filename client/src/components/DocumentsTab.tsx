@@ -530,9 +530,6 @@ PO Details:
 - Date: ${format(new Date(), 'MMMM dd, yyyy')}
 ${(order as any)?.supplierInHandsDate ? `- Required Ship Date: ${format(new Date((order as any).supplierInHandsDate), 'MMMM dd, yyyy')}` : ''}
 ${(order as any)?.supplierNotes ? `\nSupplier Notes:\n${(order as any).supplierNotes}\n` : ''}
-You can view and download the PO using the link below:
-${doc.fileUrl || '[Document Link]'}
-
 Please confirm receipt of this order and provide the following:
 1. Order acknowledgment
 2. Expected production timeline

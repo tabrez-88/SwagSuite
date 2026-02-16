@@ -76,7 +76,6 @@ class NotificationScheduler {
         // Determine who to notify
         const usersToNotify = new Set<string>();
         if (order.assignedUserId) usersToNotify.add(order.assignedUserId);
-        if (order.productionManagerId) usersToNotify.add(order.productionManagerId);
 
         if (usersToNotify.size === 0) continue;
 

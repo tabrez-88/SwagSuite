@@ -15,14 +15,6 @@ export default function Landing() {
   const { toast } = useToast();
   const { theme } = useTheme();
 
-  // Check if we're in local dev mode (no REPL_ID or REPL_ID is "local-dev")
-  const isLocalDev = !import.meta.env.VITE_REPL_ID || import.meta.env.VITE_REPL_ID === "local-dev";
-
-  const handleOAuthLogin = () => {
-    // In local dev, use dev auto-login endpoint
-    window.location.href = isLocalDev ? "/api/login/dev" : "/api/login";
-  };
-
   const handleLocalLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
@@ -118,31 +110,35 @@ export default function Landing() {
               </div>
 
               <div className="space-y-3">
-                <Button 
+                <Button
                   onClick={() => setShowLoginForm(true)}
                   className="w-full bg-swag-primary hover:bg-swag-primary/90 text-white"
                   size="lg"
                 >
-                  Sign in with Username
+                  Sign In
                 </Button>
-                
-                <div className="relative">
-                  <div className="absolute inset-0 flex items-center">
-                    <span className="w-full border-t" />
-                  </div>
-                  <div className="relative flex justify-center text-xs uppercase">
-                    <span className="bg-white px-2 text-gray-500">Or</span>
-                  </div>
-                </div>
 
-                <Button 
-                  onClick={handleOAuthLogin}
-                  variant="outline" 
-                  className="w-full"
-                  size="lg"
-                >
-                  {isLocalDev ? "Quick Dev Login (Auto)" : "Sign in with SSO"}
-                </Button>
+                {import.meta.env.DEV && (
+                  <>
+                    <div className="relative">
+                      <div className="absolute inset-0 flex items-center">
+                        <span className="w-full border-t" />
+                      </div>
+                      <div className="relative flex justify-center text-xs uppercase">
+                        <span className="bg-white px-2 text-gray-500">Dev</span>
+                      </div>
+                    </div>
+
+                    <Button
+                      onClick={() => { window.location.href = "/api/login/dev"; }}
+                      variant="outline"
+                      className="w-full"
+                      size="lg"
+                    >
+                      Quick Dev Login (Auto)
+                    </Button>
+                  </>
+                )}
 
                 <div className="mt-6 text-center">
                   <p className="text-xs text-gray-500">
@@ -200,33 +196,14 @@ export default function Landing() {
                   </Button>
                 </form>
                 
-                <div className="mt-4 space-y-2">
-                  <div className="relative my-4">
-                    <div className="absolute inset-0 flex items-center">
-                      <span className="w-full border-t" />
-                    </div>
-                    <div className="relative flex justify-center text-xs uppercase">
-                      <span className="bg-white px-2 text-gray-500">Or</span>
-                    </div>
-                  </div>
-                  
-                  <Button 
-                    onClick={handleOAuthLogin}
-                    variant="outline" 
-                    className="w-full"
-                    size="lg"
-                    disabled={isLoading}
-                  >
-                    {isLocalDev ? "Quick Dev Login (Auto)" : "Sign in with SSO"}
-                  </Button>
-                  
+                <div className="mt-4">
                   <Button
                     variant="ghost"
                     className="w-full text-sm text-gray-600 hover:text-gray-900"
                     onClick={() => setShowLoginForm(false)}
                     disabled={isLoading}
                   >
-                    ← Back to options
+                    Back
                   </Button>
                 </div>
               </div>

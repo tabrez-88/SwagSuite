@@ -23,7 +23,7 @@ import { createServer, type Server } from "http";
 import path from "path";
 import { upload, presentationUpload, generatedDocsUpload, getCloudinaryUrl, getOptimizedImageUrl, deleteFromCloudinary, cloudinary } from "./cloudinary";
 import { sendSlackMessage } from "../shared/slack";
-import { isAuthenticated, setupAuth } from "./replitAuth";
+import { isAuthenticated, setupAuth } from "./auth";
 import { SsActivewearService } from "./ssActivewearService";
 import { SageService, getSageCredentials } from "./sageService";
 import { storage } from "./storage";
@@ -2092,158 +2092,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Client routes
-  app.get('/api/clients', isAuthenticated, async (req, res) => {
-    try {
-      const { db } = await import("./db");
-      const { clients, companies, orders } = await import("@shared/schema");
-      const { eq, and, gte, like, or, sql } = await import("drizzle-orm");
-
-      // Get all clients
-      const allClients = await storage.getClients();
-
-      // Calculate YTD spending for each client based on their company name
-      const currentYear = new Date().getFullYear();
-      const yearStart = new Date(currentYear, 0, 1);
-
-      const clientsWithYtd = await Promise.all(
-        allClients.map(async (client) => {
-          let totalSpent = 0;
-
-          // If client has a company name, find matching orders
-          if (client.company) {
-            // Find company by name
-            const [matchingCompany] = await db
-              .select()
-              .from(companies)
-              .where(like(companies.name, `%${client.company}%`))
-              .limit(1);
-
-            if (matchingCompany) {
-              // Calculate YTD spend from orders for this company
-              const [ytdResult] = await db
-                .select({ total: sql<string>`COALESCE(SUM(${orders.total}), 0)` })
-                .from(orders)
-                .where(
-                  and(
-                    eq(orders.companyId, matchingCompany.id),
-                    gte(orders.createdAt, yearStart)
-                  )
-                );
-
-              totalSpent = ytdResult?.total ? parseFloat(ytdResult.total) : 0;
-            }
-          }
-
-          return {
-            ...client,
-            totalSpent: totalSpent
-          };
-        })
-      );
-
-      res.json(clientsWithYtd);
-    } catch (error) {
-      console.error("Error fetching clients:", error);
-      res.status(500).json({ message: "Failed to fetch clients" });
-    }
-  });
-
-  app.get('/api/clients/:id', isAuthenticated, async (req, res) => {
-    try {
-      const client = await storage.getClient(req.params.id);
-      if (!client) {
-        return res.status(404).json({ message: "Client not found" });
-      }
-
-      // Generate mock social media posts with exciting news detection
-      const socialMediaPosts: SocialMediaPost[] = [];
-      if (client.socialMediaLinks) {
-        const samplePosts: SocialMediaPost[] = [
-          {
-            platform: "linkedin",
-            content: "We're excited to announce our new partnership with TechCorp! This exciting news will revolutionize our industry approach.",
-            timestamp: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-            url: "https://linkedin.com/posts/sample1",
-            isExcitingNews: true
-          },
-          {
-            platform: "twitter",
-            content: "Just wrapped up an amazing quarter! Thanks to all our partners and customers for making it possible.",
-            timestamp: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
-            url: "https://twitter.com/sample/status/123",
-            isExcitingNews: false
-          },
-          {
-            platform: "facebook",
-            content: "Thrilled to share some exciting news - we've just opened our third location! Growth continues!",
-            timestamp: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
-            url: "https://facebook.com/posts/sample3",
-            isExcitingNews: true
-          },
-          {
-            platform: "instagram",
-            content: "Behind the scenes at our latest product photoshoot. Can't wait to share what's coming next!",
-            timestamp: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(),
-            url: "https://instagram.com/p/sample4",
-            isExcitingNews: false
-          }
-        ];
-
-        // Add posts for platforms that have links
-        Object.keys(client.socialMediaLinks).forEach(platform => {
-          if (client.socialMediaLinks![platform as keyof typeof client.socialMediaLinks]) {
-            const relevantPosts = samplePosts.filter(post => post.platform === platform);
-            socialMediaPosts.push(...relevantPosts);
-          }
-        });
-      }
-
-      const clientWithPosts = {
-        ...client,
-        socialMediaPosts,
-        lastSocialMediaSync: new Date().toISOString()
-      };
-
-      res.json(clientWithPosts);
-    } catch (error) {
-      console.error("Error fetching client:", error);
-      res.status(500).json({ message: "Failed to fetch client" });
-    }
-  });
-
-  app.post('/api/clients', isAuthenticated, async (req, res) => {
-    try {
-      const clientData = insertClientSchema.parse(req.body);
-      const newClient = await storage.createClient(clientData);
-      res.status(201).json(newClient);
-    } catch (error) {
-      console.error("Error creating client:", error);
-      res.status(500).json({ message: "Failed to create client" });
-    }
-  });
-
-  app.put('/api/clients/:id', isAuthenticated, async (req, res) => {
-    try {
-      const updatedClient = await storage.updateClient(req.params.id, req.body);
-      res.json(updatedClient);
-    } catch (error) {
-      console.error("Error updating client:", error);
-      res.status(500).json({ message: "Failed to update client" });
-    }
-  });
-
-  app.delete('/api/clients/:id', isAuthenticated, async (req, res) => {
-    try {
-      await storage.deleteClient(req.params.id);
-      res.json({ message: "Client deleted successfully" });
-    } catch (error) {
-      console.error("Error deleting client:", error);
-      res.status(500).json({ message: "Failed to delete client" });
-    }
-  });
-
-
 
   // Order routes
   app.get('/api/orders', isAuthenticated, async (req, res) => {
@@ -2458,30 +2306,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
             metadata: { oldStatus: oldOrder.status, newStatus: req.body.status },
             isSystemGenerated: false,
           });
-        }
-
-        if (req.body.productionManagerId !== undefined && oldOrder && req.body.productionManagerId !== (oldOrder as any).productionManagerId) {
-          if (req.body.productionManagerId) {
-            const pmUser = await storage.getUser(req.body.productionManagerId);
-            const pmName = pmUser ? `${pmUser.firstName} ${pmUser.lastName}` : "Unknown";
-            await actDb.insert(projectActivities).values({
-              orderId: order.id,
-              userId: currentUserId,
-              activityType: "system_action",
-              content: `Production Manager assigned: ${pmName}`,
-              metadata: { action: 'pm_assigned', userId: req.body.productionManagerId },
-              isSystemGenerated: false,
-            });
-          } else {
-            await actDb.insert(projectActivities).values({
-              orderId: order.id,
-              userId: currentUserId,
-              activityType: "system_action",
-              content: `Production Manager unassigned`,
-              metadata: { action: 'pm_unassigned' },
-              isSystemGenerated: false,
-            });
-          }
         }
 
         if (req.body.assignedUserId !== undefined && oldOrder && req.body.assignedUserId !== oldOrder.assignedUserId) {
@@ -2832,61 +2656,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Artwork upload routes
-  app.post('/api/artwork/upload', isAuthenticated, upload.single('file'), async (req, res) => {
-    try {
-      if (!req.file) {
-        return res.status(400).json({ message: "No file uploaded" });
-      }
-
-      const { orderId, companyId } = req.body;
-
-      // File is uploaded to Cloudinary via multer-storage-cloudinary
-      // req.file.path contains the Cloudinary URL
-      // req.file.filename contains the Cloudinary public_id
-
-      const artworkFile = await storage.createArtworkFile({
-        orderId: orderId || null,
-        companyId: companyId || null,
-        fileName: (req.file as any).filename || (req.file as any).public_id,
-        originalName: req.file.originalname,
-        fileSize: req.file.size,
-        mimeType: req.file.mimetype,
-        filePath: (req.file as any).path, // Cloudinary URL
-        uploadedBy: (req.user as any)?.id,
-      });
-
-      res.status(201).json(artworkFile);
-    } catch (error) {
-      console.error("Error uploading artwork:", error);
-      res.status(500).json({ message: "Failed to upload artwork" });
-    }
-  });
-
-  app.get('/api/artwork', isAuthenticated, async (req, res) => {
-    try {
-      const orderId = req.query.orderId as string;
-      const companyId = req.query.companyId as string;
-      const files = await storage.getArtworkFiles(orderId, companyId);
-      res.json(files);
-    } catch (error) {
-      console.error("Error fetching artwork files:", error);
-      res.status(500).json({ message: "Failed to fetch artwork files" });
-    }
-  });
-
-  // Activity/Timeline routes
-  app.get('/api/activities', isAuthenticated, async (req, res) => {
-    try {
-      const entityType = req.query.entityType as string;
-      const entityId = req.query.entityId as string;
-      const activities = await storage.getActivities(entityType, entityId);
-      res.json(activities);
-    } catch (error) {
-      console.error("Error fetching activities:", error);
-      res.status(500).json({ message: "Failed to fetch activities" });
-    }
-  });
 
   // Cloudinary upload endpoint for product images
   app.post('/api/cloudinary/upload', isAuthenticated, upload.single('file'), async (req, res) => {
@@ -2913,125 +2682,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Data Upload routes for AI processing
-  app.post('/api/data-uploads', isAuthenticated, upload.single('file'), async (req, res) => {
-    try {
-      if (!req.file) {
-        return res.status(400).json({ message: "No file uploaded" });
-      }
-
-      // File is uploaded to Cloudinary via multer-storage-cloudinary
-      // req.file.path contains the Cloudinary URL
-
-      // Create upload record
-      const dataUpload = await storage.createDataUpload({
-        fileName: (req.file as any).filename || (req.file as any).public_id,
-        originalName: req.file.originalname,
-        fileSize: req.file.size,
-        mimeType: req.file.mimetype,
-        filePath: (req.file as any).path, // Cloudinary URL
-        uploadedBy: req.user?.claims?.sub,
-        status: 'pending'
-      });
-
-      res.status(201).json(dataUpload);
-
-      // Start AI processing in background
-      processDataUploadWithAI(dataUpload.id, req.file);
-    } catch (error) {
-      console.error("Error uploading data file:", error);
-      res.status(500).json({ message: "Failed to upload data file" });
-    }
-  });
-
-  app.get('/api/data-uploads', isAuthenticated, async (req, res) => {
-    try {
-      const uploads = await storage.getDataUploads();
-      res.json(uploads);
-    } catch (error) {
-      console.error("Error fetching data uploads:", error);
-      res.status(500).json({ message: "Failed to fetch data uploads" });
-    }
-  });
-
-  app.delete('/api/data-uploads/:id', isAuthenticated, async (req, res) => {
-    try {
-      await storage.deleteDataUpload(req.params.id);
-      res.status(204).send();
-    } catch (error) {
-      console.error("Error deleting data upload:", error);
-      res.status(500).json({ message: "Failed to delete data upload" });
-    }
-  });
-
-  // AI Search route with vendor integration data
-  app.post('/api/search/ai', isAuthenticated, async (req, res) => {
-    try {
-      const { query } = req.body;
-
-      if (!query || typeof query !== 'string') {
-        return res.status(400).json({ error: 'Query is required' });
-      }
-
-      // Mock AI search processing with vendor integration data
-      const searchResults = {
-        query,
-        interpretation: `Searching for products matching: "${query}"`,
-        results: [
-          {
-            id: 'ai-result-1',
-            name: 'YETI Rambler 20oz Tumbler',
-            sku: 'YETI-R20-001',
-            category: 'drinkware',
-            avgPrice: 29.95,
-            totalSales: 1250,
-            avgRating: 4.8,
-            description: 'Premium insulated tumbler with double-wall vacuum insulation',
-            colors: ['Black', 'Navy', 'White', 'Charcoal', 'Seafoam'],
-            sizes: ['20oz'],
-            materials: ['Stainless Steel', 'BPA-Free'],
-            features: ['Double-wall insulation', 'MagSlider Lid', 'No Sweat Design'],
-            vendorIntegrations: [
-              { vendor: 'S&S Activewear', sku: 'SS-YETI-R20', price: 18.50, inventory: 850, leadTime: '3-5 days', available: true },
-              { vendor: 'SanMar', sku: 'SM-YETI-R20', price: 19.25, inventory: 620, leadTime: '2-4 days', available: true },
-              { vendor: 'ESP', sku: 'ESP-YETI-R20', price: 20.00, inventory: 0, leadTime: '7-10 days', available: false },
-              { vendor: 'Sage', sku: 'SAGE-YETI-R20', price: 17.95, inventory: 300, leadTime: '5-7 days', available: true }
-            ]
-          },
-          {
-            id: 'ai-result-2',
-            name: 'Simple Modern Tumbler 20oz',
-            sku: 'SM-T20-001',
-            category: 'drinkware',
-            avgPrice: 24.99,
-            totalSales: 980,
-            avgRating: 4.6,
-            description: 'Stylish stainless steel tumbler with superior temperature retention',
-            colors: ['Black', 'White', 'Rose Gold', 'Sage Green', 'Ocean Blue'],
-            sizes: ['20oz'],
-            materials: ['Stainless Steel', 'Food Grade'],
-            features: ['Spill-proof lid', 'Easy grip design', 'Dishwasher safe'],
-            vendorIntegrations: [
-              { vendor: 'S&S Activewear', sku: 'SS-SM-T20', price: 15.75, inventory: 1200, leadTime: '3-5 days', available: true },
-              { vendor: 'Sage', sku: 'SAGE-SM-T20', price: 16.50, inventory: 450, leadTime: '5-7 days', available: true },
-              { vendor: 'SanMar', sku: 'SM-SM-T20', price: 16.95, inventory: 0, leadTime: '2-4 days', available: false }
-            ]
-          }
-        ],
-        totalResults: 2,
-        processingTime: '1.2s'
-      };
-
-      // Add delay to simulate AI processing
-      setTimeout(() => {
-        res.json(searchResults);
-      }, 1200);
-
-    } catch (error) {
-      console.error('AI Search error:', error);
-      res.status(500).json({ error: 'AI search failed' });
-    }
-  });
 
   // Production Report Route
   app.get('/api/production/orders', isAuthenticated, async (req, res) => {
@@ -3076,143 +2726,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Popular Products API for dashboard
-  app.get('/api/products/popular', async (req, res) => {
-    try {
-      const { period = '7d', productType = 'all' } = req.query;
-
-      // Mock popular products data with realistic values
-      const products = [
-        {
-          id: 'pop1',
-          name: 'Champion Powerblend Hoodie',
-          sku: 'CP-PB-001',
-          imageUrl: '/api/placeholder/product1.jpg',
-          productType: 'apparel',
-          totalQuantity: 2840,
-          orderCount: 95,
-          avgPrice: 45.99,
-          totalRevenue: 130536
-        },
-        {
-          id: 'pop2',
-          name: 'YETI Rambler 20oz Tumbler',
-          sku: 'YETI-R20-001',
-          imageUrl: '/api/placeholder/product2.jpg',
-          productType: 'hard_goods',
-          totalQuantity: 1850,
-          orderCount: 78,
-          avgPrice: 29.95,
-          totalRevenue: 55407
-        },
-        {
-          id: 'pop3',
-          name: 'Nike Dri-FIT T-Shirt',
-          sku: 'NIKE-DF-001',
-          imageUrl: '/api/placeholder/product3.jpg',
-          productType: 'apparel',
-          totalQuantity: 3200,
-          orderCount: 120,
-          avgPrice: 24.99,
-          totalRevenue: 79968
-        },
-        {
-          id: 'pop4',
-          name: 'Hydro Flask Water Bottle',
-          sku: 'HF-WB-001',
-          imageUrl: '/api/placeholder/product4.jpg',
-          productType: 'hard_goods',
-          totalQuantity: 1560,
-          orderCount: 62,
-          avgPrice: 39.95,
-          totalRevenue: 62322
-        },
-        {
-          id: 'pop5',
-          name: 'Gildan Heavy Cotton T-Shirt',
-          sku: 'GIL-HC-001',
-          imageUrl: '/api/placeholder/product5.jpg',
-          productType: 'apparel',
-          totalQuantity: 4100,
-          orderCount: 85,
-          avgPrice: 8.99,
-          totalRevenue: 36859
-        }
-      ];
-
-      // Filter by product type if specified
-      let filteredProducts = products;
-      if (productType !== 'all') {
-        filteredProducts = products.filter(p => p.productType === productType);
-      }
-
-      res.json(filteredProducts);
-    } catch (error) {
-      console.error('Error fetching popular products:', error);
-      res.status(500).json({ error: 'Failed to fetch popular products' });
-    }
-  });
-
-  // Suggested Products API for dashboard
-  app.get('/api/products/suggested', async (req, res) => {
-    try {
-      const suggestedProducts = [
-        {
-          id: 'sg1',
-          name: 'Champion Powerblend Fleece Crew',
-          sku: 'CP-FC-001',
-          imageUrl: '/api/placeholder/suggested1.jpg',
-          productType: 'apparel',
-          presentationCount: 45,
-          avgPresentationPrice: 32.99,
-          discount: 15,
-          adminNote: 'Great for corporate events',
-          isAdminSuggested: true
-        },
-        {
-          id: 'sg2',
-          name: 'Contigo Autoseal Travel Mug',
-          sku: 'CON-AS-001',
-          imageUrl: '/api/placeholder/suggested2.jpg',
-          productType: 'hard_goods',
-          presentationCount: 28,
-          avgPresentationPrice: 25.99,
-          discount: 10,
-          adminNote: 'Popular for trade shows',
-          isAdminSuggested: false
-        },
-        {
-          id: 'sg3',
-          name: 'Port Authority Polo Shirt',
-          sku: 'PA-PS-001',
-          imageUrl: '/api/placeholder/suggested3.jpg',
-          productType: 'apparel',
-          presentationCount: 52,
-          avgPresentationPrice: 18.99,
-          discount: 0,
-          adminNote: 'Reliable quality option',
-          isAdminSuggested: true
-        },
-        {
-          id: 'sg4',
-          name: 'Moleskine Classic Notebook',
-          sku: 'MOL-CN-001',
-          imageUrl: '/api/placeholder/suggested4.jpg',
-          productType: 'hard_goods',
-          presentationCount: 35,
-          avgPresentationPrice: 22.99,
-          discount: 20,
-          adminNote: 'Perfect for executive gifts',
-          isAdminSuggested: false
-        }
-      ];
-
-      res.json(suggestedProducts);
-    } catch (error) {
-      console.error('Error fetching suggested products:', error);
-      res.status(500).json({ error: 'Failed to fetch suggested products' });
-    }
-  });
 
   // Universal search route
   app.get('/api/search', isAuthenticated, async (req, res) => {
@@ -3399,20 +2912,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Slack Integration Routes
-  app.get('/api/integrations/slack/channels', isAuthenticated, async (req, res) => {
-    try {
-      // Mock Slack channels - would integrate with actual Slack API
-      res.json([
-        { id: 'general', name: 'general', memberCount: 25, isArchived: false },
-        { id: 'sales', name: 'sales', memberCount: 12, isArchived: false },
-        { id: 'production', name: 'production', memberCount: 8, isArchived: false },
-        { id: 'alerts', name: 'alerts', memberCount: 15, isArchived: false },
-      ]);
-    } catch (error) {
-      res.status(500).json({ message: "Failed to fetch Slack channels" });
-    }
-  });
 
   app.get('/api/integrations/slack/messages', isAuthenticated, async (req, res) => {
     try {
@@ -3443,15 +2942,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post('/api/integrations/slack/send', isAuthenticated, async (req, res) => {
-    try {
-      const { channel, message } = req.body;
-      // Mock message sending - would integrate with actual Slack API
-      res.json({ message: "Message sent successfully to Slack" });
-    } catch (error) {
-      res.status(500).json({ message: "Failed to send Slack message" });
-    }
-  });
 
   // AI News Monitoring Routes
   app.get('/api/integrations/news/items', isAuthenticated, async (req, res) => {
@@ -4639,131 +4129,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // ESP/ASI/SAGE Product Integration Routes
-
-  // ESP Product Search and Integration
-  app.get('/api/integrations/esp/products', isAuthenticated, async (req, res) => {
-    try {
-      const { search, category, minPrice, maxPrice, asiNumber } = req.query;
-
-      // Mock ESP product search - would integrate with actual ESP API
-      const mockProducts = [
-        {
-          id: 'esp_1',
-          asiNumber: '12345',
-          productName: 'Custom Branded Coffee Mug - 11oz',
-          supplierName: 'Premier Promotions',
-          supplierAsiNumber: '98765',
-          category: 'Drinkware',
-          subCategory: 'Mugs',
-          description: 'Ceramic coffee mug with full-color imprint capability. Perfect for corporate branding.',
-          longDescription: 'High-quality ceramic mug designed for daily use. Features dishwasher-safe construction and vibrant full-color printing capabilities. Ideal for corporate gifts, events, and promotional campaigns.',
-          pricingCode: 'B',
-          basePricing: {
-            '144': 4.85,
-            '288': 4.35,
-            '576': 3.95,
-            '1008': 3.65
-          },
-          decorationPricing: {
-            setup: 65.00,
-            runCharge: 0.85
-          },
-          minimumQuantity: 144,
-          productionTime: '7-10 business days',
-          rushService: true,
-          decorationMethods: ['Full Color Imprint', 'Screen Print', 'Pad Print'],
-          colors: ['White', 'Black', 'Navy', 'Red', 'Forest Green'],
-          sizes: ['11oz'],
-          imageUrls: [
-            'https://example.com/mug-front.jpg',
-            'https://example.com/mug-side.jpg'
-          ],
-          complianceInfo: {
-            prop65: false,
-            fda: true,
-            cpsia: true
-          },
-          dimensions: '3.75" H x 3.25" Dia',
-          weight: 0.75,
-          lastSyncedAt: new Date().toISOString(),
-          syncStatus: 'active'
-        },
-        {
-          id: 'esp_2',
-          asiNumber: '23456',
-          productName: 'Eco-Friendly Bamboo Pen Set',
-          supplierName: 'Green Earth Promotions',
-          supplierAsiNumber: '87654',
-          category: 'Writing Instruments',
-          subCategory: 'Pen Sets',
-          description: 'Sustainable bamboo pen set with custom laser engraving capability.',
-          longDescription: 'Environmentally conscious pen set made from sustainable bamboo. Features smooth-writing ink and precision laser engraving for professional branding. Perfect for eco-friendly corporate campaigns.',
-          pricingCode: 'A',
-          basePricing: {
-            '100': 8.95,
-            '250': 7.45,
-            '500': 6.25,
-            '1000': 5.45
-          },
-          decorationPricing: {
-            setup: 45.00,
-            runCharge: 1.25
-          },
-          minimumQuantity: 100,
-          productionTime: '5-7 business days',
-          rushService: false,
-          decorationMethods: ['Laser Engraving', 'Pad Print'],
-          colors: ['Natural Bamboo'],
-          sizes: ['Standard'],
-          imageUrls: [
-            'https://example.com/bamboo-pen-set.jpg',
-            'https://example.com/bamboo-pen-engraved.jpg'
-          ],
-          complianceInfo: {
-            prop65: false,
-            fsc: true,
-            sustainable: true
-          },
-          dimensions: '6" L x 0.5" Dia',
-          weight: 0.25,
-          lastSyncedAt: new Date().toISOString(),
-          syncStatus: 'active'
-        }
-      ];
-
-      // Filter products based on search criteria
-      let filteredProducts = mockProducts;
-
-      if (search) {
-        const searchTerm = search.toString().toLowerCase();
-        filteredProducts = filteredProducts.filter(p =>
-          p.productName.toLowerCase().includes(searchTerm) ||
-          p.description.toLowerCase().includes(searchTerm) ||
-          p.category.toLowerCase().includes(searchTerm)
-        );
-      }
-
-      if (category) {
-        filteredProducts = filteredProducts.filter(p =>
-          p.category.toLowerCase() === category.toString().toLowerCase()
-        );
-      }
-
-      if (asiNumber) {
-        filteredProducts = filteredProducts.filter(p => p.asiNumber === asiNumber);
-      }
-
-      res.json({
-        products: filteredProducts,
-        totalResults: filteredProducts.length,
-        searchCriteria: { search, category, minPrice, maxPrice, asiNumber },
-        lastSync: new Date().toISOString()
-      });
-    } catch (error) {
-      res.status(500).json({ message: "Failed to fetch ESP products" });
-    }
-  });
 
   // SAGE Product Search and Integration
   app.get('/api/integrations/sage/products', isAuthenticated, async (req, res) => {
@@ -4903,65 +4268,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Distributor Central Product Search
-  app.get('/api/integrations/dc/products', isAuthenticated, async (req, res) => {
-    try {
-      const { search, category, minPrice, maxPrice } = req.query;
-
-      // Mock Distributor Central products - would integrate with actual DC API
-      const mockDCProducts = [
-        {
-          id: 'dc_1',
-          dcProductId: 'DC001',
-          productName: 'Sport Water Bottle - 32oz',
-          supplierName: 'Hydration Solutions',
-          category: 'Drinkware',
-          subcategory: 'Water Bottles',
-          description: 'BPA-free sport water bottle with easy-grip design and leak-proof cap.',
-          keyFeatures: ['BPA-Free', 'Leak-Proof Cap', 'Easy-Grip Design', 'Wide Mouth Opening'],
-          decorationAreas: {
-            front: { width: 3, height: 2.5 },
-            back: { width: 3, height: 2.5 }
-          },
-          imprintMethods: ['Screen Print', 'Pad Print', 'Full Color Digital'],
-          colors: ['Clear', 'Blue', 'Red', 'Green', 'Black'],
-          sizes: ['32oz'],
-          pricing: {
-            '48': 7.95,
-            '96': 6.45,
-            '192': 5.25,
-            '384': 4.65
-          },
-          quantityPricing: {
-            setup: 55.00,
-            runCharge: 0.95
-          },
-          minimumOrder: 48,
-          rushOptions: {
-            available: true,
-            additionalCost: 0.50,
-            timeReduction: '3 days'
-          },
-          productImages: [
-            'https://example.com/water-bottle-clear.jpg',
-            'https://example.com/water-bottle-colors.jpg'
-          ],
-          compliance: ['BPA-Free', 'FDA Approved', 'CPSIA Compliant'],
-          lastSyncedAt: new Date().toISOString(),
-          syncStatus: 'active'
-        }
-      ];
-
-      res.json({
-        products: mockDCProducts,
-        totalResults: mockDCProducts.length,
-        searchCriteria: { search, category, minPrice, maxPrice },
-        lastSync: new Date().toISOString()
-      });
-    } catch (error) {
-      res.status(500).json({ message: "Failed to fetch Distributor Central products" });
-    }
-  });
 
   // Unified Product Search across all platforms
   app.get('/api/integrations/products/search', isAuthenticated, async (req, res) => {
@@ -5256,12 +4562,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // SAGE product search & lookup
   app.get('/api/sage/products', isAuthenticated, async (req, res) => {
     try {
       const { search, limit } = req.query;
 
       if (search) {
-        // Search directly from SAGE API
         const credentials = await getSageCredentials();
 
         if (!credentials || !credentials.acctId || !credentials.loginId || !credentials.key) {
@@ -5282,7 +4588,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         res.json(products);
       } else {
-        // If no search query, return from database cache
         const products = await storage.getSageProducts(parseInt(limit as string) || 100);
         res.json(products);
       }
@@ -5413,49 +4718,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Production Report API routes
-  app.get('/api/production/orders', isAuthenticated, async (req, res) => {
-    try {
-      // Mock production orders data for now
-      const productionOrders = [
-        {
-          id: '1',
-          orderNumber: 'ORD-2024-001',
-          companyName: 'TechCorp Inc',
-          productName: 'Custom T-Shirts',
-          quantity: 500,
-          currentStage: 'proof-received',
-          assignedTo: 'Sarah Wilson',
-          nextActionDate: new Date().toISOString().split('T')[0],
-          nextActionNotes: 'Follow up with client on proof approval',
-          stagesCompleted: ['sales-booked', 'po-placed', 'confirmation-received'],
-          priority: 'high',
-          dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-          orderValue: 12500
-        },
-        {
-          id: '2',
-          orderNumber: 'ORD-2024-002',
-          companyName: 'StartupXYZ',
-          productName: 'Branded Mugs',
-          quantity: 200,
-          currentStage: 'order-placed',
-          assignedTo: 'Mike Johnson',
-          nextActionDate: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-          nextActionNotes: 'Check production timeline with vendor',
-          stagesCompleted: ['sales-booked', 'po-placed', 'confirmation-received', 'proof-received', 'proof-approved'],
-          priority: 'medium',
-          dueDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-          orderValue: 4800
-        }
-      ];
-
-      res.json(productionOrders);
-    } catch (error) {
-      console.error('Error in /api/production/orders:', error);
-      res.status(500).json({ error: 'Failed to fetch production orders' });
-    }
-  });
 
   app.patch('/api/orders/:id/production', isAuthenticated, async (req, res) => {
     try {
@@ -5605,177 +4867,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get orders with actions due today
-  app.get('/api/production/daily-actions', isAuthenticated, async (req, res) => {
-    try {
-      const { db } = await import("./db");
-      const { orders } = await import("@shared/schema");
-      const { and, isNotNull, sql: sqlFn } = await import("drizzle-orm");
-
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-
-      const ordersWithActions = await db
-        .select()
-        .from(orders)
-        .where(
-          and(
-            isNotNull(orders.nextActionDate),
-            sqlFn`DATE(${orders.nextActionDate}) = DATE(${today})`
-          )
-        );
-
-      res.json({ orders: ordersWithActions, count: ordersWithActions.length });
-    } catch (error) {
-      console.error('Error fetching daily actions:', error);
-      res.status(500).json({ message: 'Failed to fetch daily actions' });
-    }
-  });
-
-  // Manually trigger daily notification processing (admin/manager only)
-  app.post('/api/production/process-daily-notifications', isAuthenticated, async (req, res) => {
-    try {
-      const currentUser = await storage.getUser((req as any).user.claims.sub);
-      if (currentUser?.role !== 'admin' && currentUser?.role !== 'manager') {
-        return res.status(403).json({ message: "Only administrators and managers can trigger notification processing" });
-      }
-
-      const { notificationScheduler } = await import("./notificationScheduler");
-      await notificationScheduler.processDailyNotifications();
-
-      res.json({ success: true, message: 'Daily notifications processed' });
-    } catch (error) {
-      console.error('Error processing daily notifications:', error);
-      res.status(500).json({ message: 'Failed to process daily notifications' });
-    }
-  });
-
-  // Global search API endpoint
-  app.get('/api/search', isAuthenticated, async (req, res) => {
-    try {
-      const { q } = req.query;
-
-      if (!q || typeof q !== 'string' || q.length < 3) {
-        return res.json([]);
-      }
-
-      // Mock search results across different entities
-      const searchResults = [
-        {
-          id: '1',
-          title: `TechCorp Inc`,
-          description: 'Technology company with 5 active orders',
-          type: 'company',
-          url: '/crm?company=1',
-          metadata: { industry: 'Technology', ytdSpend: 25000 }
-        },
-        {
-          id: '2',
-          title: `Order ORD-2024-001`,
-          description: 'Custom T-Shirts for TechCorp Inc (500 units)',
-          type: 'order',
-          url: '/orders?id=1',
-          metadata: { status: 'In Production', value: 12500 }
-        },
-        {
-          id: '3',
-          title: `Custom T-Shirts`,
-          description: 'Promotional t-shirts with custom printing',
-          type: 'product',
-          url: '/products?id=1',
-          metadata: { category: 'Apparel', supplier: 'ABC Textiles' }
-        }
-      ].filter(result =>
-        result.title.toLowerCase().includes(q.toLowerCase()) ||
-        result.description.toLowerCase().includes(q.toLowerCase())
-      );
-
-      res.json(searchResults);
-    } catch (error) {
-      console.error('Error performing search:', error);
-      res.status(500).json({ message: 'Search failed' });
-    }
-  });
-
-  // Artwork management routes
-  app.get('/api/artwork/columns', isAuthenticated, async (req, res) => {
-    try {
-      const columns = await storage.getArtworkColumns();
-      res.json(columns);
-    } catch (error) {
-      console.error("Error fetching artwork columns:", error);
-      res.status(500).json({ message: "Failed to fetch artwork columns" });
-    }
-  });
-
-  app.post('/api/artwork/columns/initialize', isAuthenticated, async (req, res) => {
-    try {
-      const { columns } = req.body;
-      const result = await storage.initializeArtworkColumns(columns);
-      res.json(result);
-    } catch (error) {
-      console.error("Error initializing artwork columns:", error);
-      res.status(500).json({ message: "Failed to initialize artwork columns" });
-    }
-  });
-
-  app.post('/api/artwork/columns', isAuthenticated, async (req, res) => {
-    try {
-      const column = await storage.createArtworkColumn(req.body);
-      res.json(column);
-    } catch (error) {
-      console.error("Error creating artwork column:", error);
-      res.status(500).json({ message: "Failed to create artwork column" });
-    }
-  });
-
-  app.get('/api/artwork/cards', isAuthenticated, async (req, res) => {
-    try {
-      const cards = await storage.getArtworkCards();
-      res.json(cards);
-    } catch (error) {
-      console.error("Error fetching artwork cards:", error);
-      res.status(500).json({ message: "Failed to fetch artwork cards" });
-    }
-  });
-
-  app.post('/api/artwork/cards', isAuthenticated, async (req, res) => {
-    try {
-      console.log("Received card creation request:", req.body);
-      const validatedData = insertArtworkCardSchema.parse(req.body);
-      console.log("Validated data:", validatedData);
-      const card = await storage.createArtworkCard(validatedData);
-      console.log("Created card:", card);
-      res.status(201).json(card);
-    } catch (error) {
-      console.error("Error creating artwork card:", error);
-      res.status(500).json({ message: "Failed to create artwork card", error: (error as Error).message });
-    }
-  });
-
-  app.patch('/api/artwork/cards/:id/move', isAuthenticated, async (req, res) => {
-    try {
-      const { id } = req.params;
-      const { columnId, position } = req.body;
-      const card = await storage.moveArtworkCard(id, columnId, position);
-      res.json(card);
-    } catch (error) {
-      console.error("Error moving artwork card:", error);
-      res.status(500).json({ message: "Failed to move artwork card" });
-    }
-  });
-
-  app.patch('/api/artwork/cards/:id', isAuthenticated, async (req, res) => {
-    try {
-      const { id } = req.params;
-      const updates = req.body;
-      const card = await storage.updateArtworkCard(id, updates);
-      res.json(card);
-    } catch (error) {
-      console.error("Error updating artwork card:", error);
-      res.status(500).json({ message: "Failed to update artwork card" });
-    }
-  });
 
   // Artwork Kanban API routes
   app.get("/api/artwork/columns", isAuthenticated, async (req, res) => {
@@ -5828,7 +4919,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ error: "Failed to fetch artwork cards" });
     }
   });
-
 
 
   app.patch("/api/artwork/cards/:id/move", isAuthenticated, async (req, res) => {
@@ -6023,201 +5113,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Enhanced AI search endpoint for natural language queries
-  app.get('/api/search/ai', async (req, res) => {
-    const query = req.query.query as string;
-
-    if (!query) {
-      return res.status(400).json({ message: 'Query parameter is required' });
-    }
-
-    try {
-      const startTime = Date.now();
-
-      // Simulate AI processing of natural language query
-      let answer = '';
-      let results = [];
-      let suggestions = [];
-
-      // Parse common query types and generate appropriate responses
-      const lowerQuery = query.toLowerCase();
-
-      if (lowerQuery.includes('last') && lowerQuery.includes('order')) {
-        answer = 'Based on recent order data, here are the last three orders: Order #12347 ($2,450 - 35% margin), Order #12346 ($1,890 - 42% margin), and Order #12345 ($3,200 - 28% margin). The average margin for these orders is 35%.';
-        results = [
-          {
-            id: '12347',
-            type: 'order',
-            title: 'Order #12347 - ABC Corporation',
-            description: 'Custom branded t-shirts (500 units) - $2,450 total with 35% margin',
-            confidence: 0.95,
-            source: 'Orders Database',
-            metadata: { total: 2450, margin: 0.35, status: 'completed' },
-            action: { label: 'View Order', url: '/orders/12347' }
-          },
-          {
-            id: '12346',
-            type: 'order',
-            title: 'Order #12346 - XYZ Company',
-            description: 'Promotional pens (1000 units) - $1,890 total with 42% margin',
-            confidence: 0.93,
-            source: 'Orders Database',
-            metadata: { total: 1890, margin: 0.42, status: 'shipped' },
-            action: { label: 'View Order', url: '/orders/12346' }
-          },
-          {
-            id: '12345',
-            type: 'order',
-            title: 'Order #12345 - Demo Corp',
-            description: 'Custom mugs (250 units) - $3,200 total with 28% margin',
-            confidence: 0.91,
-            source: 'Orders Database',
-            metadata: { total: 3200, margin: 0.28, status: 'in_production' },
-            action: { label: 'View Order', url: '/orders/12345' }
-          }
-        ];
-        suggestions = ['Show all orders this month', 'Orders with low margins', 'Best performing products'];
-      }
-      else if (lowerQuery.includes('beber') && lowerQuery.includes('logo')) {
-        answer = 'I found the Beber logo files in the artwork system. The .ai file is available in the "Client Logos" folder with version 2.1 created on July 15, 2024.';
-        results = [
-          {
-            id: 'beber-logo-ai',
-            type: 'artwork',
-            title: 'Beber Logo - Vector File (.ai)',
-            description: 'Adobe Illustrator file, Version 2.1, Last updated July 15, 2024',
-            confidence: 0.98,
-            source: 'Artwork Management System',
-            metadata: { fileType: 'ai', version: '2.1', size: '2.4 MB' },
-            action: { label: 'Download File', url: '/artwork/beber-logo-ai' }
-          },
-          {
-            id: 'beber-logo-eps',
-            type: 'artwork',
-            title: 'Beber Logo - EPS Format',
-            description: 'Encapsulated PostScript file for print production',
-            confidence: 0.85,
-            source: 'Artwork Management System',
-            metadata: { fileType: 'eps', version: '2.1', size: '1.8 MB' },
-            action: { label: 'Download File', url: '/artwork/beber-logo-eps' }
-          }
-        ];
-        suggestions = ['All Beber files', 'Client logo library', 'Recent artwork uploads'];
-      }
-      else if (lowerQuery.includes('stock') || lowerQuery.includes('inventory')) {
-        answer = 'Current inventory status shows 5 products with low stock levels. Custom T-shirts (Red, Size L) have only 12 units remaining, and promotional pens (Blue) are down to 8 units.';
-        results = [
-          {
-            id: 'tshirt-red-l',
-            type: 'product',
-            title: 'Custom T-Shirt - Red, Size L',
-            description: 'Low stock alert: Only 12 units remaining (Reorder level: 50)',
-            confidence: 0.92,
-            source: 'Inventory Management',
-            metadata: { stock: 12, reorderLevel: 50, status: 'low' },
-            action: { label: 'Reorder Now', url: '/products/tshirt-red-l' }
-          },
-          {
-            id: 'pen-blue',
-            type: 'product',
-            title: 'Promotional Pen - Blue',
-            description: 'Critical stock: Only 8 units left (Reorder level: 100)',
-            confidence: 0.89,
-            source: 'Inventory Management',
-            metadata: { stock: 8, reorderLevel: 100, status: 'critical' },
-            action: { label: 'Reorder Now', url: '/products/pen-blue' }
-          }
-        ];
-        suggestions = ['All low stock items', 'Reorder recommendations', 'Best selling products'];
-      }
-      else if (lowerQuery.includes('supplier') || lowerQuery.includes('vendor')) {
-        answer = 'Top suppliers this month by order volume: PrintMaster Pro ($45,600), CustomWorks Inc ($32,100), and PromoSource LLC ($28,900). PrintMaster Pro has the best performance rating of 4.8/5.';
-        results = [
-          {
-            id: 'printmaster-pro',
-            type: 'supplier',
-            title: 'PrintMaster Pro',
-            description: 'Top supplier this month - $45,600 in orders, 4.8/5 rating',
-            confidence: 0.94,
-            source: 'Supplier Management',
-            metadata: { revenue: 45600, rating: 4.8, orders: 23 },
-            action: { label: 'View Supplier', url: '/suppliers/printmaster-pro' }
-          },
-          {
-            id: 'customworks-inc',
-            type: 'supplier',
-            title: 'CustomWorks Inc',
-            description: 'Second highest volume - $32,100 in orders, 4.6/5 rating',
-            confidence: 0.91,
-            source: 'Supplier Management',
-            metadata: { revenue: 32100, rating: 4.6, orders: 18 },
-            action: { label: 'View Supplier', url: '/suppliers/customworks-inc' }
-          }
-        ];
-        suggestions = ['Supplier performance reports', 'New supplier onboarding', 'Payment terms comparison'];
-      }
-      else if (lowerQuery.includes('contact') || lowerQuery.includes('company')) {
-        const searchTerm = lowerQuery.match(/for\s+(.+?)(?:\s|$)/)?.[1] || 'company';
-        answer = `I found contact information for ${searchTerm}. The primary contact is John Smith (john@company.com, 555-123-4567) and the company is located at 123 Business Ave, Suite 100.`;
-        results = [
-          {
-            id: `${searchTerm}-contact`,
-            type: 'contact',
-            title: `${searchTerm} - Primary Contact`,
-            description: 'John Smith, Marketing Director - john@company.com, 555-123-4567',
-            confidence: 0.87,
-            source: 'CRM Database',
-            metadata: { email: 'john@company.com', phone: '555-123-4567' },
-            action: { label: 'View Contact', url: `/crm/contacts/${searchTerm}` }
-          }
-        ];
-        suggestions = ['All company contacts', 'Recent communications', 'Update contact info'];
-      }
-      else {
-        // Generic search
-        answer = `I searched across all systems for "${query}". Here are the most relevant results from orders, products, contacts, and files.`;
-        results = [
-          {
-            id: 'generic-1',
-            type: 'general',
-            title: `Search results for: ${query}`,
-            description: 'Found multiple matches across different system modules',
-            confidence: 0.7,
-            source: 'System-wide Search',
-            action: { label: 'View All', url: `/search?q=${encodeURIComponent(query)}` }
-          }
-        ];
-        suggestions = [
-          `${query} orders`,
-          `${query} products`,
-          `${query} contacts`,
-          'Recent activities',
-          'Popular searches'
-        ];
-      }
-
-      const processingTime = Date.now() - startTime;
-
-      res.json({
-        query,
-        answer,
-        results,
-        suggestions,
-        processingTime
-      });
-
-    } catch (error) {
-      console.error('AI search error:', error);
-      res.status(500).json({
-        message: 'AI search failed',
-        query,
-        answer: 'Sorry, I encountered an error while searching. Please try again.',
-        results: [],
-        suggestions: [],
-        processingTime: 0
-      });
-    }
-  });
 
   // Seed dummy data endpoint (for development)
   app.post('/api/seed-dummy-data', isAuthenticated, async (req, res) => {
@@ -6233,32 +5128,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Test presentation generation (development endpoint)
-  app.post('/api/test-presentation-generation', isAuthenticated, async (req, res) => {
-    try {
-      console.log("Testing presentation generation with fallback...");
-
-      // Create a test presentation
-      const testPresentation = await storage.createPresentation({
-        title: 'Test Presentation - Corporate Event Campaign',
-        description: 'Test presentation for Q1 corporate events',
-        dealNotes: 'Looking for branded apparel, tech accessories, and drinkware for corporate events. Budget $25k, quantities 500-1000 units per item.',
-        userId: req.user!.claims.sub,
-        status: 'draft'
-      });
-
-      // Generate suggestions immediately
-      await generatePresentationWithAI(testPresentation.id, testPresentation.dealNotes || '');
-
-      res.json({
-        message: 'Test presentation created and generated successfully!',
-        presentationId: testPresentation.id
-      });
-    } catch (error) {
-      console.error("Error testing presentation generation:", error);
-      res.status(500).json({ message: "Failed to test presentation generation", error: (error as Error).message });
-    }
-  });
 
   // AI Presentation Builder routes
   app.get('/api/presentations', isAuthenticated, async (req, res) => {
@@ -6387,253 +5256,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Slack Integration Routes
-  app.get('/api/slack/messages', isAuthenticated, async (req, res) => {
-    try {
-      const messages = await storage.getSlackMessages();
-      res.json(messages);
-    } catch (error) {
-      console.error("Error fetching Slack messages:", error);
-      res.status(500).json({ message: "Failed to fetch Slack messages" });
-    }
-  });
-
-  // Fetch messages from Slack channel and sync with database
-  app.get('/api/slack/sync-messages', isAuthenticated, async (req, res) => {
-    try {
-      // Get Slack credentials from env vars only
-      // TODO: Future - enable database config by uncommenting below
-      // const credentials = await storage.getIntegrationSettings();
-      // const botToken = credentials?.slackBotToken || process.env.SLACK_BOT_TOKEN;
-      // const channelId = credentials?.slackChannelId || process.env.SLACK_CHANNEL_ID;
-      const botToken = process.env.SLACK_BOT_TOKEN?.trim();
-      const channelId = process.env.SLACK_CHANNEL_ID?.trim();
-
-      if (!botToken || !channelId) {
-        return res.status(503).json({
-          message: "Slack is not configured. Please configure Slack integration in Settings."
-        });
-      }
-
-      // Import slack helper dynamically to avoid issues
-      const { readSlackHistory, getSlackUserInfo } = await import('@shared/slack');
-
-      // Fetch messages from Slack
-      const history = await readSlackHistory(channelId, 50, botToken);
-
-      if (!history || !history.messages) {
-        return res.status(503).json({
-          message: "Failed to fetch messages from Slack. Check your configuration."
-        });
-      }
-
-      // Get unique user IDs
-      const userIds = Array.from(new Set(history.messages
-        .filter((msg: any) => msg.user)
-        .map((msg: any) => msg.user)));
-
-      // Fetch user info for all unique users
-      const userInfoMap = new Map();
-      await Promise.all(
-        userIds.map(async (userId: string) => {
-          const userInfo = await getSlackUserInfo(userId, botToken);
-          if (userInfo) {
-            userInfoMap.set(userId, userInfo);
-          }
-        })
-      );
-
-      // Format messages with user info and thread context
-      const formattedMessages = history.messages
-        .map((msg: any) => {
-          const userInfo = msg.user ? userInfoMap.get(msg.user) : null;
-          const displayName = msg.username
-            || userInfo?.displayName
-            || userInfo?.realName
-            || userInfo?.name
-            || (msg.bot_id ? 'SwagSuite' : 'Unknown');
-
-          return {
-            id: msg.ts,
-            channelId: channelId,
-            messageId: msg.ts,
-            userId: msg.user || 'bot',
-            content: msg.text || '',
-            username: displayName,
-            timestamp: new Date(parseFloat(msg.ts) * 1000).toISOString(),
-            createdAt: new Date(parseFloat(msg.ts) * 1000).toISOString(),
-            threadTs: msg.thread_ts,
-            isReply: !!msg.thread_ts && msg.thread_ts !== msg.ts,
-            replyCount: msg.reply_count || 0,
-            botId: msg.bot_id
-          };
-        })
-        .sort((a: any, b: any) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()); // Sort oldest first
-
-      res.json({ messages: formattedMessages });
-    } catch (error: any) {
-      console.error("Error syncing Slack messages:", error);
-
-      if (error?.code === 'slack_webapi_platform_error') {
-        const slackError = error.data?.error;
-        return res.status(400).json({
-          message: `Slack error: ${slackError || 'Unknown error'}`
-        });
-      }
-
-      res.status(500).json({ message: "Failed to sync Slack messages" });
-    }
-  });
-
-  // Fetch thread replies from Slack
-  app.get('/api/slack/thread/:threadTs', isAuthenticated, async (req, res) => {
-    try {
-      const { threadTs } = req.params;
-
-      // Get Slack credentials from env vars only
-      // TODO: Future - enable database config by uncommenting below
-      // const credentials = await storage.getIntegrationSettings();
-      // const botToken = credentials?.slackBotToken || process.env.SLACK_BOT_TOKEN;
-      // const channelId = credentials?.slackChannelId || process.env.SLACK_CHANNEL_ID;
-      const botToken = process.env.SLACK_BOT_TOKEN?.trim();
-      const channelId = process.env.SLACK_CHANNEL_ID?.trim();
-
-      if (!botToken || !channelId) {
-        return res.status(503).json({
-          message: "Slack is not configured."
-        });
-      }
-
-      const { getSlackThreadReplies, getSlackUserInfo } = await import('@shared/slack');
-
-      // Fetch thread replies
-      const threadData = await getSlackThreadReplies(channelId, threadTs, botToken);
-
-      if (!threadData || !threadData.messages) {
-        return res.json({ replies: [] });
-      }
-
-      // Get unique user IDs from replies
-      const userIds = Array.from(new Set(threadData.messages
-        .filter((msg: any) => msg.user)
-        .map((msg: any) => msg.user)));
-
-      // Fetch user info
-      const userInfoMap = new Map();
-      await Promise.all(
-        userIds.map(async (userId: string) => {
-          try {
-            const userInfo = await getSlackUserInfo(userId, botToken);
-            if (userInfo) {
-              userInfoMap.set(userId, userInfo);
-            }
-          } catch (error) {
-            console.error(`Error fetching user info for ${userId}:`, error);
-          }
-        })
-      );
-
-      // Format replies
-      const formattedReplies = threadData.messages.map((msg: any) => {
-        const userInfo = msg.user ? userInfoMap.get(msg.user) : null;
-        const displayName = msg.username
-          || userInfo?.displayName
-          || userInfo?.realName
-          || userInfo?.name
-          || (msg.bot_id ? 'SwagSuite' : 'Unknown');
-
-        return {
-          id: msg.ts,
-          messageId: msg.ts,
-          userId: msg.user || 'bot',
-          content: msg.text || '',
-          username: displayName,
-          timestamp: new Date(parseFloat(msg.ts) * 1000).toISOString(),
-          createdAt: new Date(parseFloat(msg.ts) * 1000).toISOString(),
-          botId: msg.bot_id
-        };
-      });
-
-      res.json({ replies: formattedReplies });
-    } catch (error: any) {
-      console.error("Error fetching thread replies:", error);
-      res.status(500).json({ message: "Failed to fetch thread replies" });
-    }
-  });
-
-  app.post('/api/slack/send-message', isAuthenticated, async (req, res) => {
-    try {
-      const { content } = req.body;
-      if (!content?.trim()) {
-        return res.status(400).json({ message: "Message content is required" });
-      }
-
-      // Get Slack credentials from env vars only
-      // TODO: Future - enable database config by uncommenting below
-      // const credentials = await storage.getIntegrationSettings();
-      // const botToken = credentials?.slackBotToken || process.env.SLACK_BOT_TOKEN;
-      // const channelId = credentials?.slackChannelId || process.env.SLACK_CHANNEL_ID;
-      const botToken = process.env.SLACK_BOT_TOKEN?.trim();
-      const channelId = process.env.SLACK_CHANNEL_ID?.trim();
-
-      if (!botToken || !channelId) {
-        return res.status(503).json({
-          message: "Slack is not configured. Please configure Slack integration in Settings."
-        });
-      }
-
-      // Send message to Slack
-      const messageResponse = await sendSlackMessage({
-        channel: channelId,
-        text: content.trim(),
-        username: 'SwagSuite',
-        icon_emoji: ':briefcase:'
-      }, botToken);
-
-      if (!messageResponse) {
-        return res.status(503).json({
-          message: "Failed to send message to Slack. Check your Slack configuration and token validity."
-        });
-      }
-
-      // Store message in database
-      const message = await storage.createSlackMessage({
-        channelId: channelId,
-        messageId: messageResponse || 'sent',
-        userId: req.user!.claims.sub,
-        content: content.trim()
-      });
-
-      res.json(message);
-    } catch (error: any) {
-      console.error("Error sending Slack message:", error);
-
-      // Handle specific Slack errors
-      if (error?.code === 'slack_webapi_platform_error') {
-        const slackError = error.data?.error;
-
-        if (slackError === 'channel_not_found') {
-          return res.status(400).json({
-            message: `Slack channel not found. Please check your SLACK_CHANNEL_ID (${process.env.SLACK_CHANNEL_ID}). Make sure the bot is added to the channel.`
-          });
-        } else if (slackError === 'invalid_auth') {
-          return res.status(401).json({
-            message: "Invalid Slack token. Please check your SLACK_BOT_TOKEN in environment variables."
-          });
-        } else if (slackError === 'not_in_channel') {
-          return res.status(403).json({
-            message: `Bot is not in the channel. Please invite the bot to channel ${process.env.SLACK_CHANNEL_ID}`
-          });
-        }
-
-        return res.status(400).json({
-          message: `Slack error: ${slackError || 'Unknown error'}`
-        });
-      }
-
-      res.status(500).json({ message: "Failed to send Slack message" });
-    }
-  });
 
   // S&S Activewear Integration Routes
   app.get('/api/ss-activewear/products', isAuthenticated, async (req, res) => {
@@ -7021,42 +5643,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Admin Settings Management Endpoints
-  app.get('/api/admin/settings', isAuthenticated, async (req, res) => {
-    try {
-      const settings = {
-        features: [
-          { id: 'popular_products', enabled: true, category: 'analytics' },
-          { id: 'suggested_items', enabled: true, category: 'analytics' },
-          { id: 'admin_suggestions', enabled: true, category: 'core', adminOnly: true },
-          { id: 'universal_search', enabled: true, category: 'core' },
-          { id: 'ss_activewear_integration', enabled: true, category: 'integrations' },
-          { id: 'hubspot_sync', enabled: false, category: 'integrations' },
-          { id: 'slack_notifications', enabled: true, category: 'integrations' },
-          { id: 'ai_knowledge_base', enabled: true, category: 'advanced' },
-          { id: 'production_reports', enabled: true, category: 'analytics' },
-          { id: 'team_leaderboard', enabled: true, category: 'analytics' },
-          { id: 'automation_workflows', enabled: true, category: 'advanced' },
-          { id: 'multi_company_view', enabled: false, category: 'advanced', adminOnly: true }
-        ]
-      };
-      res.json(settings);
-    } catch (error) {
-      console.error('Error fetching admin settings:', error);
-      res.status(500).json({ error: 'Failed to fetch settings' });
-    }
-  });
-
-  app.put('/api/admin/settings/features', isAuthenticated, async (req, res) => {
-    try {
-      const { featureId, enabled } = req.body;
-      console.log(`Feature ${featureId} ${enabled ? 'enabled' : 'disabled'}`);
-      res.json({ success: true, message: 'Feature updated successfully' });
-    } catch (error) {
-      console.error('Error updating feature:', error);
-      res.status(500).json({ error: 'Failed to update feature' });
-    }
-  });
 
   // Integration Settings endpoints
   app.get('/api/settings/integrations', isAuthenticated, async (req, res) => {
@@ -7077,7 +5663,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         sageAcctId: dbSettings?.sageAcctId || process.env.SAGE_ACCT_ID?.trim() || "",
         sageLoginId: dbSettings?.sageLoginId || process.env.SAGE_LOGIN_ID?.trim() || "",
         sageApiKey: dbSettings?.sageApiKey || process.env.SAGE_API_KEY?.trim() || "",
-        mapboxAccessToken: dbSettings?.mapboxAccessToken || process.env.MAPBOX_ACCESS_TOKEN?.trim() || "",
+        geoapifyApiKey: dbSettings?.geoapifyApiKey || process.env.GEOAPIFY_API_KEY?.trim() || "",
         quickbooksConnected: dbSettings?.quickbooksConnected || false,
         stripeConnected: dbSettings?.stripeConnected || false,
         shipmateConnected: dbSettings?.shipmateConnected || false,
@@ -7112,7 +5698,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         sageAcctId: settings.sageAcctId ? '***' : '',
         sageLoginId: settings.sageLoginId ? '***' : '',
         sageApiKey: settings.sageApiKey ? '***' : '',
-        mapboxAccessToken: settings.mapboxAccessToken ? '***' : '',
+        geoapifyApiKey: settings.geoapifyApiKey ? '***' : '',
         updatedBy: userId
       });
 
@@ -7144,7 +5730,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Mapbox Geocoding proxy - address autocomplete
+  // Geoapify Geocoding proxy - address autocomplete
   app.get('/api/geocode/search', isAuthenticated, async (req, res) => {
     try {
       const { q } = req.query;
@@ -7153,40 +5739,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.json({ suggestions: [] });
       }
 
-      // Read token from DB settings first, then fallback to env
+      // Read API key from DB settings first, then fallback to env
       const dbSettings = await storage.getIntegrationSettings();
-      const mapboxToken = dbSettings?.mapboxAccessToken || process.env.MAPBOX_ACCESS_TOKEN?.trim();
+      const geoapifyKey = dbSettings?.geoapifyApiKey || process.env.GEOAPIFY_API_KEY?.trim();
 
-      if (!mapboxToken) {
+      if (!geoapifyKey) {
         return res.json({ suggestions: [], configured: false });
       }
 
       const encodedQuery = encodeURIComponent(q);
-      const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodedQuery}.json?access_token=${mapboxToken}&types=address&limit=5&autocomplete=true`;
+      const url = `https://api.geoapify.com/v1/geocode/autocomplete?text=${encodedQuery}&apiKey=${geoapifyKey}&limit=5&format=json`;
 
       const response = await fetch(url);
       if (!response.ok) {
-        throw new Error(`Mapbox API returned ${response.status}`);
+        throw new Error(`Geoapify API returned ${response.status}`);
       }
 
       const data = await response.json();
 
-      const suggestions = (data.features || []).map((feature: any) => {
-        const context = feature.context || [];
-        const getContextValue = (id: string) =>
-          context.find((c: any) => c.id.startsWith(id))?.text || "";
-
+      const suggestions = (data.results || []).map((result: any) => {
         return {
-          id: feature.id,
-          fullAddress: feature.place_name,
-          streetAddress: feature.address
-            ? `${feature.address} ${feature.text}`
-            : feature.text,
-          city: getContextValue("place"),
-          state: getContextValue("region"),
-          stateCode: context.find((c: any) => c.id.startsWith("region"))?.short_code?.replace(/^[A-Z]{2}-/, "") || "",
-          zipCode: getContextValue("postcode"),
-          country: context.find((c: any) => c.id.startsWith("country"))?.short_code?.toUpperCase() || "",
+          id: result.place_id || result.formatted,
+          fullAddress: result.formatted || "",
+          streetAddress: [result.housenumber, result.street].filter(Boolean).join(" ") || result.address_line1 || "",
+          city: result.city || result.town || result.village || "",
+          state: result.state || "",
+          stateCode: result.state_code?.toUpperCase() || "",
+          zipCode: result.postcode || "",
+          country: result.country_code?.toUpperCase() || "",
         };
       });
 
@@ -7197,301 +5777,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Weekly Report Config routes
-  app.get("/api/weekly-reports/config", isAuthenticated, async (req, res) => {
-    try {
-      const configs = await storage.getWeeklyReportConfigs();
-      res.json(configs);
-    } catch (error) {
-      console.error("Error fetching weekly report configs:", error);
-      res.status(500).json({ message: "Failed to fetch report configs" });
-    }
-  });
-
-  app.post("/api/weekly-reports/config", isAuthenticated, async (req, res) => {
-    try {
-      const config = await storage.createWeeklyReportConfig(req.body);
-      res.json(config);
-    } catch (error) {
-      console.error("Error creating weekly report config:", error);
-      res.status(500).json({ message: "Failed to create report config" });
-    }
-  });
-
-  app.patch("/api/weekly-reports/config/:id", isAuthenticated, async (req, res) => {
-    try {
-      const { id } = req.params;
-      const config = await storage.updateWeeklyReportConfig(id, req.body);
-      res.json(config);
-    } catch (error) {
-      console.error("Error updating weekly report config:", error);
-      res.status(500).json({ message: "Failed to update report config" });
-    }
-  });
-
-  app.delete("/api/weekly-reports/config/:id", isAuthenticated, async (req, res) => {
-    try {
-      const { id } = req.params;
-      await storage.deleteWeeklyReportConfig(id);
-      res.json({ success: true });
-    } catch (error) {
-      console.error("Error deleting weekly report config:", error);
-      res.status(500).json({ message: "Failed to delete report config" });
-    }
-  });
-
-  // Weekly Report Log routes
-  app.get("/api/weekly-reports/logs", isAuthenticated, async (req, res) => {
-    try {
-      const userId = req.user?.claims?.sub;
-      const logs = await storage.getWeeklyReportLogs(userId);
-      res.json(logs);
-    } catch (error) {
-      console.error("Error fetching weekly report logs:", error);
-      res.status(500).json({ message: "Failed to fetch report logs" });
-    }
-  });
-
-  app.post("/api/weekly-reports/logs", isAuthenticated, async (req, res) => {
-    try {
-      const userId = req.user?.claims?.sub;
-      const log = await storage.createWeeklyReportLog({
-        ...req.body,
-        userId,
-      });
-      res.json(log);
-    } catch (error) {
-      console.error("Error creating weekly report log:", error);
-      res.status(500).json({ message: "Failed to create report log" });
-    }
-  });
-
-  // Generate weekly report for current user
-  app.post("/api/weekly-reports/generate", isAuthenticated, async (req, res) => {
-    try {
-      const userId = req.user?.claims?.sub;
-
-      if (!userId) {
-        return res.status(401).json({ message: "Unauthorized" });
-      }
-
-      // Calculate date range for this week
-      const now = new Date();
-      const weekStart = new Date(now.setDate(now.getDate() - now.getDay()));
-      const weekEnd = new Date(weekStart);
-      weekEnd.setDate(weekEnd.getDate() + 6);
-
-      // Get active report configurations
-      const configs = await storage.getWeeklyReportConfigs();
-      const activeConfigs = configs.filter(config => config.isActive);
-
-      // Calculate metrics (basic implementation)
-      const metricsData: Record<string, any> = {};
-
-      for (const config of activeConfigs) {
-        let value = 0;
-
-        switch (config.dataSource) {
-          case 'orders':
-            const orders = await storage.getOrdersByStatus('approved');
-            value = orders.filter(order =>
-              order.createdAt && order.createdAt >= weekStart && order.createdAt <= weekEnd
-            ).length;
-            break;
-          case 'revenue':
-            const revenueOrders = await storage.getOrdersByStatus('approved');
-            value = revenueOrders
-              .filter(order => order.createdAt && order.createdAt >= weekStart && order.createdAt <= weekEnd)
-              .reduce((sum, order) => sum + parseFloat(order.total || '0'), 0);
-            break;
-          case 'margin':
-            const marginOrders = await storage.getOrdersByStatus('approved');
-            const totalRevenue = marginOrders
-              .filter(order => order.createdAt && order.createdAt >= weekStart && order.createdAt <= weekEnd)
-              .reduce((sum, order) => sum + parseFloat(order.total || '0'), 0);
-            const totalMargin = marginOrders
-              .filter(order => order.createdAt && order.createdAt >= weekStart && order.createdAt <= weekEnd)
-              .reduce((sum, order) => sum + (parseFloat(order.total || '0') * parseFloat(order.margin || '0') / 100), 0);
-            value = totalRevenue > 0 ? (totalMargin / totalRevenue) * 100 : 0;
-            break;
-          case 'stores':
-            const companies = await storage.getCompanies();
-            value = companies.filter(company =>
-              company.createdAt && company.createdAt >= weekStart && company.createdAt <= weekEnd
-            ).length;
-            break;
-          default:
-            value = 0;
-        }
-
-        metricsData[config.metricName] = {
-          displayName: config.displayName,
-          value,
-          calculationMethod: config.calculationMethod,
-          description: config.description
-        };
-      }
-
-      // Create report log
-      const reportLog = await storage.createWeeklyReportLog({
-        userId,
-        reportWeekStart: weekStart,
-        reportWeekEnd: weekEnd,
-        metricsData,
-        emailStatus: 'pending'
-      });
-
-      res.json({
-        success: true,
-        reportLog,
-        message: "Weekly report generated successfully. Email functionality will be available when SendGrid is configured."
-      });
-
-    } catch (error) {
-      console.error("Error generating weekly report:", error);
-      res.status(500).json({ message: "Failed to generate weekly report" });
-    }
-  });
-
-  // Sequence routes
-  app.get('/api/sequences', isAuthenticated, async (req, res) => {
-    try {
-      const userId = req.user?.claims?.sub;
-      const sequences = await storage.getSequences(userId);
-      res.json(sequences);
-    } catch (error) {
-      console.error('Error fetching sequences:', error);
-      res.status(500).json({ error: 'Failed to fetch sequences' });
-    }
-  });
-
-  app.get('/api/sequences/:id', isAuthenticated, async (req, res) => {
-    try {
-      const sequence = await storage.getSequence(req.params.id);
-      if (!sequence) {
-        return res.status(404).json({ error: 'Sequence not found' });
-      }
-      res.json(sequence);
-    } catch (error) {
-      console.error('Error fetching sequence:', error);
-      res.status(500).json({ error: 'Failed to fetch sequence' });
-    }
-  });
-
-  app.post('/api/sequences', isAuthenticated, async (req, res) => {
-    try {
-      const validatedData = insertSequenceSchema.parse(req.body);
-      const userId = req.user?.claims?.sub;
-
-      const sequenceData = {
-        ...validatedData,
-        userId: userId || validatedData.userId
-      };
-
-      const sequence = await storage.createSequence(sequenceData);
-      res.status(201).json(sequence);
-    } catch (error) {
-      console.error('Error creating sequence:', error);
-      res.status(500).json({ error: 'Failed to create sequence' });
-    }
-  });
-
-  app.put('/api/sequences/:id', isAuthenticated, async (req, res) => {
-    try {
-      const sequence = await storage.updateSequence(req.params.id, req.body);
-      res.json(sequence);
-    } catch (error) {
-      console.error('Error updating sequence:', error);
-      res.status(500).json({ error: 'Failed to update sequence' });
-    }
-  });
-
-  app.delete('/api/sequences/:id', isAuthenticated, async (req, res) => {
-    try {
-      await storage.deleteSequence(req.params.id);
-      res.status(204).send();
-    } catch (error) {
-      console.error('Error deleting sequence:', error);
-      res.status(500).json({ error: 'Failed to delete sequence' });
-    }
-  });
-
-  // Sequence Step routes
-  app.get('/api/sequences/:sequenceId/steps', isAuthenticated, async (req, res) => {
-    try {
-      const steps = await storage.getSequenceSteps(req.params.sequenceId);
-      res.json(steps);
-    } catch (error) {
-      console.error('Error fetching sequence steps:', error);
-      res.status(500).json({ error: 'Failed to fetch sequence steps' });
-    }
-  });
-
-  app.post('/api/sequences/:sequenceId/steps', isAuthenticated, async (req, res) => {
-    try {
-      const validatedData = insertSequenceStepSchema.parse(req.body);
-      const stepData = {
-        ...validatedData,
-        sequenceId: req.params.sequenceId
-      };
-
-      const step = await storage.createSequenceStep(stepData);
-      res.status(201).json(step);
-    } catch (error) {
-      console.error('Error creating sequence step:', error);
-      res.status(500).json({ error: 'Failed to create sequence step' });
-    }
-  });
-
-  // Sequence Enrollment routes
-  app.get('/api/sequence-enrollments', isAuthenticated, async (req, res) => {
-    try {
-      const sequenceId = req.query.sequenceId as string;
-      const enrollments = await storage.getSequenceEnrollments(sequenceId);
-      res.json(enrollments);
-    } catch (error) {
-      console.error('Error fetching sequence enrollments:', error);
-      res.status(500).json({ error: 'Failed to fetch sequence enrollments' });
-    }
-  });
-
-  app.post('/api/sequence-enrollments', isAuthenticated, async (req, res) => {
-    try {
-      const validatedData = insertSequenceEnrollmentSchema.parse(req.body);
-      const enrollment = await storage.createSequenceEnrollment(validatedData);
-      res.status(201).json(enrollment);
-    } catch (error) {
-      console.error('Error creating sequence enrollment:', error);
-      res.status(500).json({ error: 'Failed to create sequence enrollment' });
-    }
-  });
-
-  // Sequence Analytics routes
-  app.get('/api/sequences/:sequenceId/analytics', isAuthenticated, async (req, res) => {
-    try {
-      const analytics = await storage.getSequenceAnalytics(req.params.sequenceId);
-      res.json(analytics);
-    } catch (error) {
-      console.error('Error fetching sequence analytics:', error);
-      res.status(500).json({ error: 'Failed to fetch sequence analytics' });
-    }
-  });
-
-  app.post('/api/sequences/:sequenceId/analytics', isAuthenticated, async (req, res) => {
-    try {
-      const validatedData = insertSequenceAnalyticsSchema.parse(req.body);
-      const analyticsData = {
-        ...validatedData,
-        sequenceId: req.params.sequenceId
-      };
-
-      const analytics = await storage.createSequenceAnalytics(analyticsData);
-      res.status(201).json(analytics);
-    } catch (error) {
-      console.error('Error creating sequence analytics:', error);
-      res.status(500).json({ error: 'Failed to create sequence analytics' });
-    }
-  });
 
   // Project Activities API Routes
   app.get("/api/projects/:orderId/activities", async (req, res) => {
@@ -7716,9 +6001,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.redirect(downloadUrl);
       }
 
-      // Legacy: handle old Replit Storage files
-      const { replitStorage } = await import("./replitStorage");
-      const fileBuffer = await replitStorage.downloadFile(metadata.storagePath!);
+      // Legacy: handle old storage files
+      const { storageService } = await import("./storageService");
+      const fileBuffer = await storageService.downloadFile(metadata.storagePath!);
 
       if (!fileBuffer) {
         return res.status(404).json({ error: "File not found in storage" });
@@ -7829,6 +6114,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         body,
         metadata,
         attachmentIds,
+        autoAttachArtworkForVendor,
+        autoAttachDocumentFile,
       } = req.body;
 
       // Import dependencies
@@ -7882,17 +6169,86 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }));
       }
 
+      // Direct buffer attachments for files stored as full Cloudinary URLs
+      // (artwork files + PO document PDF are downloaded directly via axios)
+      let directBufferAttachments: Array<{ filename: string; content: Buffer; contentType: string }> = [];
+
+      // Auto-attach artwork files for vendor PO emails
+      if (autoAttachArtworkForVendor && communicationType === 'vendor_email') {
+        try {
+          const { artworkItems, orderItems: orderItemsTable } = await import("@shared/schema");
+          const axios = (await import('axios')).default;
+
+          // Get order items belonging to this vendor
+          const orderItemsForVendor = await db
+            .select()
+            .from(orderItemsTable)
+            .where(eq(orderItemsTable.orderId, orderId));
+
+          const vendorSpecificItemIds = orderItemsForVendor
+            .filter((item: any) => item.supplierId === autoAttachArtworkForVendor)
+            .map((item: any) => item.id);
+
+          if (vendorSpecificItemIds.length > 0) {
+            // Fetch artwork items that have files for this vendor's order items
+            const artworks = await db
+              .select()
+              .from(artworkItems)
+              .where(inArray(artworkItems.orderItemId, vendorSpecificItemIds));
+
+            const artworksWithFiles = artworks.filter((art: any) => art.filePath);
+
+            // Download each artwork file directly from Cloudinary URL
+            for (const art of artworksWithFiles) {
+              if (!art.filePath) continue; // Skip if filePath is null
+              
+              try {
+                const response = await axios.get(art.filePath, { responseType: 'arraybuffer' });
+                const buffer = Buffer.from(response.data);
+                directBufferAttachments.push({
+                  filename: art.fileName || art.name || 'artwork',
+                  content: buffer,
+                  contentType: art.filePath.match(/\.(png|jpg|jpeg|gif|svg)$/i) ? `image/${art.filePath.match(/\.(\w+)$/)?.[1] || 'png'}` : 'application/octet-stream',
+                });
+              } catch (dlErr) {
+                console.error(`Warning: Failed to download artwork file ${art.fileName}:`, (dlErr as any).message);
+              }
+            }
+          }
+        } catch (artworkError) {
+          console.error('Warning: Failed to auto-attach artwork files:', artworkError);
+          // Continue sending email without artwork attachments
+        }
+      }
+      if (autoAttachDocumentFile && autoAttachDocumentFile.fileUrl) {
+        try {
+          const axios = (await import('axios')).default;
+          const response = await axios.get(autoAttachDocumentFile.fileUrl, { responseType: 'arraybuffer' });
+          const buffer = Buffer.from(response.data);
+          directBufferAttachments.push({
+            filename: autoAttachDocumentFile.fileName || 'purchase-order.pdf',
+            content: buffer,
+            contentType: 'application/pdf',
+          });
+        } catch (docError) {
+          console.error('Warning: Failed to auto-attach PO document:', docError);
+          // Continue sending email without PO attachment
+        }
+      }
+
       // Actually send the email if direction is 'sent'
       if (direction === 'sent') {
-        console.log('📧 Attempting to send email...');
-        console.log('  Type:', communicationType);
-        console.log('  From:', fromEmail, fromName ? `(${fromName})` : '');
-        console.log('  To:', recipientEmail, recipientName ? `(${recipientName})` : '');
-        console.log('  Subject:', subject);
-        console.log('  Attachments:', emailAttachments.length);
-
         // Extract CC and BCC from request body
-        const { cc, bcc } = req.body;
+        let { cc, bcc } = req.body;
+
+        // Auto-BCC the sender so they always get a copy
+        if (fromEmail) {
+          const existingBcc = bcc ? bcc.split(',').map((e: string) => e.trim()).filter(Boolean) : [];
+          if (!existingBcc.includes(fromEmail)) {
+            existingBcc.push(fromEmail);
+          }
+          bcc = existingBcc.join(', ');
+        }
 
         try {
           const order = await storage.getOrder(orderId);
@@ -7900,7 +6256,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const supplier = (order as any)?.supplierId ? await storage.getSupplier((order as any).supplierId) : null;
 
           if (communicationType === 'client_email') {
-            console.log('  Sending client email...');
             await emailService.sendClientEmail({
               userId: currentUserId,
               from: fromEmail,
@@ -7912,12 +6267,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
               orderNumber: order?.orderNumber,
               companyName: company?.name,
               attachments: emailAttachments,
+              directAttachments: directBufferAttachments.length > 0 ? directBufferAttachments : undefined,
               cc,
               bcc,
             });
-            console.log('✅ Client email sent successfully!');
           } else if (communicationType === 'vendor_email') {
-            console.log('  Sending vendor email...');
             await emailService.sendVendorEmail({
               userId: currentUserId,
               from: fromEmail,
@@ -7929,10 +6283,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
               orderNumber: order?.orderNumber,
               supplierName: supplier?.name,
               attachments: emailAttachments,
+              directAttachments: directBufferAttachments.length > 0 ? directBufferAttachments : undefined,
               cc,
               bcc,
             });
-            console.log('✅ Vendor email sent successfully!');
 
             // --- PO Tracking: detect if this vendor email is sending a Purchase Order ---
             try {
@@ -7957,8 +6311,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
                   .returning();
 
                 if (updatedDoc) {
-                  console.log(`📋 PO #${poNumber} marked as sent to ${recipientName || recipientEmail}`);
-
                   // 2. Log activity
                   await db.insert(projectActivities).values({
                     orderId,
@@ -7999,8 +6351,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
                       })
                       .where(eq(ordersTable.id, orderId));
 
-                    console.log(`📦 All POs sent for order ${order.orderNumber} - stage updated to po-placed`);
-
                     // Log stage change activity
                     await db.insert(projectActivities).values({
                       orderId,
@@ -8011,18 +6361,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
                       isSystemGenerated: true,
                     });
 
-                    // 4. Notify production manager
-                    if ((order as any).productionManagerId) {
-                      await db.insert(notificationsTable).values({
-                        recipientId: (order as any).productionManagerId,
-                        senderId: currentUserId,
-                        orderId,
-                        type: "order_update",
-                        title: "All POs Sent - Order Ready",
-                        message: `All ${allPOs.length} Purchase Order(s) for order #${order.orderNumber} have been sent to vendors.`,
-                      });
-                      console.log(`🔔 Production manager notified for order ${order.orderNumber}`);
-                    }
                   }
                 }
               }
@@ -8076,244 +6414,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Error tracking routes
-  app.get('/api/errors', isAuthenticated, async (req, res) => {
-    try {
-      const errors = await storage.getErrors();
-      res.json(errors);
-    } catch (error) {
-      console.error("Error fetching errors:", error);
-      res.status(500).json({ message: "Failed to fetch errors" });
-    }
-  });
-
-  app.get('/api/errors/statistics', isAuthenticated, async (req, res) => {
-    try {
-      const statistics = await storage.getErrorStatistics();
-      res.json(statistics);
-    } catch (error) {
-      console.error("Error fetching error statistics:", error);
-      res.status(500).json({ message: "Failed to fetch error statistics" });
-    }
-  });
-
-  app.get('/api/errors/by-order/:orderId', isAuthenticated, async (req, res) => {
-    try {
-      const errors = await storage.getErrorsByOrder(req.params.orderId);
-      res.json(errors);
-    } catch (error) {
-      console.error("Error fetching errors by order:", error);
-      res.status(500).json({ message: "Failed to fetch errors by order" });
-    }
-  });
-
-  app.get('/api/errors/by-type/:errorType', isAuthenticated, async (req, res) => {
-    try {
-      const errors = await storage.getErrorsByType(req.params.errorType);
-      res.json(errors);
-    } catch (error) {
-      console.error("Error fetching errors by type:", error);
-      res.status(500).json({ message: "Failed to fetch errors by type" });
-    }
-  });
-
-  app.get('/api/errors/by-date-range', isAuthenticated, async (req, res) => {
-    try {
-      const { startDate, endDate } = req.query;
-      if (!startDate || !endDate) {
-        return res.status(400).json({ message: "Start date and end date are required" });
-      }
-      const errors = await storage.getErrorsByDateRange(new Date(startDate as string), new Date(endDate as string));
-      res.json(errors);
-    } catch (error) {
-      console.error("Error fetching errors by date range:", error);
-      res.status(500).json({ message: "Failed to fetch errors by date range" });
-    }
-  });
-
-  app.get('/api/errors/:id', isAuthenticated, async (req, res) => {
-    try {
-      const error = await storage.getError(req.params.id);
-      if (!error) {
-        return res.status(404).json({ message: "Error not found" });
-      }
-      res.json(error);
-    } catch (error) {
-      console.error("Error fetching error:", error);
-      res.status(500).json({ message: "Failed to fetch error" });
-    }
-  });
-
-  app.post('/api/errors', isAuthenticated, async (req, res) => {
-    try {
-      const validatedData = insertErrorSchema.parse({
-        ...req.body,
-        createdBy: (req.user as any)?.claims?.sub,
-      });
-      const newError = await storage.createError(validatedData);
-
-      // Log activity
-      await storage.createActivity({
-        userId: (req.user as any)?.claims?.sub,
-        entityType: 'error',
-        entityId: newError.id,
-        action: 'created',
-        description: `Created error: ${newError.errorType} for client ${newError.clientName}`,
-      });
-
-      res.status(201).json(newError);
-    } catch (error) {
-      console.error("Error creating error:", error);
-      res.status(500).json({ message: "Failed to create error" });
-    }
-  });
-
-  app.put('/api/errors/:id', isAuthenticated, async (req, res) => {
-    try {
-      const validatedData = insertErrorSchema.partial().parse(req.body);
-      const updatedError = await storage.updateError(req.params.id, validatedData);
-
-      // Log activity
-      await storage.createActivity({
-        userId: (req.user as any)?.claims?.sub,
-        entityType: 'error',
-        entityId: updatedError.id,
-        action: 'updated',
-        description: `Updated error: ${updatedError.errorType}`,
-      });
-
-      res.json(updatedError);
-    } catch (error) {
-      console.error("Error updating error:", error);
-      res.status(500).json({ message: "Failed to update error" });
-    }
-  });
-
-  app.post('/api/errors/:id/resolve', isAuthenticated, async (req, res) => {
-    try {
-      const resolvedError = await storage.resolveError(req.params.id, (req.user as any)?.claims?.sub);
-
-      // Log activity
-      await storage.createActivity({
-        userId: (req.user as any)?.claims?.sub,
-        entityType: 'error',
-        entityId: resolvedError.id,
-        action: 'resolved',
-        description: `Resolved error: ${resolvedError.errorType}`,
-      });
-
-      res.json(resolvedError);
-    } catch (error) {
-      console.error("Error resolving error:", error);
-      res.status(500).json({ message: "Failed to resolve error" });
-    }
-  });
-
-  app.delete('/api/errors/:id', isAuthenticated, async (req, res) => {
-    try {
-      await storage.deleteError(req.params.id);
-
-      // Log activity
-      await storage.createActivity({
-        userId: (req.user as any)?.claims?.sub,
-        entityType: 'error',
-        entityId: req.params.id,
-        action: 'deleted',
-        description: `Deleted error`,
-      });
-
-      res.status(204).send();
-    } catch (error) {
-      console.error("Error deleting error:", error);
-      res.status(500).json({ message: "Failed to delete error" });
-    }
-  });
-
-  // Newsletter API routes
-  app.get("/api/newsletter/subscribers", isAuthenticated, async (req, res) => {
-    try {
-      const subscribers = await storage.getNewsletterSubscribers();
-      res.json(subscribers);
-    } catch (error) {
-      console.error("Error fetching newsletter subscribers:", error);
-      res.status(500).json({ message: "Failed to fetch newsletter subscribers" });
-    }
-  });
-
-  app.post("/api/newsletter/subscribers", isAuthenticated, async (req, res) => {
-    try {
-      const validatedData = insertNewsletterSubscriberSchema.parse(req.body);
-      const subscriber = await storage.createNewsletterSubscriber(validatedData);
-      res.json(subscriber);
-    } catch (error) {
-      console.error("Error creating newsletter subscriber:", error);
-      res.status(500).json({ message: "Failed to create newsletter subscriber" });
-    }
-  });
-
-  app.get("/api/newsletter/campaigns", isAuthenticated, async (req, res) => {
-    try {
-      const campaigns = await storage.getNewsletterCampaigns();
-      res.json(campaigns);
-    } catch (error) {
-      console.error("Error fetching newsletter campaigns:", error);
-      res.status(500).json({ message: "Failed to fetch newsletter campaigns" });
-    }
-  });
-
-  app.post("/api/newsletter/campaigns", isAuthenticated, async (req, res) => {
-    try {
-      const validatedData = insertNewsletterCampaignSchema.parse(req.body);
-      const campaign = await storage.createNewsletterCampaign(validatedData);
-      res.json(campaign);
-    } catch (error) {
-      console.error("Error creating newsletter campaign:", error);
-      res.status(500).json({ message: "Failed to create newsletter campaign" });
-    }
-  });
-
-  app.get("/api/newsletter/templates", isAuthenticated, async (req, res) => {
-    try {
-      const templates = await storage.getNewsletterTemplates();
-      res.json(templates);
-    } catch (error) {
-      console.error("Error fetching newsletter templates:", error);
-      res.status(500).json({ message: "Failed to fetch newsletter templates" });
-    }
-  });
-
-  app.post("/api/newsletter/templates", isAuthenticated, async (req, res) => {
-    try {
-      const validatedData = insertNewsletterTemplateSchema.parse(req.body);
-      const template = await storage.createNewsletterTemplate(validatedData);
-      res.json(template);
-    } catch (error) {
-      console.error("Error creating newsletter template:", error);
-      res.status(500).json({ message: "Failed to create newsletter template" });
-    }
-  });
-
-  // Email Settings Endpoints
-  app.get("/api/settings/integration", isAuthenticated, async (req, res) => {
-    try {
-      const settings = await storage.getIntegrationSettings();
-      res.json(settings);
-    } catch (error) {
-      console.error("Error fetching integration settings:", error);
-      res.status(500).json({ message: "Failed to fetch integration settings" });
-    }
-  });
-
-  app.put("/api/settings/integration", isAuthenticated, async (req, res) => {
-    try {
-      const updates = req.body;
-      const settings = await storage.updateIntegrationSettings(updates);
-      res.json(settings);
-    } catch (error) {
-      console.error("Error updating integration settings:", error);
-      res.status(500).json({ message: "Failed to update integration settings" });
-    }
-  });
 
   app.post("/api/settings/test-email", isAuthenticated, async (req, res) => {
     try {
@@ -8690,34 +6790,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         const { db } = await import("./db");
         const { attachments } = await import("@shared/project-schema");
-        const { replitStorage } = await import("./replitStorage");
+        const { storageService } = await import("./storageService");
 
         const uploadedAttachments = [];
 
         for (const file of files) {
-          // Generate storage path
-          const storagePath = replitStorage.generateStoragePath(
-            category,
-            orderId,
-            file.originalname
-          );
+          // file.path from multer-cloudinary is already the Cloudinary URL
+          // No need to re-upload; just store the URL as storagePath
+          const cloudinaryUrl = (file as any).path;
 
-          // Upload to Replit Storage
-          const uploadedPath = await replitStorage.uploadFile(
-            file.path,
-            storagePath
-          );
-
-          if (!uploadedPath) {
-            console.error(`Failed to upload ${file.originalname}`);
+          if (!cloudinaryUrl) {
+            console.error(`No file path for ${file.originalname}`);
             continue;
           }
 
+
           // Save metadata to database
           const attachmentData = {
-            filename: file.filename,
+            filename: file.filename || file.originalname,
             originalFilename: file.originalname,
-            storagePath: uploadedPath,
+            storagePath: cloudinaryUrl,
             mimeType: file.mimetype || null,
             fileSize: file.size || null,
             category: category || 'attachment',
@@ -8754,7 +6846,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const { db } = await import("./db");
         const { attachments } = await import("@shared/project-schema");
         const { eq } = await import("drizzle-orm");
-        const { replitStorage } = await import("./replitStorage");
+        const { storageService } = await import("./storageService");
 
         // Get attachment metadata
         const [attachment] = await db
@@ -8767,7 +6859,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
 
         // Download from storage
-        const fileBuffer = await replitStorage.downloadFile(attachment.storagePath);
+        const fileBuffer = await storageService.downloadFile(attachment.storagePath);
 
         if (!fileBuffer) {
           return res.status(500).json({ message: 'Failed to download file' });
@@ -8796,7 +6888,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const { db } = await import("./db");
         const { attachments } = await import("@shared/project-schema");
         const { eq } = await import("drizzle-orm");
-        const { replitStorage } = await import("./replitStorage");
+        const { storageService } = await import("./storageService");
 
         // Get attachment metadata
         const [attachment] = await db
@@ -8809,7 +6901,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
 
         // Delete from storage
-        await replitStorage.deleteFile(attachment.storagePath);
+        await storageService.deleteFile(attachment.storagePath);
 
         // Delete from database
         await db.delete(attachments).where(eq(attachments.id, attachmentId));
@@ -8853,227 +6945,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   );
 
-  // ============================================
-  // ARTWORK APPROVAL ROUTES (PUBLIC)
-  // ============================================
-
-  // Get approval details by token (PUBLIC - no auth required)
-  app.get("/api/approvals/:token", async (req, res) => {
-    try {
-      const { token } = req.params;
-
-      const { db } = await import("./db");
-      const { artworkApprovals, orders, orderItems, products, artworkFiles, companies } = await import("@shared/schema");
-      const { eq } = await import("drizzle-orm");
-
-      const [approval] = await db
-        .select({
-          id: artworkApprovals.id,
-          orderId: artworkApprovals.orderId,
-          orderNumber: orders.orderNumber,
-          orderItemId: artworkApprovals.orderItemId,
-          artworkFileId: artworkApprovals.artworkFileId,
-          status: artworkApprovals.status,
-          clientEmail: artworkApprovals.clientEmail,
-          clientName: artworkApprovals.clientName,
-          sentAt: artworkApprovals.sentAt,
-          approvedAt: artworkApprovals.approvedAt,
-          declinedAt: artworkApprovals.declinedAt,
-          declineReason: artworkApprovals.declineReason,
-          pdfPath: artworkApprovals.pdfPath,
-          // Order item details
-          productName: products.name,
-          quantity: orderItems.quantity,
-          color: orderItems.color,
-          size: orderItems.size,
-          imprintLocation: orderItems.imprintLocation,
-          imprintMethod: orderItems.imprintMethod,
-          // Artwork file details
-          artworkFileName: artworkFiles.fileName,
-          artworkFilePath: artworkFiles.filePath,
-          artworkOriginalName: artworkFiles.originalName,
-          // Company details
-          companyName: companies.name,
-        })
-        .from(artworkApprovals)
-        .leftJoin(orders, eq(artworkApprovals.orderId, orders.id))
-        .leftJoin(orderItems, eq(artworkApprovals.orderItemId, orderItems.id))
-        .leftJoin(products, eq(orderItems.productId, products.id))
-        .leftJoin(artworkFiles, eq(artworkApprovals.artworkFileId, artworkFiles.id))
-        .leftJoin(companies, eq(orders.companyId, companies.id))
-        .where(eq(artworkApprovals.approvalToken, token));
-
-      if (!approval) {
-        return res.status(404).json({ message: "Approval not found" });
-      }
-
-      // Format response
-      const response = {
-        id: approval.id,
-        orderId: approval.orderId,
-        orderNumber: approval.orderNumber,
-        orderItemId: approval.orderItemId,
-        artworkFileId: approval.artworkFileId,
-        status: approval.status,
-        clientEmail: approval.clientEmail,
-        clientName: approval.clientName,
-        sentAt: approval.sentAt,
-        approvedAt: approval.approvedAt,
-        declinedAt: approval.declinedAt,
-        declineReason: approval.declineReason,
-        pdfPath: approval.pdfPath,
-        orderItem: approval.orderItemId ? {
-          productName: approval.productName,
-          quantity: approval.quantity,
-          color: approval.color,
-          size: approval.size,
-          imprintLocation: approval.imprintLocation,
-          imprintMethod: approval.imprintMethod,
-        } : null,
-        artworkFile: approval.artworkFileId ? {
-          fileName: approval.artworkFileName,
-          filePath: approval.artworkFilePath,
-          originalName: approval.artworkOriginalName,
-        } : null,
-        company: approval.companyName ? {
-          name: approval.companyName,
-        } : null,
-      };
-
-      res.json(response);
-    } catch (error) {
-      console.error('Error fetching approval:', error);
-      res.status(500).json({ message: 'Failed to fetch approval' });
-    }
-  });
-
-  // Approve artwork (PUBLIC - no auth required)
-  app.post("/api/approvals/:token/approve", async (req, res) => {
-    try {
-      const { token } = req.params;
-
-      const { db } = await import("./db");
-      const { artworkApprovals, orders } = await import("@shared/schema");
-      const { eq } = await import("drizzle-orm");
-
-      // Get approval
-      const [approval] = await db
-        .select()
-        .from(artworkApprovals)
-        .where(eq(artworkApprovals.approvalToken, token));
-
-      if (!approval) {
-        return res.status(404).json({ message: "Approval not found" });
-      }
-
-      if (approval.status !== "pending") {
-        return res.status(400).json({ message: "Approval already processed" });
-      }
-
-      // Update approval status
-      const [updated] = await db
-        .update(artworkApprovals)
-        .set({
-          status: "approved",
-          approvedAt: new Date(),
-          updatedAt: new Date(),
-        })
-        .where(eq(artworkApprovals.approvalToken, token))
-        .returning();
-
-      // Get order details for notifications
-      const [order] = await db
-        .select()
-        .from(orders)
-        .where(eq(orders.id, approval.orderId));
-
-      if (order) {
-        // Collect users to notify: sales rep, CSR, and production manager
-        const usersToNotify: string[] = [];
-        if (order.assignedUserId) usersToNotify.push(order.assignedUserId);
-        if (order.csrUserId && !usersToNotify.includes(order.csrUserId)) {
-          usersToNotify.push(order.csrUserId);
-        }
-        if ((order as any).productionManagerId && !usersToNotify.includes((order as any).productionManagerId)) {
-          usersToNotify.push((order as any).productionManagerId);
-        }
-
-        // Create in-app notifications
-        if (usersToNotify.length > 0) {
-          await storage.createNotificationsForUsers(usersToNotify, {
-            type: 'artwork_approved',
-            title: 'Artwork Approved',
-            message: `Client ${approval.clientName || approval.clientEmail} has approved the artwork for order #${order.orderNumber}`,
-            orderId: order.id,
-          });
-        }
-
-        // Auto-advance production stage to 'proof-approved'
-        try {
-          const stagesCompleted = Array.isArray((order as any).stagesCompleted) ? (order as any).stagesCompleted : ['sales-booked'];
-          if (!stagesCompleted.includes('proof-approved')) {
-            // Add proof-received and proof-approved to completed stages
-            const updatedCompleted = Array.from(new Set([...stagesCompleted, 'proof-received', 'proof-approved']));
-            // Get the next stage after proof-approved from DB
-            const allStages = await storage.getProductionStages();
-            const proofApprovedStage = allStages.find(s => s.id === 'proof-approved');
-            const nextStage = proofApprovedStage
-              ? allStages.find(s => s.order === proofApprovedStage.order + 1)
-              : null;
-
-            await storage.updateOrder(order.id, {
-              currentStage: nextStage ? nextStage.id : 'proof-approved',
-              stagesCompleted: updatedCompleted,
-            } as any);
-
-            // Log stage progression activity
-            await storage.createActivity({
-              userId: order.assignedUserId || 'dev-user-id',
-              entityType: 'order',
-              entityId: order.id,
-              action: 'stage_updated',
-              description: `Production stage auto-advanced to "${nextStage ? nextStage.name : 'Proof Approved'}" after client artwork approval`,
-            });
-          }
-        } catch (stageError) {
-          console.error("Failed to auto-advance production stage:", stageError);
-        }
-
-        // Send email notifications
-        try {
-          const { emailService } = await import("./emailService");
-
-          for (const userId of usersToNotify) {
-            const user = await storage.getUser(userId);
-            if (user?.email) {
-              await emailService.sendEmail({
-                to: user.email,
-                subject: `✅ Artwork Approved - Order #${order.orderNumber}`,
-                html: `
-                  <h2>Artwork Approved</h2>
-                  <p>Great news! The client has approved the artwork.</p>
-                  <h3>Order Details:</h3>
-                  <ul>
-                    <li><strong>Order Number:</strong> ${order.orderNumber}</li>
-                    <li><strong>Approved By:</strong> ${approval.clientName || approval.clientEmail}</li>
-                    <li><strong>Approved At:</strong> ${new Date().toLocaleString()}</li>
-                  </ul>
-                  <p>You can now proceed with production.</p>
-                `,
-              });
-            }
-          }
-        } catch (emailError) {
-          console.error("Failed to send artwork approval emails:", emailError);
-        }
-      }
-
-      res.json(updated);
-    } catch (error) {
-      console.error('Error approving artwork:', error);
-      res.status(500).json({ message: 'Failed to approve artwork' });
-    }
-  });
 
   // PUBLIC APPROVAL ENDPOINTS (No authentication required)
 
@@ -9206,7 +7077,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           console.error('Error creating activity:', err);
         }
 
-        // Notify sales rep, CSR, and production manager + auto-advance stage
+        // Notify sales rep and CSR + auto-advance stage
         try {
           const { orders } = await import("@shared/schema");
           const [order] = await db.select().from(orders).where(eq(orders.id, approval.orderId));
@@ -9215,9 +7086,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
             const usersToNotify: string[] = [];
             if (order.assignedUserId) usersToNotify.push(order.assignedUserId);
             if (order.csrUserId && !usersToNotify.includes(order.csrUserId)) usersToNotify.push(order.csrUserId);
-            if ((order as any).productionManagerId && !usersToNotify.includes((order as any).productionManagerId)) {
-              usersToNotify.push((order as any).productionManagerId);
-            }
 
             if (usersToNotify.length > 0) {
               await storage.createNotificationsForUsers(usersToNotify, {
@@ -9280,105 +7148,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Decline artwork (PUBLIC - no auth required)
-  app.post("/api/approvals/:token/decline", async (req, res) => {
-    try {
-      const { token } = req.params;
-      const { reason } = req.body;
-
-      const { db } = await import("./db");
-      const { artworkApprovals, orders } = await import("@shared/schema");
-      const { eq } = await import("drizzle-orm");
-
-      // Get approval
-      const [approval] = await db
-        .select()
-        .from(artworkApprovals)
-        .where(eq(artworkApprovals.approvalToken, token));
-
-      if (!approval) {
-        return res.status(404).json({ message: "Approval not found" });
-      }
-
-      if (approval.status !== "pending") {
-        return res.status(400).json({ message: "Approval already processed" });
-      }
-
-      // Update approval status
-      const [updated] = await db
-        .update(artworkApprovals)
-        .set({
-          status: "declined",
-          declinedAt: new Date(),
-          declineReason: reason || null,
-          updatedAt: new Date(),
-        })
-        .where(eq(artworkApprovals.approvalToken, token))
-        .returning();
-
-      // Get order details for notifications
-      const [order] = await db
-        .select()
-        .from(orders)
-        .where(eq(orders.id, approval.orderId));
-
-      if (order) {
-        // Collect users to notify: sales rep, CSR, and production manager
-        const usersToNotify: string[] = [];
-        if (order.assignedUserId) usersToNotify.push(order.assignedUserId);
-        if (order.csrUserId && !usersToNotify.includes(order.csrUserId)) {
-          usersToNotify.push(order.csrUserId);
-        }
-        if ((order as any).productionManagerId && !usersToNotify.includes((order as any).productionManagerId)) {
-          usersToNotify.push((order as any).productionManagerId);
-        }
-
-        // Create in-app notifications
-        if (usersToNotify.length > 0) {
-          await storage.createNotificationsForUsers(usersToNotify, {
-            type: 'artwork_declined',
-            title: 'Artwork Declined',
-            message: `Client ${approval.clientName || approval.clientEmail} has declined the artwork for order #${order.orderNumber}${reason ? `. Reason: ${reason}` : ''}`,
-            orderId: order.id,
-          });
-        }
-
-        // Send email notifications
-        try {
-          const { emailService } = await import("./emailService");
-
-          for (const userId of usersToNotify) {
-            const user = await storage.getUser(userId);
-            if (user?.email) {
-              await emailService.sendEmail({
-                to: user.email,
-                subject: `⚠️ Artwork Declined - Order #${order.orderNumber}`,
-                html: `
-                  <h2>Artwork Declined</h2>
-                  <p>The client has declined the artwork and revisions may be needed.</p>
-                  <h3>Order Details:</h3>
-                  <ul>
-                    <li><strong>Order Number:</strong> ${order.orderNumber}</li>
-                    <li><strong>Declined By:</strong> ${approval.clientName || approval.clientEmail}</li>
-                    <li><strong>Declined At:</strong> ${new Date().toLocaleString()}</li>
-                    ${reason ? `<li><strong>Reason:</strong> ${reason}</li>` : ''}
-                  </ul>
-                  <p>Please review the feedback and prepare revised artwork.</p>
-                `,
-              });
-            }
-          }
-        } catch (emailError) {
-          console.error("Failed to send artwork decline emails:", emailError);
-        }
-      }
-
-      res.json(updated);
-    } catch (error) {
-      console.error('Error declining artwork:', error);
-      res.status(500).json({ message: 'Failed to decline artwork' });
-    }
-  });
 
   // Reject artwork (PUBLIC)
   app.post("/api/approvals/:token/reject", async (req, res) => {
@@ -9441,7 +7210,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           console.error('Error creating activity:', err);
         }
 
-        // Notify sales rep, CSR, and production manager
+        // Notify sales rep and CSR
         try {
           const { orders } = await import("@shared/schema");
           const [order] = await db.select().from(orders).where(eq(orders.id, approval.orderId));
@@ -9449,9 +7218,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
             const usersToNotify: string[] = [];
             if (order.assignedUserId) usersToNotify.push(order.assignedUserId);
             if (order.csrUserId && !usersToNotify.includes(order.csrUserId)) usersToNotify.push(order.csrUserId);
-            if ((order as any).productionManagerId && !usersToNotify.includes((order as any).productionManagerId)) {
-              usersToNotify.push((order as any).productionManagerId);
-            }
 
             if (usersToNotify.length > 0) {
               await storage.createNotificationsForUsers(usersToNotify, {
@@ -10099,14 +7865,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           console.error("Failed to log quote approval activity:", activityError);
         }
 
-        // Collect users to notify: sales rep, CSR, and production manager
+        // Collect users to notify: sales rep and CSR
         const usersToNotify: string[] = [];
         if (order.assignedUserId) usersToNotify.push(order.assignedUserId);
         if (order.csrUserId && !usersToNotify.includes(order.csrUserId)) {
           usersToNotify.push(order.csrUserId);
-        }
-        if ((order as any).productionManagerId && !usersToNotify.includes((order as any).productionManagerId)) {
-          usersToNotify.push((order as any).productionManagerId);
         }
 
         // Create in-app notifications
@@ -10525,46 +8288,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Proxy endpoint to serve Cloudinary files (to avoid CORS/authentication issues)
-  app.get("/api/files/cloudinary-proxy", async (req, res) => {
-    try {
-      const { url } = req.query;
-
-      if (!url || typeof url !== 'string') {
-        return res.status(400).json({ message: "URL parameter is required" });
-      }
-
-      // Validate it's a Cloudinary URL
-      if (!url.includes('cloudinary.com')) {
-        return res.status(400).json({ message: "Invalid Cloudinary URL" });
-      }
-
-      // Fetch the file from Cloudinary (use URL as-is)
-      const response = await fetch(url);
-
-      if (!response.ok) {
-        return res.status(response.status).json({ message: "Failed to fetch file from Cloudinary" });
-      }
-
-      // Get content type
-      const contentType = response.headers.get('content-type');
-      if (contentType) {
-        res.setHeader('Content-Type', contentType);
-      }
-
-      // Set CORS headers to allow iframe embedding
-      res.setHeader('Access-Control-Allow-Origin', '*');
-      res.setHeader('X-Frame-Options', 'ALLOWALL');
-
-      // Stream the response
-      const buffer = await response.arrayBuffer();
-      res.send(Buffer.from(buffer));
-    } catch (error) {
-      console.error('Error proxying Cloudinary file:', error);
-      res.status(500).json({ message: 'Failed to proxy file' });
-    }
-  });
-
   // Delete file from order
   app.delete("/api/orders/:orderId/files/:fileId", isAuthenticated, async (req, res) => {
     try {
@@ -10778,65 +8501,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Error requesting artwork approval:', error);
       res.status(500).json({ message: 'Failed to request artwork approval' });
-    }
-  });
-
-  // Cloudinary file utilities endpoints
-
-  // Get optimized image URL
-  app.get("/api/files/cloudinary/optimize", isAuthenticated, async (req, res) => {
-    try {
-      const { publicId, width, height } = req.query;
-
-      if (!publicId) {
-        return res.status(400).json({ message: "publicId is required" });
-      }
-
-      const url = getOptimizedImageUrl(
-        publicId as string,
-        width ? parseInt(width as string) : undefined,
-        height ? parseInt(height as string) : undefined
-      );
-
-      res.json({ url });
-    } catch (error) {
-      console.error('Error generating optimized image URL:', error);
-      res.status(500).json({ message: 'Failed to generate optimized URL' });
-    }
-  });
-
-  // Get direct Cloudinary URL
-  app.get("/api/files/cloudinary/url", isAuthenticated, async (req, res) => {
-    try {
-      const { publicId } = req.query;
-
-      if (!publicId) {
-        return res.status(400).json({ message: "publicId is required" });
-      }
-
-      const url = getCloudinaryUrl(publicId as string);
-
-      res.json({ url });
-    } catch (error) {
-      console.error('Error generating Cloudinary URL:', error);
-      res.status(500).json({ message: 'Failed to generate URL' });
-    }
-  });
-
-  // Delete file from Cloudinary
-  app.delete("/api/files/cloudinary/:publicId", isAuthenticated, async (req, res) => {
-    try {
-      const { publicId } = req.params;
-
-      // Decode public ID (it might be URL encoded)
-      const decodedPublicId = decodeURIComponent(publicId);
-
-      await deleteFromCloudinary(decodedPublicId);
-
-      res.json({ success: true, message: "File deleted from Cloudinary" });
-    } catch (error) {
-      console.error('Error deleting file from Cloudinary:', error);
-      res.status(500).json({ message: 'Failed to delete file from Cloudinary' });
     }
   });
 

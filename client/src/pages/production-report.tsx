@@ -1536,7 +1536,7 @@ export default function ProductionReport() {
                 <div>
                   <h3 className="font-medium mb-3">Production Details</h3>
                   <div className="space-y-2 text-sm">
-                    <p className="flex items-center flex-wrap gap-1"><span className="font-medium">Priority:</span>
+                    <div className="flex items-center flex-wrap gap-1"><span className="font-medium">Priority:</span>
                       <Badge className={`ml-1 ${getPriorityColor(selectedOrder.priority)}`}>
                         {selectedOrder.priority.toUpperCase()}
                       </Badge>
@@ -1550,7 +1550,7 @@ export default function ProductionReport() {
                           RUSH
                         </Badge>
                       )}
-                    </p>
+                    </div>
                     <p><span className="font-medium">Due Date:</span> {selectedOrder.dueDate ? format(new Date(selectedOrder.dueDate), 'MMM dd, yyyy') : 'TBD'}</p>
                     <div className="flex items-center justify-between">
                       <div className="flex items-center space-x-2">
@@ -1883,11 +1883,11 @@ export default function ProductionReport() {
                   <p><span className="font-medium">Company:</span> {selectedStage.order.companyName}</p>
                   <p><span className="font-medium">Product:</span> {selectedStage.order.productName}</p>
                   <p><span className="font-medium">Stage:</span> {selectedStage.stage.name}</p>
-                  <p><span className="font-medium">Status:</span>
+                  <div className="flex items-center gap-1"><span className="font-medium">Status:</span>
                     <Badge className={selectedStage.order.stagesCompleted.includes(selectedStage.stage.id) ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}>
                       {selectedStage.order.stagesCompleted.includes(selectedStage.stage.id) ? 'Completed' : 'In Progress'}
                     </Badge>
-                  </p>
+                  </div>
                 </div>
               </div>
 

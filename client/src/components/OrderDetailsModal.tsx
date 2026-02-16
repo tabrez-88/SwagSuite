@@ -211,6 +211,10 @@ function OrderDetailsModal({
   const [pendingStatusUpdate, setPendingStatusUpdate] = useState<string | null>(
     null,
   );
+  const [autoAttachArtworkVendorId, setAutoAttachArtworkVendorId] = useState<string | null>(null);
+  const [autoAttachDocumentFile, setAutoAttachDocumentFile] = useState<{ fileUrl: string; fileName: string } | null>(null);
+  const [autoAttachClientDocumentFile, setAutoAttachClientDocumentFile] = useState<{ fileUrl: string; fileName: string } | null>(null);
+  const [attachmentPreview, setAttachmentPreview] = useState<{ url: string; name: string; type: 'image' | 'pdf' | 'other'; blobUrl?: string } | null>(null);
   const [emailPreviewMode, setEmailPreviewMode] = useState<
     "compose" | "preview"
   >("compose");
@@ -284,10 +288,8 @@ function OrderDetailsModal({
   // Reassign dialog states
   const [isReassignDialogOpen, setIsReassignDialogOpen] = useState(false);
   const [isReassignCsrDialogOpen, setIsReassignCsrDialogOpen] = useState(false);
-  const [isReassignPmDialogOpen, setIsReassignPmDialogOpen] = useState(false);
   const [reassignUserId, setReassignUserId] = useState("");
   const [reassignCsrUserId, setReassignCsrUserId] = useState("");
-  const [reassignPmUserId, setReassignPmUserId] = useState("");
 
   // Inline product editing states
   const [editedItems, setEditedItems] = useState<Record<string, any>>({});
@@ -835,10 +837,6 @@ function OrderDetailsModal({
   const csrUser = teamMembers.find(
     (u: any) => u.id === (order as any)?.csrUserId,
   );
-  const productionManager = teamMembers.find(
-    (u: any) => u.id === (order as any)?.productionManagerId,
-  );
-
   // Fetch order items with product and vendor info
   const { data: orderItems = [] } = useQuery<any[]>({
     queryKey: [`/api/orders/${orderId}/items`],
@@ -972,6 +970,130 @@ function OrderDetailsModal({
       setVendorEmailToName(selectedVendor.name || "");
     }
   }, [selectedVendor, vendorPrimaryContact, vendorContacts]);
+
+  // Track blob URLs for cleanup to prevent memory leaks
+  const previewBlobUrlRef = useRef<string | null>(null);
+  // Stable blob URLs for manual upload thumbnails (revoked when files change)
+  const manualUploadUrls = useMemo(() => {
+    return vendorEmailAttachments.map(file => URL.createObjectURL(file));
+  }, [vendorEmailAttachments]);
+  // Cleanup old thumbnail URLs
+  const prevManualUrlsRef = useRef<string[]>([]);
+  useEffect(() => {
+    prevManualUrlsRef.current.forEach(url => URL.revokeObjectURL(url));
+    prevManualUrlsRef.current = manualUploadUrls;
+    return () => { manualUploadUrls.forEach(url => URL.revokeObjectURL(url)); };
+  }, [manualUploadUrls]);
+
+  // Fetch remote files as blob for inline preview in dialog
+  useEffect(() => {
+    if (!attachmentPreview) {
+      // Preview closed - revoke previous blob URL
+      if (previewBlobUrlRef.current) {
+        URL.revokeObjectURL(previewBlobUrlRef.current);
+        previewBlobUrlRef.current = null;
+      }
+      return;
+    }
+    if (attachmentPreview.blobUrl) return;
+
+    // For blob: URLs (manual uploads), use directly
+    if (attachmentPreview.url.startsWith('blob:')) {
+      setAttachmentPreview(prev => prev ? { ...prev, blobUrl: prev.url } : null);
+      return;
+    }
+
+    // For remote URLs (Cloudinary), fetch as blob with correct MIME type
+    let cancelled = false;
+    const previewType = attachmentPreview.type;
+    (async () => {
+      try {
+        const response = await fetch(attachmentPreview.url);
+        const arrayBuffer = await response.arrayBuffer();
+        const mimeType = previewType === 'pdf' ? 'application/pdf'
+          : previewType === 'image' ? (response.headers.get('content-type') || 'image/png')
+          : 'application/octet-stream';
+        const blob = new Blob([arrayBuffer], { type: mimeType });
+        if (!cancelled) {
+          // Revoke old blob URL before creating new one
+          if (previewBlobUrlRef.current) {
+            URL.revokeObjectURL(previewBlobUrlRef.current);
+          }
+          const blobUrl = URL.createObjectURL(blob);
+          previewBlobUrlRef.current = blobUrl;
+          setAttachmentPreview(prev => prev ? { ...prev, blobUrl } : null);
+        }
+      } catch (err) {
+        console.error('Failed to fetch file for preview:', err);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [attachmentPreview?.url, attachmentPreview?.blobUrl]);
+
+  // Compute auto-attached files for the vendor email (PO document + artwork files)
+  const vendorAutoAttachedFiles = useMemo(() => {
+    const files: Array<{ name: string; type: 'po' | 'artwork'; fileUrl?: string; isImage?: boolean }> = [];
+
+    // PO document
+    if (autoAttachDocumentFile) {
+      files.push({
+        name: autoAttachDocumentFile.fileName,
+        type: 'po',
+        fileUrl: autoAttachDocumentFile.fileUrl,
+        isImage: false,
+      });
+    }
+
+    // Artwork files for the selected vendor's order items
+    const vendorId = autoAttachArtworkVendorId || selectedVendor?.id;
+    if (vendorId && allArtworkItems && orderItems) {
+      const vendorItemIds = orderItems
+        .filter((item: any) => item.supplierId === vendorId)
+        .map((item: any) => item.id);
+
+      vendorItemIds.forEach((itemId: string) => {
+        const artworks = allArtworkItems[itemId] || [];
+        artworks.forEach((art: any) => {
+          if (art.filePath) {
+            const isImg = /\.(png|jpg|jpeg|gif|svg|webp)$/i.test(art.filePath);
+            files.push({
+              name: art.fileName || art.name || 'artwork',
+              type: 'artwork',
+              fileUrl: art.filePath,
+              isImage: isImg,
+            });
+          }
+        });
+      });
+    }
+
+    return files;
+  }, [autoAttachDocumentFile, autoAttachArtworkVendorId, selectedVendor, allArtworkItems, orderItems]);
+
+  // Compute auto-attached files for client emails (Quote PDF)
+  const clientAutoAttachedFiles = useMemo(() => {
+    const files: Array<{ name: string; type: 'quote'; fileUrl?: string; isImage: boolean }> = [];
+    if (autoAttachClientDocumentFile) {
+      files.push({
+        name: autoAttachClientDocumentFile.fileName,
+        type: 'quote',
+        fileUrl: autoAttachClientDocumentFile.fileUrl,
+        isImage: false,
+      });
+    }
+    return files;
+  }, [autoAttachClientDocumentFile]);
+
+  // Stable blob URLs for client manual upload thumbnails (revoked when files change)
+  const clientManualUploadUrls = useMemo(() => {
+    return emailAttachments.map(file => URL.createObjectURL(file));
+  }, [emailAttachments]);
+  const prevClientManualUrlsRef = useRef<string[]>([]);
+  useEffect(() => {
+    prevClientManualUrlsRef.current.forEach(url => URL.revokeObjectURL(url));
+    prevClientManualUrlsRef.current = clientManualUploadUrls;
+    return () => { clientManualUploadUrls.forEach(url => URL.revokeObjectURL(url)); };
+  }, [clientManualUploadUrls]);
 
   // Auto-fill client email recipient from primary contact
   useEffect(() => {
@@ -1173,6 +1295,7 @@ function OrderDetailsModal({
       bcc?: string;
       attachments?: File[];
       attachmentIds?: string[];
+      autoAttachDocumentFile?: { fileUrl: string; fileName: string };
     }) => {
       const response = await fetch(`/api/orders/${order?.id}/communications`, {
         method: "POST",
@@ -1189,6 +1312,7 @@ function OrderDetailsModal({
           cc: data.cc,
           bcc: data.bcc,
           attachmentIds: data.attachmentIds,
+          autoAttachDocumentFile: data.autoAttachDocumentFile,
         }),
       });
 
@@ -1265,6 +1389,8 @@ function OrderDetailsModal({
       bcc?: string;
       attachments?: File[];
       attachmentIds?: string[];
+      autoAttachArtworkForVendor?: string;
+      autoAttachDocumentFile?: { fileUrl: string; fileName: string };
     }) => {
       const response = await fetch(`/api/orders/${order?.id}/communications`, {
         method: "POST",
@@ -1281,6 +1407,8 @@ function OrderDetailsModal({
           cc: data.cc,
           bcc: data.bcc,
           attachmentIds: data.attachmentIds,
+          autoAttachArtworkForVendor: data.autoAttachArtworkForVendor,
+          autoAttachDocumentFile: data.autoAttachDocumentFile,
         }),
       });
 
@@ -1375,7 +1503,6 @@ function OrderDetailsModal({
           notes: item.notes,
         };
 
-        console.log("Sending item update:", itemPayload);
         return itemPayload;
       });
 
@@ -1394,8 +1521,6 @@ function OrderDetailsModal({
         subtotal: subtotal.toFixed(2),
         total: subtotal.toFixed(2),
       };
-
-      console.log("Full update payload:", payload);
 
       const response = await fetch(`/api/orders/${order.id}`, {
         method: "PATCH",
@@ -1644,7 +1769,6 @@ function OrderDetailsModal({
   // Mutation to update order billing address
   const updateBillingAddressMutation = useMutation({
     mutationFn: async (data: any) => {
-      console.log("Sending billing address to server:", data);
       const response = await fetch(`/api/orders/${orderId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -1652,9 +1776,7 @@ function OrderDetailsModal({
         credentials: "include",
       });
       if (!response.ok) throw new Error("Failed to update billing address");
-      const result = await response.json();
-      console.log("Server response for billing:", result);
-      return result;
+      return await response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/orders/${orderId}`] });
@@ -1792,46 +1914,6 @@ function OrderDetailsModal({
     },
   });
 
-  // Reassign Production Manager mutation
-  const reassignPmMutation = useMutation({
-    mutationFn: async ({
-      orderId,
-      userId,
-    }: {
-      orderId: string;
-      userId: string;
-    }) => {
-      const response = await fetch(`/api/orders/${orderId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ productionManagerId: userId }),
-        credentials: "include",
-      });
-      if (!response.ok)
-        throw new Error("Failed to reassign Production Manager");
-      return response.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/orders/${orderId}`] });
-      queryClient.invalidateQueries({ queryKey: ["/api/orders"] });
-      queryClient.invalidateQueries({
-        queryKey: [`/api/projects/${orderId}/activities`],
-      });
-      setIsReassignPmDialogOpen(false);
-      setReassignPmUserId("");
-      toast({
-        title: "Production Manager Reassigned",
-        description: "Production Manager has been reassigned successfully.",
-      });
-    },
-    onError: () => {
-      toast({
-        title: "Error",
-        description: "Failed to reassign Production Manager.",
-        variant: "destructive",
-      });
-    },
-  });
 
   // Mock team members for @ mentions (fallback)
   const defaultTeamMembers: TeamMember[] = [
@@ -1998,6 +2080,7 @@ function OrderDetailsModal({
         bcc: emailBcc || undefined,
         attachments: emailAttachments,
         attachmentIds,
+        autoAttachDocumentFile: autoAttachClientDocumentFile || undefined,
       });
 
       setEmailFrom((currentUser as any)?.email || "");
@@ -2010,6 +2093,7 @@ function OrderDetailsModal({
       setEmailSubject("");
       setEmailBody("");
       setEmailAttachments([]);
+      setAutoAttachClientDocumentFile(null);
     } catch (error) {
       console.error("Error uploading attachments:", error);
       toast({
@@ -2063,6 +2147,7 @@ function OrderDetailsModal({
       }
 
       // Send email with attachment references
+      // Pass vendor ID for auto-attaching artwork files when sending PO
       sendVendorEmailMutation.mutate({
         fromEmail: vendorEmailFrom,
         fromName: vendorEmailFromName || "SwagSuite",
@@ -2074,6 +2159,8 @@ function OrderDetailsModal({
         bcc: vendorEmailBcc || undefined,
         attachments: vendorEmailAttachments,
         attachmentIds,
+        autoAttachArtworkForVendor: autoAttachArtworkVendorId || selectedVendor?.id || undefined,
+        autoAttachDocumentFile: autoAttachDocumentFile || undefined,
       });
 
       setVendorEmailFrom((currentUser as any)?.email || "");
@@ -2087,6 +2174,8 @@ function OrderDetailsModal({
       setVendorEmailSubject("");
       setVendorEmailBody("");
       setVendorEmailAttachments([]);
+      setAutoAttachArtworkVendorId(null);
+      setAutoAttachDocumentFile(null);
     } catch (error) {
       console.error("Error uploading attachments:", error);
       toast({
@@ -2192,16 +2281,11 @@ function OrderDetailsModal({
   };
 
   const handleSaveBillingAddress = () => {
-    console.log("Saving billing address:", billingAddressForm);
     updateBillingAddressMutation.mutate(billingAddressForm);
   };
 
   const handleSaveShippingAddress = () => {
-    console.log("Saving shipping address form:", shippingAddressForm);
-    // Always save as JSON with all fields
     const shippingData = JSON.stringify(shippingAddressForm);
-
-    console.log("Shipping data to save:", shippingData);
     updateShippingAddressMutation.mutate({ shippingAddress: shippingData });
   };
 
@@ -2763,33 +2847,6 @@ function OrderDetailsModal({
                       >
                         <User className="w-3 h-3 mr-1" />
                         {csrUser ? "Reassign" : "Assign"}
-                      </Button>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <p className="text-sm font-medium">
-                          Production Manager:
-                        </p>
-                        <UserAvatar user={productionManager} size="sm" />
-                        <span className="text-sm">
-                          {productionManager
-                            ? `${productionManager.firstName} ${productionManager.lastName}`
-                            : "Unassigned"}
-                        </span>
-                      </div>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-7 text-xs"
-                        onClick={() => {
-                          setReassignPmUserId(
-                            (order as any)?.productionManagerId || "",
-                          );
-                          setIsReassignPmDialogOpen(true);
-                        }}
-                      >
-                        <User className="w-3 h-3 mr-1" />
-                        {productionManager ? "Reassign" : "Assign"}
                       </Button>
                     </div>
                   </div>
@@ -4159,6 +4216,18 @@ function OrderDetailsModal({
                       data.toName,
                   );
                 }
+                // Store quote document file for auto-attachment
+                if (data.document?.fileUrl) {
+                  setAutoAttachClientDocumentFile({
+                    fileUrl: data.document.fileUrl,
+                    fileName: data.document.fileName || `Quote-${data.document.documentNumber}.pdf`,
+                  });
+                }
+                // Auto-BCC the sender so they always get a copy
+                const senderEmail = (currentUser as any)?.email || "";
+                if (senderEmail) {
+                  setEmailBcc(senderEmail);
+                }
                 setActiveTab("email");
               } else {
                 // Auto-fill vendor communication tab
@@ -4169,11 +4238,25 @@ function OrderDetailsModal({
                   if (vendor) {
                     setSelectedVendor(vendor);
                   }
+                  // Store vendor ID so artwork files are auto-attached on send
+                  setAutoAttachArtworkVendorId(data.vendorId);
+                }
+                // Store PO document file for auto-attachment
+                if (data.document?.fileUrl) {
+                  setAutoAttachDocumentFile({
+                    fileUrl: data.document.fileUrl,
+                    fileName: data.document.fileName || `PO-${data.document.documentNumber}.pdf`,
+                  });
                 }
                 setVendorEmailTo(data.to);
                 setVendorEmailToName(data.toName);
                 setVendorEmailSubject(data.subject);
                 setVendorEmailBody(data.body);
+                // Auto-BCC the sender so they always get a copy
+                const senderEmail = (currentUser as any)?.email || "";
+                if (senderEmail) {
+                  setVendorEmailBcc(senderEmail);
+                }
                 setActiveTab("vendor");
               }
             }}
@@ -4714,25 +4797,117 @@ function OrderDetailsModal({
 
               {emailAttachments.length > 0 && (
                 <div className="mt-2 space-y-2">
-                  {emailAttachments.map((file, index) => (
-                    <div
-                      key={index}
-                      className="flex items-center justify-between p-2 bg-gray-50 rounded"
-                    >
-                      <span className="text-sm">{file.name}</span>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() =>
-                          setEmailAttachments((prev) =>
-                            prev.filter((_, i) => i !== index),
-                          )
-                        }
+                  {emailAttachments.map((file, index) => {
+                    const isImage = file.type.startsWith('image/');
+                    const isPdf = file.type === 'application/pdf';
+                    const canPreview = isImage || isPdf;
+
+                    return (
+                      <div
+                        key={index}
+                        className="flex items-center gap-3 p-2 bg-gray-50 rounded border"
                       >
-                        Remove
-                      </Button>
-                    </div>
-                  ))}
+                        {isImage ? (
+                          <img
+                            src={clientManualUploadUrls[index]}
+                            alt={file.name}
+                            className="w-10 h-10 rounded object-cover border cursor-pointer flex-shrink-0"
+                            onClick={() => setAttachmentPreview({ url: clientManualUploadUrls[index], name: file.name, type: 'image' })}
+                          />
+                        ) : (
+                          <div
+                            className={`w-10 h-10 rounded flex items-center justify-center flex-shrink-0 ${isPdf ? 'bg-red-50 cursor-pointer' : 'bg-gray-200'}`}
+                            onClick={() => isPdf && setAttachmentPreview({ url: clientManualUploadUrls[index], name: file.name, type: 'pdf' })}
+                          >
+                            <FileText className={`w-5 h-5 ${isPdf ? 'text-red-500' : 'text-gray-500'}`} />
+                          </div>
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm truncate">{file.name}</p>
+                          <p className="text-xs text-gray-400">
+                            {(file.size / 1024).toFixed(1)} KB
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-1 flex-shrink-0">
+                          {canPreview && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 w-7 p-0 text-blue-500 hover:text-blue-700"
+                              onClick={() => setAttachmentPreview({ url: clientManualUploadUrls[index], name: file.name, type: isImage ? 'image' : 'pdf' })}
+                            >
+                              <Eye className="w-4 h-4" />
+                            </Button>
+                          )}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-7 p-0 text-gray-400 hover:text-red-500"
+                            onClick={() =>
+                              setEmailAttachments((prev) =>
+                                prev.filter((_, i) => i !== index),
+                              )
+                            }
+                          >
+                            <X className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Auto-attached files (Quote document) */}
+              {clientAutoAttachedFiles.length > 0 && (
+                <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded-lg">
+                  <p className="text-xs font-medium text-green-700 mb-2 flex items-center gap-1">
+                    <CheckCircle className="w-3.5 h-3.5" />
+                    Auto-attached files ({clientAutoAttachedFiles.length})
+                  </p>
+                  <div className="space-y-1.5">
+                    {clientAutoAttachedFiles.map((file, index) => {
+                      return (
+                        <div
+                          key={`auto-client-${index}`}
+                          className="flex items-center gap-3 p-2 bg-green-50 border border-green-200 rounded"
+                        >
+                          <div
+                            className="w-10 h-10 rounded flex items-center justify-center flex-shrink-0 bg-red-50 cursor-pointer"
+                            onClick={() => file.fileUrl && setAttachmentPreview({ url: file.fileUrl, name: file.name, type: 'pdf' })}
+                          >
+                            <FileText className="w-5 h-5 text-red-500" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm text-green-800 truncate">{file.name}</p>
+                            <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 border-green-400 text-green-600 mt-0.5">
+                              Quote Document
+                            </Badge>
+                          </div>
+                          <div className="flex items-center gap-1 flex-shrink-0">
+                            {file.fileUrl && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 w-7 p-0 text-green-600 hover:text-blue-600"
+                                onClick={() => setAttachmentPreview({ url: file.fileUrl!, name: file.name, type: 'pdf' })}
+                              >
+                                <Eye className="w-4 h-4" />
+                              </Button>
+                            )}
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 w-7 p-0 text-green-600 hover:text-red-500"
+                              onClick={() => setAutoAttachClientDocumentFile(null)}
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </Button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               )}
 
@@ -4747,6 +4922,11 @@ function OrderDetailsModal({
                 >
                   <Send className="w-4 h-4 mr-2" />
                   Send Email
+                  {(emailAttachments.length + clientAutoAttachedFiles.length) > 0 && (
+                    <Badge variant="secondary" className="ml-2 text-xs px-1.5 py-0 h-5">
+                      {emailAttachments.length + clientAutoAttachedFiles.length} file(s)
+                    </Badge>
+                  )}
                 </Button>
                 <Button variant="outline">Save Draft</Button>
               </div>
@@ -5281,25 +5461,140 @@ function OrderDetailsModal({
                   </div>
                   {vendorEmailAttachments.length > 0 && (
                     <div className="mt-2 space-y-2">
-                      {vendorEmailAttachments.map((file, index) => (
-                        <div
-                          key={index}
-                          className="flex items-center justify-between p-2 bg-gray-50 rounded"
-                        >
-                          <span className="text-sm">{file.name}</span>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() =>
-                              setVendorEmailAttachments((prev) =>
-                                prev.filter((_, i) => i !== index),
-                              )
-                            }
+                      {vendorEmailAttachments.map((file, index) => {
+                        const isImage = file.type.startsWith('image/');
+                        const isPdf = file.type === 'application/pdf';
+                        const canPreview = isImage || isPdf;
+
+                        return (
+                          <div
+                            key={index}
+                            className="flex items-center gap-3 p-2 bg-gray-50 rounded border"
                           >
-                            <X className="w-4 h-4" />
-                          </Button>
-                        </div>
-                      ))}
+                            {/* Thumbnail preview */}
+                            {isImage ? (
+                              <img
+                                src={manualUploadUrls[index]}
+                                alt={file.name}
+                                className="w-10 h-10 rounded object-cover border cursor-pointer flex-shrink-0"
+                                onClick={() => setAttachmentPreview({ url: manualUploadUrls[index], name: file.name, type: 'image' })}
+                              />
+                            ) : (
+                              <div
+                                className={`w-10 h-10 rounded flex items-center justify-center flex-shrink-0 ${isPdf ? 'bg-red-50 cursor-pointer' : 'bg-gray-200'}`}
+                                onClick={() => isPdf && setAttachmentPreview({ url: manualUploadUrls[index], name: file.name, type: 'pdf' })}
+                              >
+                                <FileText className={`w-5 h-5 ${isPdf ? 'text-red-500' : 'text-gray-500'}`} />
+                              </div>
+                            )}
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm truncate">{file.name}</p>
+                              <p className="text-xs text-gray-400">
+                                {(file.size / 1024).toFixed(1)} KB
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-1 flex-shrink-0">
+                              {canPreview && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-7 w-7 p-0 text-blue-500 hover:text-blue-700"
+                                  onClick={() => setAttachmentPreview({ url: manualUploadUrls[index], name: file.name, type: isImage ? 'image' : 'pdf' })}
+                                >
+                                  <Eye className="w-4 h-4" />
+                                </Button>
+                              )}
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 w-7 p-0 text-gray-400 hover:text-red-500"
+                                onClick={() =>
+                                  setVendorEmailAttachments((prev) =>
+                                    prev.filter((_, i) => i !== index),
+                                  )
+                                }
+                              >
+                                <X className="w-4 h-4" />
+                              </Button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* Auto-attached files (PO document + artwork) */}
+                  {vendorAutoAttachedFiles.length > 0 && (
+                    <div className="mt-3">
+                      <p className="text-xs font-medium text-green-700 mb-2 flex items-center gap-1">
+                        <CheckCircle className="w-3.5 h-3.5" />
+                        Auto-attached files ({vendorAutoAttachedFiles.length})
+                      </p>
+                      <div className="space-y-1.5">
+                        {vendorAutoAttachedFiles.map((file, index) => {
+                          const previewType = file.isImage ? 'image' : (file.name.toLowerCase().endsWith('.pdf') || file.type === 'po') ? 'pdf' : 'other';
+
+                          return (
+                            <div
+                              key={`auto-${index}`}
+                              className="flex items-center gap-3 p-2 bg-green-50 border border-green-200 rounded"
+                            >
+                              {/* Thumbnail preview for images, icon for PDFs */}
+                              {file.isImage && file.fileUrl ? (
+                                <img
+                                  src={file.fileUrl}
+                                  alt={file.name}
+                                  className="w-10 h-10 rounded object-cover border border-green-300 cursor-pointer flex-shrink-0"
+                                  onClick={() => setAttachmentPreview({ url: file.fileUrl!, name: file.name, type: 'image' })}
+                                />
+                              ) : (
+                                <div
+                                  className={`w-10 h-10 rounded flex items-center justify-center flex-shrink-0 cursor-pointer ${file.type === 'po' ? 'bg-red-50' : 'bg-blue-100'}`}
+                                  onClick={() => file.fileUrl && setAttachmentPreview({ url: file.fileUrl, name: file.name, type: previewType as any })}
+                                >
+                                  {file.type === 'po' ? (
+                                    <FileText className="w-5 h-5 text-red-500" />
+                                  ) : (
+                                    <FileText className="w-5 h-5 text-blue-600" />
+                                  )}
+                                </div>
+                              )}
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm text-green-800 truncate">{file.name}</p>
+                                <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 border-green-400 text-green-600 mt-0.5">
+                                  {file.type === 'po' ? 'PO Document' : 'Artwork'}
+                                </Badge>
+                              </div>
+                              <div className="flex items-center gap-1 flex-shrink-0">
+                                {file.fileUrl && (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-7 w-7 p-0 text-green-600 hover:text-blue-600"
+                                    onClick={() => setAttachmentPreview({ url: file.fileUrl!, name: file.name, type: previewType as any })}
+                                  >
+                                    <Eye className="w-4 h-4" />
+                                  </Button>
+                                )}
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-7 w-7 p-0 text-green-600 hover:text-red-500"
+                                  onClick={() => {
+                                    if (file.type === 'po') {
+                                      setAutoAttachDocumentFile(null);
+                                    } else {
+                                      setAutoAttachArtworkVendorId(null);
+                                    }
+                                  }}
+                                >
+                                  <X className="w-3.5 h-3.5" />
+                                </Button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
                   )}
                 </div>
@@ -5319,6 +5614,11 @@ function OrderDetailsModal({
                   >
                     <Send className="w-4 h-4 mr-2" />
                     Send to Vendor
+                    {(vendorEmailAttachments.length + vendorAutoAttachedFiles.length) > 0 && (
+                      <Badge variant="secondary" className="ml-2 text-xs">
+                        {vendorEmailAttachments.length + vendorAutoAttachedFiles.length} file(s)
+                      </Badge>
+                    )}
                   </Button>
                   <Button variant="outline">Save Draft</Button>
                 </div>
@@ -6187,12 +6487,6 @@ function OrderDetailsModal({
                             e.preventDefault();
                           }}
                           onClick={async () => {
-                            console.log(
-                              "Product selected:",
-                              product.id,
-                              product.name,
-                            );
-
                             // Check if the product's supplier has doNotOrder status via API
                             if (product.supplierId) {
                               try {
@@ -7032,99 +7326,6 @@ function OrderDetailsModal({
         </DialogContent>
       </Dialog>
 
-      {/* Reassign Production Manager Dialog */}
-      <Dialog
-        open={isReassignPmDialogOpen}
-        onOpenChange={setIsReassignPmDialogOpen}
-      >
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Assign Production Manager</DialogTitle>
-            <DialogDescription>
-              Select a team member to assign as the production manager for this
-              order. They will be notified when the quote is approved.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4">
-            <div>
-              <Label htmlFor="reassign-pm-user">Team Member</Label>
-              <Select
-                value={reassignPmUserId}
-                onValueChange={setReassignPmUserId}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select team member" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="unassigned">
-                    <div className="flex items-center gap-2">
-                      <User className="w-4 h-4 text-gray-400" />
-                      <span className="text-gray-500">Unassign (No one)</span>
-                    </div>
-                  </SelectItem>
-                  {teamMembers.map((member: any) => (
-                    <SelectItem key={member.id} value={member.id}>
-                      <div className="flex items-center gap-2">
-                        <UserAvatar user={member} size="sm" />
-                        <div>
-                          <div className="font-medium">
-                            {member.firstName} {member.lastName}
-                          </div>
-                          <div className="text-xs text-gray-500">
-                            {member.email}
-                          </div>
-                        </div>
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {productionManager && (
-              <div className="p-3 bg-purple-50 border border-purple-200 rounded-lg">
-                <p className="text-xs font-medium text-purple-900 mb-1">
-                  Currently Assigned Production Manager:
-                </p>
-                <div className="flex items-center gap-2">
-                  <UserAvatar user={productionManager} size="sm" />
-                  <div className="text-sm">
-                    <p className="font-medium text-purple-900">
-                      {productionManager.firstName} {productionManager.lastName}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            <div className="flex justify-end gap-2">
-              <Button
-                variant="outline"
-                onClick={() => setIsReassignPmDialogOpen(false)}
-              >
-                Cancel
-              </Button>
-              <Button
-                onClick={() => {
-                  if (orderId) {
-                    reassignPmMutation.mutate({
-                      orderId,
-                      userId:
-                        reassignPmUserId === "unassigned"
-                          ? ""
-                          : reassignPmUserId,
-                    });
-                  }
-                }}
-                disabled={!reassignPmUserId || reassignPmMutation.isPending}
-              >
-                {reassignPmMutation.isPending ? "Assigning..." : "Assign"}
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
 
       {/* Vendor Approval Dialog - for Do Not Order vendors */}
       {blockedVendor && (
@@ -7146,6 +7347,78 @@ function OrderDetailsModal({
           }}
         />
       )}
+
+      {/* Attachment Preview Dialog */}
+      <Dialog open={!!attachmentPreview} onOpenChange={() => setAttachmentPreview(null)}>
+        <DialogContent className="max-w-4xl max-h-[90vh] p-0 overflow-hidden">
+          <DialogHeader className="px-6 pt-6 pb-3">
+            <div className="flex items-center justify-between">
+              <div className="min-w-0 flex-1">
+                <DialogTitle className="truncate pr-4">
+                  {attachmentPreview?.name}
+                </DialogTitle>
+                <DialogDescription>Attachment preview</DialogDescription>
+              </div>
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => attachmentPreview && window.open(attachmentPreview.blobUrl || attachmentPreview.url, '_blank')}
+                >
+                  <ExternalLink className="w-4 h-4 mr-1" />
+                  Open
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    if (attachmentPreview) {
+                      const a = document.createElement('a');
+                      a.href = attachmentPreview.blobUrl || attachmentPreview.url;
+                      a.download = attachmentPreview.name;
+                      a.click();
+                    }
+                  }}
+                >
+                  <Download className="w-4 h-4 mr-1" />
+                  Download
+                </Button>
+              </div>
+            </div>
+          </DialogHeader>
+          <div className="px-6 pb-6 overflow-auto" style={{ maxHeight: 'calc(90vh - 120px)' }}>
+            {/* Loading state while fetching blob */}
+            {attachmentPreview && !attachmentPreview.blobUrl && (
+              <div className="flex flex-col items-center justify-center py-16 text-gray-500">
+                <div className="w-10 h-10 border-4 border-gray-200 border-t-blue-500 rounded-full animate-spin mb-4" />
+                <p className="text-sm">Loading preview...</p>
+              </div>
+            )}
+            {attachmentPreview?.type === 'image' && attachmentPreview.blobUrl && (
+              <img
+                src={attachmentPreview.blobUrl}
+                alt={attachmentPreview.name}
+                className="w-full h-auto rounded-lg border"
+              />
+            )}
+            {attachmentPreview?.type === 'pdf' && attachmentPreview.blobUrl && (
+              <iframe
+                src={attachmentPreview.blobUrl}
+                title={attachmentPreview.name}
+                className="w-full rounded-lg border"
+                style={{ height: 'calc(90vh - 160px)', minHeight: '500px' }}
+              />
+            )}
+            {attachmentPreview?.type === 'other' && attachmentPreview.blobUrl && (
+              <div className="flex flex-col items-center justify-center py-16 text-gray-500">
+                <FileText className="w-16 h-16 mb-4 text-gray-300" />
+                <p className="text-lg font-medium">Preview not available</p>
+                <p className="text-sm mt-1">Use the Download button to view this file.</p>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

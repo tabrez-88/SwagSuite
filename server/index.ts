@@ -1,7 +1,12 @@
 import "dotenv/config";
+import { loadSecrets } from "./secrets";
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
+
+// Load secrets from GCP Secret Manager (production only)
+// Must run before app init so env vars are available for DB, auth, etc.
+await loadSecrets();
 
 const app = express();
 
