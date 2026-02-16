@@ -2337,6 +2337,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
             });
           }
         }
+
+        // Assignment notifications
+        const needsSalesRepNotify = req.body.assignedUserId !== undefined && oldOrder && req.body.assignedUserId !== oldOrder.assignedUserId && req.body.assignedUserId && req.body.assignedUserId !== currentUserId;
+        const needsCsrNotify = req.body.csrUserId !== undefined && oldOrder && req.body.csrUserId !== oldOrder.csrUserId && req.body.csrUserId && req.body.csrUserId !== currentUserId;
+
+        if (needsSalesRepNotify || needsCsrNotify) {
+          const assignerUser = await storage.getUser(currentUserId);
+          const assignerName = assignerUser ? `${assignerUser.firstName} ${assignerUser.lastName}`.trim() : "Someone";
+
+          if (needsSalesRepNotify) {
+            await storage.createNotification({
+              recipientId: req.body.assignedUserId,
+              senderId: currentUserId,
+              orderId: order.id,
+              type: "team_update",
+              title: "You've been assigned as Sales Rep",
+              message: `${assignerName} assigned you as Sales Rep on order #${order.orderNumber}`,
+            });
+          }
+
+          if (needsCsrNotify) {
+            await storage.createNotification({
+              recipientId: req.body.csrUserId,
+              senderId: currentUserId,
+              orderId: order.id,
+              type: "team_update",
+              title: "You've been assigned as CSR",
+              message: `${assignerName} assigned you as CSR on order #${order.orderNumber}`,
+            });
+          }
+        }
       } catch (actError) {
         console.error("Failed to log project activity:", actError);
       }
@@ -5848,6 +5879,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .insert(projectActivities)
         .values(validatedData)
         .returning();
+
+      // Mention notifications
+      if (mentionedUsers && Array.isArray(mentionedUsers) && mentionedUsers.length > 0) {
+        try {
+          const usersToNotify = mentionedUsers.filter((uid: string) => uid !== currentUserId);
+          if (usersToNotify.length > 0) {
+            const mentionedOrder = await storage.getOrder(orderId);
+            const orderNumber = mentionedOrder?.orderNumber || orderId;
+            const senderUser = await storage.getUser(currentUserId);
+            const senderName = senderUser ? `${senderUser.firstName} ${senderUser.lastName}`.trim() : "Someone";
+            const preview = content.length > 100 ? content.substring(0, 100) + "..." : content;
+
+            await storage.createNotificationsForUsers(usersToNotify, {
+              senderId: currentUserId,
+              orderId: orderId,
+              activityId: newActivity.id,
+              type: "mention",
+              title: `${senderName} mentioned you`,
+              message: `In order #${orderNumber}: "${preview}"`,
+            });
+          }
+        } catch (notifyError) {
+          console.error("Failed to create mention notifications:", notifyError);
+        }
+      }
 
       // Fetch the complete activity with user info
       const { eq } = await import("drizzle-orm");
