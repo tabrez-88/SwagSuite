@@ -100,38 +100,36 @@ export async function setupAuth(app: Express) {
     res.redirect("/?auth=required");
   });
 
-  // Development auto-login (only available in non-production)
-  if (process.env.NODE_ENV !== "production") {
-    app.get("/api/login/dev", (req, res) => {
-      req.login(
-        {
-          claims: {
-            sub: "dev-user-id",
-            email: "dev@example.com",
-            first_name: "Developer",
-            last_name: "Local",
-            profile_image_url: "",
-            exp: Math.floor(Date.now() / 1000) + 24 * 60 * 60,
-          },
-          expires_at: Math.floor(Date.now() / 1000) + 24 * 60 * 60,
-        } as any,
-        async (err) => {
-          if (err) {
-            return res.status(500).send("Login failed");
-          }
-          await storage.upsertUser({
-            id: "dev-user-id",
-            email: "dev@example.com",
-            firstName: "Developer",
-            lastName: "Local",
-            profileImageUrl: "",
-            role: "admin",
-          });
-          return res.redirect("/");
+  // Dev auto-login (enabled in all environments)
+  app.get("/api/login/dev", (req, res) => {
+    req.login(
+      {
+        claims: {
+          sub: "dev-user-id",
+          email: "dev@example.com",
+          first_name: "Developer",
+          last_name: "Local",
+          profile_image_url: "",
+          exp: Math.floor(Date.now() / 1000) + 24 * 60 * 60,
+        },
+        expires_at: Math.floor(Date.now() / 1000) + 24 * 60 * 60,
+      } as any,
+      async (err) => {
+        if (err) {
+          return res.status(500).send("Login failed");
         }
-      );
-    });
-  }
+        await storage.upsertUser({
+          id: "dev-user-id",
+          email: "dev@example.com",
+          firstName: "Developer",
+          lastName: "Local",
+          profileImageUrl: "",
+          role: "admin",
+        });
+        return res.redirect("/");
+      }
+    );
+  });
 
   // POST endpoint for username/password login
   app.post("/api/auth/login", (req, res, next) => {
