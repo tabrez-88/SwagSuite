@@ -3,6 +3,16 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Bell, Check, CheckCheck, Trash2, ExternalLink, Package, FileCheck, AlertTriangle, MessageSquare, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuLabel,
@@ -40,6 +50,8 @@ const notificationIcons: Record<string, React.ReactNode> = {
 
 export function NotificationDropdown() {
   const [isOpen, setIsOpen] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [notificationToDelete, setNotificationToDelete] = useState<Notification | null>(null);
   const [, navigate] = useLocation();
   const queryClient = useQueryClient();
 
@@ -132,6 +144,7 @@ export function NotificationDropdown() {
   };
 
   return (
+    <>
     <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
       <DropdownMenuTrigger asChild>
         <Button variant="outline" size="icon" className="relative rounded-full">
@@ -238,7 +251,8 @@ export function NotificationDropdown() {
                         className="h-6 w-6 text-muted-foreground hover:text-red-600"
                         onClick={(e) => {
                           e.stopPropagation();
-                          deleteMutation.mutate(notification.id);
+                          setNotificationToDelete(notification);
+                          setIsDeleteDialogOpen(true);
                         }}
                       >
                         <Trash2 className="h-3 w-3" />
@@ -270,5 +284,42 @@ export function NotificationDropdown() {
         )}
       </DropdownMenuContent>
     </DropdownMenu>
+
+    {/* Delete Confirmation Dialog */}
+    <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle className="flex items-center gap-2">
+            <AlertTriangle className="h-5 w-5 text-red-500" />
+            Delete Notification
+          </AlertDialogTitle>
+          <AlertDialogDescription>
+            Are you sure you want to delete this notification?
+            {notificationToDelete && (
+              <span className="block mt-1 font-medium text-foreground">
+                "{notificationToDelete.title}"
+              </span>
+            )}
+            This action cannot be undone.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel onClick={() => setNotificationToDelete(null)}>Cancel</AlertDialogCancel>
+          <AlertDialogAction
+            className="bg-red-600 hover:bg-red-700"
+            onClick={() => {
+              if (notificationToDelete) {
+                deleteMutation.mutate(notificationToDelete.id);
+              }
+              setNotificationToDelete(null);
+              setIsDeleteDialogOpen(false);
+            }}
+          >
+            Delete
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+    </>
   );
 }

@@ -33,8 +33,19 @@ import {
   UserCheck,
   DollarSign,
   Bot,
-  Wand2
+  Wand2,
+  AlertTriangle,
 } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import type { Sequence, SequenceStep, SequenceEnrollment, SequenceAnalytics } from "@shared/schema";
 
 const sequenceFormSchema = z.object({
@@ -62,6 +73,7 @@ export default function SequenceBuilder() {
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [showStepDialog, setShowStepDialog] = useState(false);
   const [editingStep, setEditingStep] = useState<SequenceStep | null>(null);
+  const [isDeleteSequenceDialogOpen, setIsDeleteSequenceDialogOpen] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -453,7 +465,7 @@ export default function SequenceBuilder() {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => deleteSequenceMutation.mutate(selectedSequence.id)}
+                      onClick={() => setIsDeleteSequenceDialogOpen(true)}
                     >
                       <Trash2 className="mr-2 h-4 w-4" />
                       Delete
@@ -758,6 +770,41 @@ export default function SequenceBuilder() {
           </Form>
         </DialogContent>
       </Dialog>
+
+      {/* Delete Sequence Confirmation Dialog */}
+      <AlertDialog open={isDeleteSequenceDialogOpen} onOpenChange={setIsDeleteSequenceDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-red-600" />
+              Delete Sequence?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete <strong>{selectedSequence?.name}</strong>?
+              <span className="block mt-2 text-red-600 font-medium">
+                This action cannot be undone. All steps and enrollments will be removed.
+              </span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setIsDeleteSequenceDialogOpen(false)}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (selectedSequence) {
+                  deleteSequenceMutation.mutate(selectedSequence.id);
+                  setIsDeleteSequenceDialogOpen(false);
+                }
+              }}
+              className="bg-red-600 hover:bg-red-700 focus:ring-red-600"
+              disabled={deleteSequenceMutation.isPending}
+            >
+              {deleteSequenceMutation.isPending ? "Deleting..." : "Delete Sequence"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

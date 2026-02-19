@@ -60,7 +60,18 @@ import {
   Users,
   Zap,
   Database,
+  AlertTriangle,
 } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useState, useEffect } from "react";
 import { MailCredentialsDialog } from "@/components/MailCredentialsDialog";
 
@@ -832,6 +843,8 @@ export default function Settings() {
     [],
   );
   const [showAddIntegration, setShowAddIntegration] = useState(false);
+  const [isRemoveIntegrationDialogOpen, setIsRemoveIntegrationDialogOpen] = useState(false);
+  const [integrationToRemove, setIntegrationToRemove] = useState<any>(null);
   const [selectedIntegrationType, setSelectedIntegrationType] =
     useState<any>(null);
 
@@ -1241,6 +1254,8 @@ export default function Settings() {
       title: "Integration Removed",
       description: "Integration has been successfully removed.",
     });
+    setIsRemoveIntegrationDialogOpen(false);
+    setIntegrationToRemove(null);
   };
 
   // System Configuration Functions
@@ -2830,9 +2845,10 @@ export default function Settings() {
                               <Button
                                 variant="outline"
                                 size="sm"
-                                onClick={() =>
-                                  removeIntegration(integration.id)
-                                }
+                                onClick={() => {
+                                  setIntegrationToRemove(integration);
+                                  setIsRemoveIntegrationDialogOpen(true);
+                                }}
                               >
                                 <Trash2 className="w-4 h-4" />
                               </Button>
@@ -3685,6 +3701,39 @@ export default function Settings() {
           <EmailConfigSection />
         </TabsContent>
       </Tabs>
+
+      {/* Remove Integration Confirmation Dialog */}
+      <AlertDialog open={isRemoveIntegrationDialogOpen} onOpenChange={setIsRemoveIntegrationDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-red-600" />
+              Remove Integration?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to remove <strong>{integrationToRemove?.name}</strong>?
+              <span className="block mt-2 text-orange-600 font-medium">
+                This will disconnect the integration from your system.
+              </span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => { setIntegrationToRemove(null); setIsRemoveIntegrationDialogOpen(false); }}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (integrationToRemove) {
+                  removeIntegration(integrationToRemove.id);
+                }
+              }}
+              className="bg-red-600 hover:bg-red-700 focus:ring-red-600"
+            >
+              Remove Integration
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

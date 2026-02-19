@@ -63,9 +63,20 @@ import {
   List,
   MoreHorizontal,
   Eye,
-  MapPin
+  MapPin,
+  AlertTriangle,
 } from "lucide-react";
 import { CRMViewToggle } from "@/components/CRMViewToggle";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 interface Lead {
   id: string;
@@ -145,6 +156,8 @@ export default function Leads() {
   const [viewMode, setViewMode] = useState<'cards' | 'list'>('cards');
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [isLeadDetailOpen, setIsLeadDetailOpen] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [leadToDelete, setLeadToDelete] = useState<Lead | null>(null);
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -213,6 +226,8 @@ export default function Leads() {
         description: "Lead deleted successfully",
       });
       queryClient.invalidateQueries({ queryKey: ["/api/leads"] });
+      setIsDeleteDialogOpen(false);
+      setLeadToDelete(null);
     },
     onError: (error) => {
       if (isUnauthorizedError(error)) {
@@ -238,10 +253,9 @@ export default function Leads() {
     createLeadMutation.mutate(data);
   };
 
-  const handleDeleteLead = (leadId: string) => {
-    if (confirm("Are you sure you want to delete this lead?")) {
-      deleteLeadMutation.mutate(leadId);
-    }
+  const handleDeleteLead = (lead: Lead) => {
+    setLeadToDelete(lead);
+    setIsDeleteDialogOpen(true);
   };
 
   const filteredLeads = leads.filter((lead: Lead) => {
@@ -612,7 +626,7 @@ export default function Leads() {
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => handleDeleteLead(lead.id)}
+                          onClick={() => handleDeleteLead(lead)}
                           className="text-red-600 hover:text-red-700 hover:bg-red-50"
                         >
                           <Trash2 size={14} />
@@ -772,7 +786,7 @@ export default function Leads() {
                                   Edit
                                 </DropdownMenuItem>
                                 <DropdownMenuItem 
-                                  onClick={() => handleDeleteLead(lead.id)}
+                                  onClick={() => handleDeleteLead(lead)}
                                   className="text-red-600"
                                 >
                                   <Trash2 className="h-4 w-4 mr-2" />
@@ -809,6 +823,45 @@ export default function Leads() {
             </CardContent>
           </Card>
         )}
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-red-600" />
+              Delete Lead?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete <strong>{leadToDelete?.firstName} {leadToDelete?.lastName}</strong>?
+              <span className="block mt-2 text-red-600 font-medium">
+                This action cannot be undone.
+              </span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              onClick={() => {
+                setLeadToDelete(null);
+                setIsDeleteDialogOpen(false);
+              }}
+            >
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (leadToDelete) {
+                  deleteLeadMutation.mutate(leadToDelete.id);
+                }
+              }}
+              className="bg-red-600 hover:bg-red-700 focus:ring-red-600"
+              disabled={deleteLeadMutation.isPending}
+            >
+              {deleteLeadMutation.isPending ? "Deleting..." : "Delete Lead"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       </div>
   );
 }

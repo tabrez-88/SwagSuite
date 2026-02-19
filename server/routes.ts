@@ -2216,6 +2216,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (dataToValidate.supplierInHandsDate) {
         dataToValidate.supplierInHandsDate = new Date(dataToValidate.supplierInHandsDate);
       }
+      if (dataToValidate.nextActionDate) {
+        dataToValidate.nextActionDate = new Date(dataToValidate.nextActionDate);
+      }
 
       const validatedData = insertOrderSchema.partial().parse(dataToValidate);
 
@@ -2393,7 +2396,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json(order);
     } catch (error) {
-      console.error("Error updating order:", error);
+      console.error("Error updating order:", error instanceof Error ? error.message : String(error));
       res.status(500).json({ message: "Failed to update order" });
     }
   });

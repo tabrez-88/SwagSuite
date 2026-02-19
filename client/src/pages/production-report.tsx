@@ -51,7 +51,18 @@ import {
   Search,
   Trash2,
   GripVertical,
+  AlertTriangle,
 } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { UserAvatar } from "@/components/UserAvatar";
 import { format, addDays } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
@@ -107,7 +118,6 @@ export default function ProductionReport() {
   const [filterStage, setFilterStage] = useState('all');
   const [filterCompany, setFilterCompany] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
-  const [editingStageData, setEditingStageData] = useState<Record<string, any>>({});
   const [stageInputs, setStageInputs] = useState<Record<string, string>>({});
   const [viewMode, setViewMode] = useState<'expanded' | 'list'>('expanded');
   const [expandedOrders, setExpandedOrders] = useState<Set<string>>(new Set());
@@ -117,6 +127,9 @@ export default function ProductionReport() {
   const [reassignUserId, setReassignUserId] = useState<string>('');
   const [isReassignCsrDialogOpen, setIsReassignCsrDialogOpen] = useState(false);
   const [reassignCsrUserId, setReassignCsrUserId] = useState<string>('');
+  const [isDeleteStageDialogOpen, setIsDeleteStageDialogOpen] = useState(false);
+  const [stageToDelete, setStageToDelete] = useState<ProductionStage | null>(null);
+  const [isResetStagesDialogOpen, setIsResetStagesDialogOpen] = useState(false);
   const [, setLocation] = useLocation();
 
   const { toast } = useToast();
@@ -408,25 +421,6 @@ export default function ProductionReport() {
     });
   };
 
-  const handleStageDataSave = (stageId: string, data: any) => {
-    if (!selectedOrder) return;
-
-    const updatedStageData = {
-      ...(selectedOrder.stageData || {}),
-      [stageId]: data
-    };
-
-    updateOrderProductionMutation.mutate({
-      orderId: selectedOrder.id,
-      data: {
-        stageData: updatedStageData,
-        ...(stageId === 'shipped' && data.trackingNumber ? { trackingNumber: data.trackingNumber } : {})
-      }
-    });
-
-    setEditingStageData({});
-  };
-
   const handleCustomNotesSave = (stageId: string, notes: string) => {
     if (!selectedOrder) return;
 
@@ -461,59 +455,6 @@ export default function ProductionReport() {
     return IconComponent || ShoppingCart;
   };
 
-  const getStageInputFields = (stageId: string) => {
-    switch (stageId) {
-      case 'sales-booked':
-        return [
-          { key: 'confirmedBy', label: 'Confirmed By', type: 'text' },
-          { key: 'salesOrderNumber', label: 'Sales Order Number', type: 'text' }
-        ];
-      case 'po-placed':
-        return [
-          { key: 'poNumber', label: 'PO Number', type: 'text' },
-          { key: 'vendorConfirmation', label: 'Vendor Confirmation', type: 'select', options: ['Pending', 'Confirmed', 'Rejected'] }
-        ];
-      case 'confirmation-received':
-        return [
-          { key: 'confirmedDate', label: 'Confirmation Date', type: 'date' },
-          { key: 'estimatedShipDate', label: 'Estimated Ship Date', type: 'date' }
-        ];
-      case 'proof-received':
-        return [
-          { key: 'proofDate', label: 'Proof Received Date', type: 'date' },
-          { key: 'revisionCount', label: 'Revision Number', type: 'number' }
-        ];
-      case 'proof-approved':
-        return [
-          { key: 'approvedBy', label: 'Approved By', type: 'text' },
-          { key: 'approvalDate', label: 'Approval Date', type: 'date' }
-        ];
-      case 'order-placed':
-        return [
-          { key: 'productionStartDate', label: 'Production Start Date', type: 'date' },
-          { key: 'estimatedCompletion', label: 'Estimated Completion', type: 'date' }
-        ];
-      case 'invoice-paid':
-        return [
-          { key: 'paymentDate', label: 'Payment Date', type: 'date' },
-          { key: 'paymentMethod', label: 'Payment Method', type: 'select', options: ['Credit Card', 'Wire Transfer', 'Check', 'ACH'] }
-        ];
-      case 'shipping-scheduled':
-        return [
-          { key: 'carrier', label: 'Shipping Carrier', type: 'select', options: ['UPS', 'FedEx', 'USPS', 'DHL', 'Other'] },
-          { key: 'scheduledDate', label: 'Scheduled Ship Date', type: 'date' },
-          { key: 'deliveryAddress', label: 'Delivery Address', type: 'textarea' }
-        ];
-      case 'shipped':
-        return [
-          { key: 'trackingNumber', label: 'Tracking Number', type: 'text' },
-          { key: 'shippedDate', label: 'Shipped Date', type: 'date' },
-          { key: 'carrier', label: 'Carrier', type: 'select', options: ['UPS', 'FedEx', 'USPS', 'DHL', 'Other'] }
-        ];
-      default:
-        return [];
-    }
-  };
 
   const handleAddStage = async () => {
     if (!newStage.name) return;
@@ -652,82 +593,150 @@ export default function ProductionReport() {
             </Button>
           </div>
           {((currentUser as any)?.role === 'admin' || (currentUser as any)?.role === 'manager') ? (
-          <Dialog open={isStageModalOpen} onOpenChange={setIsStageModalOpen}>
-            <DialogTrigger asChild>
-              <Button variant="outline">
-                <Settings className="mr-2 h-4 w-4" />
-                Manage Stages
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-4xl ">
-              <DialogHeader>
-                <DialogTitle>Manage Production Stages</DialogTitle>
-              </DialogHeader>
-              <div className="space-y-6 overflow-y-scroll h-[500px] pr-2">
-                {/* Stage List with Edit/Delete */}
-                <div>
-                  <h3 className="font-medium mb-3">Current Stages (Drag to Reorder)</h3>
-                  <div className="space-y-1">
-                    {displayStages.map((stage, index) => (
-                      <div
-                        key={stage.id}
-                        draggable
-                        onDragStart={(e) => handleDragStart(e, index)}
-                        onDragOver={(e) => handleDragOver(e, index)}
-                        onDrop={handleDrop}
-                        onDragEnd={handleDragEnd}
-                        className={`flex items-center justify-between p-3 rounded-lg border cursor-move transition-all duration-150 ${
-                          dragIndex === index
-                            ? 'bg-blue-50 border-blue-300 shadow-md scale-[1.02] ring-2 ring-blue-200'
-                            : 'bg-gray-50 border-gray-200 hover:bg-gray-100'
-                        }`}
-                      >
-                        <div className="flex items-center space-x-3">
-                          <GripVertical className={`h-4 w-4 ${dragIndex === index ? 'text-blue-500' : 'text-gray-400'}`} />
-                          <span className="text-sm font-medium text-gray-500 w-5">#{index + 1}</span>
-                          <Badge className={stage.color}>{stage.name}</Badge>
-                          {stage.description && (
-                            <span className="text-xs text-gray-500 hidden md:inline">{stage.description}</span>
-                          )}
+            <Dialog open={isStageModalOpen} onOpenChange={setIsStageModalOpen}>
+              <DialogTrigger asChild>
+                <Button variant="outline">
+                  <Settings className="mr-2 h-4 w-4" />
+                  Manage Stages
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-4xl ">
+                <DialogHeader>
+                  <DialogTitle>Manage Production Stages</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-6 overflow-y-scroll h-[500px] pr-2">
+                  {/* Stage List with Edit/Delete */}
+                  <div>
+                    <h3 className="font-medium mb-3">Current Stages (Drag to Reorder)</h3>
+                    <div className="space-y-1">
+                      {displayStages.map((stage, index) => (
+                        <div
+                          key={stage.id}
+                          draggable
+                          onDragStart={(e) => handleDragStart(e, index)}
+                          onDragOver={(e) => handleDragOver(e, index)}
+                          onDrop={handleDrop}
+                          onDragEnd={handleDragEnd}
+                          className={`flex items-center justify-between p-3 rounded-lg border cursor-move transition-all duration-150 ${dragIndex === index
+                              ? 'bg-blue-50 border-blue-300 shadow-md scale-[1.02] ring-2 ring-blue-200'
+                              : 'bg-gray-50 border-gray-200 hover:bg-gray-100'
+                            }`}
+                        >
+                          <div className="flex items-center space-x-3">
+                            <GripVertical className={`h-4 w-4 ${dragIndex === index ? 'text-blue-500' : 'text-gray-400'}`} />
+                            <span className="text-sm font-medium text-gray-500 w-5">#{index + 1}</span>
+                            <Badge className={stage.color}>{stage.name}</Badge>
+                            {stage.description && (
+                              <span className="text-xs text-gray-500 hidden md:inline">{stage.description}</span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Button variant="ghost" size="sm" onClick={() => setEditingStage({ ...stage })}>
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                              disabled={isDeleting}
+                              onClick={() => {
+                                setStageToDelete(stage);
+                                setIsDeleteStageDialogOpen(true);
+                              }}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
                         </div>
-                        <div className="flex items-center gap-1">
-                          <Button variant="ghost" size="sm" onClick={() => setEditingStage({ ...stage })}>
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="text-red-500 hover:text-red-700 hover:bg-red-50"
-                            disabled={isDeleting}
-                            onClick={() => {
-                              if (confirm(`Delete stage "${stage.name}"? Orders on this stage won't be affected.`)) {
-                                handleDeleteStage(stage.id);
-                              }
-                            }}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Edit Stage Form */}
+                  {editingStage && (
+                    <div className="border-t pt-4">
+                      <h3 className="font-medium mb-3">Edit Stage: {editingStage.name}</h3>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <Label>Stage Name</Label>
+                          <Input
+                            value={editingStage.name}
+                            onChange={(e) => setEditingStage(prev => prev ? { ...prev, name: e.target.value } : null)}
+                          />
+                        </div>
+                        <div>
+                          <Label>Color</Label>
+                          <Select value={editingStage.color} onValueChange={(value) => setEditingStage(prev => prev ? { ...prev, color: value } : null)}>
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="bg-red-100 text-red-800">Red</SelectItem>
+                              <SelectItem value="bg-orange-100 text-orange-800">Orange</SelectItem>
+                              <SelectItem value="bg-yellow-100 text-yellow-800">Yellow</SelectItem>
+                              <SelectItem value="bg-green-100 text-green-800">Green</SelectItem>
+                              <SelectItem value="bg-blue-100 text-blue-800">Blue</SelectItem>
+                              <SelectItem value="bg-indigo-100 text-indigo-800">Indigo</SelectItem>
+                              <SelectItem value="bg-purple-100 text-purple-800">Purple</SelectItem>
+                              <SelectItem value="bg-cyan-100 text-cyan-800">Cyan</SelectItem>
+                              <SelectItem value="bg-emerald-100 text-emerald-800">Emerald</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div>
+                          <Label>Icon</Label>
+                          <Select value={editingStage.icon} onValueChange={(value) => setEditingStage(prev => prev ? { ...prev, icon: value } : null)}>
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="ShoppingCart">Shopping Cart</SelectItem>
+                              <SelectItem value="FileText">File Text</SelectItem>
+                              <SelectItem value="MessageSquare">Message</SelectItem>
+                              <SelectItem value="Eye">Eye</SelectItem>
+                              <SelectItem value="ThumbsUp">Thumbs Up</SelectItem>
+                              <SelectItem value="Package">Package</SelectItem>
+                              <SelectItem value="CreditCard">Credit Card</SelectItem>
+                              <SelectItem value="Truck">Truck</SelectItem>
+                              <SelectItem value="MapPin">Map Pin</SelectItem>
+                              <SelectItem value="CheckCircle">Check Circle</SelectItem>
+                              <SelectItem value="Factory">Factory</SelectItem>
+                              <SelectItem value="Clock">Clock</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div>
+                          <Label>Description</Label>
+                          <Input
+                            value={editingStage.description || ''}
+                            onChange={(e) => setEditingStage(prev => prev ? { ...prev, description: e.target.value } : null)}
+                            placeholder="Brief description"
+                          />
                         </div>
                       </div>
-                    ))}
-                  </div>
-                </div>
+                      <div className="flex justify-end gap-2 mt-3">
+                        <Button variant="outline" size="sm" onClick={() => setEditingStage(null)}>Cancel</Button>
+                        <Button size="sm" onClick={handleEditStage}>Save Changes</Button>
+                      </div>
+                    </div>
+                  )}
 
-                {/* Edit Stage Form */}
-                {editingStage && (
-                  <div className="border-t pt-4">
-                    <h3 className="font-medium mb-3">Edit Stage: {editingStage.name}</h3>
+                  {/* Add New Stage */}
+                  <div className="border-t pt-6">
+                    <h3 className="font-medium mb-3">Add New Stage</h3>
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <Label>Stage Name</Label>
+                        <Label htmlFor="stageName">Stage Name</Label>
                         <Input
-                          value={editingStage.name}
-                          onChange={(e) => setEditingStage(prev => prev ? { ...prev, name: e.target.value } : null)}
+                          id="stageName"
+                          value={newStage.name}
+                          onChange={(e) => setNewStage(prev => ({ ...prev, name: e.target.value }))}
+                          placeholder="e.g., Quality Check"
                         />
                       </div>
                       <div>
-                        <Label>Color</Label>
-                        <Select value={editingStage.color} onValueChange={(value) => setEditingStage(prev => prev ? { ...prev, color: value } : null)}>
+                        <Label htmlFor="stageColor">Color</Label>
+                        <Select value={newStage.color} onValueChange={(value) => setNewStage(prev => ({ ...prev, color: value }))}>
                           <SelectTrigger>
                             <SelectValue />
                           </SelectTrigger>
@@ -745,8 +754,8 @@ export default function ProductionReport() {
                         </Select>
                       </div>
                       <div>
-                        <Label>Icon</Label>
-                        <Select value={editingStage.icon} onValueChange={(value) => setEditingStage(prev => prev ? { ...prev, icon: value } : null)}>
+                        <Label htmlFor="stageIcon">Icon</Label>
+                        <Select value={newStage.icon} onValueChange={(value) => setNewStage(prev => ({ ...prev, icon: value }))}>
                           <SelectTrigger>
                             <SelectValue />
                           </SelectTrigger>
@@ -767,114 +776,32 @@ export default function ProductionReport() {
                         </Select>
                       </div>
                       <div>
-                        <Label>Description</Label>
+                        <Label htmlFor="stageDesc">Description (Optional)</Label>
                         <Input
-                          value={editingStage.description || ''}
-                          onChange={(e) => setEditingStage(prev => prev ? { ...prev, description: e.target.value } : null)}
-                          placeholder="Brief description"
+                          id="stageDesc"
+                          value={newStage.description}
+                          onChange={(e) => setNewStage(prev => ({ ...prev, description: e.target.value }))}
+                          placeholder="Brief description of this stage"
                         />
                       </div>
                     </div>
-                    <div className="flex justify-end gap-2 mt-3">
-                      <Button variant="outline" size="sm" onClick={() => setEditingStage(null)}>Cancel</Button>
-                      <Button size="sm" onClick={handleEditStage}>Save Changes</Button>
+                    <div className="flex justify-between mt-4">
+                      <Button
+                        variant="destructive"
+                        disabled={isResetting}
+                        onClick={() => setIsResetStagesDialogOpen(true)}
+                      >
+                        {isResetting ? "Resetting..." : "Reset to Default"}
+                      </Button>
+                      <Button onClick={handleAddStage} disabled={isCreating} className="bg-swag-primary hover:bg-swag-primary/90">
+                        <Plus className="mr-2 h-4 w-4" />
+                        {isCreating ? "Adding..." : "Add Stage"}
+                      </Button>
                     </div>
-                  </div>
-                )}
-
-                {/* Add New Stage */}
-                <div className="border-t pt-6">
-                  <h3 className="font-medium mb-3">Add New Stage</h3>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label htmlFor="stageName">Stage Name</Label>
-                      <Input
-                        id="stageName"
-                        value={newStage.name}
-                        onChange={(e) => setNewStage(prev => ({ ...prev, name: e.target.value }))}
-                        placeholder="e.g., Quality Check"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="stageColor">Color</Label>
-                      <Select value={newStage.color} onValueChange={(value) => setNewStage(prev => ({ ...prev, color: value }))}>
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="bg-red-100 text-red-800">Red</SelectItem>
-                          <SelectItem value="bg-orange-100 text-orange-800">Orange</SelectItem>
-                          <SelectItem value="bg-yellow-100 text-yellow-800">Yellow</SelectItem>
-                          <SelectItem value="bg-green-100 text-green-800">Green</SelectItem>
-                          <SelectItem value="bg-blue-100 text-blue-800">Blue</SelectItem>
-                          <SelectItem value="bg-indigo-100 text-indigo-800">Indigo</SelectItem>
-                          <SelectItem value="bg-purple-100 text-purple-800">Purple</SelectItem>
-                          <SelectItem value="bg-cyan-100 text-cyan-800">Cyan</SelectItem>
-                          <SelectItem value="bg-emerald-100 text-emerald-800">Emerald</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <Label htmlFor="stageIcon">Icon</Label>
-                      <Select value={newStage.icon} onValueChange={(value) => setNewStage(prev => ({ ...prev, icon: value }))}>
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="ShoppingCart">Shopping Cart</SelectItem>
-                          <SelectItem value="FileText">File Text</SelectItem>
-                          <SelectItem value="MessageSquare">Message</SelectItem>
-                          <SelectItem value="Eye">Eye</SelectItem>
-                          <SelectItem value="ThumbsUp">Thumbs Up</SelectItem>
-                          <SelectItem value="Package">Package</SelectItem>
-                          <SelectItem value="CreditCard">Credit Card</SelectItem>
-                          <SelectItem value="Truck">Truck</SelectItem>
-                          <SelectItem value="MapPin">Map Pin</SelectItem>
-                          <SelectItem value="CheckCircle">Check Circle</SelectItem>
-                          <SelectItem value="Factory">Factory</SelectItem>
-                          <SelectItem value="Clock">Clock</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <Label htmlFor="stageDesc">Description (Optional)</Label>
-                      <Input
-                        id="stageDesc"
-                        value={newStage.description}
-                        onChange={(e) => setNewStage(prev => ({ ...prev, description: e.target.value }))}
-                        placeholder="Brief description of this stage"
-                      />
-                    </div>
-                  </div>
-                  <div className="flex justify-between mt-4">
-                    <Button
-                      variant="destructive"
-                      disabled={isResetting}
-                      onClick={async () => {
-                        if (confirm('Are you sure you want to reset to default stages? This will remove all custom stages.')) {
-                          try {
-                            await resetStages();
-                            toast({
-                              title: "Stages Reset",
-                              description: "Production stages have been reset to defaults.",
-                            });
-                          } catch {
-                            toast({ title: "Error", description: "Failed to reset stages.", variant: "destructive" });
-                          }
-                        }
-                      }}
-                    >
-                      {isResetting ? "Resetting..." : "Reset to Default"}
-                    </Button>
-                    <Button onClick={handleAddStage} disabled={isCreating} className="bg-swag-primary hover:bg-swag-primary/90">
-                      <Plus className="mr-2 h-4 w-4" />
-                      {isCreating ? "Adding..." : "Add Stage"}
-                    </Button>
                   </div>
                 </div>
-              </div>
-            </DialogContent>
-          </Dialog>
+              </DialogContent>
+            </Dialog>
           ) : null}
         </div>
       </div>
@@ -882,9 +809,9 @@ export default function ProductionReport() {
       {/* Filters */}
       <Card>
         <CardContent className="p-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
             {/* Search */}
-            <div className="lg:col-span-2">
+            <div className="md:col-span-2">
               <Label htmlFor="searchQuery">Search Orders:</Label>
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
@@ -1154,7 +1081,7 @@ export default function ProductionReport() {
                             {order.margin != null && order.margin > 0 && (
                               <div className="text-xs text-green-600 font-medium">{order.margin}% margin</div>
                             )}
-                            <div className="text-xs text-gray-500">Due: {order.dueDate ? format(new Date(order.dueDate), 'MMM dd') : 'TBD'}</div>
+                            <div className="text-xs text-gray-500">In-Hands Date: {order.dueDate ? format(new Date(order.dueDate), 'MMM dd') : 'TBD'}</div>
                           </td>
                           <td className="px-4 py-4">
                             <div className="flex items-center space-x-1">
@@ -1325,13 +1252,13 @@ export default function ProductionReport() {
                           name={order.companyName}
                           size="sm"
                         />
-                        <span className="text-gray-600">{order.companyName} - {order.productName} (Qty: {order.quantity})</span>
+                        <span className="text-gray-600">{order.companyName}</span>
                       </div>
                       {/* Production Team & CSR Assignment */}
                       <div className="mt-4 flex items-center justify-between">
                         <div className="flex flex-col gap-2 justify-start">
                           <div className="grid grid-cols-2">
-                            <span className="text-sm font-semibold text-gray-700">Sales Rep:</span>
+                            <span className="text-sm font-semibold text-gray-700">Sales Rep</span>
                             <div className="flex gap-2 items-center">
                               <UserAvatar
                                 user={order.assignedUser}
@@ -1342,7 +1269,7 @@ export default function ProductionReport() {
                           </div>
 
                           <div className="grid grid-cols-2">
-                            <span className="text-sm font-semibold text-gray-700">CSR:</span>
+                            <span className="text-sm font-semibold text-gray-700">CSR</span>
                             <div className="flex gap-2 items-center">
                               <UserAvatar
                                 user={order.csrUser}
@@ -1355,18 +1282,21 @@ export default function ProductionReport() {
                       </div>
                     </div>
                     <div className="text-right">
-                      <p className="font-semibold">${order.orderValue.toLocaleString()}</p>
+                      <div className="flex justify-end w-full gap-2">
+                        <p>Total:</p>
+                        <p className="font-semibold">${order.orderValue.toLocaleString()}</p>
+                      </div>
                       {order.margin != null && order.margin > 0 && (
                         <p className="text-sm text-green-600 font-medium">{order.margin}% margin</p>
                       )}
-                      <p className="text-sm text-gray-500">Due: {order.dueDate ? format(new Date(order.dueDate), 'MMM dd') : 'TBD'}</p>
+                      <p className="text-sm text-gray-500">In-Hands Date: {order.dueDate ? format(new Date(order.dueDate), 'MMM dd') : 'TBD'}</p>
                     </div>
                   </div>
                 </div>
 
 
                 {/* Progress Bar */}
-                <div className="mb-4">
+                <div className="mb-2">
                   <div className="flex justify-between text-sm text-gray-600 mb-1">
                     <span>Progress</span>
                     <span>{getProgressPercentage(order)}%</span>
@@ -1637,10 +1567,7 @@ export default function ProductionReport() {
                   {stages.map((stage) => {
                     const isCompleted = selectedOrder.stagesCompleted.includes(stage.id);
                     const isCurrent = selectedOrder.currentStage === stage.id;
-                    const stageData = selectedOrder.stageData?.[stage.id];
                     const customNotes = selectedOrder.customNotes?.[stage.id];
-                    const isEditing = editingStageData[stage.id];
-                    const inputFields = getStageInputFields(stage.id);
 
                     return (
                       <div key={stage.id} className="border rounded-lg p-4 space-y-3">
@@ -1658,126 +1585,20 @@ export default function ProductionReport() {
                             </div>
                             <Badge className={stage.color}>{stage.name}</Badge>
                           </div>
-                          <div className="flex gap-2">
-                            {!isCompleted && (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => setEditingStageData(prev => ({ ...prev, [stage.id]: !prev[stage.id] }))}
-                              >
-                                <Edit className="h-4 w-4 mr-1" />
-                                Edit Info
-                              </Button>
-                            )}
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleStageUpdate(selectedOrder.id, stage.id)}
-                              disabled={isCompleted}
-                            >
-                              {isCompleted ? 'Completed' : isCurrent ? 'Current' : 'Set Current'}
-                            </Button>
-                          </div>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleStageUpdate(selectedOrder.id, stage.id)}
+                            disabled={isCompleted}
+                          >
+                            {isCompleted ? 'Completed' : isCurrent ? 'Current' : 'Set Current'}
+                          </Button>
                         </div>
 
-                        {/* Display current stage data */}
-                        {stageData && !isEditing && (
-                          <div className="bg-gray-50 rounded p-3">
-                            <p className="text-sm font-medium text-gray-700 mb-2">Stage Information:</p>
-                            <div className="grid grid-cols-2 gap-2">
-                              {Object.entries(stageData).map(([key, value]) => (
-                                <div key={key} className="text-xs">
-                                  <span className="font-medium text-gray-600 capitalize">{key.replace(/([A-Z])/g, ' $1')}: </span>
-                                  <span className="text-gray-800">{value as string}</span>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Edit stage data form */}
-                        {isEditing && inputFields.length > 0 && (
-                          <div className="bg-blue-50 rounded p-3 space-y-3">
-                            <p className="text-sm font-medium text-blue-800">Edit Stage Information:</p>
-                            <div className="grid grid-cols-1 gap-3">
-                              {inputFields.map((field) => (
-                                <div key={field.key}>
-                                  <Label htmlFor={`${stage.id}-${field.key}`} className="text-xs">
-                                    {field.label}
-                                  </Label>
-                                  {field.type === 'select' ? (
-                                    <Select
-                                      value={editingStageData[`${stage.id}-${field.key}`] || stageData?.[field.key] || ''}
-                                      onValueChange={(value) => setEditingStageData(prev => ({
-                                        ...prev,
-                                        [`${stage.id}-${field.key}`]: value
-                                      }))}
-                                    >
-                                      <SelectTrigger className="h-8">
-                                        <SelectValue placeholder={`Select ${field.label.toLowerCase()}`} />
-                                      </SelectTrigger>
-                                      <SelectContent>
-                                        {field.options?.map(option => (
-                                          <SelectItem key={option} value={option}>{option}</SelectItem>
-                                        ))}
-                                      </SelectContent>
-                                    </Select>
-                                  ) : field.type === 'textarea' ? (
-                                    <Textarea
-                                      id={`${stage.id}-${field.key}`}
-                                      value={editingStageData[`${stage.id}-${field.key}`] || stageData?.[field.key] || ''}
-                                      onChange={(e) => setEditingStageData(prev => ({
-                                        ...prev,
-                                        [`${stage.id}-${field.key}`]: e.target.value
-                                      }))}
-                                      className="h-16"
-                                      rows={2}
-                                    />
-                                  ) : (
-                                    <Input
-                                      id={`${stage.id}-${field.key}`}
-                                      type={field.type}
-                                      value={editingStageData[`${stage.id}-${field.key}`] || stageData?.[field.key] || ''}
-                                      onChange={(e) => setEditingStageData(prev => ({
-                                        ...prev,
-                                        [`${stage.id}-${field.key}`]: e.target.value
-                                      }))}
-                                      className="h-8"
-                                    />
-                                  )}
-                                </div>
-                              ))}
-                            </div>
-                            <div className="flex gap-2">
-                              <Button
-                                size="sm"
-                                onClick={() => {
-                                  const stageDataToSave = inputFields.reduce((acc, field) => {
-                                    const value = editingStageData[`${stage.id}-${field.key}`];
-                                    if (value) acc[field.key] = value;
-                                    return acc;
-                                  }, {} as any);
-                                  handleStageDataSave(stage.id, stageDataToSave);
-                                }}
-                                className="bg-swag-primary hover:bg-swag-primary/90"
-                              >
-                                Save
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => setEditingStageData(prev => ({ ...prev, [stage.id]: false }))}
-                              >
-                                Cancel
-                              </Button>
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Custom Notes Section */}
+                        {/* Stage Notes */}
                         <div className="border-t pt-3">
                           <div className="flex items-center justify-between mb-2">
-                            <p className="text-sm font-medium text-gray-700">Custom Notes:</p>
+                            <p className="text-sm font-medium text-gray-700">Stage Notes:</p>
                             <Button
                               size="sm"
                               variant="ghost"
@@ -1793,7 +1614,7 @@ export default function ProductionReport() {
                               <Textarea
                                 value={stageInputs[stage.id]}
                                 onChange={(e) => setStageInputs(prev => ({ ...prev, [stage.id]: e.target.value }))}
-                                placeholder="Add custom notes for this stage..."
+                                placeholder="Add notes for this stage..."
                                 rows={2}
                                 className="text-sm"
                               />
@@ -1820,7 +1641,7 @@ export default function ProductionReport() {
                             </div>
                           ) : (
                             <p className="text-sm text-gray-600 italic">
-                              {customNotes || 'No custom notes added for this stage'}
+                              {customNotes || 'No notes added for this stage'}
                             </p>
                           )}
                         </div>
@@ -1891,116 +1712,15 @@ export default function ProductionReport() {
                 </div>
               </div>
 
-              {/* Stage-specific Data Entry/Display */}
-              <div className="space-y-4">
-                <h3 className="font-medium">Stage Information & Actions</h3>
-
-                {/* Existing Stage Data */}
-                {selectedStage.order.stageData?.[selectedStage.stage.id] && (
-                  <div className="bg-blue-50 p-4 rounded-lg">
-                    <h4 className="font-medium text-blue-800 mb-2">Current Information</h4>
-                    <div className="grid grid-cols-2 gap-2">
-                      {Object.entries(selectedStage.order.stageData[selectedStage.stage.id]).map(([key, value]) => (
-                        <div key={key} className="text-sm">
-                          <span className="font-medium text-blue-700 capitalize">{key.replace(/([A-Z])/g, ' $1')}: </span>
-                          <span className="text-blue-600">{value as string}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Stage-specific Forms */}
-                {selectedStage.stage.id === 'po-placed' && (
-                  <div className="space-y-3">
-                    <Label>Purchase Order Number</Label>
-                    <Input
-                      placeholder="Enter PO number"
-                      value={stageInputs[`${selectedStage.order.id}-po-number`] || ''}
-                      onChange={(e) => setStageInputs({ ...stageInputs, [`${selectedStage.order.id}-po-number`]: e.target.value })}
-                    />
-                    <Label>Vendor</Label>
-                    <Input
-                      placeholder="Enter vendor name"
-                      value={stageInputs[`${selectedStage.order.id}-vendor`] || ''}
-                      onChange={(e) => setStageInputs({ ...stageInputs, [`${selectedStage.order.id}-vendor`]: e.target.value })}
-                    />
-                  </div>
-                )}
-
-                {selectedStage.stage.id === 'proof-received' && (
-                  <div className="space-y-3">
-                    <Label>Proof File URL</Label>
-                    <Input
-                      placeholder="Enter proof file URL or upload path"
-                      value={stageInputs[`${selectedStage.order.id}-proof-url`] || ''}
-                      onChange={(e) => setStageInputs({ ...stageInputs, [`${selectedStage.order.id}-proof-url`]: e.target.value })}
-                    />
-                    <Label>Proof Notes</Label>
-                    <Textarea
-                      placeholder="Any notes about the proof"
-                      value={stageInputs[`${selectedStage.order.id}-proof-notes`] || ''}
-                      onChange={(e) => setStageInputs({ ...stageInputs, [`${selectedStage.order.id}-proof-notes`]: e.target.value })}
-                    />
-                  </div>
-                )}
-
-                {selectedStage.stage.id === 'invoice-paid' && (
-                  <div className="space-y-3">
-                    <Label>Payment Amount</Label>
-                    <Input
-                      type="number"
-                      placeholder="Enter payment amount"
-                      value={stageInputs[`${selectedStage.order.id}-payment-amount`] || ''}
-                      onChange={(e) => setStageInputs({ ...stageInputs, [`${selectedStage.order.id}-payment-amount`]: e.target.value })}
-                    />
-                    <Label>Payment Date</Label>
-                    <Input
-                      type="date"
-                      value={stageInputs[`${selectedStage.order.id}-payment-date`] || ''}
-                      onChange={(e) => setStageInputs({ ...stageInputs, [`${selectedStage.order.id}-payment-date`]: e.target.value })}
-                    />
-                  </div>
-                )}
-
-                {selectedStage.stage.id === 'shipped' && (
-                  <div className="space-y-3">
-                    <Label>Tracking Number</Label>
-                    <Input
-                      placeholder="Enter tracking number"
-                      value={stageInputs[`${selectedStage.order.id}-tracking`] || selectedStage.order.trackingNumber || ''}
-                      onChange={(e) => setStageInputs({ ...stageInputs, [`${selectedStage.order.id}-tracking`]: e.target.value })}
-                    />
-                    <Label>Ship Date</Label>
-                    <Input
-                      type="date"
-                      value={stageInputs[`${selectedStage.order.id}-ship-date`] || ''}
-                      onChange={(e) => setStageInputs({ ...stageInputs, [`${selectedStage.order.id}-ship-date`]: e.target.value })}
-                    />
-                    <Label>Carrier</Label>
-                    <Select value={stageInputs[`${selectedStage.order.id}-carrier`] || ''} onValueChange={(value) => setStageInputs({ ...stageInputs, [`${selectedStage.order.id}-carrier`]: value })}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select carrier" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="fedex">FedEx</SelectItem>
-                        <SelectItem value="ups">UPS</SelectItem>
-                        <SelectItem value="usps">USPS</SelectItem>
-                        <SelectItem value="dhl">DHL</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
-
-                {/* Generic notes field for all stages */}
-                <div className="space-y-3">
-                  <Label>Stage Notes</Label>
-                  <Textarea
-                    placeholder="Add notes for this stage"
-                    value={stageInputs[`${selectedStage.order.id}-notes`] || selectedStage.order.customNotes?.[selectedStage.stage.id] || ''}
-                    onChange={(e) => setStageInputs({ ...stageInputs, [`${selectedStage.order.id}-notes`]: e.target.value })}
-                  />
-                </div>
+              {/* Stage Notes */}
+              <div className="space-y-3">
+                <Label>Stage Notes</Label>
+                <Textarea
+                  placeholder="Add notes for this stage..."
+                  value={stageInputs[`${selectedStage.order.id}-notes`] || selectedStage.order.customNotes?.[selectedStage.stage.id] || ''}
+                  onChange={(e) => setStageInputs({ ...stageInputs, [`${selectedStage.order.id}-notes`]: e.target.value })}
+                  rows={4}
+                />
               </div>
 
               {/* Action Buttons */}
@@ -2032,37 +1752,22 @@ export default function ProductionReport() {
                   <Button
                     variant="outline"
                     onClick={() => {
-                      const stageDataFields = getStageInputFields(selectedStage.stage.id);
-                      const stageDataToSave = { ...(selectedStage.order.stageData?.[selectedStage.stage.id] || {}) };
-
-                      stageDataFields.forEach(field => {
-                        const val = stageInputs[`${selectedStage.order.id}-${field.key}`];
-                        if (val !== undefined) stageDataToSave[field.key] = val;
-                      });
-
-                      const updatedStageData = {
-                        ...(selectedStage.order.stageData || {}),
-                        [selectedStage.stage.id]: stageDataToSave
-                      };
-
-                      const customNotes = stageInputs[`${selectedStage.order.id}-notes`];
+                      const notes = stageInputs[`${selectedStage.order.id}-notes`];
                       const updatedCustomNotes = {
                         ...(selectedStage.order.customNotes || {}),
-                        [selectedStage.stage.id]: customNotes || selectedStage.order.customNotes?.[selectedStage.stage.id] || ''
+                        [selectedStage.stage.id]: notes || selectedStage.order.customNotes?.[selectedStage.stage.id] || ''
                       };
 
                       updateOrderProductionMutation.mutate({
                         orderId: selectedStage.order.id,
                         data: {
-                          stageData: updatedStageData,
                           customNotes: updatedCustomNotes,
-                          ...(selectedStage.stage.id === 'shipped' && stageDataToSave.trackingNumber ? { trackingNumber: stageDataToSave.trackingNumber } : {})
                         }
                       });
                       setStageActionModal(false);
                     }}
                   >
-                    Save Information
+                    Save Notes
                   </Button>
                 </div>
                 <Button variant="outline" onClick={() => setStageActionModal(false)}>
@@ -2251,6 +1956,82 @@ export default function ProductionReport() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Delete Stage Confirmation Dialog */}
+      <AlertDialog open={isDeleteStageDialogOpen} onOpenChange={setIsDeleteStageDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-red-600" />
+              Delete Stage?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete stage <strong>"{stageToDelete?.name}"</strong>?
+              <span className="block mt-2 text-orange-600 font-medium">
+                Orders currently on this stage won't be affected.
+              </span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => { setStageToDelete(null); setIsDeleteStageDialogOpen(false); }}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (stageToDelete) {
+                  handleDeleteStage(stageToDelete.id);
+                  setIsDeleteStageDialogOpen(false);
+                  setStageToDelete(null);
+                }
+              }}
+              className="bg-red-600 hover:bg-red-700 focus:ring-red-600"
+            >
+              Delete Stage
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Reset Stages Confirmation Dialog */}
+      <AlertDialog open={isResetStagesDialogOpen} onOpenChange={setIsResetStagesDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-red-600" />
+              Reset to Default Stages?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to reset to default stages?
+              <span className="block mt-2 text-red-600 font-medium">
+                This will remove all custom stages.
+              </span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setIsResetStagesDialogOpen(false)}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={async () => {
+                try {
+                  await resetStages();
+                  toast({
+                    title: "Stages Reset",
+                    description: "Production stages have been reset to defaults.",
+                  });
+                } catch {
+                  toast({ title: "Error", description: "Failed to reset stages.", variant: "destructive" });
+                }
+                setIsResetStagesDialogOpen(false);
+              }}
+              className="bg-red-600 hover:bg-red-700 focus:ring-red-600"
+              disabled={isResetting}
+            >
+              {isResetting ? "Resetting..." : "Reset Stages"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

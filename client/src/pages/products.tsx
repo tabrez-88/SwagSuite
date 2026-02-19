@@ -9,7 +9,17 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { isUnauthorizedError } from "@/lib/authUtils";
-import { Box, Search, Plus, DollarSign, Package, Database, ShoppingCart, Trash2, TrendingUp, Eye, Edit } from "lucide-react";
+import { Box, Search, Plus, DollarSign, Package, Database, ShoppingCart, Trash2, TrendingUp, Eye, Edit, AlertTriangle } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import ProductModal from "@/components/ProductModal";
 import { ProductIntegrations } from "@/components/integrations/ProductIntegrations";
 import { SsActivewearIntegration } from "@/components/integrations/SsActivewearIntegration";
@@ -68,6 +78,8 @@ export default function Products() {
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [activeTab, setActiveTab] = useState("my-catalog");
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [productToDelete, setProductToDelete] = useState<Product | null>(null);
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -90,6 +102,8 @@ export default function Products() {
         description: "Product deleted successfully",
       });
       queryClient.invalidateQueries({ queryKey: ["/api/products"] });
+      setIsDeleteDialogOpen(false);
+      setProductToDelete(null);
     },
     onError: (error) => {
       if (isUnauthorizedError(error)) {
@@ -111,10 +125,9 @@ export default function Products() {
     },
   });
 
-  const handleDeleteProduct = (productId: string) => {
-    if (confirm("Are you sure you want to delete this product?")) {
-      deleteProductMutation.mutate(productId);
-    }
+  const handleDeleteProduct = (product: Product) => {
+    setProductToDelete(product);
+    setIsDeleteDialogOpen(true);
   };
 
   const filteredProducts = products.filter((product: Product) =>
@@ -262,7 +275,7 @@ export default function Products() {
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => handleDeleteProduct(product.id)}
+                            onClick={() => handleDeleteProduct(product)}
                             className="text-red-600 hover:text-red-700 hover:bg-red-50"
                             title="Delete product"
                           >
@@ -397,6 +410,60 @@ export default function Products() {
           <ProductIntegrations />
         </TabsContent>
       </Tabs>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-red-600" />
+              Delete Product?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete <strong>{productToDelete?.name}</strong>?
+              {productToDelete?.sku && (
+                <span className="block mt-1 text-xs text-gray-500">
+                  SKU: {productToDelete.sku}
+                </span>
+              )}
+              <span className="block mt-2 text-red-600 font-medium">
+                This action cannot be undone.
+              </span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              onClick={() => {
+                setProductToDelete(null);
+                setIsDeleteDialogOpen(false);
+              }}
+            >
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (productToDelete) {
+                  deleteProductMutation.mutate(productToDelete.id);
+                }
+              }}
+              className="bg-red-600 hover:bg-red-700 focus:ring-red-600"
+              disabled={deleteProductMutation.isPending}
+            >
+              {deleteProductMutation.isPending ? (
+                <>
+                  <span className="animate-spin mr-2">⏳</span>
+                  Deleting...
+                </>
+              ) : (
+                <>
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  Delete Product
+                </>
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

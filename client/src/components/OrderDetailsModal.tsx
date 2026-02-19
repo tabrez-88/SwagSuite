@@ -775,7 +775,7 @@ function OrderDetailsModal({
   // Get company name
   const companyName = order?.companyId
     ? companies.find((c: any) => c.id === order.companyId)?.name ||
-      "Unknown Company"
+    "Unknown Company"
     : "Individual Client";
 
   // Get primary contact or first contact
@@ -789,7 +789,8 @@ function OrderDetailsModal({
   // Fetch invoice data
   const { data: invoice, isLoading: invoiceLoading } = useQuery<any>({
     queryKey: [`/api/orders/${orderId}/invoice`],
-    enabled: open && !!orderId,
+    enabled: (open || !!pageMode) && !!orderId,
+    retry: false,
   });
 
   // Create invoice mutation
@@ -962,7 +963,7 @@ function OrderDetailsModal({
       setVendorEmailTo(vendorPrimaryContact.email || "");
       setVendorEmailToName(
         `${vendorPrimaryContact.firstName || ""} ${vendorPrimaryContact.lastName || ""}`.trim() ||
-          selectedVendor.name,
+        selectedVendor.name,
       );
     } else if (selectedVendor && vendorContacts.length === 0) {
       // No contacts for this vendor
@@ -1012,7 +1013,7 @@ function OrderDetailsModal({
         const arrayBuffer = await response.arrayBuffer();
         const mimeType = previewType === 'pdf' ? 'application/pdf'
           : previewType === 'image' ? (response.headers.get('content-type') || 'image/png')
-          : 'application/octet-stream';
+            : 'application/octet-stream';
         const blob = new Blob([arrayBuffer], { type: mimeType });
         if (!cancelled) {
           // Revoke old blob URL before creating new one
@@ -1322,7 +1323,7 @@ function OrderDetailsModal({
       if (response.status === 207) {
         throw new Error(
           result.emailError ||
-            "Email saved to database but failed to send. Please check your email configuration.",
+          "Email saved to database but failed to send. Please check your email configuration.",
         );
       }
 
@@ -1418,7 +1419,7 @@ function OrderDetailsModal({
       if (response.status === 207) {
         throw new Error(
           result.emailError ||
-            "Email saved to database but failed to send. Please check your email configuration.",
+          "Email saved to database but failed to send. Please check your email configuration.",
         );
       }
 
@@ -1961,7 +1962,7 @@ function OrderDetailsModal({
   // Check if this is a rush order based on in hands date
   const isRushOrder = order.inHandsDate
     ? new Date(order.inHandsDate).getTime() - new Date().getTime() <
-      7 * 24 * 60 * 60 * 1000
+    7 * 24 * 60 * 60 * 1000
     : false;
 
   const handleViewProject = () => {
@@ -2192,8 +2193,8 @@ function OrderDetailsModal({
     setShippingInfoForm({
       supplierInHandsDate: (order as any).supplierInHandsDate
         ? new Date((order as any).supplierInHandsDate)
-            .toISOString()
-            .split("T")[0]
+          .toISOString()
+          .split("T")[0]
         : "",
       inHandsDate: order.inHandsDate
         ? new Date(order.inHandsDate).toISOString().split("T")[0]
@@ -2394,11 +2395,10 @@ function OrderDetailsModal({
                       variant={
                         orderPriority === "high" ? "default" : "secondary"
                       }
-                      className={`mt-1 ${
-                        orderPriority === "high"
+                      className={`mt-1 ${orderPriority === "high"
                           ? "bg-orange-500 text-white"
                           : "bg-yellow-500 text-white"
-                      }`}
+                        }`}
                     >
                       {orderPriority.toUpperCase()}
                     </Badge>
@@ -2428,13 +2428,13 @@ function OrderDetailsModal({
                         <Badge
                           className={
                             statusColorMap[
-                              order.status as keyof typeof statusColorMap
+                            order.status as keyof typeof statusColorMap
                             ]
                           }
                         >
                           {
                             statusDisplayMap[
-                              order.status as keyof typeof statusDisplayMap
+                            order.status as keyof typeof statusDisplayMap
                             ]
                           }
                         </Badge>
@@ -2544,52 +2544,6 @@ function OrderDetailsModal({
                   </div>
                 )}
 
-                {orderItems.length > 0 && (
-                  <div className="space-y-3">
-                    {/* Price Breakdown */}
-                    <div className="space-y-2 bg-gray-50 p-3 rounded-lg">
-                      <div className="flex justify-between text-sm">
-                        <span className="text-gray-600">Subtotal:</span>
-                        <span className="font-medium">
-                          ${Number(order.subtotal || 0).toLocaleString()}
-                        </span>
-                      </div>
-                      <div className="flex justify-between text-sm">
-                        <span className="text-gray-600">Tax:</span>
-                        <span className="font-medium">
-                          ${Number(order.tax || 0).toLocaleString()}
-                        </span>
-                      </div>
-                      <div className="flex justify-between text-sm">
-                        <span className="text-gray-600">Shipping:</span>
-                        <span className="font-medium">
-                          ${Number(order.shipping || 0).toLocaleString()}
-                        </span>
-                      </div>
-                      <Separator />
-                      <div className="flex justify-between items-center">
-                        <div className="flex items-center gap-2">
-                          <DollarSign className="w-4 h-4 text-gray-500" />
-                          <span className="text-sm font-semibold">Total:</span>
-                        </div>
-                        <span className="text-lg font-bold text-green-600">
-                          ${Number(order.total || 0).toLocaleString()}
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      <CheckCircle className="w-4 h-4 text-gray-500" />
-                      <span className="text-sm font-medium">
-                        Deposit (50%):{" "}
-                      </span>
-                      <span className="text-sm font-semibold">
-                        ${(Number(order.total || 0) * 0.5).toLocaleString()}
-                      </span>
-                    </div>
-                  </div>
-                )}
-
                 {/* Invoice Information */}
                 <div className="space-y-3">
                   <Separator />
@@ -2627,9 +2581,8 @@ function OrderDetailsModal({
                         </div>
                         {invoice.stripeInvoiceUrl && (
                           <Button
-                            variant="ghost"
+                            variant="outline"
                             size="sm"
-                            className="h-7 text-xs"
                             asChild
                           >
                             <a
@@ -2637,12 +2590,13 @@ function OrderDetailsModal({
                               target="_blank"
                               rel="noopener noreferrer"
                             >
-                              <Eye className="w-3 h-3 mr-1" />
-                              View
+                              <ExternalLink className="w-4 h-4 mr-2" />
+                              View Invoice
                             </a>
                           </Button>
                         )}
                       </div>
+
 
                       {/* Detailed Breakdown */}
                       <div className="space-y-1 mb-2">
@@ -2710,6 +2664,51 @@ function OrderDetailsModal({
                     </div>
                   ) : (
                     <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                      {orderItems.length > 0 && (
+                        <div className="space-y-3">
+                          {/* Price Breakdown */}
+                          <div className="space-y-2 bg-gray-50 p-3 rounded-lg">
+                            <div className="flex justify-between text-sm">
+                              <span className="text-gray-600">Subtotal:</span>
+                              <span className="font-medium">
+                                ${Number(order.subtotal || 0).toLocaleString()}
+                              </span>
+                            </div>
+                            <div className="flex justify-between text-sm">
+                              <span className="text-gray-600">Tax:</span>
+                              <span className="font-medium">
+                                ${Number(order.tax || 0).toLocaleString()}
+                              </span>
+                            </div>
+                            <div className="flex justify-between text-sm">
+                              <span className="text-gray-600">Shipping:</span>
+                              <span className="font-medium">
+                                ${Number(order.shipping || 0).toLocaleString()}
+                              </span>
+                            </div>
+                            <Separator />
+                            <div className="flex justify-between items-center">
+                              <div className="flex items-center gap-2">
+                                <DollarSign className="w-4 h-4 text-gray-500" />
+                                <span className="text-sm font-semibold">Total:</span>
+                              </div>
+                              <span className="text-lg font-bold text-green-600">
+                                ${Number(order.total || 0).toLocaleString()}
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <CheckCircle className="w-4 h-4 text-gray-500" />
+                            <span className="text-sm font-medium">
+                              Deposit (50%):{" "}
+                            </span>
+                            <span className="text-sm font-semibold">
+                              ${(Number(order.total || 0) * 0.5).toLocaleString()}
+                            </span>
+                          </div>
+                        </div>
+                      )}
                       <div className="flex items-center justify-between">
                         <div>
                           <p className="text-sm font-medium text-gray-900">
@@ -2981,12 +2980,12 @@ function OrderDetailsModal({
                           {(companyData.city ||
                             companyData.state ||
                             companyData.zipCode) && (
-                            <p className="text-gray-600">
-                              {companyData.city}
-                              {companyData.state && `, ${companyData.state}`}
-                              {companyData.zipCode && ` ${companyData.zipCode}`}
-                            </p>
-                          )}
+                              <p className="text-gray-600">
+                                {companyData.city}
+                                {companyData.state && `, ${companyData.state}`}
+                                {companyData.zipCode && ` ${companyData.zipCode}`}
+                              </p>
+                            )}
                           {companyData.country && (
                             <p className="text-gray-600">
                               {companyData.country}
@@ -3139,12 +3138,12 @@ function OrderDetailsModal({
                           {(companyData.city ||
                             companyData.state ||
                             companyData.zipCode) && (
-                            <p className="text-gray-600">
-                              {companyData.city}
-                              {companyData.state && `, ${companyData.state}`}
-                              {companyData.zipCode && ` ${companyData.zipCode}`}
-                            </p>
-                          )}
+                              <p className="text-gray-600">
+                                {companyData.city}
+                                {companyData.state && `, ${companyData.state}`}
+                                {companyData.zipCode && ` ${companyData.zipCode}`}
+                              </p>
+                            )}
                           {companyData.country && (
                             <p className="text-gray-600">
                               {companyData.country}
@@ -3235,7 +3234,7 @@ function OrderDetailsModal({
                           {Math.ceil(
                             (new Date(order.inHandsDate).getTime() -
                               new Date().getTime()) /
-                              (24 * 60 * 60 * 1000),
+                            (24 * 60 * 60 * 1000),
                           )}{" "}
                           days left
                         </Badge>
@@ -3367,13 +3366,12 @@ function OrderDetailsModal({
                       return (
                         <div key={stage.id} className="flex items-center gap-3">
                           <div
-                            className={`flex items-center justify-center w-8 h-8 rounded-full border-2 ${
-                              isCompleted
+                            className={`flex items-center justify-center w-8 h-8 rounded-full border-2 ${isCompleted
                                 ? "bg-green-100 border-green-500"
                                 : isCurrent
                                   ? "bg-blue-100 border-blue-500"
                                   : "bg-gray-100 border-gray-300"
-                            }`}
+                              }`}
                           >
                             {isCompleted ? (
                               <CheckCircle className="w-4 h-4 text-green-600" />
@@ -3385,13 +3383,12 @@ function OrderDetailsModal({
                           </div>
                           <div className="flex-1">
                             <p
-                              className={`text-sm font-medium ${
-                                isCompleted
+                              className={`text-sm font-medium ${isCompleted
                                   ? "text-green-700"
                                   : isCurrent
                                     ? "text-blue-700"
                                     : "text-gray-600"
-                              }`}
+                                }`}
                             >
                               {stage.name}
                             </p>
@@ -4213,7 +4210,7 @@ function OrderDetailsModal({
                   setEmailTo(primaryContact.email || data.to);
                   setEmailToName(
                     `${primaryContact.firstName} ${primaryContact.lastName}` ||
-                      data.toName,
+                    data.toName,
                   );
                 }
                 // Store quote document file for auto-attachment
@@ -6828,7 +6825,7 @@ function OrderDetailsModal({
           </DialogHeader>
           <div className="space-y-4 mt-4">
             {currentOrderItemId &&
-            allArtworkItems[currentOrderItemId]?.length > 0 ? (
+              allArtworkItems[currentOrderItemId]?.length > 0 ? (
               <div className="grid grid-cols-1 gap-4">
                 {allArtworkItems[currentOrderItemId].map((artwork: any) => (
                   <Card key={artwork.id}>

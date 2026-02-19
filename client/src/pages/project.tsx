@@ -7,6 +7,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -48,6 +58,7 @@ import {
   Upload,
   User,
   CheckCircle,
+  AlertTriangle,
 } from "lucide-react";
 import React, { useRef, useState } from "react";
 import { useLocation, useParams } from "wouter";
@@ -194,6 +205,8 @@ export default function ProjectPage() {
   const [assignedUserId, setAssignedUserId] = useState("");
   const [reassignCsrUserId, setReassignCsrUserId] = useState("");
   const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [isDeleteItemDialogOpen, setIsDeleteItemDialogOpen] = useState(false);
+  const [itemToDelete, setItemToDelete] = useState<any>(null);
   const [isManualPaymentDialogOpen, setIsManualPaymentDialogOpen] =
     useState(false);
   const [manualPaymentForm, setManualPaymentForm] = useState({
@@ -1772,13 +1785,8 @@ export default function ProjectPage() {
                                   variant="ghost"
                                   size="sm"
                                   onClick={() => {
-                                    if (
-                                      confirm(
-                                        "Are you sure you want to remove this product?",
-                                      )
-                                    ) {
-                                      deleteOrderItemMutation.mutate(item.id);
-                                    }
+                                    setItemToDelete(item);
+                                    setIsDeleteItemDialogOpen(true);
                                   }}
                                   disabled={deleteOrderItemMutation.isPending}
                                 >
@@ -2731,6 +2739,57 @@ export default function ProjectPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Delete Product Item Confirmation Dialog */}
+      <AlertDialog open={isDeleteItemDialogOpen} onOpenChange={setIsDeleteItemDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-red-600" />
+              Remove Product from Order?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to remove <strong>{itemToDelete?.productName}</strong> from this order?
+              <span className="block mt-2 text-orange-600 font-medium">
+                This will only remove the item from this order. The product will remain in your catalog.
+              </span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              onClick={() => {
+                setItemToDelete(null);
+                setIsDeleteItemDialogOpen(false);
+              }}
+            >
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (itemToDelete) {
+                  deleteOrderItemMutation.mutate(itemToDelete.id);
+                  setIsDeleteItemDialogOpen(false);
+                  setItemToDelete(null);
+                }
+              }}
+              className="bg-red-600 hover:bg-red-700 focus:ring-red-600"
+              disabled={deleteOrderItemMutation.isPending}
+            >
+              {deleteOrderItemMutation.isPending ? (
+                <>
+                  <span className="animate-spin mr-2">⏳</span>
+                  Removing...
+                </>
+              ) : (
+                <>
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  Remove Item
+                </>
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

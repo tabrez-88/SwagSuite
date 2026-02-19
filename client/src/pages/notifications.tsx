@@ -17,6 +17,16 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 interface Notification {
   id: string;
@@ -49,6 +59,8 @@ type FilterTab = "all" | "unread" | "read";
 export default function NotificationsPage() {
   const [, navigate] = useLocation();
   const [filter, setFilter] = useState<FilterTab>("all");
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [notificationToDelete, setNotificationToDelete] = useState<Notification | null>(null);
   const queryClient = useQueryClient();
 
   const { data: notifications = [], isLoading } = useQuery<Notification[]>({
@@ -287,7 +299,8 @@ export default function NotificationsPage() {
                       title="Delete"
                       onClick={(e) => {
                         e.stopPropagation();
-                        deleteMutation.mutate(notification.id);
+                        setNotificationToDelete(notification);
+                        setIsDeleteDialogOpen(true);
                       }}
                     >
                       <Trash2 className="h-4 w-4" />
@@ -299,6 +312,41 @@ export default function NotificationsPage() {
           ))}
         </div>
       )}
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-red-500" />
+              Delete Notification
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this notification?
+              {notificationToDelete && (
+                <span className="block mt-1 font-medium text-foreground">
+                  "{notificationToDelete.title}"
+                </span>
+              )}
+              This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setNotificationToDelete(null)}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 hover:bg-red-700"
+              onClick={() => {
+                if (notificationToDelete) {
+                  deleteMutation.mutate(notificationToDelete.id);
+                }
+                setNotificationToDelete(null);
+                setIsDeleteDialogOpen(false);
+              }}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

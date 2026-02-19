@@ -20,6 +20,16 @@ import {
     DropdownMenuItem,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { UploadFilesModal } from "./UploadFilesModal";
 import { FilePreviewModal } from "./FilePreviewModal";
 import {
@@ -35,6 +45,7 @@ import {
     Cloud,
     Mail,
     Eye,
+    AlertTriangle,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Separator } from "./ui/separator";
@@ -102,6 +113,8 @@ export function FilesTab({ orderId, products, artworkItems, onSwitchToEmail }: F
     const [filterTag, setFilterTag] = useState<string>("all");
     const [selectedFileIds, setSelectedFileIds] = useState<string[]>([]);
     const [previewFile, setPreviewFile] = useState<OrderFile | null>(null);
+    const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+    const [fileToDelete, setFileToDelete] = useState<OrderFile | null>(null);
 
     // Fetch files
     const { data: files = [], isLoading } = useQuery<OrderFile[]>({
@@ -615,7 +628,10 @@ export function FilesTab({ orderId, products, artworkItems, onSwitchToEmail }: F
                                                         </DropdownMenuItem>
                                                     )}
                                                     <DropdownMenuItem
-                                                        onClick={() => deleteMutation.mutate(file.id)}
+                                                        onClick={() => {
+                                                            setFileToDelete(file);
+                                                            setIsDeleteDialogOpen(true);
+                                                        }}
                                                         className="text-red-600"
                                                     >
                                                         <Trash2 className="w-4 h-4 mr-2" />
@@ -650,6 +666,42 @@ export function FilesTab({ orderId, products, artworkItems, onSwitchToEmail }: F
                 onClose={() => setPreviewFile(null)}
                 file={previewFile}
             />
+
+            {/* Delete Confirmation Dialog */}
+            <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle className="flex items-center gap-2">
+                            <AlertTriangle className="h-5 w-5 text-red-500" />
+                            Delete File
+                        </AlertDialogTitle>
+                        <AlertDialogDescription>
+                            Are you sure you want to delete this file?
+                            {fileToDelete && (
+                                <span className="block mt-1 font-medium text-foreground">
+                                    "{fileToDelete.originalName}"
+                                </span>
+                            )}
+                            This action cannot be undone.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel onClick={() => setFileToDelete(null)}>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                            className="bg-red-600 hover:bg-red-700"
+                            onClick={() => {
+                                if (fileToDelete) {
+                                    deleteMutation.mutate(fileToDelete.id);
+                                }
+                                setFileToDelete(null);
+                                setIsDeleteDialogOpen(false);
+                            }}
+                        >
+                            Delete
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </div>
     );
 }

@@ -112,7 +112,7 @@ export function KanbanBoard({ data, onViewOrder, onViewProject }: KanbanBoardPro
   };
 
   return (
-    <div className="flex gap-3 overflow-x-auto pb-4" style={{ minHeight: "500px" }}>
+    <div className="flex gap-3 overflow-x-auto p-4" style={{ minHeight: "500px" }}>
       {kanbanColumns.map((col) => {
         const orders = getOrdersByStatus(col.id);
         const isOver = dragOverColumn === col.id && draggedOrder?.status !== col.id;

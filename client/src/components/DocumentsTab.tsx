@@ -20,6 +20,16 @@ import {
   Trash2
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { DocumentEditor } from "./DocumentEditor";
 
 interface DocumentEmailData {
@@ -79,6 +89,8 @@ export function DocumentsTab({
   const [previewDocument, setPreviewDocument] = useState<any>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [autoGenerateTriggered, setAutoGenerateTriggered] = useState(false);
+  const [isDeleteDocDialogOpen, setIsDeleteDocDialogOpen] = useState(false);
+  const [docToDelete, setDocToDelete] = useState<any>(null);
   const [syncingDocIds, setSyncingDocIds] = useState<Set<string>>(new Set());
   const isSyncingRef = useRef(false);
 
@@ -783,7 +795,10 @@ SwagSuite Team`,
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => deleteDocumentMutation.mutate(doc.id)}
+                        onClick={() => {
+                          setDocToDelete(doc);
+                          setIsDeleteDocDialogOpen(true);
+                        }}
                         disabled={deleteDocumentMutation.isPending}
                       >
                         <Trash2 className="w-4 h-4" />
@@ -1076,6 +1091,41 @@ SwagSuite Team`,
         />
       )}
 
+      {/* Delete Document Confirmation Dialog */}
+      <AlertDialog open={isDeleteDocDialogOpen} onOpenChange={setIsDeleteDocDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-red-500" />
+              Delete Document
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this document?
+              {docToDelete && (
+                <span className="block mt-1 font-medium text-foreground">
+                  "{docToDelete.documentType?.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())}"
+                </span>
+              )}
+              This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setDocToDelete(null)}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 hover:bg-red-700"
+              onClick={() => {
+                if (docToDelete) {
+                  deleteDocumentMutation.mutate(docToDelete.id);
+                }
+                setDocToDelete(null);
+                setIsDeleteDocDialogOpen(false);
+              }}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

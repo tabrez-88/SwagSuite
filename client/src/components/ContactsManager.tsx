@@ -14,12 +14,23 @@ import {
   Briefcase,
   Star,
   StarOff,
+  AlertTriangle,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import {
   Dialog,
   DialogContent,
@@ -420,6 +431,8 @@ export function ContactsManager({ companyId, companyName }: ContactsManagerProps
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
   const [sameAsBillingCreate, setSameAsBillingCreate] = useState(false);
   const [sameAsBillingEdit, setSameAsBillingEdit] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [contactToDelete, setContactToDelete] = useState<Contact | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -644,6 +657,8 @@ export function ContactsManager({ companyId, companyName }: ContactsManagerProps
         title: "Contact deleted",
         description: "The contact has been successfully deleted.",
       });
+      setIsDeleteDialogOpen(false);
+      setContactToDelete(null);
     },
     onError: (error) => {
       toast({
@@ -717,10 +732,9 @@ export function ContactsManager({ companyId, companyName }: ContactsManagerProps
     setIsEditModalOpen(true);
   };
 
-  const handleDeleteContact = (id: string) => {
-    if (window.confirm("Are you sure you want to delete this contact?")) {
-      deleteContactMutation.mutate(id);
-    }
+  const handleDeleteContact = (contact: Contact) => {
+    setContactToDelete(contact);
+    setIsDeleteDialogOpen(true);
   };
 
   const handleTogglePrimary = (contact: Contact) => {
@@ -880,7 +894,7 @@ export function ContactsManager({ companyId, companyName }: ContactsManagerProps
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => handleDeleteContact(contact.id)}
+                      onClick={() => handleDeleteContact(contact)}
                       className="text-red-600 hover:text-red-700 hover:bg-red-50"
                     >
                       <Trash2 className="h-4 w-4" />
@@ -947,6 +961,45 @@ export function ContactsManager({ companyId, companyName }: ContactsManagerProps
           </Form>
         </DialogContent>
       </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-red-600" />
+              Delete Contact?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete <strong>{contactToDelete?.firstName} {contactToDelete?.lastName}</strong>?
+              <span className="block mt-2 text-red-600 font-medium">
+                This action cannot be undone.
+              </span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              onClick={() => {
+                setContactToDelete(null);
+                setIsDeleteDialogOpen(false);
+              }}
+            >
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (contactToDelete) {
+                  deleteContactMutation.mutate(contactToDelete.id);
+                }
+              }}
+              className="bg-red-600 hover:bg-red-700 focus:ring-red-600"
+              disabled={deleteContactMutation.isPending}
+            >
+              {deleteContactMutation.isPending ? "Deleting..." : "Delete Contact"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

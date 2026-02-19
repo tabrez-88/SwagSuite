@@ -44,7 +44,7 @@ interface ProductDetailModalProps {
   } | null;
   supplierName?: string;
   onEdit?: (product: any) => void;
-  onDelete?: (productId: string) => void;
+  onDelete?: (product: any) => void;
 }
 
 // Helper function to parse array fields that might be stored as strings or JSON
@@ -96,8 +96,8 @@ export function ProductDetailModal({ open, onOpenChange, product, supplierName, 
   };
 
   const handleDelete = () => {
-    if (onDelete && confirm('Are you sure you want to delete this product? This action cannot be undone.')) {
-      onDelete(product.id);
+    if (onDelete && product) {
+      onDelete(product);
       onOpenChange(false);
     }
   };

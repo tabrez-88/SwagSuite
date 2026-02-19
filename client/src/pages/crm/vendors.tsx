@@ -183,6 +183,10 @@ export default function Vendors() {
   const [isAddContactOpen, setIsAddContactOpen] = useState(false);
   const [isEditContactOpen, setIsEditContactOpen] = useState(false);
   const [selectedContact, setSelectedContact] = useState<VendorContact | null>(null);
+  const [isDeleteVendorDialogOpen, setIsDeleteVendorDialogOpen] = useState(false);
+  const [vendorToDelete, setVendorToDelete] = useState<Vendor | null>(null);
+  const [isDeleteContactDialogOpen, setIsDeleteContactDialogOpen] = useState(false);
+  const [contactToDelete, setContactToDelete] = useState<VendorContact | null>(null);
 
   // Benefits form state
   const [benefitsForm, setBenefitsForm] = useState({
@@ -383,6 +387,8 @@ export default function Vendors() {
         description: "Vendor deleted successfully",
       });
       queryClient.invalidateQueries({ queryKey: ["/api/suppliers"] });
+      setIsDeleteVendorDialogOpen(false);
+      setVendorToDelete(null);
     },
     onError: (error) => {
       if (isUnauthorizedError(error)) {
@@ -440,10 +446,9 @@ export default function Vendors() {
     setIsEditVendorOpen(true);
   };
 
-  const handleDeleteVendor = (vendorId: string) => {
-    if (confirm("Are you sure you want to delete this vendor?")) {
-      deleteVendorMutation.mutate(vendorId);
-    }
+  const handleDeleteVendor = (vendor: Vendor) => {
+    setVendorToDelete(vendor);
+    setIsDeleteVendorDialogOpen(true);
   };
 
   // Toggle preferred vendor status
@@ -634,6 +639,8 @@ export default function Vendors() {
         description: "Contact deleted successfully",
       });
       queryClient.invalidateQueries({ queryKey: ["/api/contacts", "vendor", selectedVendor?.id] });
+      setIsDeleteContactDialogOpen(false);
+      setContactToDelete(null);
     },
     onError: (error) => {
       if (isUnauthorizedError(error)) {
@@ -1064,7 +1071,7 @@ export default function Vendors() {
                               size="sm"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                handleDeleteVendor(vendor.id);
+                                handleDeleteVendor(vendor);
                               }}
                               className="text-red-600 hover:text-red-700 hover:bg-red-50"
                             >
@@ -1317,7 +1324,7 @@ export default function Vendors() {
                                   <DropdownMenuItem
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      handleDeleteVendor(vendor.id);
+                                      handleDeleteVendor(vendor);
                                     }}
                                     className="text-red-600"
                                   >
@@ -2030,9 +2037,8 @@ export default function Vendors() {
                                   variant="ghost"
                                   size="sm"
                                   onClick={() => {
-                                    if (confirm("Are you sure you want to delete this contact?")) {
-                                      deleteContactMutation.mutate(contact.id);
-                                    }
+                                    setContactToDelete(contact);
+                                    setIsDeleteContactDialogOpen(true);
                                   }}
                                   className="text-red-600 hover:text-red-700"
                                 >
@@ -2222,7 +2228,7 @@ export default function Vendors() {
                   variant="outline"
                   size="sm"
                   onClick={() => {
-                    handleDeleteVendor(selectedVendor.id);
+                    handleDeleteVendor(selectedVendor);
                     setIsVendorDetailOpen(false);
                   }}
                   className="text-red-600 hover:text-red-700"
@@ -2975,6 +2981,84 @@ export default function Vendors() {
           </Form>
         </DialogContent>
       </Dialog>
+
+      {/* Delete Vendor Confirmation Dialog */}
+      <AlertDialog open={isDeleteVendorDialogOpen} onOpenChange={setIsDeleteVendorDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-red-600" />
+              Delete Vendor?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete <strong>{vendorToDelete?.name}</strong>?
+              <span className="block mt-2 text-red-600 font-medium">
+                This action cannot be undone.
+              </span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              onClick={() => {
+                setVendorToDelete(null);
+                setIsDeleteVendorDialogOpen(false);
+              }}
+            >
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (vendorToDelete) {
+                  deleteVendorMutation.mutate(vendorToDelete.id);
+                }
+              }}
+              className="bg-red-600 hover:bg-red-700 focus:ring-red-600"
+              disabled={deleteVendorMutation.isPending}
+            >
+              {deleteVendorMutation.isPending ? "Deleting..." : "Delete Vendor"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete Contact Confirmation Dialog */}
+      <AlertDialog open={isDeleteContactDialogOpen} onOpenChange={setIsDeleteContactDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-red-600" />
+              Delete Contact?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete <strong>{contactToDelete?.firstName} {contactToDelete?.lastName}</strong>?
+              <span className="block mt-2 text-red-600 font-medium">
+                This action cannot be undone.
+              </span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              onClick={() => {
+                setContactToDelete(null);
+                setIsDeleteContactDialogOpen(false);
+              }}
+            >
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (contactToDelete) {
+                  deleteContactMutation.mutate(contactToDelete.id);
+                }
+              }}
+              className="bg-red-600 hover:bg-red-700 focus:ring-red-600"
+              disabled={deleteContactMutation.isPending}
+            >
+              {deleteContactMutation.isPending ? "Deleting..." : "Delete Contact"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

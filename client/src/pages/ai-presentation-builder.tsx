@@ -7,6 +7,16 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
@@ -34,7 +44,8 @@ import {
   TrendingUp,
   CheckCircle,
   Clock,
-  AlertCircle
+  AlertCircle,
+  AlertTriangle
 } from "lucide-react";
 
 type PresentationStatus = "draft" | "generating" | "completed" | "error";
@@ -73,6 +84,8 @@ export default function AIPresentationBuilder() {
   });
   const [hubspotDealId, setHubspotDealId] = useState("");
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [presentationToDelete, setPresentationToDelete] = useState<PresentationData | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -662,7 +675,10 @@ export default function AIPresentationBuilder() {
                         <Button 
                           size="sm" 
                           variant="ghost"
-                          onClick={() => deletePresentationMutation.mutate(presentation.id)}
+                          onClick={() => {
+                            setPresentationToDelete(presentation);
+                            setIsDeleteDialogOpen(true);
+                          }}
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
@@ -675,6 +691,41 @@ export default function AIPresentationBuilder() {
           </div>
         )}
       </div>
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-red-500" />
+              Delete Presentation
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this presentation?
+              {presentationToDelete && (
+                <span className="block mt-1 font-medium text-foreground">
+                  "{presentationToDelete.title}"
+                </span>
+              )}
+              This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setPresentationToDelete(null)}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 hover:bg-red-700"
+              onClick={() => {
+                if (presentationToDelete) {
+                  deletePresentationMutation.mutate(presentationToDelete.id);
+                }
+                setPresentationToDelete(null);
+                setIsDeleteDialogOpen(false);
+              }}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

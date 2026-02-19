@@ -28,7 +28,8 @@ import {
   Grid,
   List,
   Clock,
-  Star
+  Star,
+  AlertTriangle,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -38,6 +39,16 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Separator } from "@/components/ui/separator";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import {
   Dialog,
   DialogContent,
@@ -160,6 +171,8 @@ export default function Companies() {
   const [filterEngagement, setFilterEngagement] = useState<string>("all");
   const [viewMode, setViewMode] = useState<'cards' | 'list'>('cards');
   const [isCompanyDetailOpen, setIsCompanyDetailOpen] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [companyToDelete, setCompanyToDelete] = useState<Company | null>(null);
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -276,6 +289,8 @@ export default function Companies() {
         title: "Company deleted",
         description: "The company has been successfully deleted.",
       });
+      setIsDeleteDialogOpen(false);
+      setCompanyToDelete(null);
     },
     onError: (error) => {
       toast({
@@ -296,10 +311,9 @@ export default function Companies() {
     }
   };
 
-  const handleDeleteCompany = (id: string) => {
-    if (window.confirm("Are you sure you want to delete this company?")) {
-      deleteCompanyMutation.mutate(id);
-    }
+  const handleDeleteCompany = (company: Company) => {
+    setCompanyToDelete(company);
+    setIsDeleteDialogOpen(true);
   };
 
   const handleEditCompany = (company: Company) => {
@@ -811,7 +825,7 @@ export default function Companies() {
                               <DropdownMenuItem
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  handleDeleteCompany(company.id);
+                                  handleDeleteCompany(company);
                                 }}
                                 className="text-red-600"
                               >
@@ -1020,7 +1034,7 @@ export default function Companies() {
                                 <DropdownMenuItem
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    handleDeleteCompany(company.id);
+                                    handleDeleteCompany(company);
                                   }}
                                   className="text-red-600"
                                 >
@@ -1544,6 +1558,45 @@ export default function Companies() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-red-600" />
+              Delete Company?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete <strong>{companyToDelete?.name}</strong>?
+              <span className="block mt-2 text-red-600 font-medium">
+                This action cannot be undone.
+              </span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              onClick={() => {
+                setCompanyToDelete(null);
+                setIsDeleteDialogOpen(false);
+              }}
+            >
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (companyToDelete) {
+                  deleteCompanyMutation.mutate(companyToDelete.id);
+                }
+              }}
+              className="bg-red-600 hover:bg-red-700 focus:ring-red-600"
+              disabled={deleteCompanyMutation.isPending}
+            >
+              {deleteCompanyMutation.isPending ? "Deleting..." : "Delete Company"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

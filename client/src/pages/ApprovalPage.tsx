@@ -4,8 +4,18 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { useState } from "react";
-import { CheckCircle, XCircle, AlertCircle, Loader2, Download } from "lucide-react";
+import { CheckCircle, XCircle, AlertCircle, Loader2, Download, AlertTriangle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 interface ApprovalData {
   id: string;
@@ -43,6 +53,7 @@ export default function ApprovalPage() {
   const params = useParams();
   const token = params.token;
   const [declineReason, setDeclineReason] = useState("");
+  const [isDeclineConfirmOpen, setIsDeclineConfirmOpen] = useState(false);
   const queryClient = useQueryClient();
 
   // Fetch approval data
@@ -261,8 +272,10 @@ export default function ApprovalPage() {
                 <Button
                   variant="destructive"
                   onClick={() => {
-                    if (declineReason.trim() || confirm("Are you sure you want to decline without providing a reason?")) {
+                    if (declineReason.trim()) {
                       declineMutation.mutate();
+                    } else {
+                      setIsDeclineConfirmOpen(true);
                     }
                   }}
                   disabled={declineMutation.isPending}
@@ -373,6 +386,38 @@ export default function ApprovalPage() {
           </p>
         </div>
       </div>
+
+      {/* Decline Without Reason Confirmation */}
+      <AlertDialog open={isDeclineConfirmOpen} onOpenChange={setIsDeclineConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-red-600" />
+              Decline Without Reason?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              You haven't provided a reason for declining. Are you sure you want to decline without providing a reason?
+              <span className="block mt-2 text-orange-600 font-medium">
+                Providing a reason helps the team make revisions.
+              </span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setIsDeclineConfirmOpen(false)}>
+              Go Back
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                declineMutation.mutate();
+                setIsDeclineConfirmOpen(false);
+              }}
+              className="bg-red-600 hover:bg-red-700 focus:ring-red-600"
+            >
+              Decline Anyway
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
