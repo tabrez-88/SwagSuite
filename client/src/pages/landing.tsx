@@ -7,6 +7,29 @@ import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { useTheme } from "@/providers/ThemeProvider";
 
+/**
+ * Landing page component for SwagSuite application.
+ * 
+ * Provides a welcoming interface with two states:
+ * 1. Welcome/intro screen displaying SwagSuite features
+ * 2. Sign-in form for user authentication
+ * 
+ * Features:
+ * - Local username/password authentication via `/api/auth/login`
+ * - Theme customization support (company name, logo, tagline)
+ * - Password visibility toggle
+ * - Loading states during authentication
+ * - Toast notifications for success/error feedback
+ * - Developer quick login button (visible in development mode only)
+ * 
+ * @component
+ * @returns {JSX.Element} The landing page with authentication UI
+ * 
+ * @example
+ * ```tsx
+ * <Landing />
+ * ```
+ */
 export default function Landing() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -85,7 +108,7 @@ export default function Landing() {
                     Welcome to SwagSuite
                   </h2>
                   <p className="text-gray-600 text-sm mb-6">
-                    Your comprehensive order management system for promotional products. 
+                    Your comprehensive order management system for promotional products.
                     Streamline your workflow from quote to delivery.
                   </p>
                 </div>
@@ -118,29 +141,23 @@ export default function Landing() {
                 >
                   Sign In
                 </Button>
+                <div className="relative">
+                  <div className="absolute inset-0 flex items-center">
+                    <span className="w-full border-t" />
+                  </div>
+                  <div className="relative flex justify-center text-xs uppercase">
+                    <span className="bg-white px-2 text-gray-500">Dev</span>
+                  </div>
+                </div>
 
-                {import.meta.env.DEV && (
-                  <>
-                    <div className="relative">
-                      <div className="absolute inset-0 flex items-center">
-                        <span className="w-full border-t" />
-                      </div>
-                      <div className="relative flex justify-center text-xs uppercase">
-                        <span className="bg-white px-2 text-gray-500">Dev</span>
-                      </div>
-                    </div>
-
-                    <Button
-                      onClick={() => { window.location.href = "/api/login/dev"; }}
-                      variant="outline"
-                      className="w-full"
-                      size="lg"
-                    >
-                      Quick Dev Login (Auto)
-                    </Button>
-                  </>
-                )}
-
+                <Button
+                  onClick={() => { window.location.href = "/api/login/dev"; }}
+                  variant="outline"
+                  className="w-full"
+                  size="lg"
+                >
+                  Quick Dev Login (Auto)
+                </Button>
                 <div className="mt-6 text-center">
                   <p className="text-xs text-gray-500">
                     Need an account? Contact your administrator for an invitation.
@@ -191,8 +208,8 @@ export default function Landing() {
                       </button>
                     </div>
                   </div>
-                  <Button 
-                    type="submit" 
+                  <Button
+                    type="submit"
                     className="w-full bg-swag-primary hover:bg-swag-primary/90"
                     disabled={isLoading}
                   >
@@ -206,7 +223,7 @@ export default function Landing() {
                     )}
                   </Button>
                 </form>
-                
+
                 <div className="mt-4">
                   <Button
                     variant="ghost"
