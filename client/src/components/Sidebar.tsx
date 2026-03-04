@@ -4,6 +4,7 @@ import {
   Ungroup,
   Gauge,
   Users,
+  Briefcase,
   ShoppingCart,
   Box,
   Truck,
@@ -18,6 +19,7 @@ import {
   Zap,
   AlertCircle,
   ShieldAlert,
+  FolderOpen,
 } from "lucide-react";
 import { PacmanGame } from "./PacmanGame";
 import { useTheme } from "@/providers/ThemeProvider";
@@ -37,13 +39,14 @@ import {
 const navigation = [
   { name: "Dashboard", href: "/", icon: Gauge },
   { name: "CRM", href: "/crm", icon: Users },
-  { name: "Orders", href: "/orders", icon: ShoppingCart },
+  { name: "Projects", href: "/projects", icon: Briefcase },
   { name: "Production Report", href: "/production-report", icon: Factory },
   { name: "Products", href: "/products", icon: Box },
+  { name: "Media Library", href: "/media-library", icon: FolderOpen },
   { name: "Suppliers", href: "/suppliers", icon: Truck },
   { name: "Artwork", href: "/artwork", icon: Palette },
-  { name: "Errors", href: "/errors", icon: AlertCircle },
   { name: "Vendor Approvals", href: "/vendor-approvals", icon: ShieldAlert },
+  { name: "Errors", href: "/errors", icon: AlertCircle },
   { name: "Reports", href: "/reports", icon: ChartBar },
   { name: "Newsletter", href: "/newsletter", icon: Package },
   { name: "Team Performance", href: "/team-performance", icon: ChartBar },
@@ -94,7 +97,9 @@ export default function Sidebar() {
             <SidebarGroupContent>
               <SidebarMenu>
                 {navigation.map((item) => {
-                  const isActive = location === item.href;
+                  const isActive = location === item.href
+                    || (item.href !== "/" && location.startsWith(item.href + "/"))
+                    || (item.href === "/projects" && location.startsWith("/project/"));
                   return (
                     <SidebarMenuItem key={item.name}>
                       <SidebarMenuButton

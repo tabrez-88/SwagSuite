@@ -277,6 +277,10 @@ export const orders = pgTable("orders", {
   stagesCompleted: jsonb("stages_completed").notNull().default(sql`'["sales-booked"]'::jsonb`),
   stageData: jsonb("stage_data").notNull().default(sql`'{}'::jsonb`),
   customNotes: jsonb("custom_notes").notNull().default(sql`'{}'::jsonb`),
+  // Per-section status management (CommonSKU-style)
+  presentationStatus: varchar("presentation_status").default("draft"), // draft, open, sent, viewed, expired
+  salesOrderStatus: varchar("sales_order_status").default("new"), // new, pending_client_approval, client_change_requested, client_approved, in_production, shipped, ready_to_invoice
+  estimateStatus: varchar("estimate_status").default("draft"), // draft, sent, approved, rejected, expired
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -299,6 +303,10 @@ export const orderItems = pgTable("order_items", {
   size: varchar("size"),
   imprintLocation: varchar("imprint_location"),
   imprintMethod: varchar("imprint_method"),
+  decoratorType: varchar("decorator_type"), // 'supplier' or 'third_party'
+  priceLabel: varchar("price_label"),
+  personalComment: text("personal_comment"),
+  privateNotes: text("private_notes"),
   notes: text("notes"), // Product-specific notes
   createdAt: timestamp("created_at").defaultNow(),
 });
@@ -1919,3 +1927,171 @@ export const generatedDocumentsRelations = relations(generatedDocuments, ({ one 
 export const insertGeneratedDocumentSchema = createInsertSchema(generatedDocuments);
 export type GeneratedDocument = typeof generatedDocuments.$inferSelect;
 export type InsertGeneratedDocument = z.infer<typeof insertGeneratedDocumentSchema>;
+
+// ── Order Item Lines (per-size/color line items under each order item) ──
+export const orderItemLines = pgTable("order_item_lines", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  orderItemId: varchar("order_item_id").notNull().references(() => orderItems.id, { onDelete: 'cascade' }),
+  size: varchar("size"),
+  color: varchar("color"),
+  quantity: integer("quantity").notNull().default(0),
+  cost: decimal("cost", { precision: 10, scale: 2 }),
+  unitPrice: decimal("unit_price", { precision: 10, scale: 2 }),
+  totalPrice: decimal("total_price", { precision: 12, scale: 2 }),
+  margin: decimal("margin", { precision: 5, scale: 2 }),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const orderItemLinesRelations = relations(orderItemLines, ({ one }) => ({
+  orderItem: one(orderItems, {
+    fields: [orderItemLines.orderItemId],
+    references: [orderItems.id],
+  }),
+}));
+
+export const insertOrderItemLineSchema = createInsertSchema(orderItemLines);
+export type OrderItemLine = typeof orderItemLines.$inferSelect;
+export type InsertOrderItemLine = z.infer<typeof insertOrderItemLineSchema>;
+
+// ── Order Additional Charges (per-item setup fees, rush charges, etc.) ──
+export const orderAdditionalCharges = pgTable("order_additional_charges", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  orderItemId: varchar("order_item_id").notNull().references(() => orderItems.id, { onDelete: 'cascade' }),
+  description: varchar("description").notNull(),
+  chargeType: varchar("charge_type").default("flat"), // flat, percentage
+  amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
+  isVendorCharge: boolean("is_vendor_charge").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const orderAdditionalChargesRelations = relations(orderAdditionalCharges, ({ one }) => ({
+  orderItem: one(orderItems, {
+    fields: [orderAdditionalCharges.orderItemId],
+    references: [orderItems.id],
+  }),
+}));
+
+export const insertOrderAdditionalChargeSchema = createInsertSchema(orderAdditionalCharges);
+export type OrderAdditionalCharge = typeof orderAdditionalCharges.$inferSelect;
+export type InsertOrderAdditionalCharge = z.infer<typeof insertOrderAdditionalChargeSchema>;
+
+// ── Order Shipments ──
+export const orderShipments = pgTable("order_shipments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  orderId: varchar("order_id").notNull().references(() => orders.id, { onDelete: 'cascade' }),
+  carrier: varchar("carrier"),
+  shippingMethod: varchar("shipping_method"),
+  trackingNumber: varchar("tracking_number"),
+  shippingCost: decimal("shipping_cost", { precision: 10, scale: 2 }),
+  shipDate: timestamp("ship_date"),
+  estimatedDelivery: timestamp("estimated_delivery"),
+  actualDelivery: timestamp("actual_delivery"),
+  shipToAddress: text("ship_to_address"),
+  shipToName: varchar("ship_to_name"),
+  shipToCompany: varchar("ship_to_company"),
+  shipToPhone: varchar("ship_to_phone"),
+  status: varchar("status").default("pending"), // pending, shipped, in_transit, delivered, returned
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const orderShipmentsRelations = relations(orderShipments, ({ one }) => ({
+  order: one(orders, {
+    fields: [orderShipments.orderId],
+    references: [orders.id],
+  }),
+}));
+
+export const insertOrderShipmentSchema = createInsertSchema(orderShipments);
+export type OrderShipment = typeof orderShipments.$inferSelect;
+export type InsertOrderShipment = z.infer<typeof insertOrderShipmentSchema>;
+
+// ── Customer Portal Tokens ──
+export const customerPortalTokens = pgTable("customer_portal_tokens", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  orderId: varchar("order_id").notNull().references(() => orders.id, { onDelete: 'cascade' }),
+  token: varchar("token", { length: 255 }).notNull().unique(),
+  clientEmail: varchar("client_email"),
+  clientName: varchar("client_name"),
+  isActive: boolean("is_active").default(true),
+  accessCount: integer("access_count").default(0),
+  lastViewedAt: timestamp("last_viewed_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  expiresAt: timestamp("expires_at"),
+});
+
+export const customerPortalTokensRelations = relations(customerPortalTokens, ({ one }) => ({
+  order: one(orders, {
+    fields: [customerPortalTokens.orderId],
+    references: [orders.id],
+  }),
+}));
+
+export const insertCustomerPortalTokenSchema = createInsertSchema(customerPortalTokens);
+export type CustomerPortalToken = typeof customerPortalTokens.$inferSelect;
+export type InsertCustomerPortalToken = z.infer<typeof insertCustomerPortalTokenSchema>;
+
+// ── Centralized Media Library ──
+export const mediaLibrary = pgTable("media_library", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  cloudinaryPublicId: varchar("cloudinary_public_id"),
+  cloudinaryUrl: varchar("cloudinary_url").notNull(),
+  cloudinaryResourceType: varchar("cloudinary_resource_type"),
+  fileName: varchar("file_name").notNull(),
+  originalName: varchar("original_name").notNull(),
+  fileSize: integer("file_size"),
+  mimeType: varchar("mime_type"),
+  fileExtension: varchar("file_extension"),
+  thumbnailUrl: varchar("thumbnail_url"),
+  folder: varchar("folder").default("general"),
+  tags: jsonb("tags").default(sql`'[]'::jsonb`),
+  category: varchar("category"),
+  orderId: varchar("order_id").references(() => orders.id),
+  companyId: varchar("company_id").references(() => companies.id),
+  orderItemId: varchar("order_item_id").references(() => orderItems.id),
+  sourceTable: varchar("source_table"),
+  sourceId: varchar("source_id"),
+  uploadedBy: varchar("uploaded_by").references(() => users.id),
+  description: text("description"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_media_library_folder").on(table.folder),
+  index("idx_media_library_category").on(table.category),
+  index("idx_media_library_company").on(table.companyId),
+  index("idx_media_library_order").on(table.orderId),
+  index("idx_media_library_uploaded_by").on(table.uploadedBy),
+  index("idx_media_library_created_at").on(table.createdAt),
+]);
+
+export const mediaLibraryRelations = relations(mediaLibrary, ({ one }) => ({
+  order: one(orders, {
+    fields: [mediaLibrary.orderId],
+    references: [orders.id],
+  }),
+  company: one(companies, {
+    fields: [mediaLibrary.companyId],
+    references: [companies.id],
+  }),
+  orderItem: one(orderItems, {
+    fields: [mediaLibrary.orderItemId],
+    references: [orderItems.id],
+  }),
+  uploadedByUser: one(users, {
+    fields: [mediaLibrary.uploadedBy],
+    references: [users.id],
+  }),
+}));
+
+export const insertMediaLibrarySchema = createInsertSchema(mediaLibrary).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type MediaLibraryItem = typeof mediaLibrary.$inferSelect;
+export type InsertMediaLibraryItem = z.infer<typeof insertMediaLibrarySchema>;

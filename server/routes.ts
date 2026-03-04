@@ -15,8 +15,13 @@ import {
   insertSequenceEnrollmentSchema,
   insertSequenceSchema,
   insertSequenceStepSchema,
-  insertSupplierSchema
+  insertSupplierSchema,
+  insertOrderItemLineSchema,
+  insertOrderAdditionalChargeSchema,
+  insertOrderShipmentSchema,
+  insertCustomerPortalTokenSchema
 } from "@shared/schema";
+import crypto from "crypto";
 import express, { type Express } from "express";
 import fs from "fs";
 import { createServer, type Server } from "http";
@@ -1850,6 +1855,64 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Sync supplier product to local catalog (find-or-create vendor + product)
+  app.post('/api/products/sync-from-supplier', isAuthenticated, async (req, res) => {
+    try {
+      const { name, sku, supplierName, description, basePrice, category, colors, sizes, imageUrl, source } = req.body;
+
+      if (!name || !supplierName) {
+        return res.status(400).json({ message: 'Product name and supplier name are required' });
+      }
+
+      // 1. Find or create the supplier/vendor
+      let supplier = await storage.getSupplierByName(supplierName);
+      if (!supplier) {
+        supplier = await storage.createSupplier({
+          name: supplierName,
+          apiIntegrationStatus: source === 'sage' ? 'active' : source === 'sanmar' ? 'active' : source === 'ss_activewear' ? 'active' : 'none',
+        });
+        console.log(`Created new supplier: ${supplier.name} (${supplier.id})`);
+      }
+
+      // 2. Find existing product by SKU + supplier, or create new
+      let product = null;
+      if (sku) {
+        const existing = await storage.getProducts();
+        product = existing.find(p =>
+          p.supplierSku === sku && p.supplierId === supplier!.id
+        ) || existing.find(p =>
+          p.sku === sku && p.supplierId === supplier!.id
+        );
+      }
+
+      if (!product) {
+        product = await storage.createProduct({
+          name,
+          sku: sku || '',
+          supplierSku: sku || '',
+          description: description || '',
+          basePrice: basePrice ? String(basePrice) : '0',
+          supplierId: supplier.id,
+          category: category || '',
+          colors: Array.isArray(colors) ? colors : null,
+          imageUrl: imageUrl || null,
+          productType: source === 'ss_activewear' ? 'apparel' : 'promotional',
+          minimumQuantity: 1,
+        });
+        console.log(`Created new product: ${product.name} (${product.id}) for supplier ${supplier.name}`);
+      }
+
+      res.json({
+        product: { ...product, supplierName: supplier.name },
+        supplier,
+        isNew: !product.createdAt || (Date.now() - new Date(product.createdAt).getTime()) < 2000,
+      });
+    } catch (error) {
+      console.error('Error syncing supplier product:', error);
+      res.status(500).json({ message: 'Failed to sync product to catalog' });
+    }
+  });
+
   app.post('/api/products', isAuthenticated, async (req, res) => {
     try {
       console.log('Creating product with data:', req.body);
@@ -2616,6 +2679,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .values(artworkData)
         .returning();
 
+      // Dual-write to media library
+      if (filePath && fileName) {
+        try {
+          const userId = (req.user as any)?.id;
+          const publicId = req.file ? ((req.file as any).filename || (req.file as any).public_id) : undefined;
+          await registerInMediaLibrary({
+            cloudinaryUrl: filePath,
+            cloudinaryPublicId: publicId,
+            fileName: publicId || fileName,
+            originalName: fileName,
+            fileSize: req.file?.size,
+            mimeType: req.file?.mimetype,
+            category: "artwork",
+            orderItemId: req.params.orderItemId,
+            sourceTable: "artwork_items",
+            sourceId: artwork.id,
+            uploadedBy: userId,
+            tags: ["artwork"],
+          });
+        } catch (mlError) {
+          console.error("Failed to register in media library (non-blocking):", mlError);
+        }
+      }
+
       res.status(201).json(artwork);
     } catch (error) {
       console.error("Error creating artwork item:", error);
@@ -2690,6 +2777,252 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ── Update single order item ──
+  app.patch('/api/orders/:orderId/items/:itemId', isAuthenticated, async (req, res) => {
+    try {
+      const updatedItem = await storage.updateOrderItem(req.params.itemId, req.body);
+      res.json(updatedItem);
+    } catch (error) {
+      console.error("Error updating order item:", error);
+      res.status(500).json({ message: "Failed to update order item" });
+    }
+  });
+
+  // ── Order Item Lines routes (nested under order items) ──
+  app.get('/api/order-items/:orderItemId/lines', isAuthenticated, async (req, res) => {
+    try {
+      const lines = await storage.getOrderItemLines(req.params.orderItemId);
+      res.json(lines);
+    } catch (error) {
+      console.error("Error fetching order item lines:", error);
+      res.status(500).json({ message: "Failed to fetch order item lines" });
+    }
+  });
+
+  app.post('/api/order-items/:orderItemId/lines', isAuthenticated, async (req, res) => {
+    try {
+      const validatedData = insertOrderItemLineSchema.parse({
+        ...req.body,
+        orderItemId: req.params.orderItemId,
+      });
+      const line = await storage.createOrderItemLine(validatedData);
+      res.status(201).json(line);
+    } catch (error) {
+      console.error("Error creating order item line:", error);
+      res.status(500).json({ message: "Failed to create order item line" });
+    }
+  });
+
+  app.patch('/api/order-items/:orderItemId/lines/:lineId', isAuthenticated, async (req, res) => {
+    try {
+      const line = await storage.updateOrderItemLine(req.params.lineId, req.body);
+      res.json(line);
+    } catch (error) {
+      console.error("Error updating order item line:", error);
+      res.status(500).json({ message: "Failed to update order item line" });
+    }
+  });
+
+  app.delete('/api/order-items/:orderItemId/lines/:lineId', isAuthenticated, async (req, res) => {
+    try {
+      await storage.deleteOrderItemLine(req.params.lineId);
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting order item line:", error);
+      res.status(500).json({ message: "Failed to delete order item line" });
+    }
+  });
+
+  // ── Order Additional Charges routes (nested under order items) ──
+  app.get('/api/order-items/:orderItemId/charges', isAuthenticated, async (req, res) => {
+    try {
+      const charges = await storage.getOrderAdditionalCharges(req.params.orderItemId);
+      res.json(charges);
+    } catch (error) {
+      console.error("Error fetching order additional charges:", error);
+      res.status(500).json({ message: "Failed to fetch order additional charges" });
+    }
+  });
+
+  app.post('/api/order-items/:orderItemId/charges', isAuthenticated, async (req, res) => {
+    try {
+      const validatedData = insertOrderAdditionalChargeSchema.parse({
+        ...req.body,
+        orderItemId: req.params.orderItemId,
+      });
+      const charge = await storage.createOrderAdditionalCharge(validatedData);
+      res.status(201).json(charge);
+    } catch (error) {
+      console.error("Error creating order additional charge:", error);
+      res.status(500).json({ message: "Failed to create order additional charge" });
+    }
+  });
+
+  app.patch('/api/order-items/:orderItemId/charges/:chargeId', isAuthenticated, async (req, res) => {
+    try {
+      const charge = await storage.updateOrderAdditionalCharge(req.params.chargeId, req.body);
+      res.json(charge);
+    } catch (error) {
+      console.error("Error updating order additional charge:", error);
+      res.status(500).json({ message: "Failed to update order additional charge" });
+    }
+  });
+
+  app.delete('/api/order-items/:orderItemId/charges/:chargeId', isAuthenticated, async (req, res) => {
+    try {
+      await storage.deleteOrderAdditionalCharge(req.params.chargeId);
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting order additional charge:", error);
+      res.status(500).json({ message: "Failed to delete order additional charge" });
+    }
+  });
+
+  // ── Order Shipments routes (nested under orders) ──
+  app.get('/api/orders/:orderId/shipments', isAuthenticated, async (req, res) => {
+    try {
+      const shipments = await storage.getOrderShipments(req.params.orderId);
+      res.json(shipments);
+    } catch (error) {
+      console.error("Error fetching order shipments:", error);
+      res.status(500).json({ message: "Failed to fetch order shipments" });
+    }
+  });
+
+  app.get('/api/orders/:orderId/shipments/:shipmentId', isAuthenticated, async (req, res) => {
+    try {
+      const shipment = await storage.getOrderShipment(req.params.shipmentId);
+      if (!shipment) {
+        return res.status(404).json({ message: "Shipment not found" });
+      }
+      res.json(shipment);
+    } catch (error) {
+      console.error("Error fetching order shipment:", error);
+      res.status(500).json({ message: "Failed to fetch order shipment" });
+    }
+  });
+
+  app.post('/api/orders/:orderId/shipments', isAuthenticated, async (req, res) => {
+    try {
+      const validatedData = insertOrderShipmentSchema.parse({
+        ...req.body,
+        orderId: req.params.orderId,
+      });
+      const shipment = await storage.createOrderShipment(validatedData);
+      res.status(201).json(shipment);
+    } catch (error) {
+      console.error("Error creating order shipment:", error);
+      res.status(500).json({ message: "Failed to create order shipment" });
+    }
+  });
+
+  app.patch('/api/orders/:orderId/shipments/:shipmentId', isAuthenticated, async (req, res) => {
+    try {
+      const shipment = await storage.updateOrderShipment(req.params.shipmentId, req.body);
+      res.json(shipment);
+    } catch (error) {
+      console.error("Error updating order shipment:", error);
+      res.status(500).json({ message: "Failed to update order shipment" });
+    }
+  });
+
+  app.delete('/api/orders/:orderId/shipments/:shipmentId', isAuthenticated, async (req, res) => {
+    try {
+      await storage.deleteOrderShipment(req.params.shipmentId);
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting order shipment:", error);
+      res.status(500).json({ message: "Failed to delete order shipment" });
+    }
+  });
+
+  // ── Customer Portal Token routes (nested under orders) ──
+  app.get('/api/orders/:orderId/portal-tokens', isAuthenticated, async (req, res) => {
+    try {
+      const tokens = await storage.getCustomerPortalTokensByOrder(req.params.orderId);
+      res.json(tokens);
+    } catch (error) {
+      console.error("Error fetching customer portal tokens:", error);
+      res.status(500).json({ message: "Failed to fetch customer portal tokens" });
+    }
+  });
+
+  app.post('/api/orders/:orderId/portal-tokens', isAuthenticated, async (req, res) => {
+    try {
+      const validatedData = insertCustomerPortalTokenSchema.parse({
+        ...req.body,
+        orderId: req.params.orderId,
+        token: crypto.randomUUID(),
+      });
+      const portalToken = await storage.createCustomerPortalToken(validatedData);
+      res.status(201).json(portalToken);
+    } catch (error) {
+      console.error("Error creating customer portal token:", error);
+      res.status(500).json({ message: "Failed to create customer portal token" });
+    }
+  });
+
+  app.delete('/api/orders/:orderId/portal-tokens/:tokenId', isAuthenticated, async (req, res) => {
+    try {
+      await storage.deleteCustomerPortalToken(req.params.tokenId);
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting customer portal token:", error);
+      res.status(500).json({ message: "Failed to delete customer portal token" });
+    }
+  });
+
+  // ── Public Customer Portal route (NO AUTH) ──
+  app.get('/api/portal/:token', async (req, res) => {
+    try {
+      const portalToken = await storage.getCustomerPortalTokenByToken(req.params.token);
+
+      if (!portalToken) {
+        return res.status(404).json({ message: "Portal link not found" });
+      }
+
+      if (!portalToken.isActive) {
+        return res.status(403).json({ message: "This portal link has been deactivated" });
+      }
+
+      if (portalToken.expiresAt && new Date(portalToken.expiresAt) < new Date()) {
+        return res.status(403).json({ message: "This portal link has expired" });
+      }
+
+      // Increment access count and update lastViewedAt
+      await storage.incrementPortalTokenAccess(portalToken.id);
+
+      // Fetch order details without sensitive cost/margin/vendor information
+      const order = await storage.getOrder(portalToken.orderId);
+      if (!order) {
+        return res.status(404).json({ message: "Order not found" });
+      }
+
+      const items = await storage.getOrderItems(portalToken.orderId);
+      const shipments = await storage.getOrderShipments(portalToken.orderId);
+
+      // Strip sensitive fields from order
+      const {
+        profitMargin, costTotal, ...safeOrder
+      } = order as any;
+
+      // Strip sensitive fields from items (cost, margin, vendor details)
+      const safeItems = items.map((item: any) => {
+        const { unitCost, totalCost, marginPercent, marginAmount, supplierId, supplierSku, ...safeItem } = item;
+        return safeItem;
+      });
+
+      res.json({
+        order: safeOrder,
+        items: safeItems,
+        shipments,
+      });
+    } catch (error) {
+      console.error("Error accessing customer portal:", error);
+      res.status(500).json({ message: "Failed to load portal" });
+    }
+  });
+
 
   // Cloudinary upload endpoint for product images
   app.post('/api/cloudinary/upload', isAuthenticated, upload.single('file'), async (req, res) => {
@@ -2702,6 +3035,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // req.file.path contains the Cloudinary URL
       const cloudinaryUrl = (req.file as any).path;
       const publicId = (req.file as any).filename || (req.file as any).public_id;
+
+      // Dual-write to media library
+      try {
+        const userId = (req.user as any)?.id;
+        await registerInMediaLibrary({
+          cloudinaryUrl,
+          cloudinaryPublicId: publicId,
+          fileName: publicId,
+          originalName: req.file.originalname,
+          fileSize: req.file.size,
+          mimeType: req.file.mimetype,
+          sourceTable: "direct",
+          sourceId: publicId,
+          uploadedBy: userId,
+        });
+      } catch (mlError) {
+        console.error("Failed to register in media library (non-blocking):", mlError);
+      }
 
       res.status(200).json({
         url: cloudinaryUrl,
@@ -4164,140 +4515,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
 
-  // SAGE Product Search and Integration
+  // SAGE Product Search and Integration (real API)
   app.get('/api/integrations/sage/products', isAuthenticated, async (req, res) => {
     try {
-      const { search, category, eqpLevel, brand } = req.query;
+      const { search, category, brand, limit } = req.query;
 
-      // Mock SAGE product search - would integrate with actual SAGE API
-      const mockSageProducts = [
-        {
-          id: 'sage_1',
-          sageId: 'SAGE001',
-          productName: 'Premium Canvas Tote Bag',
-          productNumber: 'CTB-001',
-          supplierName: 'Quality Bags Inc',
-          category: 'Bags',
-          subcategory: 'Tote Bags',
-          brand: 'EcoBag',
-          description: 'Heavy-duty canvas tote bag with reinforced handles and bottom gusset.',
-          features: ['Reinforced Handles', 'Bottom Gusset', '100% Cotton Canvas', 'Machine Washable'],
-          materials: ['100% Cotton Canvas', '24oz Weight'],
-          dimensions: '15" W x 16" H x 5" D',
-          weight: 0.8,
-          eqpLevel: 'A+',
-          qualityRating: 9,
-          pricingStructure: {
-            '50': 12.95,
-            '100': 10.45,
-            '250': 8.95,
-            '500': 7.25
-          },
-          quantityBreaks: [50, 100, 250, 500, 1000],
-          setupCharges: {
-            screenPrint: 65.00,
-            embroidery: 85.00,
-            heatTransfer: 45.00
-          },
-          decorationMethods: ['Screen Print', 'Embroidery', 'Heat Transfer', 'Digital Print'],
-          leadTimes: {
-            standard: '10-12 business days',
-            rush: '5-7 business days'
-          },
-          imageGallery: [
-            'https://example.com/tote-front.jpg',
-            'https://example.com/tote-side.jpg',
-            'https://example.com/tote-handle.jpg'
-          ],
-          technicalDrawings: [
-            'https://example.com/tote-technical.pdf'
-          ],
-          complianceCertifications: ['CPSIA', 'CA Prop 65 Compliant'],
-          lastSyncedAt: new Date().toISOString(),
-          syncStatus: 'active'
-        },
-        {
-          id: 'sage_2',
-          sageId: 'SAGE002',
-          productName: 'Wireless Charging Pad with LED Logo',
-          productNumber: 'WCP-LED-001',
-          supplierName: 'Tech Innovations',
-          category: 'Technology',
-          subcategory: 'Wireless Chargers',
-          brand: 'PowerTech',
-          description: 'Qi-compatible wireless charging pad with illuminated logo capability.',
-          features: ['Qi Wireless Technology', 'LED Logo Illumination', 'Non-Slip Base', 'Type-C Input'],
-          materials: ['ABS Plastic', 'Rubber Base', 'Aluminum Ring'],
-          dimensions: '4" Dia x 0.5" H',
-          weight: 0.3,
-          eqpLevel: 'A',
-          qualityRating: 8,
-          pricingStructure: {
-            '25': 24.95,
-            '50': 19.95,
-            '100': 16.45,
-            '250': 13.95
-          },
-          quantityBreaks: [25, 50, 100, 250, 500],
-          setupCharges: {
-            laserEngraving: 75.00,
-            ledLogo: 125.00,
-            padPrint: 65.00
-          },
-          decorationMethods: ['Laser Engraving', 'LED Logo', 'Pad Print', 'Full Color Imprint'],
-          leadTimes: {
-            standard: '12-15 business days',
-            rush: '7-10 business days'
-          },
-          imageGallery: [
-            'https://example.com/charger-top.jpg',
-            'https://example.com/charger-bottom.jpg',
-            'https://example.com/charger-led.jpg'
-          ],
-          technicalDrawings: [
-            'https://example.com/charger-specs.pdf'
-          ],
-          complianceCertifications: ['FCC', 'CE', 'RoHS'],
-          lastSyncedAt: new Date().toISOString(),
-          syncStatus: 'active'
-        }
-      ];
-
-      // Filter SAGE products based on search criteria
-      let filteredProducts = mockSageProducts;
-
-      if (search) {
-        const searchTerm = search.toString().toLowerCase();
-        filteredProducts = filteredProducts.filter(p =>
-          p.productName.toLowerCase().includes(searchTerm) ||
-          p.description.toLowerCase().includes(searchTerm) ||
-          p.features.some(f => f.toLowerCase().includes(searchTerm))
-        );
+      if (!search) {
+        // No search term — return locally synced SAGE products
+        const products = await storage.getSageProducts(parseInt(limit as string) || 100);
+        return res.json({ products, totalResults: products.length });
       }
 
-      if (category) {
-        filteredProducts = filteredProducts.filter(p =>
-          p.category.toLowerCase() === category.toString().toLowerCase()
-        );
+      const credentials = await getSageCredentials();
+      if (!credentials || !credentials.acctId || !credentials.loginId || !credentials.key) {
+        return res.status(400).json({
+          message: 'SAGE credentials not configured. Please configure in Settings → Integrations.'
+        });
       }
 
-      if (eqpLevel) {
-        filteredProducts = filteredProducts.filter(p => p.eqpLevel === eqpLevel);
-      }
+      const sageService = new SageService({
+        acctId: credentials.acctId,
+        loginId: credentials.loginId,
+        key: credentials.key,
+      });
 
-      if (brand) {
-        filteredProducts = filteredProducts.filter(p =>
-          p.brand.toLowerCase() === brand.toString().toLowerCase()
-        );
-      }
+      const products = await sageService.searchProducts(search as string, {
+        categoryId: category as string,
+        supplierId: brand as string,
+        maxResults: parseInt(limit as string) || 50
+      });
 
       res.json({
-        products: filteredProducts,
-        totalResults: filteredProducts.length,
-        searchCriteria: { search, category, eqpLevel, brand },
+        products,
+        totalResults: products.length,
+        searchCriteria: { search, category, brand },
         lastSync: new Date().toISOString()
       });
     } catch (error) {
+      console.error('Error searching SAGE products:', error);
       res.status(500).json({ message: "Failed to fetch SAGE products" });
     }
   });
@@ -5857,7 +6112,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/projects/:orderId/activities", async (req, res) => {
     try {
       const { orderId } = req.params;
-      const { activityType, content, mentionedUsers } = req.body;
+      const { activityType, content, mentionedUsers, attachments } = req.body;
 
       // Import dependencies
       const { db } = await import("./db");
@@ -5867,6 +6122,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Get current user ID (in production, this should come from req.user)
       const currentUserId = req.user?.claims?.sub || "system-user";
 
+      // Build metadata with optional attachments (sent as full objects from client)
+      let metadata: any = {};
+      if (attachments && Array.isArray(attachments) && attachments.length > 0) {
+        metadata.attachments = attachments.map((att: any) => ({
+          fileName: att.fileName,
+          mimeType: att.mimeType,
+          cloudinaryUrl: att.cloudinaryUrl,
+          thumbnailUrl: att.thumbnailUrl,
+        }));
+      }
+
       // Validate and insert activity
       const validatedData = insertProjectActivitySchema.parse({
         orderId,
@@ -5875,7 +6141,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         content,
         mentionedUsers: mentionedUsers || [],
         isSystemGenerated: false,
-        metadata: {},
+        metadata,
       });
 
       const [newActivity] = await db
@@ -5940,7 +6206,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Upload file to project
-  app.post("/api/projects/:orderId/upload", upload.single('file'), async (req, res) => {
+  app.post("/api/projects/:orderId/upload", isAuthenticated, upload.single('file'), async (req, res) => {
     try {
       const { orderId } = req.params;
       const file = req.file;
@@ -5984,6 +6250,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .insert(projectActivities)
         .values(validatedData)
         .returning();
+
+      // Dual-write to media library
+      try {
+        await registerInMediaLibrary({
+          cloudinaryUrl,
+          cloudinaryPublicId: publicId,
+          fileName: publicId,
+          originalName: file.originalname,
+          fileSize: file.size,
+          mimeType: file.mimetype,
+          orderId,
+          sourceTable: "project_activities",
+          sourceId: newActivity.id,
+          uploadedBy: currentUserId,
+        });
+      } catch (mlError) {
+        console.error("Failed to register in media library (non-blocking):", mlError);
+      }
 
       // Fetch the complete activity with user info
       const [activityWithUser] = await db
@@ -6075,6 +6359,219 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error downloading file:", error);
       res.status(500).json({ error: "Failed to download file" });
+    }
+  });
+
+  // ── Media Library Helper ──
+  async function registerInMediaLibrary(params: {
+    cloudinaryUrl: string;
+    cloudinaryPublicId?: string;
+    fileName: string;
+    originalName: string;
+    fileSize?: number;
+    mimeType?: string;
+    folder?: string;
+    category?: string;
+    orderId?: string;
+    companyId?: string;
+    orderItemId?: string;
+    sourceTable: string;
+    sourceId: string;
+    uploadedBy?: string;
+    tags?: string[];
+  }) {
+    const ext = params.originalName.split(".").pop()?.toLowerCase() || "";
+    const imageExts = ["jpg", "jpeg", "png", "gif", "webp"];
+    const thumbnailUrl = imageExts.includes(ext) ? params.cloudinaryUrl : null;
+
+    function determineFolderFromExt(extension: string): string {
+      if (imageExts.includes(extension)) return "images";
+      if (extension === "pdf") return "documents";
+      if (["ai", "eps", "svg", "psd"].includes(extension)) return "design-files";
+      if (["xlsx", "xls", "csv"].includes(extension)) return "spreadsheets";
+      if (["docx", "doc"].includes(extension)) return "documents";
+      return "general";
+    }
+
+    return storage.createMediaLibraryItem({
+      cloudinaryUrl: params.cloudinaryUrl,
+      cloudinaryPublicId: params.cloudinaryPublicId || null,
+      cloudinaryResourceType: ext === "pdf" ? "raw" : "auto",
+      fileName: params.fileName,
+      originalName: params.originalName,
+      fileSize: params.fileSize || null,
+      mimeType: params.mimeType || null,
+      fileExtension: ext || null,
+      thumbnailUrl,
+      folder: params.folder || determineFolderFromExt(ext),
+      category: params.category || null,
+      orderId: params.orderId || null,
+      companyId: params.companyId || null,
+      orderItemId: params.orderItemId || null,
+      sourceTable: params.sourceTable,
+      sourceId: params.sourceId,
+      uploadedBy: params.uploadedBy || null,
+      tags: params.tags || [],
+    });
+  }
+
+  // ── Media Library CRUD Routes ──
+  app.get("/api/media-library", isAuthenticated, async (req, res) => {
+    try {
+      const { folder, category, companyId, orderId, search, mimeType, limit, offset } = req.query;
+      const filters = {
+        folder: folder as string | undefined,
+        category: category as string | undefined,
+        companyId: companyId as string | undefined,
+        orderId: orderId as string | undefined,
+        search: search as string | undefined,
+        mimeType: mimeType as string | undefined,
+        limit: limit ? parseInt(limit as string) : 50,
+        offset: offset ? parseInt(offset as string) : 0,
+      };
+      const [items, total] = await Promise.all([
+        storage.getMediaLibraryItems(filters),
+        storage.getMediaLibraryCount({ folder: filters.folder, category: filters.category, search: filters.search }),
+      ]);
+      res.json({ items, total });
+    } catch (error) {
+      console.error("Error fetching media library:", error);
+      res.status(500).json({ error: "Failed to fetch media library" });
+    }
+  });
+
+  app.get("/api/media-library/:id", isAuthenticated, async (req, res) => {
+    try {
+      const item = await storage.getMediaLibraryItem(req.params.id);
+      if (!item) return res.status(404).json({ error: "File not found" });
+      res.json(item);
+    } catch (error) {
+      console.error("Error fetching media library item:", error);
+      res.status(500).json({ error: "Failed to fetch file" });
+    }
+  });
+
+  app.post("/api/media-library/upload", isAuthenticated, (req, res, next) => {
+    upload.array("files", 10)(req, res, (err) => {
+      if (err) {
+        console.error("Multer upload error (media-library):", err);
+        return res.status(400).json({ error: err.message || "File upload failed" });
+      }
+      next();
+    });
+  }, async (req, res) => {
+    try {
+      const files = req.files as Express.Multer.File[];
+      if (!files || files.length === 0) {
+        return res.status(400).json({ error: "No files uploaded" });
+      }
+      const userId = (req.user as any)?.id;
+      const { folder, category, orderId, companyId } = req.body;
+
+      const items = await Promise.all(
+        files.map(async (file) => {
+          const cloudinaryUrl = (file as any).path;
+          const publicId = (file as any).filename || (file as any).public_id;
+          return registerInMediaLibrary({
+            cloudinaryUrl,
+            cloudinaryPublicId: publicId,
+            fileName: publicId,
+            originalName: file.originalname,
+            fileSize: file.size,
+            mimeType: file.mimetype,
+            folder: folder || undefined,
+            category: category || undefined,
+            orderId: orderId || undefined,
+            companyId: companyId || undefined,
+            sourceTable: "direct",
+            sourceId: publicId,
+            uploadedBy: userId,
+          });
+        })
+      );
+
+      res.json(items);
+    } catch (error) {
+      console.error("Error uploading to media library:", error);
+      res.status(500).json({ error: "Failed to upload files" });
+    }
+  });
+
+  app.patch("/api/media-library/:id", isAuthenticated, async (req, res) => {
+    try {
+      const { tags, category, description, folder } = req.body;
+      const updates: any = {};
+      if (tags !== undefined) updates.tags = tags;
+      if (category !== undefined) updates.category = category;
+      if (description !== undefined) updates.description = description;
+      if (folder !== undefined) updates.folder = folder;
+      const updated = await storage.updateMediaLibraryItem(req.params.id, updates);
+      res.json(updated);
+    } catch (error) {
+      console.error("Error updating media library item:", error);
+      res.status(500).json({ error: "Failed to update file" });
+    }
+  });
+
+  app.delete("/api/media-library/:id", isAuthenticated, async (req, res) => {
+    try {
+      const item = await storage.getMediaLibraryItem(req.params.id);
+      if (!item) return res.status(404).json({ error: "File not found" });
+      if (item.cloudinaryPublicId) {
+        try {
+          await deleteFromCloudinary(item.cloudinaryPublicId);
+        } catch (e) {
+          console.error("Failed to delete from Cloudinary:", e);
+        }
+      }
+      await storage.deleteMediaLibraryItem(req.params.id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting media library item:", error);
+      res.status(500).json({ error: "Failed to delete file" });
+    }
+  });
+
+  // Link existing media library files to an order (for picking from library)
+  app.post("/api/orders/:orderId/files/from-library", isAuthenticated, async (req, res) => {
+    try {
+      const { orderId } = req.params;
+      const { mediaLibraryIds, fileType = "other_document", notes } = req.body;
+
+      if (!mediaLibraryIds || !Array.isArray(mediaLibraryIds) || mediaLibraryIds.length === 0) {
+        return res.status(400).json({ error: "No file IDs provided" });
+      }
+
+      const { db } = await import("./db");
+      const { orderFiles } = await import("@shared/schema");
+
+      const libraryItems = await storage.getMediaLibraryItemsByIds(mediaLibraryIds);
+      const createdFiles = await Promise.all(
+        libraryItems.map(async (item) => {
+          const [fileRecord] = await db
+            .insert(orderFiles)
+            .values({
+              orderId,
+              fileName: item.fileName,
+              originalName: item.originalName,
+              fileSize: item.fileSize,
+              mimeType: item.mimeType,
+              filePath: item.cloudinaryUrl,
+              thumbnailPath: item.thumbnailUrl,
+              fileType,
+              tags: [fileType],
+              notes: notes || null,
+              uploadedBy: item.uploadedBy,
+            })
+            .returning();
+          return fileRecord;
+        })
+      );
+
+      res.json({ files: createdFiles });
+    } catch (error) {
+      console.error("Error linking library files to order:", error);
+      res.status(500).json({ error: "Failed to link files" });
     }
   });
 
@@ -7748,6 +8245,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get vendor invoices for an order
+  app.get("/api/orders/:orderId/vendor-invoices", isAuthenticated, async (req, res) => {
+    try {
+      const { orderId } = req.params;
+      const invoices = await storage.getVendorInvoicesByOrderId(orderId);
+      res.json(invoices);
+    } catch (error) {
+      console.error('Error fetching vendor invoices:', error);
+      res.status(500).json({ message: 'Failed to fetch vendor invoices' });
+    }
+  });
+
   // Get quote approvals for an order
   app.get("/api/orders/:orderId/quote-approvals", isAuthenticated, async (req, res) => {
     try {
@@ -8282,6 +8791,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
               uploadedBy: userId,
             })
             .returning();
+
+          // Dual-write to media library
+          try {
+            await registerInMediaLibrary({
+              cloudinaryUrl,
+              cloudinaryPublicId: publicId,
+              fileName: publicId,
+              originalName: file.originalname,
+              fileSize: file.size,
+              mimeType: file.mimetype,
+              category: fileType,
+              orderId,
+              orderItemId: orderItemId || undefined,
+              sourceTable: "order_files",
+              sourceId: fileRecord.id,
+              uploadedBy: userId,
+              tags: [fileType],
+            });
+          } catch (mlError) {
+            console.error("Failed to register in media library (non-blocking):", mlError);
+          }
 
           return { fileRecord, orderItemId };
         })

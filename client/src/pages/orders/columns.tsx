@@ -1,11 +1,7 @@
 import { ColumnDef } from "@tanstack/react-table";
 import { format } from "date-fns";
 import { MoreHorizontal, Eye, FileEdit } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useToast } from "@/hooks/use-toast";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -16,30 +12,13 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { DataTableColumnHeader } from "@/components/data-table-column-header";
 import { UserAvatar } from "@/components/UserAvatar";
+import { StageBadge } from "@/components/StageBadge";
+import { determineBusinessStage, STAGE_ORDER, type DeterminedStage } from "@/lib/businessStages";
 import type { Order } from "@shared/schema";
-
-const statusColorMap = {
-  quote: "bg-blue-100 text-blue-800",
-  pending_approval: "bg-yellow-100 text-yellow-800",
-  approved: "bg-green-100 text-green-800",
-  in_production: "bg-purple-100 text-purple-800",
-  shipped: "bg-indigo-100 text-indigo-800",
-  delivered: "bg-gray-100 text-gray-800",
-  cancelled: "bg-red-100 text-red-800",
-};
-
-const statusDisplayMap = {
-  quote: "Quote",
-  pending_approval: "Pending Approval",
-  approved: "Approved",
-  in_production: "In Production",
-  shipped: "Shipped",
-  delivered: "Delivered",
-  cancelled: "Cancelled",
-};
 
 export type OrderWithRelations = Order & {
   companyName?: string;
+  _determinedStage?: DeterminedStage;
 };
 
 export const columns: ColumnDef<OrderWithRelations>[] = [
@@ -72,86 +51,26 @@ export const columns: ColumnDef<OrderWithRelations>[] = [
     ),
   },
   {
-    accessorKey: "orderType",
+    id: "stage",
     header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Order Type" />
-    ),
-    cell: ({ row }) => (
-      <Badge variant="outline" className="text-nowrap">
-        {(row.getValue("orderType") as string)?.replace("_", " ").toUpperCase() || "QUOTE"}
-      </Badge>
-    ),
-  },
-  {
-    accessorKey: "status",
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Status" />
+      <DataTableColumnHeader column={column} title="Stage" />
     ),
     cell: ({ row }) => {
-      const status = row.getValue("status") as keyof typeof statusDisplayMap;
-      const order = row.original;
-      const queryClient = useQueryClient();
-      const { toast } = useToast();
-
-      const updateStatusMutation = useMutation({
-        mutationFn: async (newStatus: string) => {
-          const response = await fetch(`/api/orders/${order.id}`, {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ status: newStatus }),
-            credentials: 'include',
-          });
-          if (!response.ok) throw new Error('Failed to update status');
-          return response.json();
-        },
-        onSuccess: () => {
-          queryClient.invalidateQueries({ queryKey: ['/api/orders'] });
-          queryClient.invalidateQueries({ queryKey: [`/api/orders/${order.id}`] });
-          queryClient.invalidateQueries({ queryKey: [`/api/projects/${order.id}/activities`] });
-          queryClient.invalidateQueries({ queryKey: ['/api/dashboard/recent-orders'] });
-          toast({ title: "Status updated successfully" });
-        },
-        onError: () => {
-          toast({ title: "Failed to update status", variant: "destructive" });
-        },
-      });
-
-      return (
-        <Select
-          value={status}
-          onValueChange={(value) => updateStatusMutation.mutate(value)}
-        >
-          <SelectTrigger className={`${statusColorMap[status]} h-8 w-[160px] border-0 focus:ring-0`}>
-            {statusDisplayMap[status] || status}
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem className={statusColorMap.quote} value="quote">
-              Quote
-            </SelectItem>
-            <SelectItem className={statusColorMap.pending_approval} value="pending_approval">
-              Pending Approval
-            </SelectItem>
-            <SelectItem className={statusColorMap.approved} value="approved">
-              Approved
-            </SelectItem>
-            <SelectItem className={statusColorMap.in_production} value="in_production">
-              In Production
-            </SelectItem>
-            <SelectItem className={statusColorMap.shipped} value="shipped">
-              Shipped
-            </SelectItem>
-            <SelectItem className={statusColorMap.delivered} value="delivered">
-              Delivered
-            </SelectItem>
-            <SelectItem className={statusColorMap.cancelled} value="cancelled">
-              Cancelled
-            </SelectItem>
-          </SelectContent>
-        </Select>
-      );
+      const determined = row.original._determinedStage || determineBusinessStage(row.original);
+      return <StageBadge stage={determined} size="md" />;
     },
-    filterFn: (row, id, value) => {
-      return value.includes(row.getValue(id));
+    sortingFn: (rowA, rowB) => {
+      const a = rowA.original._determinedStage || determineBusinessStage(rowA.original);
+      const b = rowB.original._determinedStage || determineBusinessStage(rowB.original);
+      const stageOrderA = STAGE_ORDER.indexOf(a.stage.id);
+      const stageOrderB = STAGE_ORDER.indexOf(b.stage.id);
+      if (stageOrderA !== stageOrderB) return stageOrderA - stageOrderB;
+      return a.currentSubStatus.order - b.currentSubStatus.order;
+    },
+    filterFn: (row, _columnId, value) => {
+      if (!value || value === "all") return true;
+      const determined = row.original._determinedStage || determineBusinessStage(row.original);
+      return determined.stage.id === value;
     },
   },
   {

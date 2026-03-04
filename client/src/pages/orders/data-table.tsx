@@ -83,23 +83,20 @@ export function DataTable<TData, TValue>({
           />
         </div>
         <Select
-          value={(table.getColumn("status")?.getFilterValue() as string) ?? "all"}
+          value={(table.getColumn("stage")?.getFilterValue() as string) ?? "all"}
           onValueChange={(value) =>
-            table.getColumn("status")?.setFilterValue(value === "all" ? "" : value)
+            table.getColumn("stage")?.setFilterValue(value === "all" ? "" : value)
           }
         >
           <SelectTrigger className="w-[180px]">
-            <SelectValue placeholder="Filter by status" />
+            <SelectValue placeholder="Filter by stage" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All Statuses</SelectItem>
-            <SelectItem value="quote">Quote</SelectItem>
-            <SelectItem value="pending_approval">Pending Approval</SelectItem>
-            <SelectItem value="approved">Approved</SelectItem>
-            <SelectItem value="in_production">In Production</SelectItem>
-            <SelectItem value="shipped">Shipped</SelectItem>
-            <SelectItem value="delivered">Delivered</SelectItem>
-            <SelectItem value="cancelled">Cancelled</SelectItem>
+            <SelectItem value="all">All Stages</SelectItem>
+            <SelectItem value="presentation">Presentation</SelectItem>
+            <SelectItem value="estimate">Estimate</SelectItem>
+            <SelectItem value="sales_order">Sales Order</SelectItem>
+            <SelectItem value="invoice">Invoice</SelectItem>
           </SelectContent>
         </Select>
         <DataTableViewOptions table={table} />

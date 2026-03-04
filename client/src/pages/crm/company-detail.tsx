@@ -30,7 +30,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
-import OrderModal from "@/components/OrderModal";
+import NewProjectWizard from "@/components/NewProjectWizard";
 import { ContactsManager } from "@/components/ContactsManager";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
@@ -694,10 +694,9 @@ export default function CompanyDetail() {
       </div>
 
       {/* Order Modal for Creating Quote */}
-      <OrderModal 
-        open={isOrderModalOpen} 
+      <NewProjectWizard
+        open={isOrderModalOpen}
         onOpenChange={setIsOrderModalOpen}
-        order={null}
         initialCompanyId={company.id}
       />
 

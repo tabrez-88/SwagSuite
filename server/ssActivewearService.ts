@@ -29,6 +29,11 @@ interface SsActivewearProduct {
   countryOfOrigin: string;
 }
 
+// In-memory cache for styles (shared across instances)
+let cachedStyles: any[] | null = null;
+let stylesCacheTimestamp = 0;
+const STYLES_CACHE_TTL = 30 * 60 * 1000; // 30 minutes
+
 export class SsActivewearService {
   private baseUrl = 'https://api.ssactivewear.com/V2';
   private config: SsActivewearConfig;
@@ -132,6 +137,105 @@ export class SsActivewearService {
     }
   }
 
+  async getStyles(): Promise<any[]> {
+    // Return cached styles if still valid
+    if (cachedStyles && (Date.now() - stylesCacheTimestamp) < STYLES_CACHE_TTL) {
+      return cachedStyles;
+    }
+
+    try {
+      console.log('S&S: Fetching all styles (will cache for 30 min)...');
+      const response = await fetch(`${this.baseUrl}/styles/`, {
+        method: 'GET',
+        headers: this.getAuthHeaders(),
+      });
+
+      if (!response.ok) {
+        console.log(`S&S styles fetch failed: ${response.status}`);
+        return [];
+      }
+
+      const styles = await response.json();
+      if (Array.isArray(styles)) {
+        cachedStyles = styles;
+        stylesCacheTimestamp = Date.now();
+        console.log(`S&S: Cached ${styles.length} styles`);
+        return styles;
+      }
+      return [];
+    } catch (error) {
+      console.error('Error fetching S&S styles:', error);
+      return [];
+    }
+  }
+
+  private async searchByKeyword(query: string): Promise<SsActivewearProduct[]> {
+    try {
+      const styles = await this.getStyles();
+      if (styles.length === 0) return [];
+
+      const lowerQuery = query.toLowerCase();
+      const keywords = lowerQuery.split(/\s+/).filter(Boolean);
+
+      // Match styles by keyword against title, styleName, brandName, baseCategory
+      const matchedStyles = styles.filter((s: any) => {
+        const searchableText = [
+          s.title || '',
+          s.styleName || '',
+          s.brandName || '',
+          s.baseCategory || '',
+          s.description || '',
+        ].join(' ').toLowerCase();
+
+        return keywords.every(kw => searchableText.includes(kw));
+      }).slice(0, 10); // Limit to 10 matching styles to avoid too many API calls
+
+      if (matchedStyles.length === 0) {
+        console.log(`S&S keyword search: no styles matched "${query}"`);
+        return [];
+      }
+
+      console.log(`S&S keyword search: found ${matchedStyles.length} matching styles for "${query}"`);
+
+      // Fetch products for each matched style (in parallel, limited)
+      const productPromises = matchedStyles.map(async (style: any) => {
+        try {
+          const styleNum = style.styleID || style.styleName;
+          if (!styleNum) return [];
+          const url = `${this.baseUrl}/products/?style=${styleNum}`;
+          const response = await fetch(url, {
+            method: 'GET',
+            headers: this.getAuthHeaders(),
+          });
+          if (!response.ok) return [];
+          const products = await response.json();
+          return Array.isArray(products) ? products.slice(0, 10) : [];
+        } catch {
+          return [];
+        }
+      });
+
+      const allProducts = await Promise.all(productPromises);
+      const combined: SsActivewearProduct[] = [];
+      const seenSkus = new Set<string>();
+
+      for (const batch of allProducts) {
+        for (const p of batch) {
+          if (!seenSkus.has(p.sku)) {
+            seenSkus.add(p.sku);
+            combined.push(p);
+          }
+        }
+      }
+
+      console.log(`S&S keyword search: returning ${combined.length} products`);
+      return combined.slice(0, 100);
+    } catch (error) {
+      console.log('S&S keyword search error:', error);
+      return [];
+    }
+  }
+
   async searchProducts(query: string): Promise<SsActivewearProduct[]> {
     try {
       // Universal search - try multiple approaches and combine results
@@ -153,7 +257,10 @@ export class SsActivewearService {
         searchPromises.push(this.searchByName(query));
       }
 
-      // 4. Try broad pattern matching as fallback
+      // 4. Try keyword search via /styles/ endpoint (works for generic terms like "pens", "shirts")
+      searchPromises.push(this.searchByKeyword(query));
+
+      // 5. Try broad pattern matching as fallback
       searchPromises.push(this.searchByPattern(query));
 
       // Execute all searches in parallel and combine results

@@ -100,7 +100,7 @@ export default function GlobalSearch() {
   const handleResultClick = (result: SearchResult) => {
     // Handle different result types
     if (result.type === "order") {
-      setLocation(`/orders/${result.id}`);
+      setLocation(`/project/${result.id}`);
     } else if (result.type === "product") {
       setSelectedProductId(result.id);
       setIsProductModalOpen(true);

@@ -1,4 +1,4 @@
-import { QueryClient, QueryFunction } from "@tanstack/react-query";
+import { QueryClient, QueryFunction, QueryCache, MutationCache } from "@tanstack/react-query";
 
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
@@ -41,7 +41,20 @@ export const getQueryFn: <T>(options: {
     return await res.json();
   };
 
+function handleGlobalError(error: Error) {
+  if (error.message.startsWith("401:")) {
+    // Clear auth state so Router immediately redirects to landing
+    queryClient.setQueryData(["/api/auth/user"], null);
+  }
+}
+
 export const queryClient = new QueryClient({
+  queryCache: new QueryCache({
+    onError: handleGlobalError,
+  }),
+  mutationCache: new MutationCache({
+    onError: handleGlobalError,
+  }),
   defaultOptions: {
     queries: {
       queryFn: getQueryFn({ on401: "throw" }),

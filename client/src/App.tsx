@@ -1,4 +1,4 @@
-import { Switch, Route } from "wouter";
+import { Switch, Route, Redirect, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -12,6 +12,8 @@ import CRM from "@/pages/crm";
 import ContactDetail from "@/pages/crm/contact-detail";
 import CompanyDetail from "@/pages/crm/company-detail";
 import Orders from "@/pages/orders";
+import ProjectsPage from "@/pages/projects";
+import ProjectDetailPage from "@/pages/project-detail";
 import Products from "@/pages/products";
 import ProductionReport from "@/pages/production-report";
 import Suppliers from "@/pages/suppliers";
@@ -30,12 +32,14 @@ import ErrorsPage from "@/pages/errors";
 import UsersPage from "@/pages/settings/users";
 import ProfilePage from "@/pages/profile";
 import VendorApprovals from "@/pages/vendor-approvals";
-import OrderDetailsPage from "@/pages/order-details";
+import OrderDetailPage from "@/pages/order-detail";
 import NotificationsPage from "@/pages/notifications";
 import NotFound from "@/pages/not-found";
 import ApprovalPage from "@/pages/approval";
 import QuoteApprovalPage from "@/pages/quote-approval";
 import AcceptInvitation from "@/pages/accept-invitation";
+import CustomerPortalPage from "@/pages/customer-portal";
+import MediaLibraryPage from "@/pages/media-library";
 import { SlackSidebar } from "@/components/SlackSidebar";
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
 import { ThemeProvider } from "@/providers/ThemeProvider";
@@ -62,6 +66,16 @@ function AuthenticatedLayout({ children }: { children: React.ReactNode }) {
   );
 }
 
+// Redirects unauthenticated users to landing page, preserving intended URL
+function RedirectToLanding() {
+  const [location] = useLocation();
+  if (location !== "/") {
+    sessionStorage.setItem("redirectAfterLogin", location);
+    return <Redirect to="/" replace />;
+  }
+  return <Landing />;
+}
+
 function Router() {
   const { isAuthenticated, isLoading } = useAuth();
 
@@ -76,19 +90,31 @@ function Router() {
     );
   }
 
+  // After login, redirect to the originally requested URL if stored
+  if (isAuthenticated) {
+    const redirectTo = sessionStorage.getItem("redirectAfterLogin");
+    if (redirectTo) {
+      sessionStorage.removeItem("redirectAfterLogin");
+      return <Redirect to={redirectTo} replace />;
+    }
+  }
+
   return (
     <Switch>
       {/* Public approval route - accessible without authentication */}
       <Route path="/approval/:token" component={ApprovalPage} />
-      
+
       {/* Public quote approval route - accessible without authentication */}
       <Route path="/quote-approval/:token" component={QuoteApprovalPage} />
-      
+
       {/* Public invitation acceptance route */}
       <Route path="/accept-invitation" component={AcceptInvitation} />
-      
+
+      {/* Public customer portal - order tracking */}
+      <Route path="/portal/:token" component={CustomerPortalPage} />
+
       {!isAuthenticated ? (
-        <Route path="/" component={Landing} />
+        <Route component={RedirectToLanding} />
       ) : (
         <AuthenticatedLayout>
           <Switch>
@@ -96,10 +122,15 @@ function Router() {
             <Route path="/crm" component={CRM} />
             <Route path="/crm/contacts/:id" component={ContactDetail} />
             <Route path="/crm/companies/:id" component={CompanyDetail} />
+            <Route path="/projects" component={ProjectsPage} />
+            <Route path="/project/:orderId/*" component={ProjectDetailPage} />
+            <Route path="/project/:orderId" component={ProjectDetailPage} />
             <Route path="/orders" component={Orders} />
-            <Route path="/orders/:orderId" component={OrderDetailsPage} />
+            <Route path="/orders/:orderId/*" component={OrderDetailPage} />
+            <Route path="/orders/:orderId" component={OrderDetailPage} />
             <Route path="/production-report" component={ProductionReport} />
             <Route path="/products" component={Products} />
+            <Route path="/media-library" component={MediaLibraryPage} />
             <Route path="/suppliers" component={Suppliers} />
             <Route path="/artwork" component={ArtworkPage} />
             <Route path="/mockup-builder" component={MockupBuilderPage} />

@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { useLocation } from "wouter";
 
-import OrderModal from "@/components/OrderModal";
+import NewProjectWizard from "@/components/NewProjectWizard";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import type { Order } from "@shared/schema";
@@ -171,7 +171,7 @@ export default function Orders() {
       )}
 
       {/* Order Modals */}
-      <OrderModal
+      <NewProjectWizard
         open={isCreateModalOpen}
         onOpenChange={setIsCreateModalOpen}
       />

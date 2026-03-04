@@ -59,8 +59,10 @@ export default function Landing() {
           title: "Login Successful",
           description: "Welcome back!",
         });
-        // Refresh page to trigger auth check
-        window.location.href = "/";
+        // Redirect to stored URL (if user was redirected here) or home
+        const redirectTo = sessionStorage.getItem("redirectAfterLogin") || "/";
+        sessionStorage.removeItem("redirectAfterLogin");
+        window.location.href = redirectTo;
       } else {
         toast({
           variant: "destructive",

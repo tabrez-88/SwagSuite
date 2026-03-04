@@ -115,7 +115,22 @@ import {
   type InsertInvoice,
   paymentTransactions,
   type PaymentTransaction,
-  type InsertPaymentTransaction
+  type InsertPaymentTransaction,
+  orderItemLines,
+  type OrderItemLine,
+  type InsertOrderItemLine,
+  orderAdditionalCharges,
+  type OrderAdditionalCharge,
+  type InsertOrderAdditionalCharge,
+  orderShipments,
+  type OrderShipment,
+  type InsertOrderShipment,
+  customerPortalTokens,
+  type CustomerPortalToken,
+  type InsertCustomerPortalToken,
+  mediaLibrary,
+  type MediaLibraryItem,
+  type InsertMediaLibraryItem
 } from "@shared/schema";
 import {
   type Notification,
@@ -360,6 +375,55 @@ export interface IStorage {
   deleteProductionStage(id: string): Promise<void>;
   reorderProductionStages(stageIds: string[]): Promise<ProductionStage[]>;
   seedDefaultProductionStages(): Promise<void>;
+
+  // Order Item Lines
+  getOrderItemLines(orderItemId: string): Promise<OrderItemLine[]>;
+  getOrderItemLine(id: string): Promise<OrderItemLine | undefined>;
+  createOrderItemLine(line: InsertOrderItemLine): Promise<OrderItemLine>;
+  updateOrderItemLine(id: string, line: Partial<InsertOrderItemLine>): Promise<OrderItemLine>;
+  deleteOrderItemLine(id: string): Promise<void>;
+
+  // Order Additional Charges
+  getOrderAdditionalCharges(orderItemId: string): Promise<OrderAdditionalCharge[]>;
+  createOrderAdditionalCharge(charge: InsertOrderAdditionalCharge): Promise<OrderAdditionalCharge>;
+  updateOrderAdditionalCharge(id: string, charge: Partial<InsertOrderAdditionalCharge>): Promise<OrderAdditionalCharge>;
+  deleteOrderAdditionalCharge(id: string): Promise<void>;
+
+  // Order Shipments
+  getOrderShipments(orderId: string): Promise<OrderShipment[]>;
+  getOrderShipment(id: string): Promise<OrderShipment | undefined>;
+  createOrderShipment(shipment: InsertOrderShipment): Promise<OrderShipment>;
+  updateOrderShipment(id: string, shipment: Partial<InsertOrderShipment>): Promise<OrderShipment>;
+  deleteOrderShipment(id: string): Promise<void>;
+
+  // Customer Portal Tokens
+  getCustomerPortalTokensByOrder(orderId: string): Promise<CustomerPortalToken[]>;
+  getActivePortalTokenForOrder(orderId: string): Promise<CustomerPortalToken | undefined>;
+  getCustomerPortalTokenByToken(token: string): Promise<CustomerPortalToken | undefined>;
+  createCustomerPortalToken(tokenData: InsertCustomerPortalToken): Promise<CustomerPortalToken>;
+  updateCustomerPortalToken(id: string, data: Partial<InsertCustomerPortalToken>): Promise<CustomerPortalToken>;
+  incrementPortalTokenAccess(id: string): Promise<void>;
+  deactivatePortalToken(id: string): Promise<void>;
+  deleteCustomerPortalToken(id: string): Promise<void>;
+
+  // Media Library operations
+  getMediaLibraryItems(filters?: {
+    folder?: string;
+    category?: string;
+    companyId?: string;
+    orderId?: string;
+    mimeType?: string;
+    search?: string;
+    uploadedBy?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<MediaLibraryItem[]>;
+  getMediaLibraryItem(id: string): Promise<MediaLibraryItem | undefined>;
+  createMediaLibraryItem(item: InsertMediaLibraryItem): Promise<MediaLibraryItem>;
+  updateMediaLibraryItem(id: string, updates: Partial<InsertMediaLibraryItem>): Promise<MediaLibraryItem>;
+  deleteMediaLibraryItem(id: string): Promise<void>;
+  getMediaLibraryItemsByIds(ids: string[]): Promise<MediaLibraryItem[]>;
+  getMediaLibraryCount(filters?: { folder?: string; category?: string; search?: string }): Promise<number>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -455,21 +519,7 @@ export class DatabaseStorage implements IStorage {
 
   // Contact operations
   async getContacts(companyId?: string, supplierId?: string): Promise<Contact[]> {
-    const query = db.select({
-      id: contacts.id,
-      companyId: contacts.companyId,
-      supplierId: contacts.supplierId,
-      firstName: contacts.firstName,
-      lastName: contacts.lastName,
-      email: contacts.email,
-      phone: contacts.phone,
-      title: contacts.title,
-      isPrimary: contacts.isPrimary,
-      billingAddress: contacts.billingAddress,
-      shippingAddress: contacts.shippingAddress,
-      createdAt: contacts.createdAt,
-      updatedAt: contacts.updatedAt,
-    }).from(contacts);
+    const query = db.select().from(contacts);
     if (companyId) {
       return await query.where(eq(contacts.companyId, companyId));
     }
@@ -697,6 +747,14 @@ export class DatabaseStorage implements IStorage {
     return invoice;
   }
 
+  async getVendorInvoicesByOrderId(orderId: string): Promise<VendorInvoice[]> {
+    return await db
+      .select()
+      .from(vendorInvoices)
+      .where(eq(vendorInvoices.orderId, orderId))
+      .orderBy(desc(vendorInvoices.createdAt));
+  }
+
   // Customer Invoice operations (Accounts Receivable)
   async createInvoice(invoice: InsertInvoice): Promise<Invoice> {
     const [newInvoice] = await db.insert(invoices)
@@ -831,6 +889,11 @@ export class DatabaseStorage implements IStorage {
         stageData: orders.stageData,
         customNotes: orders.customNotes,
         csrUserId: orders.csrUserId,
+        // Section-specific statuses for business stage determination
+        presentationStatus: orders.presentationStatus,
+        salesOrderStatus: orders.salesOrderStatus,
+        estimateStatus: orders.estimateStatus,
+        orderDiscount: orders.orderDiscount,
         // Related company info
         companyName: companies.name,
         companyEmail: companies.email,
@@ -963,11 +1026,20 @@ export class DatabaseStorage implements IStorage {
         size: orderItems.size,
         imprintLocation: orderItems.imprintLocation,
         imprintMethod: orderItems.imprintMethod,
+        decoratorType: orderItems.decoratorType,
+        priceLabel: orderItems.priceLabel,
+        personalComment: orderItems.personalComment,
+        privateNotes: orderItems.privateNotes,
         notes: orderItems.notes,
         createdAt: orderItems.createdAt,
         // Join product info
         productName: products.name,
         productSku: products.sku,
+        productImageUrl: products.imageUrl,
+        productColors: products.colors,
+        productSizes: products.sizes,
+        productBrand: products.brand,
+        productDescription: products.description,
         // Join supplier info
         supplierName: suppliers.name,
         supplierEmail: suppliers.email,
@@ -2917,6 +2989,240 @@ export class DatabaseStorage implements IStorage {
     ];
 
     await db.insert(productionStagesTable).values(defaults);
+  }
+
+  // Order Item Lines
+  async getOrderItemLines(orderItemId: string): Promise<OrderItemLine[]> {
+    return db
+      .select()
+      .from(orderItemLines)
+      .where(eq(orderItemLines.orderItemId, orderItemId))
+      .orderBy(desc(orderItemLines.createdAt));
+  }
+
+  async getOrderItemLine(id: string): Promise<OrderItemLine | undefined> {
+    const [line] = await db.select().from(orderItemLines).where(eq(orderItemLines.id, id));
+    return line;
+  }
+
+  async createOrderItemLine(line: InsertOrderItemLine): Promise<OrderItemLine> {
+    const [newLine] = await db.insert(orderItemLines).values(line).returning();
+    return newLine;
+  }
+
+  async updateOrderItemLine(id: string, line: Partial<InsertOrderItemLine>): Promise<OrderItemLine> {
+    const [updated] = await db
+      .update(orderItemLines)
+      .set({ ...line, updatedAt: new Date() })
+      .where(eq(orderItemLines.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteOrderItemLine(id: string): Promise<void> {
+    await db.delete(orderItemLines).where(eq(orderItemLines.id, id));
+  }
+
+  // Order Additional Charges
+  async getOrderAdditionalCharges(orderItemId: string): Promise<OrderAdditionalCharge[]> {
+    return db
+      .select()
+      .from(orderAdditionalCharges)
+      .where(eq(orderAdditionalCharges.orderItemId, orderItemId))
+      .orderBy(desc(orderAdditionalCharges.createdAt));
+  }
+
+  async createOrderAdditionalCharge(charge: InsertOrderAdditionalCharge): Promise<OrderAdditionalCharge> {
+    const [newCharge] = await db.insert(orderAdditionalCharges).values(charge).returning();
+    return newCharge;
+  }
+
+  async updateOrderAdditionalCharge(id: string, charge: Partial<InsertOrderAdditionalCharge>): Promise<OrderAdditionalCharge> {
+    const [updated] = await db
+      .update(orderAdditionalCharges)
+      .set({ ...charge, updatedAt: new Date() })
+      .where(eq(orderAdditionalCharges.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteOrderAdditionalCharge(id: string): Promise<void> {
+    await db.delete(orderAdditionalCharges).where(eq(orderAdditionalCharges.id, id));
+  }
+
+  // Order Shipments
+  async getOrderShipments(orderId: string): Promise<OrderShipment[]> {
+    return db
+      .select()
+      .from(orderShipments)
+      .where(eq(orderShipments.orderId, orderId))
+      .orderBy(desc(orderShipments.createdAt));
+  }
+
+  async getOrderShipment(id: string): Promise<OrderShipment | undefined> {
+    const [shipment] = await db
+      .select()
+      .from(orderShipments)
+      .where(eq(orderShipments.id, id));
+    return shipment;
+  }
+
+  async createOrderShipment(shipment: InsertOrderShipment): Promise<OrderShipment> {
+    const [newShipment] = await db.insert(orderShipments).values(shipment).returning();
+    return newShipment;
+  }
+
+  async updateOrderShipment(id: string, shipment: Partial<InsertOrderShipment>): Promise<OrderShipment> {
+    const [updated] = await db
+      .update(orderShipments)
+      .set({ ...shipment, updatedAt: new Date() })
+      .where(eq(orderShipments.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteOrderShipment(id: string): Promise<void> {
+    await db.delete(orderShipments).where(eq(orderShipments.id, id));
+  }
+
+  // Customer Portal Tokens
+  async getCustomerPortalTokensByOrder(orderId: string): Promise<CustomerPortalToken[]> {
+    return db
+      .select()
+      .from(customerPortalTokens)
+      .where(eq(customerPortalTokens.orderId, orderId))
+      .orderBy(desc(customerPortalTokens.createdAt));
+  }
+
+  async getCustomerPortalTokenByToken(token: string): Promise<CustomerPortalToken | undefined> {
+    const [result] = await db
+      .select()
+      .from(customerPortalTokens)
+      .where(eq(customerPortalTokens.token, token));
+    return result;
+  }
+
+  async createCustomerPortalToken(tokenData: InsertCustomerPortalToken): Promise<CustomerPortalToken> {
+    const [newToken] = await db.insert(customerPortalTokens).values(tokenData).returning();
+    return newToken;
+  }
+
+  async updateCustomerPortalToken(id: string, data: Partial<InsertCustomerPortalToken>): Promise<CustomerPortalToken> {
+    const [updated] = await db
+      .update(customerPortalTokens)
+      .set(data)
+      .where(eq(customerPortalTokens.id, id))
+      .returning();
+    return updated;
+  }
+
+  async getActivePortalTokenForOrder(orderId: string): Promise<CustomerPortalToken | undefined> {
+    const [token] = await db
+      .select()
+      .from(customerPortalTokens)
+      .where(
+        and(
+          eq(customerPortalTokens.orderId, orderId),
+          eq(customerPortalTokens.isActive, true),
+        )
+      )
+      .orderBy(desc(customerPortalTokens.createdAt))
+      .limit(1);
+    return token;
+  }
+
+  async incrementPortalTokenAccess(id: string): Promise<void> {
+    await db
+      .update(customerPortalTokens)
+      .set({
+        accessCount: sql`COALESCE(${customerPortalTokens.accessCount}, 0) + 1`,
+        lastViewedAt: new Date(),
+      })
+      .where(eq(customerPortalTokens.id, id));
+  }
+
+  async deactivatePortalToken(id: string): Promise<void> {
+    await db
+      .update(customerPortalTokens)
+      .set({ isActive: false, updatedAt: new Date() })
+      .where(eq(customerPortalTokens.id, id));
+  }
+
+  async deleteCustomerPortalToken(id: string): Promise<void> {
+    await db.delete(customerPortalTokens).where(eq(customerPortalTokens.id, id));
+  }
+
+  // Media Library operations
+  async getMediaLibraryItems(filters?: {
+    folder?: string;
+    category?: string;
+    companyId?: string;
+    orderId?: string;
+    mimeType?: string;
+    search?: string;
+    uploadedBy?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<MediaLibraryItem[]> {
+    const conditions = [];
+    if (filters?.folder) conditions.push(eq(mediaLibrary.folder, filters.folder));
+    if (filters?.category) conditions.push(eq(mediaLibrary.category, filters.category));
+    if (filters?.companyId) conditions.push(eq(mediaLibrary.companyId, filters.companyId));
+    if (filters?.orderId) conditions.push(eq(mediaLibrary.orderId, filters.orderId));
+    if (filters?.mimeType) conditions.push(like(mediaLibrary.mimeType, `${filters.mimeType}%`));
+    if (filters?.search) conditions.push(ilike(mediaLibrary.originalName, `%${filters.search}%`));
+    if (filters?.uploadedBy) conditions.push(eq(mediaLibrary.uploadedBy, filters.uploadedBy));
+
+    const query = db.select().from(mediaLibrary);
+    const withWhere = conditions.length > 0 ? query.where(and(...conditions)) : query;
+    return withWhere
+      .orderBy(desc(mediaLibrary.createdAt))
+      .limit(filters?.limit || 50)
+      .offset(filters?.offset || 0);
+  }
+
+  async getMediaLibraryItem(id: string): Promise<MediaLibraryItem | undefined> {
+    const [item] = await db.select().from(mediaLibrary).where(eq(mediaLibrary.id, id));
+    return item;
+  }
+
+  async createMediaLibraryItem(item: InsertMediaLibraryItem): Promise<MediaLibraryItem> {
+    const [created] = await db.insert(mediaLibrary).values(item).returning();
+    return created;
+  }
+
+  async updateMediaLibraryItem(id: string, updates: Partial<InsertMediaLibraryItem>): Promise<MediaLibraryItem> {
+    const [updated] = await db
+      .update(mediaLibrary)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(mediaLibrary.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteMediaLibraryItem(id: string): Promise<void> {
+    await db.delete(mediaLibrary).where(eq(mediaLibrary.id, id));
+  }
+
+  async getMediaLibraryItemsByIds(ids: string[]): Promise<MediaLibraryItem[]> {
+    if (ids.length === 0) return [];
+    const items = await db
+      .select()
+      .from(mediaLibrary)
+      .where(sql`${mediaLibrary.id} IN (${sql.join(ids.map(id => sql`${id}`), sql`, `)})`);
+    return items;
+  }
+
+  async getMediaLibraryCount(filters?: { folder?: string; category?: string; search?: string }): Promise<number> {
+    const conditions = [];
+    if (filters?.folder) conditions.push(eq(mediaLibrary.folder, filters.folder));
+    if (filters?.category) conditions.push(eq(mediaLibrary.category, filters.category));
+    if (filters?.search) conditions.push(ilike(mediaLibrary.originalName, `%${filters.search}%`));
+
+    const query = db.select({ count: sql<number>`count(*)` }).from(mediaLibrary);
+    const withWhere = conditions.length > 0 ? query.where(and(...conditions)) : query;
+    const [result] = await withWhere;
+    return Number(result.count);
   }
 }
 

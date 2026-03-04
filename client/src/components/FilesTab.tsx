@@ -32,9 +32,11 @@ import {
 } from "@/components/ui/alert-dialog";
 import { UploadFilesModal } from "./UploadFilesModal";
 import { FilePreviewModal } from "./FilePreviewModal";
+import FilePickerDialog from "./FilePickerDialog";
 import {
     Upload,
     FileText,
+    FolderOpen,
     Image as ImageIcon,
     Download,
     Trash2,
@@ -109,6 +111,7 @@ export function FilesTab({ orderId, products, artworkItems, onSwitchToEmail }: F
     const queryClient = useQueryClient();
 
     const [showUploadModal, setShowUploadModal] = useState(false);
+    const [showLibraryPicker, setShowLibraryPicker] = useState(false);
     const [selectedFileType, setSelectedFileType] = useState("customer_proof");
     const [filterTag, setFilterTag] = useState<string>("all");
     const [selectedFileIds, setSelectedFileIds] = useState<string[]>([]);
@@ -206,6 +209,37 @@ export function FilesTab({ orderId, products, artworkItems, onSwitchToEmail }: F
         onError: (error: Error) => {
             toast({
                 title: "Upload failed",
+                description: error.message,
+                variant: "destructive",
+            });
+        },
+    });
+
+    // Link from media library mutation
+    const linkFromLibraryMutation = useMutation({
+        mutationFn: async (mediaLibraryIds: string[]) => {
+            const res = await fetch(`/api/orders/${orderId}/files/from-library`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    mediaLibraryIds,
+                    fileType: selectedFileType,
+                }),
+                credentials: "include",
+            });
+            if (!res.ok) throw new Error(await res.text());
+            return res.json();
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: [`/api/orders/${orderId}/files`] });
+            toast({
+                title: "Files added",
+                description: "Files from library have been linked to this order.",
+            });
+        },
+        onError: (error: Error) => {
+            toast({
+                title: "Failed to add files",
                 description: error.message,
                 variant: "destructive",
             });
@@ -382,14 +416,22 @@ export function FilesTab({ orderId, products, artworkItems, onSwitchToEmail }: F
                                 </SelectContent>
                             </Select>
                         </div>
-                        <div className="flex-1 flex items-end">
+                        <div className="flex-1 flex items-end gap-2">
                             <Button
                                 onClick={() => setShowUploadModal(true)}
-                                className="w-full"
+                                className="flex-1"
                                 disabled={selectedFileType === "customer_proof" && availableProductsForProof.length === 0}
                             >
                                 <Upload className="w-4 h-4 mr-2" />
-                                Add Files
+                                Upload New
+                            </Button>
+                            <Button
+                                variant="outline"
+                                onClick={() => setShowLibraryPicker(true)}
+                                className="flex-1"
+                            >
+                                <FolderOpen className="w-4 h-4 mr-2" />
+                                From Library
                             </Button>
                         </div>
 
@@ -658,6 +700,19 @@ export function FilesTab({ orderId, products, artworkItems, onSwitchToEmail }: F
                 availableProducts={availableProductsForProof}
                 artworkItems={artworkItems}
                 uploading={uploadMutation.isPending}
+            />
+
+            {/* Media Library Picker */}
+            <FilePickerDialog
+                open={showLibraryPicker}
+                onClose={() => setShowLibraryPicker(false)}
+                onSelect={(items) => {
+                    linkFromLibraryMutation.mutate(items.map((i) => i.id));
+                    setShowLibraryPicker(false);
+                }}
+                multiple={true}
+                contextOrderId={orderId}
+                title="Add Files from Library"
             />
 
             {/* File Preview Modal */}

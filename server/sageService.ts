@@ -153,6 +153,7 @@ export class SageService {
         try {
             const searchRec: SageSearchRec = {
                 quickSearch: searchTerm,
+                keywords: searchTerm,
                 maxTotalItems: options?.maxResults || 50,
                 thumbPicRes: 300,
                 endUserOnly: false,
