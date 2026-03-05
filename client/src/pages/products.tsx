@@ -20,13 +20,13 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import ProductModal from "@/components/ProductModal";
+import ProductModal from "@/components/modals/ProductModal";
 import { ProductIntegrations } from "@/components/integrations/ProductIntegrations";
 import { SsActivewearIntegration } from "@/components/integrations/SsActivewearIntegration";
 import { SageIntegration } from "@/components/integrations/SageIntegration";
 import { SanmarIntegration } from "@/components/integrations/SanmarIntegration";
 import { PopularProducts } from "@/components/PopularProducts";
-import { ProductDetailModal } from "@/components/ProductDetailModal";
+import { ProductDetailModal } from "@/components/modals/ProductDetailModal";
 
 interface Product {
   id: string;

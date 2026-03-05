@@ -12,7 +12,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { Mail, Send, Clock, Eye, Edit } from "lucide-react";
-import type { useOrderDetailData } from "../hooks/useOrderDetailData";
+import type { ProjectData } from "@/types/project-types";
 
 function stripHtml(html: string): string {
   const doc = new DOMParser().parseFromString(html, "text/html");
@@ -21,7 +21,7 @@ function stripHtml(html: string): string {
 
 interface EmailSectionProps {
   orderId: string;
-  data: ReturnType<typeof useOrderDetailData>;
+  data: ProjectData;
 }
 
 export default function EmailSection({ orderId, data }: EmailSectionProps) {

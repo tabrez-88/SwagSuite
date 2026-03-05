@@ -73,7 +73,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useState, useEffect } from "react";
-import { MailCredentialsDialog } from "@/components/MailCredentialsDialog";
+import { MailCredentialsDialog } from "@/components/modals/MailCredentialsDialog";
 
 interface FeatureToggle {
   id: string;

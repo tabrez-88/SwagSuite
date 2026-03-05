@@ -3,8 +3,7 @@ import { UserAvatar } from "@/components/UserAvatar";
 import { MessageSquare, User } from "lucide-react";
 import type { useProjectData } from "../hooks/useProjectData";
 
-// Import the existing ActivitiesSection
-import ActivitiesSection from "@/pages/order-detail/sections/ActivitiesSection";
+import ActivitiesSection from "@/components/sections/ActivitiesSection";
 
 interface CollaborateSectionProps {
   orderId: string;
@@ -57,7 +56,7 @@ export default function CollaborateSection({ orderId, data }: CollaborateSection
       </Card>
 
       {/* Activities & Internal Notes */}
-      <ActivitiesSection orderId={orderId} data={data as any} />
+      <ActivitiesSection orderId={orderId} data={data} />
     </div>
   );
 }

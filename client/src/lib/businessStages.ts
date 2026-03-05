@@ -166,10 +166,18 @@ export function determineBusinessStage(order: Order): DeterminedStage {
 }
 
 function buildResult(stage: StageConfig, subStatus: StageSubStatus): DeterminedStage {
+  // Calculate overall pipeline progress (not just within current stage)
+  const stageIndex = STAGE_ORDER.indexOf(stage.id);
+  const totalStages = STAGE_ORDER.length;
+  const stageWeight = 1 / totalStages; // Each stage = 25% of total
+
   const totalStatuses = stage.statuses.length;
   const currentIndex = stage.statuses.findIndex((s) => s.value === subStatus.value);
-  const progressPercent =
-    totalStatuses > 1 ? Math.round(((currentIndex + 1) / totalStatuses) * 100) : 100;
+  const withinStageProgress = totalStatuses > 1 ? (currentIndex + 1) / totalStatuses : 1;
+
+  const progressPercent = Math.round(
+    (stageIndex * stageWeight + withinStageProgress * stageWeight) * 100
+  );
 
   return { stage, currentSubStatus: subStatus, progressPercent };
 }

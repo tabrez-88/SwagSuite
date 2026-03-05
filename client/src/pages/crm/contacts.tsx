@@ -110,8 +110,6 @@ const contactFormSchema = z.object({
 
 type ContactFormData = z.infer<typeof contactFormSchema>;
 
-const FILTER_TYPES = ["all", "company", "vendor", "unlinked"] as const;
-
 export default function Contacts() {
   const [searchQuery, setSearchQuery] = useState("");
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -257,12 +255,6 @@ export default function Contacts() {
 
     return matchesSearch && matchesType;
   });
-
-  const getAssociationLabel = (contact: Contact) => {
-    if (contact.companyName) return contact.companyName;
-    if (contact.supplierName) return contact.supplierName;
-    return null;
-  };
 
   const getAssociationBadge = (contact: Contact) => {
     if (contact.companyId) {

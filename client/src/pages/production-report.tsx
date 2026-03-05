@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { determineBusinessStage } from "@/lib/businessStages";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -241,7 +242,10 @@ export default function ProductionReport() {
 
   // Transform orders to production format
   const productionOrders: ProductionOrder[] = ordersData
-    .filter((order: any) => order.status !== 'quote' && order.status !== 'cancelled')
+    .filter((order: any) => {
+      const stage = determineBusinessStage(order);
+      return stage.stage.id === 'sales_order' || stage.stage.id === 'invoice';
+    })
     .map((order: any) => {
       const company = companies.find((c: any) => c.id === order.companyId);
       const assignedUser = users.find((u: any) => u.id === order.assignedUserId);

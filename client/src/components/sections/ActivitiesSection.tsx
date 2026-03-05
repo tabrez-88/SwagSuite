@@ -19,18 +19,18 @@ import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { UserAvatar } from "@/components/UserAvatar";
 import { useToast } from "@/hooks/use-toast";
-import FilePickerDialog from "@/components/FilePickerDialog";
-import { FilePreviewModal } from "@/components/FilePreviewModal";
+import FilePickerDialog from "@/components/modals/FilePickerDialog";
+import { FilePreviewModal } from "@/components/modals/FilePreviewModal";
 import { type MediaLibraryItem, getCloudinaryThumbnail, isImageFile } from "@/lib/media-library";
 import type {
-  useOrderDetailData,
+  ProjectData,
   ProjectActivity,
   TeamMember,
-} from "../hooks/useOrderDetailData";
+} from "@/types/project-types";
 
 interface ActivitiesSectionProps {
   orderId: string;
-  data: ReturnType<typeof useOrderDetailData>;
+  data: ProjectData;
 }
 
 const defaultTeamMembers: TeamMember[] = [

@@ -3,7 +3,6 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-// Note: This component is used within the CRM layout, so no separate Layout needed
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { UserAvatar } from "@/components/UserAvatar";
@@ -37,7 +36,6 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { isUnauthorizedError } from "@/lib/authUtils";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Separator } from "@/components/ui/separator";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -50,20 +48,15 @@ import {
   User, 
   Phone, 
   Mail, 
-  Building2, 
   Calendar,
   DollarSign,
   Trash2,
   Edit,
   TrendingUp,
-  Clock,
   Target,
   Activity,
-  Grid,
-  List,
   MoreHorizontal,
   Eye,
-  MapPin,
   AlertTriangle,
 } from "lucide-react";
 import { CRMViewToggle } from "@/components/CRMViewToggle";
@@ -154,8 +147,6 @@ export default function Leads() {
   const [filterStatus, setFilterStatus] = useState<string>("all");
   const [filterSource, setFilterSource] = useState<string>("all");
   const [viewMode, setViewMode] = useState<'cards' | 'list'>('cards');
-  const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
-  const [isLeadDetailOpen, setIsLeadDetailOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [leadToDelete, setLeadToDelete] = useState<Lead | null>(null);
 
@@ -173,7 +164,7 @@ export default function Leads() {
       title: "",
       source: "",
       status: "new",
-      estimatedValue: "",
+      estimatedValue: 0,
       notes: "",
       nextFollowUpDate: "",
     },

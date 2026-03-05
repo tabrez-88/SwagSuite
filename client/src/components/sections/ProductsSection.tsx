@@ -46,12 +46,12 @@ import {
   Upload,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import type { useOrderDetailData } from "../hooks/useOrderDetailData";
+import type { ProjectData } from "@/types/project-types";
 import type { OrderItemLine, OrderAdditionalCharge } from "@shared/schema";
 
 interface ProductsSectionProps {
   orderId: string;
-  data: ReturnType<typeof useOrderDetailData>;
+  data: ProjectData;
 }
 
 export default function ProductsSection({ orderId, data }: ProductsSectionProps) {

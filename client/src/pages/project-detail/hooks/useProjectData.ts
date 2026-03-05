@@ -1,75 +1,18 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type { Order, OrderItemLine, OrderAdditionalCharge, OrderShipment, CustomerPortalToken } from "@shared/schema";
-import { determineBusinessStage, type DeterminedStage } from "@/lib/businessStages";
+import { determineBusinessStage } from "@/lib/businessStages";
+import {
+  type TeamMember,
+  type ProjectActivity,
+  type Communication,
+  type ProjectData,
+} from "@/types/project-types";
 
-export interface TeamMember {
-  id: string;
-  firstName: string;
-  lastName: string;
-  email: string;
-}
+// Re-export types for backward compatibility
+export { type TeamMember, type ProjectActivity, type Communication, type ProjectData };
 
-export interface ProjectActivity {
-  id: string;
-  orderId: string;
-  userId: string;
-  activityType: string;
-  content: string;
-  metadata: any;
-  mentionedUsers: string[];
-  isSystemGenerated: boolean;
-  createdAt: string;
-  user: {
-    id: string;
-    firstName: string;
-    lastName: string;
-    email: string;
-  };
-}
-
-export interface Communication {
-  id: string;
-  orderId: string;
-  userId: string;
-  communicationType: string;
-  direction: string;
-  recipientEmail: string;
-  recipientName?: string;
-  subject: string;
-  body: string;
-  metadata: any;
-  sentAt: string;
-  createdAt: string;
-  user: {
-    id: string;
-    firstName: string;
-    lastName: string;
-    email: string;
-  };
-}
-
-export const statusColorMap: Record<string, string> = {
-  quote: "bg-blue-100 text-blue-800",
-  pending_approval: "bg-yellow-100 text-yellow-800",
-  approved: "bg-green-100 text-green-800",
-  in_production: "bg-purple-100 text-purple-800",
-  shipped: "bg-indigo-100 text-indigo-800",
-  delivered: "bg-gray-100 text-gray-800",
-  cancelled: "bg-red-100 text-red-800",
-};
-
-export const statusDisplayMap: Record<string, string> = {
-  quote: "Quote",
-  pending_approval: "Pending Approval",
-  approved: "Approved",
-  in_production: "In Production",
-  shipped: "Shipped",
-  delivered: "Delivered",
-  cancelled: "Cancelled",
-};
-
-export function useProjectData(orderId: string | null | undefined) {
+export function useProjectData(orderId: string | null | undefined): ProjectData {
   const enabled = !!orderId;
 
   const { data: order, isLoading: orderLoading } = useQuery<Order>({
@@ -301,8 +244,6 @@ export function useProjectData(orderId: string | null | undefined) {
     return Array.from(vendorsMap.values());
   }, [orderItems, suppliers]);
 
-  const statusLabel = statusDisplayMap[(order as any)?.status] || (order as any)?.status || "";
-  const statusClass = statusColorMap[(order as any)?.status] || "";
   const isRushOrder = (order as any)?.isRush;
   const businessStage = order ? determineBusinessStage(order) : undefined;
 
@@ -338,8 +279,6 @@ export function useProjectData(orderId: string | null | undefined) {
     assignedUser,
     csrUser,
     orderVendors,
-    statusLabel,
-    statusClass,
     isRushOrder,
     businessStage,
   };

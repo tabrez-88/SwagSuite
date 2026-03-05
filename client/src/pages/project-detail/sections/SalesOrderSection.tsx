@@ -29,8 +29,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import type { useProjectData } from "../hooks/useProjectData";
 
-// Import the existing ProductsSection for the items table
-import ProductsSection from "@/pages/order-detail/sections/ProductsSection";
+import ProductsSection from "@/components/sections/ProductsSection";
 
 interface SalesOrderSectionProps {
   orderId: string;
@@ -340,7 +339,7 @@ export default function SalesOrderSection({ orderId, data }: SalesOrderSectionPr
 
         {/* Products Tab */}
         <TabsContent value="products" className="mt-4">
-          <ProductsSection orderId={orderId} data={data as any} />
+          <ProductsSection orderId={orderId} data={data} />
         </TabsContent>
 
         {/* Artwork Tab */}

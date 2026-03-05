@@ -1,4 +1,4 @@
-import { Switch, Route, Redirect, useLocation } from "wouter";
+import { Switch, Route, Redirect, useLocation, useParams } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -11,7 +11,6 @@ import Home from "@/pages/home";
 import CRM from "@/pages/crm";
 import ContactDetail from "@/pages/crm/contact-detail";
 import CompanyDetail from "@/pages/crm/company-detail";
-import Orders from "@/pages/orders";
 import ProjectsPage from "@/pages/projects";
 import ProjectDetailPage from "@/pages/project-detail";
 import Products from "@/pages/products";
@@ -23,7 +22,6 @@ import Settings from "@/pages/settings";
 import SequenceBuilder from "@/pages/sequence-builder";
 import Newsletter from "@/pages/newsletter";
 import TeamPerformance from "@/pages/team-performance";
-import ProjectPage from "@/pages/project";
 import ArtworkPage from "@/pages/artwork";
 import MockupBuilderPage from "@/pages/mockup-builder";
 import AIPresentationBuilder from "@/pages/ai-presentation-builder";
@@ -32,7 +30,6 @@ import ErrorsPage from "@/pages/errors";
 import UsersPage from "@/pages/settings/users";
 import ProfilePage from "@/pages/profile";
 import VendorApprovals from "@/pages/vendor-approvals";
-import OrderDetailPage from "@/pages/order-detail";
 import NotificationsPage from "@/pages/notifications";
 import NotFound from "@/pages/not-found";
 import ApprovalPage from "@/pages/approval";
@@ -41,9 +38,38 @@ import AcceptInvitation from "@/pages/accept-invitation";
 import CustomerPortalPage from "@/pages/customer-portal";
 import MediaLibraryPage from "@/pages/media-library";
 import { SlackSidebar } from "@/components/SlackSidebar";
-import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
+import { SidebarProvider, SidebarInset, useSidebar } from "@/components/ui/sidebar";
 import { ThemeProvider } from "@/providers/ThemeProvider";
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
+
+// Legacy /orders/:id redirect to /project/:id
+function OrderDetailRedirect() {
+  const params = useParams<{ orderId: string }>();
+  return <Redirect to={`/project/${params.orderId}`} replace />;
+}
+
+// Auto-collapse sidebar on project detail pages (they have their own nested sidebar)
+function SidebarAutoCollapse() {
+  const [location] = useLocation();
+  const { setOpen, open } = useSidebar();
+  const prevOpenRef = useRef(open);
+  const wasAutoCollapsed = useRef(false);
+
+  const isProjectDetail = /^\/project\/[^/]+/.test(location);
+
+  useEffect(() => {
+    if (isProjectDetail && open) {
+      prevOpenRef.current = true;
+      wasAutoCollapsed.current = true;
+      setOpen(false);
+    } else if (!isProjectDetail && wasAutoCollapsed.current) {
+      wasAutoCollapsed.current = false;
+      setOpen(prevOpenRef.current);
+    }
+  }, [isProjectDetail]);
+
+  return null;
+}
 
 // Layout component for authenticated pages
 function AuthenticatedLayout({ children }: { children: React.ReactNode }) {
@@ -51,6 +77,7 @@ function AuthenticatedLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <SidebarProvider>
+      <SidebarAutoCollapse />
       <Sidebar />
       <SidebarInset className="flex flex-col overflow-hidden">
         <TopBar />
@@ -125,9 +152,10 @@ function Router() {
             <Route path="/projects" component={ProjectsPage} />
             <Route path="/project/:orderId/*" component={ProjectDetailPage} />
             <Route path="/project/:orderId" component={ProjectDetailPage} />
-            <Route path="/orders" component={Orders} />
-            <Route path="/orders/:orderId/*" component={OrderDetailPage} />
-            <Route path="/orders/:orderId" component={OrderDetailPage} />
+            {/* Legacy /orders redirects */}
+            <Route path="/orders/:orderId/*" component={OrderDetailRedirect} />
+            <Route path="/orders/:orderId" component={OrderDetailRedirect} />
+            <Route path="/orders"><Redirect to="/projects" replace /></Route>
             <Route path="/production-report" component={ProductionReport} />
             <Route path="/products" component={Products} />
             <Route path="/media-library" component={MediaLibraryPage} />
@@ -140,7 +168,6 @@ function Router() {
             <Route path="/sequence-builder" component={SequenceBuilder} />
             <Route path="/newsletter" component={Newsletter} />
             <Route path="/team-performance" component={TeamPerformance} />
-            <Route path="/project/:orderId" component={ProjectPage} />
             <Route path="/ss-activewear" component={SsActivewearPage} />
             <Route path="/errors" component={ErrorsPage} />
             <Route path="/notifications" component={NotificationsPage} />

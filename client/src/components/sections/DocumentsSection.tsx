@@ -1,9 +1,9 @@
 import { DocumentsTab } from "@/components/DocumentsTab";
-import type { useOrderDetailData } from "../hooks/useOrderDetailData";
+import type { ProjectData } from "@/types/project-types";
 
 interface DocumentsSectionProps {
   orderId: string;
-  data: ReturnType<typeof useOrderDetailData>;
+  data: ProjectData;
 }
 
 // Replicate the helper functions needed by DocumentsTab

@@ -2,14 +2,14 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { useLocation } from "wouter";
 
-import NewProjectWizard from "@/components/NewProjectWizard";
+import NewProjectWizard from "@/components/modals/NewProjectWizard";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import type { Order } from "@shared/schema";
 import { DollarSign, FileText, Kanban, List, PlusCircle, ShoppingCart, Receipt } from "lucide-react";
-import { columns, OrderWithRelations } from "./orders/columns";
-import { DataTable } from "./orders/data-table";
-import { KanbanBoard } from "./orders/kanban-board";
+import { columns, OrderWithRelations } from "./projects/columns";
+import { DataTable } from "./projects/data-table";
+import { KanbanBoard } from "./projects/kanban-board";
 import { determineBusinessStage } from "@/lib/businessStages";
 
 export default function ProjectsPage() {

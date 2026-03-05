@@ -30,7 +30,7 @@ import {
   formatFileSize,
   getFileTypeIcon,
 } from "@/lib/media-library";
-import { FilePreviewModal } from "@/components/FilePreviewModal";
+import { FilePreviewModal } from "@/components/modals/FilePreviewModal";
 import {
   CheckSquare,
   Download,

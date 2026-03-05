@@ -19,7 +19,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { Store, Send, Clock, Eye, Edit, Package, Zap, Factory, MessageSquare } from "lucide-react";
-import type { useOrderDetailData } from "../hooks/useOrderDetailData";
+import type { ProjectData } from "@/types/project-types";
 
 function stripHtml(html: string): string {
   const doc = new DOMParser().parseFromString(html, "text/html");
@@ -28,7 +28,7 @@ function stripHtml(html: string): string {
 
 interface VendorSectionProps {
   orderId: string;
-  data: ReturnType<typeof useOrderDetailData>;
+  data: ProjectData;
 }
 
 export default function VendorSection({ orderId, data }: VendorSectionProps) {

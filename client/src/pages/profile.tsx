@@ -14,7 +14,7 @@ import { Shield, Mail, Calendar, User as UserIcon, Crown, CheckCircle2, XCircle,
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { MailCredentialsDialog } from "@/components/MailCredentialsDialog";
+import { MailCredentialsDialog } from "@/components/modals/MailCredentialsDialog";
 
 interface User {
     id: string;

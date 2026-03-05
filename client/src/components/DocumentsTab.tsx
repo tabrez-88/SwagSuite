@@ -505,7 +505,7 @@ export function DocumentsTab({
         to: primaryContact?.email || "",
         toName: primaryContact ? `${primaryContact.firstName} ${primaryContact.lastName}` : companyName,
         subject: `Quote #${doc.documentNumber} - ${companyName || 'Your Order'} - Action Required`,
-        updateStatusOnSend: order?.status === 'quote' ? 'pending_approval' : undefined,
+        updateStatusOnSend: (order?.estimateStatus === 'draft' || order?.estimateStatus === 'sent' || order?.presentationStatus === 'draft' || order?.presentationStatus === 'sent') ? 'pending_approval' : undefined,
         body: `Dear ${primaryContact?.firstName || 'Customer'},
 
 Please find attached the quote for your order #${order?.orderNumber}.
@@ -697,7 +697,7 @@ SwagSuite Team`,
                         </div>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center flex-wrap gap-2">
                       {/* Generate Approval Link for Quotes */}
                       {doc.documentType === 'quote' && (
                         <Button

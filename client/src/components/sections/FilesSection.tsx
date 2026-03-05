@@ -1,9 +1,9 @@
 import { FilesTab } from "@/components/FilesTab";
-import type { useOrderDetailData } from "../hooks/useOrderDetailData";
+import type { ProjectData } from "@/types/project-types";
 
 interface FilesSectionProps {
   orderId: string;
-  data: ReturnType<typeof useOrderDetailData>;
+  data: ProjectData;
 }
 
 export default function FilesSection({ orderId, data }: FilesSectionProps) {

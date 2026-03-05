@@ -10,7 +10,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { DataTableColumnHeader } from "@/components/data-table-column-header";
+import { DataTableColumnHeader } from "@/components/data-table/data-table-column-header";
 import { UserAvatar } from "@/components/UserAvatar";
 import { StageBadge } from "@/components/StageBadge";
 import { determineBusinessStage, STAGE_ORDER, type DeterminedStage } from "@/lib/businessStages";

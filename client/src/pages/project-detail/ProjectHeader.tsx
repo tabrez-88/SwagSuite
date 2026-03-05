@@ -8,8 +8,6 @@ import type { DeterminedStage } from "@/lib/businessStages";
 
 interface ProjectHeaderProps {
   order: Order;
-  statusLabel: string;
-  statusClass: string;
   isRushOrder: boolean;
   businessStage?: DeterminedStage;
   onEditOrder: () => void;
@@ -17,8 +15,6 @@ interface ProjectHeaderProps {
 
 export default function ProjectHeader({
   order,
-  statusLabel,
-  statusClass,
   isRushOrder,
   businessStage,
   onEditOrder,
@@ -30,10 +26,8 @@ export default function ProjectHeader({
       <div className="flex flex-wrap items-center gap-3">
         <FileText className="w-6 h-6" />
         <h2 className="text-lg font-semibold">Project #{order.orderNumber}</h2>
-        {businessStage ? (
+        {businessStage && (
           <StageBadge stage={businessStage} size="sm" />
-        ) : (
-          <Badge className={statusClass}>{statusLabel}</Badge>
         )}
         {isRushOrder && (
           <Badge variant="destructive" className="flex items-center gap-1">

@@ -19,7 +19,7 @@ import {
   Calendar, Clock, Loader2, AlertTriangle, CheckCircle2,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import type { useOrderDetailData } from "../hooks/useOrderDetailData";
+import type { ProjectData } from "@/types/project-types";
 import type { OrderShipment } from "@shared/schema";
 
 /* ── Constants ── */
@@ -46,7 +46,7 @@ interface ShipmentFormData {
 
 interface ShippingSectionProps {
   orderId: string;
-  data: ReturnType<typeof useOrderDetailData>;
+  data: ProjectData;
 }
 
 export default function ShippingSection({ orderId, data }: ShippingSectionProps) {

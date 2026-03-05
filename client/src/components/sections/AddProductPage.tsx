@@ -16,11 +16,11 @@ import {
   ArrowLeft, Search, Package, PenLine, Loader2, Plus,
   DollarSign, ShoppingCart, Trash2, ImageIcon, Tag
 } from "lucide-react";
-import type { useOrderDetailData } from "../hooks/useOrderDetailData";
+import type { ProjectData } from "@/types/project-types";
 
 interface AddProductPageProps {
   orderId: string;
-  data: ReturnType<typeof useOrderDetailData>;
+  data: ProjectData;
 }
 
 // Unified product result from any source

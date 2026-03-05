@@ -30,9 +30,9 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { UploadFilesModal } from "./UploadFilesModal";
-import { FilePreviewModal } from "./FilePreviewModal";
-import FilePickerDialog from "./FilePickerDialog";
+import { UploadFilesModal } from "./modals/UploadFilesModal";
+import { FilePreviewModal } from "./modals/FilePreviewModal";
+import FilePickerDialog from "./modals/FilePickerDialog";
 import {
     Upload,
     FileText,

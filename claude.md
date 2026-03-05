@@ -15,9 +15,33 @@ Full-stack monorepo SaaS for promotional apparel/merchandise business management
 ```
 client/src/
   App.tsx              # Main router (Wouter)
-  components/          # Reusable components + Shadcn ui/
-  pages/               # Route pages
-  hooks/               # Custom React hooks
+  types/               # Shared TypeScript types
+    project-types.ts   # ProjectData, TeamMember, ProjectActivity, Communication, status maps
+  components/
+    ui/                # Shadcn/ui primitives
+    sections/          # Shared detail sections (Activities, Products, Shipping, Files, etc.)
+    modals/            # Modal/dialog components (OrderModal, FilePickerDialog, etc.)
+    data-table/        # Data table utilities (column header, pagination, view options)
+    documents/         # Document templates (PO, Quote)
+    dashboard/         # Dashboard components
+    integrations/      # Vendor integration components
+    newsletter/        # Newsletter/email campaign components
+    reports/           # Report components
+    settings/          # Settings-specific components
+    [root files]       # Layout, Sidebar, TopBar, FilesTab, etc.
+  pages/
+    projects/          # Project list components (columns, data-table, kanban-board)
+    project-detail/    # Project detail page
+      index.tsx        # Main page component
+      ProjectHeader.tsx
+      ProjectNestedSidebar.tsx
+      hooks/useProjectData.ts  # Data fetching hook
+      sections/        # Project-specific sections (Overview, Estimate, Invoice, etc.)
+      components/      # Project-specific components (StageConversionDialog)
+    crm/               # CRM sub-pages (companies, contacts, leads, vendors)
+    settings/          # Settings sub-pages
+    [root page files]  # home, products, media-library, etc.
+  hooks/               # Shared React hooks (useAuth, useMediaLibrary, useToast, etc.)
   lib/                 # Utilities (queryClient, media-library, authUtils, etc.)
   providers/           # ThemeProvider
 server/
@@ -92,8 +116,8 @@ Centralized file registry with dual-write pattern. All file uploads register in 
 ### Client
 - `client/src/hooks/useMediaLibrary.ts` - React Query hooks (useMediaLibrary, useUploadToMediaLibrary, useDeleteMediaLibraryItem). Supports `enabled` option.
 - `client/src/lib/media-library.ts` - Types (MediaLibraryItem, ActivityAttachment) + helpers (getCloudinaryThumbnail, isImageFile, isPdfFile, getFileTypeIcon, formatFileSize)
-- `client/src/components/FilePickerDialog.tsx` - Reusable file picker with "Project Files" + "All Files" tabs (when contextOrderId provided) or single library view. Upload integrated into each tab.
-- `client/src/components/FilePreviewModal.tsx` - Modal preview for images, PDFs, download fallback. Always use this for file preview (never redirect to Cloudinary URL).
+- `client/src/components/modals/FilePickerDialog.tsx` - Reusable file picker with "Project Files" + "All Files" tabs (when contextOrderId provided) or single library view. Upload integrated into each tab.
+- `client/src/components/modals/FilePreviewModal.tsx` - Modal preview for images, PDFs, download fallback. Always use this for file preview (never redirect to Cloudinary URL).
 - `client/src/pages/media-library.tsx` - Full media library page with grid/list view, select mode, bulk delete.
 
 ### Inline Attachments
@@ -107,7 +131,11 @@ Centralized file registry with dual-write pattern. All file uploads register in 
 
 ## Order / Project System
 - Orders table (`orders` in schema.ts) is the core entity.
-- Project detail page at `/projects/:orderId` with sections: Overview, Files, Communications, Financials.
+- Project detail page at `/project/:orderId` with sections: Overview, Presentation, Estimate, Sales Order, Shipping, POs, Invoice, Bills, Feedback.
+- Legacy `/orders` and `/orders/:id` routes redirect to `/projects` and `/project/:id`.
+- Shared sections (Activities, Products, Shipping, Files, Documents, Email, Vendor, POs) live in `components/sections/`.
+- Project-specific sections (Overview, Estimate, Invoice, etc.) live in `pages/project-detail/sections/`.
+- Shared types (`ProjectData`, `TeamMember`, etc.) in `client/src/types/project-types.ts`.
 - `projectActivities` table tracks all activity (comments, status changes, file uploads, mentions).
 - Order files stored in `orderFiles` table, linked to orders.
 - Artwork files in `artworkFiles` table, linked to order items.

@@ -4,7 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import ProjectHeader from "./ProjectHeader";
 import ProjectNestedSidebar from "./ProjectNestedSidebar";
 import { useProjectData } from "./hooks/useProjectData";
-import OrderModal from "@/components/OrderModal";
+import OrderModal from "@/components/modals/OrderModal";
 
 // Sections
 import OverviewSection from "./sections/OverviewSection";
@@ -12,12 +12,12 @@ import PresentationSection from "./sections/PresentationSection";
 import PresentationPreviewPage from "./sections/PresentationPreviewPage";
 import EstimateSection from "./sections/EstimateSection";
 import SalesOrderSection from "./sections/SalesOrderSection";
-import ShippingSection from "@/pages/order-detail/sections/ShippingSection";
-import PurchaseOrdersSection from "@/pages/order-detail/sections/PurchaseOrdersSection";
+import ShippingSection from "@/components/sections/ShippingSection";
+import PurchaseOrdersSection from "@/components/sections/PurchaseOrdersSection";
 import InvoiceSection from "./sections/InvoiceSection";
 import BillsSection from "./sections/BillsSection";
 import FeedbackSection from "./sections/FeedbackSection";
-import AddProductPage from "@/pages/order-detail/sections/AddProductPage";
+import AddProductPage from "@/components/sections/AddProductPage";
 
 export default function ProjectDetailPage() {
   const params = useParams();
@@ -86,11 +86,11 @@ export default function ProjectDetailPage() {
       case "sales-order":
         return <SalesOrderSection orderId={orderId!} data={data} />;
       case "sales-order/add":
-        return <AddProductPage orderId={orderId!} data={data as any} />;
+        return <AddProductPage orderId={orderId!} data={data} />;
       case "shipping":
-        return <ShippingSection orderId={orderId!} data={data as any} />;
+        return <ShippingSection orderId={orderId!} data={data} />;
       case "pos":
-        return <PurchaseOrdersSection orderId={orderId!} data={data as any} />;
+        return <PurchaseOrdersSection orderId={orderId!} data={data} />;
       case "invoice":
         return <InvoiceSection orderId={orderId!} data={data} />;
       case "bills":
@@ -115,8 +115,6 @@ export default function ProjectDetailPage() {
     <div className="flex flex-col h-full">
       <ProjectHeader
         order={data.order}
-        statusLabel={data.statusLabel}
-        statusClass={data.statusClass}
         isRushOrder={data.isRushOrder}
         businessStage={data.businessStage}
         onEditOrder={() => setIsEditModalOpen(true)}
