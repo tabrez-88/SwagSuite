@@ -399,6 +399,7 @@ export interface IStorage {
   // Customer Portal Tokens
   getCustomerPortalTokensByOrder(orderId: string): Promise<CustomerPortalToken[]>;
   getActivePortalTokenForOrder(orderId: string): Promise<CustomerPortalToken | undefined>;
+  getActivePortalTokenByType(orderId: string, tokenType: string): Promise<CustomerPortalToken | undefined>;
   getCustomerPortalTokenByToken(token: string): Promise<CustomerPortalToken | undefined>;
   createCustomerPortalToken(tokenData: InsertCustomerPortalToken): Promise<CustomerPortalToken>;
   updateCustomerPortalToken(id: string, data: Partial<InsertCustomerPortalToken>): Promise<CustomerPortalToken>;
@@ -3124,6 +3125,22 @@ export class DatabaseStorage implements IStorage {
         and(
           eq(customerPortalTokens.orderId, orderId),
           eq(customerPortalTokens.isActive, true),
+        )
+      )
+      .orderBy(desc(customerPortalTokens.createdAt))
+      .limit(1);
+    return token;
+  }
+
+  async getActivePortalTokenByType(orderId: string, tokenType: string): Promise<CustomerPortalToken | undefined> {
+    const [token] = await db
+      .select()
+      .from(customerPortalTokens)
+      .where(
+        and(
+          eq(customerPortalTokens.orderId, orderId),
+          eq(customerPortalTokens.isActive, true),
+          eq(customerPortalTokens.tokenType, tokenType),
         )
       )
       .orderBy(desc(customerPortalTokens.createdAt))

@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -16,6 +16,7 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -40,6 +41,8 @@ import {
   Type,
   Upload,
   X,
+  Loader2,
+  MessageSquare,
 } from "lucide-react";
 import { format } from "date-fns";
 import { useLocation } from "wouter";
@@ -47,7 +50,11 @@ import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import type { OrderItemLine } from "@shared/schema";
 import type { useProjectData } from "../hooks/useProjectData";
+import { IMPRINT_LOCATIONS, IMPRINT_METHODS } from "@/lib/imprintOptions";
+import FilePickerDialog from "@/components/modals/FilePickerDialog";
 import StageConversionDialog from "../components/StageConversionDialog";
+import SendPresentationDialog from "@/components/modals/SendPresentationDialog";
+import { Separator } from "@/components/ui/separator";
 
 interface PresentationSectionProps {
   orderId: string;
@@ -57,11 +64,10 @@ interface PresentationSectionProps {
 type ViewMode = "detailed" | "grid";
 
 const presentationStatuses = [
-  { value: "draft", label: "Draft", color: "bg-gray-100 text-gray-800" },
   { value: "open", label: "Open", color: "bg-blue-100 text-blue-800" },
-  { value: "sent", label: "Sent", color: "bg-purple-100 text-purple-800" },
-  { value: "viewed", label: "Viewed", color: "bg-green-100 text-green-800" },
-  { value: "expired", label: "Expired", color: "bg-red-100 text-red-800" },
+  { value: "client_review", label: "Client Review", color: "bg-purple-100 text-purple-800" },
+  { value: "converted", label: "Converted", color: "bg-green-100 text-green-800" },
+  { value: "closed", label: "Closed", color: "bg-gray-100 text-gray-800" },
 ];
 
 const calcMargin = (cost: number, price: number) =>
@@ -76,7 +82,7 @@ export default function PresentationSection({ orderId, data }: PresentationSecti
   const { toast } = useToast();
   const { order, orderItems, companyName, companyData, primaryContact, contacts, allProducts, allItemLines, allItemCharges } = data;
 
-  const currentStatus = (order as any)?.presentationStatus || "draft";
+  const currentStatus = (order as any)?.presentationStatus || "open";
   const statusInfo = presentationStatuses.find((s) => s.value === currentStatus) || presentationStatuses[0];
 
   const updateStatusMutation = useMutation({
@@ -87,26 +93,92 @@ export default function PresentationSection({ orderId, data }: PresentationSecti
     onError: () => toast({ title: "Failed to update status", variant: "destructive" }),
   });
 
+  // Presentation settings from stageData (persisted)
+  const presSettings = (order as any)?.stageData?.presentation || {};
+
   const [isInfoCollapsed, setIsInfoCollapsed] = useState(false);
-  const [introduction, setIntroduction] = useState((order as any)?.notes || "");
-  const [hidePricing, setHidePricing] = useState(false);
+  const [introduction, setIntroduction] = useState(presSettings.introduction || "");
+  const [hidePricing, setHidePricing] = useState(presSettings.hidePricing || false);
   const [conversionTarget, setConversionTarget] = useState<"quote" | "sales_order" | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>("detailed");
-  const [selectedContact, setSelectedContact] = useState(primaryContact?.id || "");
+  const [selectedContact, setSelectedContact] = useState(presSettings.clientContactId || primaryContact?.id || "");
   const [editingItem, setEditingItem] = useState<any>(null);
   const [previewItem, setPreviewItem] = useState<any>(null);
+  const [showSendDialog, setShowSendDialog] = useState(false);
+  const [expiryDate, setExpiryDate] = useState(presSettings.expiryDate || "");
+  const [currency, setCurrency] = useState(presSettings.currency || "USD");
+  const [presentationDate, setPresentationDate] = useState(presSettings.presentationDate || (order?.createdAt ? format(new Date(order.createdAt), "yyyy-MM-dd") : ""));
 
-  // Design tab state
-  const [primaryColor, setPrimaryColor] = useState("#0f766e");
-  const [headerStyle, setHeaderStyle] = useState("banner");
-  const [fontFamily, setFontFamily] = useState("default");
+  // Design tab state (persisted)
+  const [primaryColor, setPrimaryColor] = useState(presSettings.primaryColor || "#1c6ea4");
+  const [headerStyle, setHeaderStyle] = useState(presSettings.headerStyle || "banner");
+  const [fontFamily, setFontFamily] = useState(presSettings.fontFamily || "default");
+  const [footerText, setFooterText] = useState(presSettings.footerText || "");
 
-  // Enrich order items with product data
+  // Save presentation settings to stageData
+  const saveSettingsMutation = useMutation({
+    mutationFn: async (updates: Record<string, any>) => {
+      const currentStageData = (order as any)?.stageData || {};
+      const currentPresentation = currentStageData.presentation || {};
+      await apiRequest("PATCH", `/api/orders/${orderId}`, {
+        stageData: {
+          ...currentStageData,
+          presentation: { ...currentPresentation, ...updates },
+        },
+      });
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: [`/api/orders/${orderId}`] }),
+    onError: () => toast({ title: "Failed to save settings", variant: "destructive" }),
+  });
+
+  // Helper to save a single field
+  const saveSetting = (key: string, value: any) => saveSettingsMutation.mutate({ [key]: value });
+
+  // Share link
+  const [shareLink, setShareLink] = useState<string | null>(null);
+  const shareLinkMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", `/api/orders/${orderId}/presentation/share-link`);
+      return await res.json();
+    },
+    onSuccess: (data: any) => {
+      const url = data.url;
+      setShareLink(url);
+      navigator.clipboard.writeText(url).then(() => {
+        toast({ title: "Link copied!", description: data.existingToken ? "Existing link copied to clipboard." : "New presentation link created and copied." });
+      });
+      queryClient.invalidateQueries({ queryKey: [`/api/orders/${orderId}`] });
+    },
+    onError: () => toast({ title: "Failed to generate link", variant: "destructive" }),
+  });
+
+  // Product visibility & ordering
+  const [showHidden, setShowHidden] = useState(false);
+  const itemVisibility: Record<string, boolean> = presSettings.itemVisibility || {};
+  const itemOrder: string[] = presSettings.itemOrder || [];
+
+  const toggleItemVisibility = (itemId: string) => {
+    const updated = { ...itemVisibility, [itemId]: !(itemVisibility[itemId] !== false) };
+    saveSetting("itemVisibility", updated);
+  };
+
+  const moveItem = (itemId: string, direction: "up" | "down") => {
+    const currentOrder = itemOrder.length > 0 ? [...itemOrder] : orderItems.map((i: any) => i.id);
+    const idx = currentOrder.indexOf(itemId);
+    if (idx === -1) return;
+    const newIdx = direction === "up" ? idx - 1 : idx + 1;
+    if (newIdx < 0 || newIdx >= currentOrder.length) return;
+    [currentOrder[idx], currentOrder[newIdx]] = [currentOrder[newIdx], currentOrder[idx]];
+    saveSetting("itemOrder", currentOrder);
+  };
+
+  // Enrich order items with product data, apply ordering & visibility
   const enrichedItems = useMemo(() => {
-    return orderItems.map((item: any) => {
+    const items = orderItems.map((item: any) => {
       const product = allProducts.find((p: any) => p.id === item.productId);
       const lines = allItemLines?.[item.id] || [];
       const charges = allItemCharges?.[item.id] || [];
+      const isVisible = itemVisibility[item.id] !== false;
       return {
         ...item,
         imageUrl: item.productImageUrl || product?.imageUrl || null,
@@ -116,9 +188,31 @@ export default function PresentationSection({ orderId, data }: PresentationSecti
         description: item.productDescription || product?.description || null,
         lines,
         charges,
+        isVisible,
       };
     });
-  }, [orderItems, allProducts, allItemLines, allItemCharges]);
+
+    // Apply custom ordering
+    if (itemOrder.length > 0) {
+      items.sort((a: any, b: any) => {
+        const aIdx = itemOrder.indexOf(a.id);
+        const bIdx = itemOrder.indexOf(b.id);
+        return (aIdx === -1 ? 999 : aIdx) - (bIdx === -1 ? 999 : bIdx);
+      });
+    }
+
+    return items;
+  }, [orderItems, allProducts, allItemLines, allItemCharges, itemVisibility, itemOrder]);
+
+  const visibleItems = useMemo(() => enrichedItems.filter((i: any) => i.isVisible), [enrichedItems]);
+  const displayItems = showHidden ? enrichedItems : visibleItems;
+  const hiddenCount = enrichedItems.length - visibleItems.length;
+
+  // Product comments
+  const { data: productComments = {} } = useQuery<Record<string, any[]>>({
+    queryKey: [`/api/orders/${orderId}/product-comments`],
+    enabled: !!orderId,
+  });
 
   if (!order) return null;
 
@@ -128,13 +222,13 @@ export default function PresentationSection({ orderId, data }: PresentationSecti
     <div className="space-y-6">
       {/* Top Info Bar */}
       <div className="flex items-center justify-between flex-wrap gap-4">
-        <div className="flex items-center gap-6 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap">
           <div>
             <label className="text-xs font-medium text-gray-500 block mb-1">Status</label>
             <Select value={currentStatus} onValueChange={(val) => updateStatusMutation.mutate(val)}>
-              <SelectTrigger className="w-[140px] h-9">
+              <SelectTrigger className="min-w-[140px] h-9">
                 <SelectValue>
-                  <span className="flex items-center gap-2">
+                  <span className="flex items-center text-nowrap gap-2">
                     <span className={`inline-block w-2 h-2 rounded-full ${statusInfo.color.split(" ")[0]}`} />
                     {statusInfo.label}
                   </span>
@@ -154,11 +248,27 @@ export default function PresentationSection({ orderId, data }: PresentationSecti
           </div>
           <div>
             <label className="text-xs font-medium text-gray-500 block mb-1">Presentation Date</label>
-            <Input type="date" defaultValue={order.createdAt ? format(new Date(order.createdAt), "yyyy-MM-dd") : ""} className="w-[160px] h-9" />
+            <Input
+              type="date"
+              value={presentationDate}
+              onChange={(e) => setPresentationDate(e.target.value)}
+              onBlur={() => saveSetting("presentationDate", presentationDate)}
+              className="w-[160px] h-9"
+            />
           </div>
           <div>
             <label className="text-xs font-medium text-gray-500 block mb-1">In Hands Date</label>
-            <Input type="date" defaultValue={order.inHandsDate ? format(new Date(order.inHandsDate), "yyyy-MM-dd") : ""} className="w-[160px] h-9" />
+            <Input
+              type="date"
+              defaultValue={order.inHandsDate ? format(new Date(order.inHandsDate), "yyyy-MM-dd") : ""}
+              onBlur={(e) => {
+                if (e.target.value !== (order.inHandsDate ? format(new Date(order.inHandsDate), "yyyy-MM-dd") : "")) {
+                  apiRequest("PATCH", `/api/orders/${orderId}`, { inHandsDate: e.target.value || null })
+                    .then(() => queryClient.invalidateQueries({ queryKey: [`/api/orders/${orderId}`] }));
+                }
+              }}
+              className="w-[160px] h-9"
+            />
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -166,11 +276,17 @@ export default function PresentationSection({ orderId, data }: PresentationSecti
             <Eye className="w-4 h-4" />
             Preview
           </Button>
-          <Button variant="outline" size="sm" className="gap-1">
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1"
+            onClick={() => shareLinkMutation.mutate()}
+            disabled={shareLinkMutation.isPending}
+          >
             <CopyIcon className="w-4 h-4" />
-            Copy Link
+            {shareLinkMutation.isPending ? "Generating..." : "Copy Link"}
           </Button>
-          <Button size="sm" className="gap-1">
+          <Button size="sm" className="gap-1" onClick={() => setShowSendDialog(true)}>
             <Send className="w-4 h-4" />
             Send to Client
           </Button>
@@ -185,7 +301,7 @@ export default function PresentationSection({ orderId, data }: PresentationSecti
         <div className="flex items-center justify-between bg-gradient-to-r from-teal-50 to-blue-50 border border-teal-200 rounded-lg px-5 py-4">
           <div>
             <h3 className="text-sm font-semibold text-gray-900">Ready to move forward?</h3>
-            <p className="text-xs text-gray-500 mt-0.5">Convert this presentation to an estimate or skip directly to a sales order.</p>
+            <p className="text-xs text-gray-500 mt-0.5">Convert this presentation to a quote or skip directly to a sales order.</p>
           </div>
           <div className="flex items-center gap-2">
             <Button
@@ -215,28 +331,39 @@ export default function PresentationSection({ orderId, data }: PresentationSecti
           <CardContent className="pt-6 space-y-5">
             <div>
               <label className="text-sm font-medium text-gray-700 block mb-1.5">Introduction</label>
-              <Textarea value={introduction} onChange={(e) => setIntroduction(e.target.value)} placeholder="Add a message or introduction for this presentation..." className="min-h-[80px] resize-none" />
+              <Textarea
+                value={introduction}
+                onChange={(e) => setIntroduction(e.target.value)}
+                onBlur={() => saveSetting("introduction", introduction)}
+                placeholder="Add a message or introduction for this presentation..."
+                className="min-h-[80px] resize-none"
+              />
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
               <div>
                 <label className="text-xs font-medium text-gray-500 block mb-1">Client Contact</label>
-                <Select value={selectedContact} onValueChange={setSelectedContact}>
-                  <SelectTrigger className="h-9"><SelectValue placeholder="Select contact" /></SelectTrigger>
+                <Select value={selectedContact} onValueChange={(val) => { setSelectedContact(val); saveSetting("clientContactId", val); }}>
+                  <SelectTrigger className="h-9 text-start "><SelectValue className="text-start" placeholder="Select contact" /></SelectTrigger>
                   <SelectContent>
                     {contacts?.map((contact: any) => (
-                      <SelectItem key={contact.id} value={contact.id}>{contact.firstName} {contact.lastName}</SelectItem>
+                      <SelectItem key={contact.id} value={contact.id}>{contact.firstName} | {contact.email}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
-                {contactEmail && <p className="text-xs text-gray-400 mt-1">{contactEmail}</p>}
               </div>
               <div>
                 <label className="text-xs font-medium text-gray-500 block mb-1">Expiry Date</label>
-                <Input type="date" className="h-9" />
+                <Input
+                  type="date"
+                  value={expiryDate}
+                  onChange={(e) => setExpiryDate(e.target.value)}
+                  onBlur={() => saveSetting("expiryDate", expiryDate || null)}
+                  className="h-9"
+                />
               </div>
               <div>
                 <label className="text-xs font-medium text-gray-500 block mb-1">Currency</label>
-                <Select defaultValue="USD">
+                <Select value={currency} onValueChange={(val) => { setCurrency(val); saveSetting("currency", val); }}>
                   <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="USD">USD</SelectItem>
@@ -246,7 +373,7 @@ export default function PresentationSection({ orderId, data }: PresentationSecti
                 </Select>
               </div>
               <div className="flex items-center gap-2 pb-1">
-                <input type="checkbox" id="hidePricing" checked={hidePricing} onChange={(e) => setHidePricing(e.target.checked)} className="rounded border-gray-300" />
+                <input type="checkbox" id="hidePricing" checked={hidePricing} onChange={(e) => { setHidePricing(e.target.checked); saveSetting("hidePricing", e.target.checked); }} className="rounded border-gray-300" />
                 <label htmlFor="hidePricing" className="text-sm text-gray-600">Hide Pricing</label>
               </div>
             </div>
@@ -269,10 +396,23 @@ export default function PresentationSection({ orderId, data }: PresentationSecti
         </div>
 
         {/* Action Buttons */}
-        <div className="flex items-center gap-3 mt-4">
-          <Button onClick={() => { setLocation(`/project/${orderId}/sales-order/add`); }} size="sm" className="bg-emerald-600 hover:bg-emerald-700 gap-1">
-            <Plus className="w-4 h-4" />Product From Database
-          </Button>
+        <div className="flex items-center justify-between mt-4">
+          <div className="flex items-center gap-3">
+            <Button onClick={() => { setLocation(`/project/${orderId}/presentation/add`); }} size="sm" className="gap-1 text-white" style={{ backgroundColor: primaryColor }}>
+              <Plus className="w-4 h-4" />Product From Database
+            </Button>
+          </div>
+          {hiddenCount > 0 && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="gap-1 text-xs"
+              onClick={() => setShowHidden(!showHidden)}
+            >
+              {showHidden ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
+              {showHidden ? "Show Active Only" : `Show All (${hiddenCount} hidden)`}
+            </Button>
+          )}
         </div>
 
         {/* Products Tab */}
@@ -283,21 +423,21 @@ export default function PresentationSection({ orderId, data }: PresentationSecti
                 <Package className="w-12 h-12 mx-auto text-gray-300 mb-4" />
                 <h3 className="text-lg font-medium text-gray-900 mb-2">No products yet</h3>
                 <p className="text-gray-500 mb-4">Add products from the database or get AI recommendations</p>
-                <Button variant="outline" onClick={() => setLocation(`/project/${orderId}/sales-order/add`)}>
+                <Button variant="outline" onClick={() => setLocation(`/project/${orderId}/presentation/add`)}>
                   <Plus className="w-4 h-4 mr-2" />Add Product
                 </Button>
               </CardContent>
             </Card>
           ) : viewMode === "grid" ? (
-            <GridView items={enrichedItems} hidePricing={hidePricing} onPreview={setPreviewItem} />
+            <GridView items={displayItems} hidePricing={hidePricing} onPreview={setPreviewItem} onToggleVisibility={toggleItemVisibility} />
           ) : (
-            <DetailedView items={enrichedItems} hidePricing={hidePricing} onEdit={setEditingItem} onPreview={setPreviewItem} />
+            <DetailedView items={displayItems} hidePricing={hidePricing} onEdit={setEditingItem} onPreview={setPreviewItem} onToggleVisibility={toggleItemVisibility} onMoveItem={moveItem} />
           )}
         </TabsContent>
 
         {/* Artwork Tab */}
         <TabsContent value="artwork" className="mt-4">
-          <ArtworkGrid data={data} />
+          <ArtworkGrid data={data} orderId={orderId} enrichedItems={enrichedItems} />
         </TabsContent>
 
         {/* Design Tab */}
@@ -332,11 +472,13 @@ export default function PresentationSection({ orderId, data }: PresentationSecti
                         type="color"
                         value={primaryColor}
                         onChange={(e) => setPrimaryColor(e.target.value)}
+                        onBlur={() => saveSetting("primaryColor", primaryColor)}
                         className="w-10 h-10 rounded cursor-pointer border border-gray-200"
                       />
                       <Input
                         value={primaryColor}
                         onChange={(e) => setPrimaryColor(e.target.value)}
+                        onBlur={() => saveSetting("primaryColor", primaryColor)}
                         className="w-28"
                       />
                     </div>
@@ -355,7 +497,7 @@ export default function PresentationSection({ orderId, data }: PresentationSecti
                 <CardContent className="space-y-4">
                   <div>
                     <Label className="text-xs text-gray-500">Header Style</Label>
-                    <Select value={headerStyle} onValueChange={setHeaderStyle}>
+                    <Select value={headerStyle} onValueChange={(val) => { setHeaderStyle(val); saveSetting("headerStyle", val); }}>
                       <SelectTrigger className="mt-1">
                         <SelectValue />
                       </SelectTrigger>
@@ -368,7 +510,7 @@ export default function PresentationSection({ orderId, data }: PresentationSecti
                   </div>
                   <div>
                     <Label className="text-xs text-gray-500">Font Family</Label>
-                    <Select value={fontFamily} onValueChange={setFontFamily}>
+                    <Select value={fontFamily} onValueChange={(val) => { setFontFamily(val); saveSetting("fontFamily", val); }}>
                       <SelectTrigger className="mt-1">
                         <SelectValue />
                       </SelectTrigger>
@@ -384,6 +526,9 @@ export default function PresentationSection({ orderId, data }: PresentationSecti
                   <div>
                     <Label className="text-xs text-gray-500">Footer Text</Label>
                     <Textarea
+                      value={footerText}
+                      onChange={(e) => setFooterText(e.target.value)}
+                      onBlur={() => saveSetting("footerText", footerText)}
                       placeholder="Custom footer message (e.g., Thank you for your business!)"
                       className="mt-1 min-h-[60px] resize-none"
                     />
@@ -440,8 +585,10 @@ export default function PresentationSection({ orderId, data }: PresentationSecti
       {previewItem && (
         <ProductPreviewLightbox
           item={previewItem}
+          orderId={orderId}
           companyName={companyName}
           hidePricing={hidePricing}
+          comments={productComments[previewItem.id] || []}
           onClose={() => setPreviewItem(null)}
         />
       )}
@@ -461,27 +608,56 @@ export default function PresentationSection({ orderId, data }: PresentationSecti
         />
       )}
 
+      {showSendDialog && (
+        <SendPresentationDialog
+          open={showSendDialog}
+          onOpenChange={setShowSendDialog}
+          orderId={orderId}
+          recipientEmail={contactEmail}
+          recipientName={contacts?.find((c: any) => c.id === selectedContact)
+            ? `${contacts.find((c: any) => c.id === selectedContact)?.firstName} ${contacts.find((c: any) => c.id === selectedContact)?.lastName}`
+            : companyName}
+          companyName={companyName}
+          orderNumber={order.orderNumber || ""}
+        />
+      )}
+
     </div>
   );
 }
 
 // ── Grid View ──────────────────────────────────────────────────────
-function GridView({ items, hidePricing, onPreview }: {
-  items: any[]; hidePricing: boolean; onPreview: (item: any) => void;
+function GridView({ items, hidePricing, onPreview, onToggleVisibility }: {
+  items: any[]; hidePricing: boolean; onPreview: (item: any) => void; onToggleVisibility: (id: string) => void;
 }) {
   return (
     <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
       {items.map((item: any) => (
-        <Card key={item.id} className="overflow-hidden hover:shadow-md transition-shadow group cursor-pointer" onClick={() => onPreview(item)}>
-          <div className="aspect-square bg-gray-50 relative overflow-hidden">
+        <Card key={item.id} className={`overflow-hidden hover:shadow-md transition-shadow group ${!item.isVisible ? "opacity-50" : ""}`}>
+          <div className="aspect-square bg-gray-50 relative overflow-hidden cursor-pointer" onClick={() => onPreview(item)}>
             {item.imageUrl ? (
               <img src={item.imageUrl} alt={item.productName || "Product"} className="w-full h-full object-contain p-4" />
             ) : (
               <div className="w-full h-full flex items-center justify-center"><Package className="w-16 h-16 text-gray-200" /></div>
             )}
+            {!item.isVisible && (
+              <div className="absolute top-2 left-2">
+                <Badge variant="secondary" className="text-xs bg-gray-800 text-white">Hidden</Badge>
+              </div>
+            )}
           </div>
           <CardContent className="p-3">
-            <p className="font-medium text-sm truncate">{item.productName || "Unnamed Product"}</p>
+            <div className="flex items-center justify-between">
+              <p className="font-medium text-sm truncate flex-1">{item.productName || "Unnamed Product"}</p>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 w-6 p-0 flex-shrink-0"
+                onClick={(e) => { e.stopPropagation(); onToggleVisibility(item.id); }}
+              >
+                {item.isVisible ? <Eye className="w-3.5 h-3.5 text-gray-400" /> : <EyeOff className="w-3.5 h-3.5 text-red-400" />}
+              </Button>
+            </div>
             {item.productSku && <p className="text-xs text-gray-400">{item.productSku}</p>}
             <div className="flex items-center justify-between mt-2">
               <span className="text-xs text-gray-500">Qty: {item.quantity}</span>
@@ -503,13 +679,14 @@ function GridView({ items, hidePricing, onPreview }: {
 }
 
 // ── Detailed View (CommonSKU-style) ──────────────────────────────
-function DetailedView({ items, hidePricing, onEdit, onPreview }: {
-  items: any[]; hidePricing: boolean; onEdit: (item: any) => void; onPreview: (item: any) => void;
+function DetailedView({ items, hidePricing, onEdit, onPreview, onToggleVisibility, onMoveItem }: {
+  items: any[]; hidePricing: boolean; onEdit: (item: any) => void; onPreview: (item: any) => void; onToggleVisibility: (id: string) => void; onMoveItem: (id: string, dir: "up" | "down") => void;
 }) {
   return (
     <div className="space-y-0 border rounded-lg overflow-hidden">
       {/* Table Header */}
-      <div className="grid grid-cols-[1fr_100px_100px_100px] gap-2 px-4 py-2 bg-gray-50 border-b text-xs font-semibold text-gray-500 uppercase">
+      <div className="grid grid-cols-[36px_1fr_100px_100px_100px] gap-2 px-4 py-2 bg-gray-50 border-b text-xs font-semibold text-gray-500 uppercase">
+        <span />
         <span>Item</span>
         <span className="text-right">Units</span>
         <span className="text-right">Margin</span>
@@ -524,17 +701,47 @@ function DetailedView({ items, hidePricing, onEdit, onPreview }: {
         const itemMargin = calcMargin(cost, price);
 
         return (
-          <div key={item.id} className={`border-b last:border-b-0 ${idx % 2 === 0 ? "bg-white" : "bg-gray-50/50"}`}>
+          <div key={item.id} className={`border-b last:border-b-0 bg-white ${!item.isVisible ? "opacity-50" : ""}`}>
             {/* Main product row */}
-            <div className="grid grid-cols-[1fr_100px_100px_100px] gap-2 px-4 py-3 items-start">
+            <div className="grid grid-cols-[36px_1fr_100px_100px_100px] gap-2 px-4 py-3 items-center">
+              {/* Reorder + Visibility controls */}
+              <div className="flex flex-col items-center gap-0.5 pt-1">
+                <button
+                  onClick={() => onMoveItem(item.id, "up")}
+                  disabled={idx === 0}
+                  className="text-gray-400 hover:text-gray-600 disabled:opacity-30 disabled:cursor-not-allowed"
+                >
+                  <ChevronUp className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  onClick={() => onToggleVisibility(item.id)}
+                  className="text-gray-400 hover:text-gray-600"
+                  title={item.isVisible ? "Hide from client" : "Show to client"}
+                >
+                  {item.isVisible ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5 text-red-400" />}
+                </button>
+                <button
+                  onClick={() => onMoveItem(item.id, "down")}
+                  disabled={idx === items.length - 1}
+                  className="text-gray-400 hover:text-gray-600 disabled:opacity-30 disabled:cursor-not-allowed"
+                >
+                  <ChevronDown className="w-3.5 h-3.5" />
+                </button>
+              </div>
+
               {/* Product Info */}
-              <div className="flex gap-3">
+              <div className="flex gap-3 items-center">
                 {/* Thumbnail */}
-                <div className="w-16 h-16 flex-shrink-0 bg-gray-100 rounded-lg overflow-hidden cursor-pointer" onClick={() => onPreview(item)}>
+                <div className="w-16 h-16 flex items-center flex-shrink-0 bg-gray-100 rounded-lg overflow-hidden cursor-pointer relative" onClick={() => onPreview(item)}>
                   {item.imageUrl ? (
                     <img src={item.imageUrl} alt={item.productName || ""} className="w-full h-full object-contain p-1" />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center"><Package className="w-6 h-6 text-gray-300" /></div>
+                  )}
+                  {!item.isVisible && (
+                    <div className="absolute inset-0 bg-gray-800/30 flex items-center justify-center">
+                      <EyeOff className="w-4 h-4 text-white" />
+                    </div>
                   )}
                 </div>
                 <div className="min-w-0">
@@ -542,19 +749,19 @@ function DetailedView({ items, hidePricing, onEdit, onPreview }: {
                   <p className="text-xs text-teal-600">{item.supplierName || "Unknown Supplier"}</p>
                   <p className="text-sm font-medium cursor-pointer hover:text-teal-700" onClick={() => onPreview(item)}>
                     {item.productName || "Unnamed Product"}
+                    {!item.isVisible && <span className="text-xs text-red-400 ml-2">(Hidden)</span>}
                   </p>
                   {/* Action buttons */}
                   <div className="flex gap-1 mt-1.5">
-                    <Button size="sm" variant="default" className="h-6 px-2 text-xs bg-teal-600 hover:bg-teal-700" onClick={() => onEdit(item)}>
-                      edit
+                    <Button size="sm" variant="default" className="h-8 px-2 font-semibold text-xs bg-secondary text-primary" onClick={() => onEdit(item)}>
+                      Edit
                     </Button>
-                    <Button size="sm" variant="default" className="h-6 px-2 text-xs bg-blue-600 hover:bg-blue-700" onClick={() => onPreview(item)}>
-                      view
+                    <Button size="sm" variant="default" className="h-8 px-2 font-semibold text-xs bg-primary" onClick={() => onPreview(item)}>
+                      View
                     </Button>
                   </div>
                 </div>
               </div>
-
               {/* If no item lines, show the item-level pricing */}
               {!hasLines ? (
                 <>
@@ -579,8 +786,8 @@ function DetailedView({ items, hidePricing, onEdit, onPreview }: {
                   const linePrice = Number(line.unitPrice || 0);
                   const lineMargin = calcMargin(lineCost, linePrice);
                   return (
-                    <div key={line.id} className="grid grid-cols-[1fr_100px_100px_100px] gap-2 py-1">
-                      <span />
+                    <div key={line.id} className="grid grid-cols-[36px_1fr_100px_100px_100px] gap-2 py-1">
+                      <span /><span />
                       <span className="text-sm text-right">{line.quantity}</span>
                       <span className={`text-sm text-right font-medium ${marginColor(lineMargin)}`}>
                         {hidePricing ? "—" : `${lineMargin.toFixed(2)}%`}
@@ -596,7 +803,7 @@ function DetailedView({ items, hidePricing, onEdit, onPreview }: {
 
             {/* Product description (expandable) */}
             {item.description && (
-              <div className="px-4 pb-3 ml-[76px]">
+              <div className="px-4 pb-3">
                 <p className="text-sm text-gray-500 line-clamp-3">{item.description}</p>
               </div>
             )}
@@ -1213,17 +1420,9 @@ function ProductPricingEditor({ item, orderId, onClose }: {
                   <SelectValue placeholder="Select location" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="left_chest">Left Chest</SelectItem>
-                  <SelectItem value="right_chest">Right Chest</SelectItem>
-                  <SelectItem value="full_front">Full Front</SelectItem>
-                  <SelectItem value="full_back">Full Back</SelectItem>
-                  <SelectItem value="left_sleeve">Left Sleeve</SelectItem>
-                  <SelectItem value="right_sleeve">Right Sleeve</SelectItem>
-                  <SelectItem value="collar">Collar / Nape</SelectItem>
-                  <SelectItem value="cap_front">Cap Front</SelectItem>
-                  <SelectItem value="cap_back">Cap Back</SelectItem>
-                  <SelectItem value="front_panel">Front Panel</SelectItem>
-                  <SelectItem value="other">Other</SelectItem>
+                  {IMPRINT_LOCATIONS.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -1234,15 +1433,9 @@ function ProductPricingEditor({ item, orderId, onClose }: {
                   <SelectValue placeholder="Select method" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="screen_print">Screen Printing</SelectItem>
-                  <SelectItem value="embroidery">Embroidery</SelectItem>
-                  <SelectItem value="heat_transfer">Heat Transfer</SelectItem>
-                  <SelectItem value="dtf">Direct-to-Film (DTF)</SelectItem>
-                  <SelectItem value="sublimation">Sublimation</SelectItem>
-                  <SelectItem value="laser_engraving">Laser Engraving</SelectItem>
-                  <SelectItem value="pad_print">Pad Printing</SelectItem>
-                  <SelectItem value="deboss">Deboss / Emboss</SelectItem>
-                  <SelectItem value="none">No Decoration</SelectItem>
+                  {IMPRINT_METHODS.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -1311,15 +1504,34 @@ function ProductPricingEditor({ item, orderId, onClose }: {
 }
 
 // ── Product Preview Lightbox ─────────────────────────────────────
-function ProductPreviewLightbox({ item, companyName, hidePricing, onClose }: {
-  item: any; companyName: string; hidePricing: boolean; onClose: () => void;
+function ProductPreviewLightbox({ item, orderId, companyName, hidePricing, comments, onClose }: {
+  item: any; orderId: string; companyName: string; hidePricing: boolean; comments: any[]; onClose: () => void;
 }) {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
   const lines: OrderItemLine[] = item.lines || [];
   const price = Number(item.unitPrice || 0);
+  const [showComments, setShowComments] = useState(false);
+  const [commentText, setCommentText] = useState("");
+
+  const postCommentMutation = useMutation({
+    mutationFn: async () => {
+      await apiRequest("POST", `/api/orders/${orderId}/product-comments`, {
+        orderItemId: item.id,
+        content: commentText,
+      });
+    },
+    onSuccess: () => {
+      setCommentText("");
+      queryClient.invalidateQueries({ queryKey: [`/api/orders/${orderId}/product-comments`] });
+      toast({ title: "Comment posted" });
+    },
+    onError: () => toast({ title: "Failed to post comment", variant: "destructive" }),
+  });
 
   return (
     <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto p-0">
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto p-0 [&>button.absolute]:hidden">
         {/* Header banner */}
         <div className="bg-gray-800 text-white px-6 py-4 flex items-center gap-3 rounded-t-lg">
           <div>
@@ -1385,9 +1597,7 @@ function ProductPreviewLightbox({ item, companyName, hidePricing, onClose }: {
             {item.colors && item.colors.length > 0 && (
               <div>
                 <h4 className="font-semibold text-sm mb-2">Colors</h4>
-                <p className="text-sm text-gray-600">
-                  {item.colors.join(" · ")}
-                </p>
+                <p className="text-sm text-gray-600">{item.colors.join(" · ")}</p>
               </div>
             )}
 
@@ -1395,17 +1605,53 @@ function ProductPreviewLightbox({ item, companyName, hidePricing, onClose }: {
             {item.sizes && item.sizes.length > 0 && (
               <div>
                 <h4 className="font-semibold text-sm mb-2">Sizes</h4>
-                <p className="text-sm text-gray-600 uppercase">
-                  {item.sizes.join(" · ")}
-                </p>
+                <p className="text-sm text-gray-600 uppercase">{item.sizes.join(" · ")}</p>
               </div>
             )}
 
-            {/* Comment section placeholder */}
-            <div className="pt-4">
-              <Button variant="outline" className="w-full bg-gray-200 hover:bg-gray-300 text-gray-700">
-                Comment
-              </Button>
+            {/* Comments Section */}
+            <div className="pt-2 border-t">
+              <button
+                onClick={() => setShowComments(!showComments)}
+                className="flex items-center gap-2 w-full py-2 text-sm font-medium text-teal-700 hover:text-teal-800"
+              >
+                <MessageSquare className="w-4 h-4" />
+                {comments.length > 0 ? `Comments (${comments.length})` : "Add a Comment"}
+              </button>
+
+              {showComments && (
+                <div className="space-y-3 mt-2">
+                  {comments.map((c: any) => (
+                    <div key={c.id} className={`p-3 rounded-lg text-sm ${c.isClient ? "bg-blue-50" : "bg-yellow-50"}`}>
+                      <div className="flex justify-between items-center mb-1">
+                        <span className="font-medium text-xs">{c.isClient ? c.clientName || "Client" : "You"}</span>
+                        <span className="text-xs text-gray-400">
+                          {c.createdAt ? new Date(c.createdAt).toLocaleDateString() : ""}
+                        </span>
+                      </div>
+                      <p className="text-gray-700">{c.content}</p>
+                    </div>
+                  ))}
+
+                  <div className="flex gap-2">
+                    <Textarea
+                      value={commentText}
+                      onChange={(e) => setCommentText(e.target.value)}
+                      placeholder="Add your comment..."
+                      className="min-h-[60px] resize-none text-sm flex-1"
+                    />
+                  </div>
+                  <Button
+                    size="sm"
+                    className="w-full gap-1 bg-teal-600 hover:bg-teal-700"
+                    onClick={() => postCommentMutation.mutate()}
+                    disabled={!commentText.trim() || postCommentMutation.isPending}
+                  >
+                    <Send className="w-3.5 h-3.5" />
+                    {postCommentMutation.isPending ? "Posting..." : "Post Comment"}
+                  </Button>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -1415,52 +1661,243 @@ function ProductPreviewLightbox({ item, companyName, hidePricing, onClose }: {
 }
 
 // ── Artwork Grid ─────────────────────────────────────────────────
-function ArtworkGrid({ data }: { data: ReturnType<typeof useProjectData> }) {
-  const { allArtworkItems, orderItems } = data;
+function ArtworkGrid({ data, orderId, enrichedItems }: { data: ReturnType<typeof useProjectData>; orderId: string; enrichedItems: any[] }) {
+  const { allArtworkItems } = data;
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
 
-  const artworks = useMemo(() => {
-    const allArt: any[] = [];
-    if (allArtworkItems && typeof allArtworkItems === "object") {
-      Object.entries(allArtworkItems).forEach(([itemId, arts]: [string, any[]]) => {
-        const item = orderItems.find((i: any) => i.id === itemId);
-        arts.forEach((art: any) => {
-          allArt.push({ ...art, productName: item?.productName || "Unknown Product" });
-        });
-      });
-    }
-    return allArt;
-  }, [allArtworkItems, orderItems]);
+  // Step 1: file picker for selecting item
+  const [pickingForItem, setPickingForItem] = useState<string | null>(null);
+  // Step 2: metadata form after file is picked
+  const [pickedFile, setPickedFile] = useState<{ orderItemId: string; filePath: string; fileName: string } | null>(null);
+  const [artName, setArtName] = useState("");
+  const [artLocation, setArtLocation] = useState("");
+  const [artMethod, setArtMethod] = useState("");
 
-  if (artworks.length === 0) {
+  const resetForm = () => {
+    setPickedFile(null);
+    setArtName("");
+    setArtLocation("");
+    setArtMethod("");
+  };
+
+  const createArtworkMutation = useMutation({
+    mutationFn: async (payload: { orderItemId: string; name: string; filePath: string; fileName: string; location?: string; artworkType?: string }) => {
+      const res = await apiRequest("POST", `/api/order-items/${payload.orderItemId}/artworks`, payload);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/orders/${orderId}/all-artworks`] });
+      resetForm();
+      toast({ title: "Artwork added" });
+    },
+    onError: () => toast({ title: "Failed to add artwork", variant: "destructive" }),
+  });
+
+  const deleteArtworkMutation = useMutation({
+    mutationFn: async ({ artworkId, orderItemId }: { artworkId: string; orderItemId: string }) => {
+      const res = await fetch(`/api/order-items/${orderItemId}/artworks/${artworkId}`, { method: "DELETE", credentials: "include" });
+      if (!res.ok) throw new Error("Failed to delete artwork");
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/orders/${orderId}/all-artworks`] });
+      toast({ title: "Artwork removed" });
+    },
+    onError: () => toast({ title: "Failed to remove artwork", variant: "destructive" }),
+  });
+
+  if (enrichedItems.length === 0) {
     return (
       <Card>
         <CardContent className="p-12 text-center">
-          <Palette className="w-12 h-12 mx-auto text-gray-300 mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 mb-2">No artwork files yet</h3>
-          <p className="text-gray-500">Artwork files will appear here when uploaded to order items</p>
+          <Package className="w-12 h-12 mx-auto text-gray-300 mb-4" />
+          <h3 className="text-lg font-medium text-gray-900 mb-2">No products yet</h3>
+          <p className="text-gray-500">Add products first, then you can attach artwork to each one.</p>
         </CardContent>
       </Card>
     );
   }
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-      {artworks.map((art: any) => (
-        <Card key={art.id} className="overflow-hidden hover:shadow-md transition-shadow">
-          <div className="aspect-video bg-gray-50 flex items-center justify-center overflow-hidden">
-            {art.fileUrl || art.filePath ? (
-              <img src={art.fileUrl || art.filePath} alt={art.fileName || "Artwork"} className="w-full h-full object-contain p-2" />
-            ) : (
-              <Palette className="w-12 h-12 text-gray-200" />
+    <>
+      <div className="space-y-4">
+        {enrichedItems.map((item: any) => {
+          const artworks = allArtworkItems[item.id] || [];
+          return (
+            <Card key={item.id}>
+              <CardContent className="p-4">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-12 h-12 flex-shrink-0 bg-gray-100 rounded-lg overflow-hidden">
+                    {item.imageUrl ? (
+                      <img src={item.imageUrl} alt={item.productName || ""} className="w-full h-full object-contain p-1" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center">
+                        <Package className="w-5 h-5 text-gray-300" />
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate">{item.productName || "Unnamed Product"}</p>
+                    {item.productSku && <p className="text-xs text-gray-400">{item.productSku}</p>}
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 text-xs"
+                    onClick={() => setPickingForItem(item.id)}
+                  >
+                    <Upload className="w-3 h-3 mr-1" />
+                    Add Artwork
+                  </Button>
+                </div>
+
+                {artworks.length > 0 ? (
+                  <div className="flex flex-wrap gap-3">
+                    {artworks.map((art: any) => (
+                      <div key={art.id} className="border rounded-lg p-2 bg-white w-36 group relative">
+                        {art.filePath ? (
+                          <img src={art.filePath} alt={art.name} className="w-full h-20 object-contain rounded mb-1.5" />
+                        ) : (
+                          <div className="w-full h-20 bg-gray-100 rounded flex items-center justify-center mb-1.5">
+                            <Palette className="w-6 h-6 text-gray-300" />
+                          </div>
+                        )}
+                        <p className="text-[10px] font-medium truncate">{art.name}</p>
+                        <div className="flex items-center justify-between mt-0.5">
+                          <div className="flex items-center gap-1">
+                            <Badge
+                              variant="outline"
+                              className={`text-[9px] ${
+                                art.status === "approved" ? "border-green-300 text-green-700" :
+                                art.status === "rejected" ? "border-red-300 text-red-700" :
+                                "border-yellow-300 text-yellow-700"
+                              }`}
+                            >
+                              {art.status}
+                            </Badge>
+                            {art.location && <span className="text-[9px] text-gray-400">{art.location}</span>}
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-5 w-5 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                            onClick={() => deleteArtworkMutation.mutate({ artworkId: art.id, orderItemId: item.id })}
+                          >
+                            <Trash2 className="w-3 h-3 text-red-400" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-gray-400">No artwork yet — click "Add Artwork" to upload</p>
+                )}
+              </CardContent>
+            </Card>
+          );
+        })}
+      </div>
+
+      {/* Step 1: File Picker */}
+      <FilePickerDialog
+        open={!!pickingForItem}
+        onClose={() => setPickingForItem(null)}
+        onSelect={(files) => {
+          const file = files[0];
+          if (file && pickingForItem) {
+            setPickedFile({
+              orderItemId: pickingForItem,
+              filePath: file.cloudinaryUrl,
+              fileName: file.originalName || file.fileName,
+            });
+            setArtName(file.originalName || file.fileName);
+          }
+          setPickingForItem(null);
+        }}
+        multiple={false}
+        contextOrderId={orderId}
+        title="Select Artwork File"
+      />
+
+      {/* Step 2: Artwork Metadata Dialog */}
+      <Dialog open={!!pickedFile} onOpenChange={(open) => !open && resetForm()}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Palette className="w-4 h-4" />
+              Artwork Details
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            {pickedFile && (
+              <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                <img
+                  src={pickedFile.filePath}
+                  alt={pickedFile.fileName}
+                  className="w-16 h-16 object-contain rounded border bg-white"
+                  onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                />
+                <p className="text-sm text-gray-600 truncate flex-1">{pickedFile.fileName}</p>
+              </div>
             )}
+            <div>
+              <Label>Name</Label>
+              <Input value={artName} onChange={(e) => setArtName(e.target.value)} placeholder="e.g., Logo Front" />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Decoration Location</Label>
+                <Select value={artLocation} onValueChange={setArtLocation}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select location" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {IMPRINT_LOCATIONS.map((opt) => (
+                      <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Imprint Method</Label>
+                <Select value={artMethod} onValueChange={setArtMethod}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select method" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {IMPRINT_METHODS.map((opt) => (
+                      <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
           </div>
-          <CardContent className="p-3">
-            <p className="text-sm font-medium truncate">{art.fileName || "Artwork"}</p>
-            <p className="text-xs text-gray-400">{art.productName}</p>
-            {art.status && <Badge variant="outline" className="mt-1 text-xs">{art.status}</Badge>}
-          </CardContent>
-        </Card>
-      ))}
-    </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={resetForm}>Cancel</Button>
+            <Button
+              disabled={createArtworkMutation.isPending || !pickedFile}
+              onClick={() => {
+                if (!pickedFile) return;
+                createArtworkMutation.mutate({
+                  orderItemId: pickedFile.orderItemId,
+                  name: artName || pickedFile.fileName,
+                  filePath: pickedFile.filePath,
+                  fileName: pickedFile.fileName,
+                  location: artLocation || undefined,
+                  artworkType: artMethod || undefined,
+                });
+              }}
+            >
+              {createArtworkMutation.isPending ? (
+                <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Adding...</>
+              ) : (
+                "Add Artwork"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

@@ -44,10 +44,15 @@ import {
   Loader2,
   TrendingUp,
   Upload,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { apiRequest } from "@/lib/queryClient";
 import type { ProjectData } from "@/types/project-types";
 import type { OrderItemLine, OrderAdditionalCharge } from "@shared/schema";
+import { IMPRINT_LOCATIONS, IMPRINT_METHODS } from "@/lib/imprintOptions";
+import FilePickerDialog from "@/components/modals/FilePickerDialog";
 
 interface ProductsSectionProps {
   orderId: string;
@@ -85,10 +90,21 @@ export default function ProductsSection({ orderId, data, isLocked }: ProductsSec
 
   // Add charge dialog state
   const [addChargeForItem, setAddChargeForItem] = useState<string | null>(null);
-  const [newCharge, setNewCharge] = useState({ description: "", chargeType: "flat", amount: 0, isVendorCharge: false });
+  const [newCharge, setNewCharge] = useState({ description: "", chargeType: "flat", amount: 0, isVendorCharge: false, displayToClient: true });
 
   // Artwork upload state
-  const [uploadingArtworkForItem, setUploadingArtworkForItem] = useState<string | null>(null);
+  const [pickingArtworkForItem, setPickingArtworkForItem] = useState<string | null>(null);
+  const [artPickedFile, setArtPickedFile] = useState<{ orderItemId: string; filePath: string; fileName: string } | null>(null);
+  const [artUploadName, setArtUploadName] = useState("");
+  const [artUploadLocation, setArtUploadLocation] = useState("");
+  const [artUploadMethod, setArtUploadMethod] = useState("");
+
+  const resetArtForm = () => {
+    setArtPickedFile(null);
+    setArtUploadName("");
+    setArtUploadLocation("");
+    setArtUploadMethod("");
+  };
 
   // Toggle expand/collapse
   const toggleExpand = (itemId: string) => {
@@ -181,7 +197,7 @@ export default function ProductsSection({ orderId, data, isLocked }: ProductsSec
     onSuccess: () => {
       invalidateAll();
       setAddChargeForItem(null);
-      setNewCharge({ description: "", chargeType: "flat", amount: 0, isVendorCharge: false });
+      setNewCharge({ description: "", chargeType: "flat", amount: 0, isVendorCharge: false, displayToClient: true });
       toast({ title: "Charge added" });
     },
     onError: () => toast({ title: "Failed to add charge", variant: "destructive" }),
@@ -197,6 +213,15 @@ export default function ProductsSection({ orderId, data, isLocked }: ProductsSec
       toast({ title: "Charge removed" });
     },
     onError: () => toast({ title: "Failed to remove charge", variant: "destructive" }),
+  });
+
+  const toggleChargeDisplayMutation = useMutation({
+    mutationFn: async ({ chargeId, orderItemId, displayToClient }: { chargeId: string; orderItemId: string; displayToClient: boolean }) => {
+      const res = await apiRequest("PATCH", `/api/order-items/${orderItemId}/charges/${chargeId}`, { displayToClient });
+      if (!res.ok) throw new Error("Failed to update charge");
+    },
+    onSuccess: () => invalidateAll(),
+    onError: () => toast({ title: "Failed to update charge", variant: "destructive" }),
   });
 
   const addLineMutation = useMutation({
@@ -216,27 +241,17 @@ export default function ProductsSection({ orderId, data, isLocked }: ProductsSec
     onError: () => toast({ title: "Failed to add line", variant: "destructive" }),
   });
 
-  const uploadArtworkMutation = useMutation({
-    mutationFn: async ({ orderItemId, file, name, location, artworkType }: { orderItemId: string; file: File; name: string; location?: string; artworkType?: string }) => {
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("name", name);
-      if (location) formData.append("location", location);
-      if (artworkType) formData.append("artworkType", artworkType);
-      const res = await fetch(`/api/order-items/${orderItemId}/artworks`, {
-        method: "POST",
-        credentials: "include",
-        body: formData,
-      });
-      if (!res.ok) throw new Error("Failed to upload artwork");
+  const createArtworkMutation = useMutation({
+    mutationFn: async (payload: { orderItemId: string; name: string; filePath: string; fileName: string; location?: string; artworkType?: string }) => {
+      const res = await apiRequest("POST", `/api/order-items/${payload.orderItemId}/artworks`, payload);
       return res.json();
     },
     onSuccess: () => {
       invalidateAll();
-      setUploadingArtworkForItem(null);
-      toast({ title: "Artwork uploaded" });
+      resetArtForm();
+      toast({ title: "Artwork added" });
     },
-    onError: () => toast({ title: "Failed to upload artwork", variant: "destructive" }),
+    onError: () => toast({ title: "Failed to add artwork", variant: "destructive" }),
   });
 
   const deleteArtworkMutation = useMutation({
@@ -906,6 +921,21 @@ export default function ProductsSection({ orderId, data, isLocked }: ProductsSec
                                 <Button
                                   variant="ghost" size="sm" className="h-6 w-6 p-0"
                                   disabled={isLocked}
+                                  title={charge.displayToClient !== false ? "Visible to client" : "Hidden from client"}
+                                  onClick={() => toggleChargeDisplayMutation.mutate({
+                                    chargeId: charge.id,
+                                    orderItemId: charge.orderItemId,
+                                    displayToClient: charge.displayToClient === false,
+                                  })}
+                                >
+                                  {charge.displayToClient !== false
+                                    ? <Eye className="w-3 h-3 text-blue-400" />
+                                    : <EyeOff className="w-3 h-3 text-gray-300" />
+                                  }
+                                </Button>
+                                <Button
+                                  variant="ghost" size="sm" className="h-6 w-6 p-0"
+                                  disabled={isLocked}
                                   onClick={() => deleteChargeMutation.mutate({ chargeId: charge.id, orderItemId: charge.orderItemId })}
                                 >
                                   <Trash2 className="w-3 h-3 text-gray-400 hover:text-red-500" />
@@ -936,7 +966,7 @@ export default function ProductsSection({ orderId, data, isLocked }: ProductsSec
                           disabled={isLocked}
                           onClick={(e) => {
                             e.stopPropagation();
-                            setUploadingArtworkForItem(item.id);
+                            setPickingArtworkForItem(item.id);
                           }}
                         >
                           <Upload className="w-3 h-3 mr-1" />
@@ -1083,6 +1113,16 @@ export default function ProductsSection({ orderId, data, isLocked }: ProductsSec
               />
               <Label htmlFor="vendor-charge" className="font-normal text-sm">This is a vendor charge (cost, not revenue)</Label>
             </div>
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="display-to-client"
+                checked={newCharge.displayToClient}
+                onChange={(e) => setNewCharge(c => ({ ...c, displayToClient: e.target.checked }))}
+                className="rounded border-gray-300"
+              />
+              <Label htmlFor="display-to-client" className="font-normal text-sm">Display to client (visible in presentation)</Label>
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setAddChargeForItem(null)}>Cancel</Button>
@@ -1097,6 +1137,7 @@ export default function ProductsSection({ orderId, data, isLocked }: ProductsSec
                     chargeType: newCharge.chargeType,
                     amount: newCharge.amount.toFixed(2),
                     isVendorCharge: newCharge.isVendorCharge,
+                    displayToClient: newCharge.displayToClient,
                   },
                 });
               }}
@@ -1185,19 +1226,29 @@ export default function ProductsSection({ orderId, data, isLocked }: ProductsSec
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <Label>Imprint Method</Label>
-                  <Input
-                    value={editItemData.imprintMethod}
-                    onChange={(e) => setEditItemData((d: any) => ({ ...d, imprintMethod: e.target.value }))}
-                    placeholder="e.g., Screen Print, Embroidery"
-                  />
+                  <Select value={editItemData.imprintMethod || ""} onValueChange={(v) => setEditItemData((d: any) => ({ ...d, imprintMethod: v }))}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select method" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {IMPRINT_METHODS.map((opt) => (
+                        <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div>
                   <Label>Imprint Location</Label>
-                  <Input
-                    value={editItemData.imprintLocation}
-                    onChange={(e) => setEditItemData((d: any) => ({ ...d, imprintLocation: e.target.value }))}
-                    placeholder="e.g., Front Center, Left Chest"
-                  />
+                  <Select value={editItemData.imprintLocation || ""} onValueChange={(v) => setEditItemData((d: any) => ({ ...d, imprintLocation: v }))}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select location" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {IMPRINT_LOCATIONS.map((opt) => (
+                        <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
 
@@ -1368,63 +1419,104 @@ export default function ProductsSection({ orderId, data, isLocked }: ProductsSec
       </Dialog>
 
       {/* ═══ ARTWORK UPLOAD DIALOG ═══ */}
-      <Dialog open={!!uploadingArtworkForItem} onOpenChange={(open) => !open && setUploadingArtworkForItem(null)}>
+      {/* Step 1: File Picker for Artwork */}
+      <FilePickerDialog
+        open={!!pickingArtworkForItem}
+        onClose={() => setPickingArtworkForItem(null)}
+        onSelect={(files) => {
+          const file = files[0];
+          if (file && pickingArtworkForItem) {
+            setArtPickedFile({
+              orderItemId: pickingArtworkForItem,
+              filePath: file.cloudinaryUrl,
+              fileName: file.originalName || file.fileName,
+            });
+            setArtUploadName(file.originalName || file.fileName);
+          }
+          setPickingArtworkForItem(null);
+        }}
+        multiple={false}
+        contextOrderId={orderId}
+        title="Select Artwork File"
+      />
+
+      {/* Step 2: Artwork Metadata Dialog */}
+      <Dialog open={!!artPickedFile} onOpenChange={(open) => !open && resetArtForm()}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Upload className="w-4 h-4" />
-              Upload Artwork
+              <Palette className="w-4 h-4" />
+              Artwork Details
             </DialogTitle>
           </DialogHeader>
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              const form = e.target as HTMLFormElement;
-              const fileInput = form.elements.namedItem("artworkFile") as HTMLInputElement;
-              const nameInput = form.elements.namedItem("artworkName") as HTMLInputElement;
-              const locationInput = form.elements.namedItem("artworkLocation") as HTMLInputElement;
-              const typeInput = form.elements.namedItem("artworkType") as HTMLInputElement;
-              const file = fileInput?.files?.[0];
-              if (!file || !uploadingArtworkForItem) return;
-              uploadArtworkMutation.mutate({
-                orderItemId: uploadingArtworkForItem,
-                file,
-                name: nameInput.value || file.name,
-                location: locationInput.value || undefined,
-                artworkType: typeInput.value || undefined,
-              });
-            }}
-            className="space-y-4"
-          >
+          <div className="space-y-4">
+            {artPickedFile && (
+              <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                <img
+                  src={artPickedFile.filePath}
+                  alt={artPickedFile.fileName}
+                  className="w-16 h-16 object-contain rounded border bg-white"
+                  onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                />
+                <p className="text-sm text-gray-600 truncate flex-1">{artPickedFile.fileName}</p>
+              </div>
+            )}
             <div>
-              <Label htmlFor="artworkFile">File *</Label>
-              <Input id="artworkFile" name="artworkFile" type="file" accept="image/*,.pdf,.ai,.eps,.svg" required />
-            </div>
-            <div>
-              <Label htmlFor="artworkName">Name</Label>
-              <Input id="artworkName" name="artworkName" placeholder="e.g., Logo Front" />
+              <Label>Name</Label>
+              <Input value={artUploadName} onChange={(e) => setArtUploadName(e.target.value)} placeholder="e.g., Logo Front" />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label htmlFor="artworkLocation">Location</Label>
-                <Input id="artworkLocation" name="artworkLocation" placeholder="e.g., Left Chest" />
+                <Label>Decoration Location</Label>
+                <Select value={artUploadLocation} onValueChange={setArtUploadLocation}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select location" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {IMPRINT_LOCATIONS.map((opt) => (
+                      <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div>
-                <Label htmlFor="artworkType">Type</Label>
-                <Input id="artworkType" name="artworkType" placeholder="e.g., Embroidery" />
+                <Label>Imprint Method</Label>
+                <Select value={artUploadMethod} onValueChange={setArtUploadMethod}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select method" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {IMPRINT_METHODS.map((opt) => (
+                      <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setUploadingArtworkForItem(null)}>Cancel</Button>
-              <Button type="submit" disabled={uploadArtworkMutation.isPending}>
-                {uploadArtworkMutation.isPending ? (
-                  <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Uploading...</>
-                ) : (
-                  <><Upload className="w-4 h-4 mr-2" /> Upload</>
-                )}
-              </Button>
-            </DialogFooter>
-          </form>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={resetArtForm}>Cancel</Button>
+            <Button
+              disabled={createArtworkMutation.isPending || !artPickedFile}
+              onClick={() => {
+                if (!artPickedFile) return;
+                createArtworkMutation.mutate({
+                  orderItemId: artPickedFile.orderItemId,
+                  name: artUploadName || artPickedFile.fileName,
+                  filePath: artPickedFile.filePath,
+                  fileName: artPickedFile.fileName,
+                  location: artUploadLocation || undefined,
+                  artworkType: artUploadMethod || undefined,
+                });
+              }}
+            >
+              {createArtworkMutation.isPending ? (
+                <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Adding...</>
+              ) : (
+                "Add Artwork"
+              )}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

@@ -41,11 +41,10 @@ export const BUSINESS_STAGES: Record<BusinessStage, StageConfig> = {
     borderColor: "border-teal-200",
     strokeColor: "#14b8a6",
     statuses: [
-      { value: "draft", label: "Draft", color: "bg-gray-100 text-gray-800", order: 1 },
-      { value: "open", label: "Open", color: "bg-blue-100 text-blue-800", order: 2 },
-      { value: "sent", label: "Sent", color: "bg-purple-100 text-purple-800", order: 3 },
-      { value: "viewed", label: "Viewed", color: "bg-green-100 text-green-800", order: 4 },
-      { value: "expired", label: "Expired", color: "bg-red-100 text-red-800", order: 5 },
+      { value: "open", label: "Open", color: "bg-blue-100 text-blue-800", order: 1 },
+      { value: "client_review", label: "Client Review", color: "bg-purple-100 text-purple-800", order: 2 },
+      { value: "converted", label: "Converted", color: "bg-green-100 text-green-800", order: 3 },
+      { value: "closed", label: "Closed", color: "bg-gray-100 text-gray-800", order: 4 },
     ],
   },
   quote: {
@@ -162,7 +161,7 @@ export function determineBusinessStage(order: Order): DeterminedStage {
 
   // Default: Presentation
   const stage = BUSINESS_STAGES.presentation;
-  const subStatus = stage.statuses.find((s) => s.value === (o.presentationStatus || "draft")) || stage.statuses[0];
+  const subStatus = stage.statuses.find((s) => s.value === (o.presentationStatus || "open")) || stage.statuses[0];
   return buildResult(stage, subStatus);
 }
 
@@ -191,6 +190,8 @@ export function getStageTransitionPayload(targetStage: BusinessStage): Record<st
   switch (targetStage) {
     case "presentation":
       return { presentationStatus: "open" };
+    // Note: When converting FROM presentation TO quote/sales_order,
+    // presentationStatus: "converted" is added in StageConversionDialog
     case "quote":
       return { quoteStatus: "sent" };
     case "sales_order":

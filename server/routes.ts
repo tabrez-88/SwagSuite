@@ -2442,7 +2442,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Log presentationStatus changes
         if (oldOrder && req.body.presentationStatus && req.body.presentationStatus !== (oldOrder as any).presentationStatus) {
           const presDisplayMap: Record<string, string> = {
-            draft: "Draft", open: "Open", sent: "Sent", viewed: "Viewed", expired: "Expired",
+            open: "Open", client_review: "Client Review", converted: "Converted", closed: "Closed",
           };
           const oldLabel = presDisplayMap[(oldOrder as any).presentationStatus || ""] || (oldOrder as any).presentationStatus || "None";
           const newLabel = presDisplayMap[req.body.presentationStatus] || req.body.presentationStatus;
@@ -2778,6 +2778,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (req.file) {
         filePath = (req.file as any).path; // Cloudinary URL
         fileName = req.file.originalname;
+      } else if (req.body.filePath) {
+        // Support picking existing file from media library
+        filePath = req.body.filePath;
+        fileName = req.body.fileName || 'artwork';
       }
 
       const artworkData = {
@@ -2931,7 +2935,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const { eq } = await import("drizzle-orm");
     const [item] = await db.select({ orderId: orderItems.orderId }).from(orderItems).where(eq(orderItems.id, orderItemId));
     if (!item) return false;
-    const parentOrder = await storage.getOrder(item.orderId);
+    const parentOrder = item.orderId ? await storage.getOrder(item.orderId) : null;
     if (parentOrder && isSectionLocked(parentOrder, 'salesOrder')) {
       res.status(403).json({ message: "Sales Order is locked. Unlock it first to make changes." });
       return true;
@@ -3171,6 +3175,341 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+
+  // ── Product Comments (authenticated) ──
+  app.get('/api/orders/:orderId/product-comments', isAuthenticated, async (req, res) => {
+    try {
+      const { projectActivities } = await import("@shared/project-schema");
+      const actDb = await import("./db").then(m => m.db);
+      const { eq: eqOp, and: andOp } = await import("drizzle-orm");
+
+      const comments = await actDb
+        .select()
+        .from(projectActivities)
+        .where(
+          andOp(
+            eqOp(projectActivities.orderId, req.params.orderId),
+            eqOp(projectActivities.activityType, "product_comment"),
+          )
+        );
+
+      // Group by orderItemId
+      const grouped: Record<string, any[]> = {};
+      for (const c of comments) {
+        const itemId = (c.metadata as any)?.orderItemId;
+        if (itemId) {
+          if (!grouped[itemId]) grouped[itemId] = [];
+          grouped[itemId].push({
+            id: c.id,
+            content: c.content,
+            createdAt: c.createdAt,
+            isClient: (c.metadata as any)?.isClientComment || false,
+            clientName: (c.metadata as any)?.clientName || null,
+            userId: c.userId,
+          });
+        }
+      }
+
+      res.json(grouped);
+    } catch (error) {
+      console.error("Error fetching product comments:", error);
+      res.status(500).json({ message: "Failed to fetch comments" });
+    }
+  });
+
+  app.post('/api/orders/:orderId/product-comments', isAuthenticated, async (req, res) => {
+    try {
+      const { orderItemId, content } = req.body;
+      if (!orderItemId || !content) {
+        return res.status(400).json({ message: "orderItemId and content are required" });
+      }
+
+      const { projectActivities } = await import("@shared/project-schema");
+      const actDb = await import("./db").then(m => m.db);
+      const currentUserId = (req.user as any)?.claims?.sub || (req.user as any)?.id;
+
+      const [comment] = await actDb.insert(projectActivities).values({
+        orderId: req.params.orderId,
+        userId: currentUserId,
+        activityType: "product_comment",
+        content: content.substring(0, 2000),
+        metadata: { orderItemId, isClientComment: false },
+        isSystemGenerated: false,
+      }).returning();
+
+      res.status(201).json({
+        id: comment.id,
+        content: comment.content,
+        createdAt: comment.createdAt,
+        isClient: false,
+        userId: currentUserId,
+      });
+    } catch (error) {
+      console.error("Error posting product comment:", error);
+      res.status(500).json({ message: "Failed to post comment" });
+    }
+  });
+
+  // ── Presentation Share Link ──
+  app.post('/api/orders/:orderId/presentation/share-link', isAuthenticated, async (req, res) => {
+    try {
+      const orderId = req.params.orderId;
+      const order = await storage.getOrder(orderId);
+      if (!order) return res.status(404).json({ message: "Order not found" });
+
+      // Check if an active presentation token already exists
+      const existing = await storage.getActivePortalTokenByType(orderId, "presentation");
+      if (existing) {
+        return res.json({
+          token: existing.token,
+          url: `${req.protocol}://${req.get('host')}/presentation/${existing.token}`,
+          existingToken: true,
+          accessCount: existing.accessCount,
+        });
+      }
+
+      // Create new presentation token
+      const crypto = await import("crypto");
+      const tokenValue = crypto.randomUUID();
+      const expiryDate = (order as any)?.stageData?.presentation?.expiryDate;
+
+      const portalToken = await storage.createCustomerPortalToken({
+        orderId,
+        token: tokenValue,
+        clientEmail: (order as any)?.stageData?.presentation?.clientContactId || null,
+        isActive: true,
+        tokenType: "presentation",
+        expiresAt: expiryDate ? new Date(expiryDate) : null,
+      } as any);
+
+      // Auto-transition status to client_review if currently open
+      if ((order as any).presentationStatus === "open") {
+        await storage.updateOrder(orderId, { presentationStatus: "client_review" } as any);
+        // Log activity
+        const { projectActivities } = await import("@shared/project-schema");
+        const actDb = await import("./db").then(m => m.db);
+        await actDb.insert(projectActivities).values({
+          orderId, userId: (req.user as any)?.claims?.sub || "system",
+          activityType: "status_change",
+          content: "Presentation status changed from Open to Client Review",
+          metadata: { section: "presentation", oldStatus: "open", newStatus: "client_review" },
+          isSystemGenerated: true,
+        });
+      }
+
+      res.json({
+        token: portalToken.token,
+        url: `${req.protocol}://${req.get('host')}/presentation/${portalToken.token}`,
+        existingToken: false,
+        accessCount: 0,
+      });
+    } catch (error) {
+      console.error("Error creating presentation share link:", error);
+      res.status(500).json({ message: "Failed to create share link" });
+    }
+  });
+
+  // ── Public Presentation Page (NO AUTH) ──
+  app.get('/api/presentation/:token', async (req, res) => {
+    try {
+      const portalToken = await storage.getCustomerPortalTokenByToken(req.params.token);
+
+      if (!portalToken || (portalToken as any).tokenType !== "presentation") {
+        return res.status(404).json({ message: "Presentation not found" });
+      }
+      if (!portalToken.isActive) {
+        return res.status(403).json({ message: "This presentation link has been deactivated" });
+      }
+      if (portalToken.expiresAt && new Date(portalToken.expiresAt) < new Date()) {
+        return res.status(403).json({ message: "This presentation has expired", expired: true });
+      }
+
+      // Increment access
+      await storage.incrementPortalTokenAccess(portalToken.id);
+
+      // Fetch order + items + company
+      const order = await storage.getOrder(portalToken.orderId);
+      if (!order) return res.status(404).json({ message: "Order not found" });
+
+      const items = await storage.getOrderItems(portalToken.orderId);
+      const company = (order as any).companyId ? await storage.getCompany((order as any).companyId) : null;
+
+      // Get item lines for pricing tiers + charges
+      const allItemLines: Record<string, any[]> = {};
+      const allItemCharges: Record<string, any[]> = {};
+      for (const item of items) {
+        const lines = await storage.getOrderItemLines(item.id);
+        allItemLines[item.id] = lines;
+        const charges = await storage.getOrderAdditionalCharges(item.id);
+        allItemCharges[item.id] = charges;
+      }
+
+      // Get products for images/colors/sizes
+      const productIds = Array.from(new Set(items.map((i: any) => i.productId).filter(Boolean)));
+      const products: any[] = [];
+      for (const pid of productIds) {
+        const p = await storage.getProduct(pid as string);
+        if (p) products.push(p);
+      }
+
+      // Get presentation settings
+      const presSettings = (order as any)?.stageData?.presentation || {};
+      const itemVisibility = presSettings.itemVisibility || {};
+      const itemOrder = presSettings.itemOrder || [];
+      const hidePricing = presSettings.hidePricing || false;
+
+      // Build enriched items (sanitized — no cost, margin, vendor info)
+      let enrichedItems = items
+        .filter((item: any) => itemVisibility[item.id] !== false)
+        .map((item: any) => {
+          const product = products.find((p: any) => p.id === item.productId);
+          const lines = allItemLines[item.id] || [];
+          const charges = (allItemCharges[item.id] || []).filter((c: any) => c.displayToClient !== false);
+          return {
+            id: item.id,
+            productName: item.productName,
+            productSku: item.productSku,
+            productImageUrl: item.productImageUrl || product?.imageUrl || null,
+            productBrand: item.productBrand || product?.brand || null,
+            productDescription: item.productDescription || product?.description || null,
+            productColors: item.productColors || product?.colors || [],
+            productSizes: item.productSizes || product?.sizes || [],
+            quantity: item.quantity,
+            unitPrice: hidePricing ? null : item.unitPrice,
+            lines: hidePricing ? [] : lines.map((l: any) => ({
+              id: l.id, quantity: l.quantity, unitPrice: l.unitPrice,
+            })),
+            charges: hidePricing ? [] : charges.map((c: any) => ({
+              id: c.id, description: c.description, chargeType: c.chargeType, amount: c.amount,
+            })),
+          };
+        });
+
+      // Apply custom ordering
+      if (itemOrder.length > 0) {
+        enrichedItems.sort((a: any, b: any) => {
+          const aIdx = itemOrder.indexOf(a.id);
+          const bIdx = itemOrder.indexOf(b.id);
+          return (aIdx === -1 ? 999 : aIdx) - (bIdx === -1 ? 999 : bIdx);
+        });
+      }
+
+      // Get product comments
+      const { projectActivities } = await import("@shared/project-schema");
+      const actDb = await import("./db").then(m => m.db);
+      const { eq: eqOp, and: andOp } = await import("drizzle-orm");
+      const comments = await actDb
+        .select()
+        .from(projectActivities)
+        .where(
+          andOp(
+            eqOp(projectActivities.orderId, portalToken.orderId),
+            eqOp(projectActivities.activityType, "product_comment"),
+          )
+        );
+
+      // Group comments by orderItemId
+      const commentsByItem: Record<string, any[]> = {};
+      for (const c of comments) {
+        const itemId = (c.metadata as any)?.orderItemId;
+        if (itemId) {
+          if (!commentsByItem[itemId]) commentsByItem[itemId] = [];
+          commentsByItem[itemId].push({
+            id: c.id,
+            content: c.content,
+            createdAt: c.createdAt,
+            isClient: (c.metadata as any)?.isClientComment || false,
+            clientName: (c.metadata as any)?.clientName || null,
+            userName: c.isSystemGenerated ? "System" : "Rep",
+          });
+        }
+      }
+
+      // Auto-transition: first view logs activity
+      if ((order as any).presentationStatus === "client_review" && portalToken.accessCount === 0 && order.assignedUserId) {
+        await actDb.insert(projectActivities).values({
+          orderId: portalToken.orderId, userId: order.assignedUserId,
+          activityType: "system_action",
+          content: "Client viewed the presentation for the first time",
+          metadata: { action: "presentation_first_view" },
+          isSystemGenerated: true,
+        });
+      }
+
+      res.json({
+        presentation: {
+          orderNumber: order.orderNumber,
+          companyName: company?.name || (order as any).companyName || "",
+          companyLogo: (company as any)?.logoUrl || null,
+          introduction: presSettings.introduction || "",
+          primaryColor: presSettings.primaryColor || "#2563eb",
+          headerStyle: presSettings.headerStyle || "banner",
+          fontFamily: presSettings.fontFamily || "default",
+          footerText: presSettings.footerText || "",
+          logoUrl: presSettings.logoUrl || null,
+          hidePricing,
+          currency: presSettings.currency || "USD",
+        },
+        items: enrichedItems,
+        comments: commentsByItem,
+      });
+    } catch (error) {
+      console.error("Error accessing public presentation:", error);
+      res.status(500).json({ message: "Failed to load presentation" });
+    }
+  });
+
+  // ── Public Presentation Comments (NO AUTH) ──
+  app.post('/api/presentation/:token/comments', async (req, res) => {
+    try {
+      const portalToken = await storage.getCustomerPortalTokenByToken(req.params.token);
+      if (!portalToken || (portalToken as any).tokenType !== "presentation") {
+        return res.status(404).json({ message: "Presentation not found" });
+      }
+      if (!portalToken.isActive) {
+        return res.status(403).json({ message: "This presentation is no longer active" });
+      }
+
+      const { orderItemId, content, clientName, clientEmail } = req.body;
+      if (!orderItemId || !content) {
+        return res.status(400).json({ message: "orderItemId and content are required" });
+      }
+
+      const { projectActivities } = await import("@shared/project-schema");
+      const actDb = await import("./db").then(m => m.db);
+
+      // Get order to use assignedUserId (FK requires valid user)
+      const order = await storage.getOrder(portalToken.orderId);
+      if (!order?.assignedUserId) {
+        return res.status(500).json({ message: "Unable to post comment" });
+      }
+
+      const [comment] = await actDb.insert(projectActivities).values({
+        orderId: portalToken.orderId,
+        userId: order.assignedUserId,
+        activityType: "product_comment",
+        content: content.substring(0, 2000),
+        metadata: {
+          orderItemId,
+          clientName: clientName || "Client",
+          clientEmail: clientEmail || null,
+          isClientComment: true,
+        },
+        isSystemGenerated: false,
+      }).returning();
+
+      res.status(201).json({
+        id: comment.id,
+        content: comment.content,
+        createdAt: comment.createdAt,
+        isClient: true,
+        clientName: clientName || "Client",
+      });
+    } catch (error) {
+      console.error("Error posting presentation comment:", error);
+      res.status(500).json({ message: "Failed to post comment" });
+    }
+  });
 
   // Cloudinary upload endpoint for product images
   app.post('/api/cloudinary/upload', isAuthenticated, upload.single('file'), async (req, res) => {
@@ -7764,19 +8103,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Create activity log and handle notifications + stage progression
       if (approval.orderId) {
         try {
-          await db.insert(projectActivities).values({
-            orderId: approval.orderId,
-            userId: "system",
-            activityType: "artwork_approved",
-            content: `Artwork approved by client${comments ? `: ${comments}` : ''}`,
-            metadata: {
-              approvalId: approval.id,
-              clientEmail: approval.clientEmail,
-              orderItemId: approval.orderItemId,
-            },
-            mentionedUsers: [],
-            isSystemGenerated: true,
-          });
+          const approvalOrder = await storage.getOrder(approval.orderId);
+          if (approvalOrder?.assignedUserId) {
+            await db.insert(projectActivities).values({
+              orderId: approval.orderId,
+              userId: approvalOrder.assignedUserId,
+              activityType: "artwork_approved",
+              content: `Artwork approved by client${comments ? `: ${comments}` : ''}`,
+              metadata: {
+                approvalId: approval.id,
+                clientEmail: approval.clientEmail,
+                orderItemId: approval.orderItemId,
+              },
+              mentionedUsers: [],
+              isSystemGenerated: true,
+            });
+          }
         } catch (err) {
           console.error('Error creating activity:', err);
         }
@@ -7897,19 +8239,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Create activity log and notify team
       if (approval.orderId) {
         try {
-          await db.insert(projectActivities).values({
-            orderId: approval.orderId,
-            userId: "system",
-            activityType: "artwork_rejected",
-            content: `Artwork revision requested by client: ${comments}`,
-            metadata: {
-              approvalId: approval.id,
-              clientEmail: approval.clientEmail,
-              orderItemId: approval.orderItemId,
-            },
-            mentionedUsers: [],
-            isSystemGenerated: true,
-          });
+          const declineOrder = await storage.getOrder(approval.orderId);
+          if (declineOrder?.assignedUserId) {
+            await db.insert(projectActivities).values({
+              orderId: approval.orderId,
+              userId: declineOrder.assignedUserId,
+              activityType: "artwork_rejected",
+              content: `Artwork revision requested by client: ${comments}`,
+              metadata: {
+                approvalId: approval.id,
+                clientEmail: approval.clientEmail,
+                orderItemId: approval.orderItemId,
+              },
+              mentionedUsers: [],
+              isSystemGenerated: true,
+            });
+          }
         } catch (err) {
           console.error('Error creating activity:', err);
         }

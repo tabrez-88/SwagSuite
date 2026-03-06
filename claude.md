@@ -84,6 +84,7 @@ migrations/            # Drizzle migration SQL files
 - Multer + `multer-storage-cloudinary` for file processing.
 - Upload endpoints use `upload.array("files", 10)` middleware.
 - FormData uploads cannot use `apiRequest` (it sets JSON content-type).
+- **IMPORTANT**: Any file upload UI must use `FilePickerDialog` (`components/modals/FilePickerDialog.tsx`) — never raw `<input type="file">`. FilePickerDialog lets users upload new files OR pick existing files from the media library. The pattern is: FilePickerDialog returns `MediaLibraryItem[]` with `cloudinaryUrl`, then pass the URL to the backend (e.g., as `filePath` in the request body).
 
 ### UI Components
 - Shadcn/ui components in `client/src/components/ui/`.

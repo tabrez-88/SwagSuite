@@ -36,6 +36,7 @@ import ApprovalPage from "@/pages/approval";
 import QuoteApprovalPage from "@/pages/quote-approval";
 import AcceptInvitation from "@/pages/accept-invitation";
 import CustomerPortalPage from "@/pages/customer-portal";
+import PublicPresentationPage from "@/pages/public-presentation";
 import MediaLibraryPage from "@/pages/media-library";
 import { SlackSidebar } from "@/components/SlackSidebar";
 import { SidebarProvider, SidebarInset, useSidebar } from "@/components/ui/sidebar";
@@ -139,6 +140,8 @@ function Router() {
 
       {/* Public customer portal - order tracking */}
       <Route path="/portal/:token" component={CustomerPortalPage} />
+      {/* Public presentation page - no auth */}
+      <Route path="/presentation/:token" component={PublicPresentationPage} />
 
       {!isAuthenticated ? (
         <Route component={RedirectToLanding} />

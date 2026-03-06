@@ -151,8 +151,9 @@ class NotificationScheduler {
         console.log(`🔔 Daily notifications: ${ordersWithActions.length} orders, ${notificationsSent} in-app, ${emailsSent} emails`);
       }
 
-      // Also process overdue invoices
+      // Also process overdue invoices and expired presentations
       await this.processOverdueInvoices();
+      await this.processExpiredPresentations();
     } catch (error) {
       console.error('❌ Error processing daily notifications:', error);
     } finally {
@@ -184,14 +185,17 @@ class NotificationScheduler {
 
           // Log activity
           if (invoice.orderId) {
-            await db.insert(projectActivities).values({
-              orderId: invoice.orderId,
-              userId: 'system',
-              activityType: 'system_action',
-              content: `Invoice ${invoice.invoiceNumber} marked as overdue (was due ${invoice.dueDate ? format(new Date(invoice.dueDate), "MMM d, yyyy") : "N/A"})`,
-              metadata: { action: 'invoice_overdue', invoiceId: invoice.id },
-              isSystemGenerated: true,
-            });
+            const invoiceOrder = await storage.getOrder(invoice.orderId);
+            if (invoiceOrder?.assignedUserId) {
+              await db.insert(projectActivities).values({
+                orderId: invoice.orderId,
+                userId: invoiceOrder.assignedUserId,
+                activityType: 'system_action',
+                content: `Invoice ${invoice.invoiceNumber} marked as overdue (was due ${invoice.dueDate ? format(new Date(invoice.dueDate), "MMM d, yyyy") : "N/A"})`,
+                metadata: { action: 'invoice_overdue', invoiceId: invoice.id },
+                isSystemGenerated: true,
+              });
+            }
           }
           count++;
         } catch (e) {
@@ -204,6 +208,52 @@ class NotificationScheduler {
       }
     } catch (error) {
       console.error('❌ Error processing overdue invoices:', error);
+    }
+  }
+  async processExpiredPresentations() {
+    try {
+      const now = new Date();
+
+      // Find orders with presentation expiryDate that have passed and are still open/client_review
+      const expiredOrders = await db
+        .select()
+        .from(orders)
+        .where(
+          and(
+            sql`${orders.presentationStatus} IN ('open', 'client_review')`,
+            sql`(${orders.stageData}::jsonb -> 'presentation' ->> 'expiryDate') IS NOT NULL`,
+            sql`(${orders.stageData}::jsonb -> 'presentation' ->> 'expiryDate')::date < ${now}::date`
+          )
+        );
+
+      if (expiredOrders.length === 0) return;
+
+      let count = 0;
+      for (const order of expiredOrders) {
+        try {
+          await storage.updateOrder(order.id, { presentationStatus: 'closed' } as any);
+
+          if (order.assignedUserId) {
+            await db.insert(projectActivities).values({
+              orderId: order.id,
+              userId: order.assignedUserId,
+              activityType: 'system_action',
+              content: `Presentation automatically closed — expiry date passed`,
+              metadata: { action: 'presentation_expired' },
+              isSystemGenerated: true,
+            });
+          }
+          count++;
+        } catch (e) {
+          console.error(`Failed to close expired presentation for order ${order.id}:`, e);
+        }
+      }
+
+      if (count > 0) {
+        console.log(`📋 Auto-expired: ${count} presentation(s) closed`);
+      }
+    } catch (error) {
+      console.error('❌ Error processing expired presentations:', error);
     }
   }
 }

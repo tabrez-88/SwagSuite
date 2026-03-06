@@ -72,6 +72,10 @@ export default function StageConversionDialog({
 
       // Then update order status to transition to the target stage
       const payload = getStageTransitionPayload(targetStage);
+      // Auto-set presentation as converted when moving to quote or sales order
+      if (targetStage === "quote" || targetStage === "sales_order") {
+        (payload as any).presentationStatus = "converted";
+      }
       await apiRequest("PATCH", `/api/orders/${orderId}`, payload);
     },
     onSuccess: () => {

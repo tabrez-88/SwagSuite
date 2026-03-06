@@ -37,6 +37,7 @@ export default function ProjectDetailPage() {
       const rest = location.slice(prefix.length);
       if (rest.startsWith("sales-order/add")) return "sales-order/add";
       if (rest.startsWith("sales-order")) return "sales-order";
+      if (rest.startsWith("presentation/add")) return "presentation/add";
       if (rest.startsWith("presentation/preview")) return "presentation/preview";
       if (rest.startsWith("presentation")) return "presentation";
       const section = rest.split("/")[0];
@@ -87,6 +88,7 @@ export default function ProjectDetailPage() {
         return <QuoteSection orderId={orderId!} data={data} lockStatus={lockStatus.quote} />;
       case "sales-order":
         return <SalesOrderSection orderId={orderId!} data={data} lockStatus={lockStatus.salesOrder} />;
+      case "presentation/add":
       case "sales-order/add":
         return <AddProductPage orderId={orderId!} data={data} />;
       case "shipping":

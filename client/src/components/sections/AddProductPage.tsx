@@ -17,6 +17,7 @@ import {
   DollarSign, ShoppingCart, Trash2, ImageIcon, Tag
 } from "lucide-react";
 import type { ProjectData } from "@/types/project-types";
+import { IMPRINT_LOCATIONS, IMPRINT_METHODS } from "@/lib/imprintOptions";
 
 interface AddProductPageProps {
   orderId: string;
@@ -59,10 +60,13 @@ export default function AddProductPage({ orderId, data }: AddProductPageProps) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
-  // Detect context: project vs order
+  // Detect context: project vs order, and which section we came from
   const isProjectContext = currentLocation.startsWith(`/project/`);
+  const isPresentationContext = currentLocation.includes("/presentation/add");
   const productsPath = isProjectContext
-    ? `/project/${orderId}/sales-order`
+    ? isPresentationContext
+      ? `/project/${orderId}/presentation`
+      : `/project/${orderId}/sales-order`
     : `/orders/${orderId}/products`;
 
   // Search state
@@ -965,19 +969,29 @@ export default function AddProductPage({ orderId, data }: AddProductPageProps) {
                 </div>
                 <div>
                   <Label>Imprint Location</Label>
-                  <Input
-                    value={manualForm.imprintLocation}
-                    onChange={(e) => setManualForm(f => ({ ...f, imprintLocation: e.target.value }))}
-                    placeholder="e.g., Left Chest"
-                  />
+                  <Select value={manualForm.imprintLocation} onValueChange={(v) => setManualForm(f => ({ ...f, imprintLocation: v }))}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select location" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {IMPRINT_LOCATIONS.map((opt) => (
+                        <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div>
                   <Label>Imprint Method</Label>
-                  <Input
-                    value={manualForm.imprintMethod}
-                    onChange={(e) => setManualForm(f => ({ ...f, imprintMethod: e.target.value }))}
-                    placeholder="e.g., Screen Print"
-                  />
+                  <Select value={manualForm.imprintMethod} onValueChange={(v) => setManualForm(f => ({ ...f, imprintMethod: v }))}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select method" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {IMPRINT_METHODS.map((opt) => (
+                        <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="col-span-2">
                   <Label>Notes</Label>
@@ -1091,11 +1105,16 @@ export default function AddProductPage({ orderId, data }: AddProductPageProps) {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label>Imprint Location</Label>
-                  <Input
-                    value={imprintLocation}
-                    onChange={(e) => setImprintLocation(e.target.value)}
-                    placeholder="e.g., Left Chest, Full Back"
-                  />
+                  <Select value={imprintLocation} onValueChange={setImprintLocation}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select location" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {IMPRINT_LOCATIONS.map((opt) => (
+                        <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div>
                   <Label>Imprint Method</Label>
@@ -1105,17 +1124,22 @@ export default function AddProductPage({ orderId, data }: AddProductPageProps) {
                         <SelectValue placeholder="Select method" />
                       </SelectTrigger>
                       <SelectContent>
-                        {selectedProduct.decorationMethods.map(m => (
+                        {selectedProduct.decorationMethods.map((m: string) => (
                           <SelectItem key={m} value={m}>{m}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                   ) : (
-                    <Input
-                      value={imprintMethod}
-                      onChange={(e) => setImprintMethod(e.target.value)}
-                      placeholder="e.g., Screen Print, Embroidery"
-                    />
+                    <Select value={imprintMethod} onValueChange={setImprintMethod}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select method" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {IMPRINT_METHODS.map((opt) => (
+                          <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   )}
                 </div>
               </div>

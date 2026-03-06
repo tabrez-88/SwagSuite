@@ -27,7 +27,7 @@ interface PresentationDesignSectionProps {
 
 export default function PresentationDesignSection({ orderId, data }: PresentationDesignSectionProps) {
   const { companyName, companyData } = data;
-  const [primaryColor, setPrimaryColor] = useState("#0f766e");
+  const [primaryColor, setPrimaryColor] = useState("#2563eb");
   const [headerStyle, setHeaderStyle] = useState("banner");
   const [fontFamily, setFontFamily] = useState("default");
 

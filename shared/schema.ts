@@ -278,7 +278,7 @@ export const orders = pgTable("orders", {
   stageData: jsonb("stage_data").notNull().default(sql`'{}'::jsonb`),
   customNotes: jsonb("custom_notes").notNull().default(sql`'{}'::jsonb`),
   // Per-section status management (CommonSKU-style)
-  presentationStatus: varchar("presentation_status").default("draft"), // draft, open, sent, viewed, expired
+  presentationStatus: varchar("presentation_status").default("open"), // open, client_review, converted, closed
   salesOrderStatus: varchar("sales_order_status").default("new"), // new, pending_client_approval, client_change_requested, client_approved, in_production, shipped, ready_to_invoice
   quoteStatus: varchar("quote_status").default("draft"), // draft, sent, approved, rejected, expired
   createdAt: timestamp("created_at").defaultNow(),
@@ -1963,6 +1963,7 @@ export const orderAdditionalCharges = pgTable("order_additional_charges", {
   chargeType: varchar("charge_type").default("flat"), // flat, percentage
   amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
   isVendorCharge: boolean("is_vendor_charge").default(false),
+  displayToClient: boolean("display_to_client").default(true),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -2023,6 +2024,7 @@ export const customerPortalTokens = pgTable("customer_portal_tokens", {
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
   expiresAt: timestamp("expires_at"),
+  tokenType: varchar("token_type").default("order_tracking"), // order_tracking, presentation
 });
 
 export const customerPortalTokensRelations = relations(customerPortalTokens, ({ one }) => ({
