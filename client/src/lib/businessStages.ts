@@ -3,7 +3,7 @@
 
 import type { Order } from "@shared/schema";
 
-export type BusinessStage = "presentation" | "estimate" | "sales_order" | "invoice";
+export type BusinessStage = "presentation" | "quote" | "sales_order" | "invoice";
 
 export interface StageSubStatus {
   value: string;
@@ -48,10 +48,10 @@ export const BUSINESS_STAGES: Record<BusinessStage, StageConfig> = {
       { value: "expired", label: "Expired", color: "bg-red-100 text-red-800", order: 5 },
     ],
   },
-  estimate: {
-    id: "estimate",
-    label: "Estimate",
-    abbreviation: "E",
+  quote: {
+    id: "quote",
+    label: "Quote",
+    abbreviation: "Q",
     color: "bg-amber-500",
     textColor: "text-white",
     bgLight: "bg-amber-50",
@@ -105,14 +105,14 @@ export const BUSINESS_STAGES: Record<BusinessStage, StageConfig> = {
 // Ordered array for kanban columns and sorting
 export const STAGE_ORDER: BusinessStage[] = [
   "presentation",
-  "estimate",
+  "quote",
   "sales_order",
   "invoice",
 ];
 
 /**
  * Determines the current business pipeline stage for an order.
- * Priority-based: Invoice > Sales Order > Estimate > Presentation (default)
+ * Priority-based: Invoice > Sales Order > Quote > Presentation (default)
  */
 export function determineBusinessStage(order: Order): DeterminedStage {
   const o = order as any;
@@ -135,10 +135,10 @@ export function determineBusinessStage(order: Order): DeterminedStage {
     return buildResult(stage, subStatus);
   }
 
-  // Priority 3: Estimate — estimateStatus is set beyond default
-  if (o.estimateStatus && o.estimateStatus !== "draft") {
-    const stage = BUSINESS_STAGES.estimate;
-    const subStatus = stage.statuses.find((s) => s.value === o.estimateStatus) || stage.statuses[0];
+  // Priority 3: Quote — quoteStatus is set beyond default
+  if (o.quoteStatus && o.quoteStatus !== "draft") {
+    const stage = BUSINESS_STAGES.quote;
+    const subStatus = stage.statuses.find((s) => s.value === o.quoteStatus) || stage.statuses[0];
     return buildResult(stage, subStatus);
   }
 
@@ -147,13 +147,14 @@ export function determineBusinessStage(order: Order): DeterminedStage {
   // be at defaults. Use stageData.startingStage to detect the intended stage.
   if (o.stageData?.startingStage) {
     const mapped: Record<string, BusinessStage> = {
-      estimate: "estimate",
+      quote: "quote",
+      estimate: "quote",
       sales_order: "sales_order",
     };
     const stageId = mapped[o.stageData.startingStage];
     if (stageId) {
       const stage = BUSINESS_STAGES[stageId];
-      const statusField = stageId === "estimate" ? o.estimateStatus : o.salesOrderStatus;
+      const statusField = stageId === "quote" ? o.quoteStatus : o.salesOrderStatus;
       const subStatus = stage.statuses.find((s) => s.value === (statusField || stage.statuses[0].value)) || stage.statuses[0];
       return buildResult(stage, subStatus);
     }
@@ -190,8 +191,8 @@ export function getStageTransitionPayload(targetStage: BusinessStage): Record<st
   switch (targetStage) {
     case "presentation":
       return { presentationStatus: "open" };
-    case "estimate":
-      return { estimateStatus: "sent" };
+    case "quote":
+      return { quoteStatus: "sent" };
     case "sales_order":
       return { salesOrderStatus: "new", orderType: "sales_order" };
     case "invoice":

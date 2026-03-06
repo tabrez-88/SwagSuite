@@ -94,7 +94,7 @@ export function DataTable<TData, TValue>({
           <SelectContent>
             <SelectItem value="all">All Stages</SelectItem>
             <SelectItem value="presentation">Presentation</SelectItem>
-            <SelectItem value="estimate">Estimate</SelectItem>
+            <SelectItem value="quote">Quote</SelectItem>
             <SelectItem value="sales_order">Sales Order</SelectItem>
             <SelectItem value="invoice">Invoice</SelectItem>
           </SelectContent>

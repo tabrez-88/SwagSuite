@@ -65,8 +65,9 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { UserAvatar } from "@/components/UserAvatar";
-import { format, addDays } from "date-fns";
+import { format, addDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
+import { getDateStatus } from "@/lib/dateUtils";
 import { apiRequest } from "@/lib/queryClient";
 import { isUnauthorizedError } from "@/lib/authUtils";
 import { useLocation } from "wouter";
@@ -119,6 +120,9 @@ export default function ProductionReport() {
   const [filterStage, setFilterStage] = useState('all');
   const [filterCompany, setFilterCompany] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [filterDateType, setFilterDateType] = useState<'inHands' | 'nextAction'>('inHands');
+  const [filterDateFrom, setFilterDateFrom] = useState('');
+  const [filterDateTo, setFilterDateTo] = useState('');
   const [stageInputs, setStageInputs] = useState<Record<string, string>>({});
   const [viewMode, setViewMode] = useState<'expanded' | 'list'>('expanded');
   const [expandedOrders, setExpandedOrders] = useState<Set<string>>(new Set());
@@ -266,7 +270,13 @@ export default function ProductionReport() {
         nextActionDate: order.nextActionDate || order.stageData?.nextActionDate,
         nextActionNotes: order.nextActionNotes || order.customNotes?.nextAction,
         stagesCompleted: order.stagesCompleted || ['sales-booked'],
-        priority: order.inHandsDate && new Date(order.inHandsDate) <= addDays(new Date(), 7) ? 'high' : 'medium',
+        priority: (() => {
+          const ds = getDateStatus(order.inHandsDate);
+          if (!ds) return 'medium' as const;
+          if (ds.urgency === 'overdue' || ds.urgency === 'today') return 'urgent' as const;
+          if (ds.urgency === 'urgent' || ds.urgency === 'soon') return 'high' as const;
+          return 'medium' as const;
+        })(),
         dueDate: order.inHandsDate,
         orderValue: Number(order.total || 0),
         subtotal: Number(order.subtotal || 0),
@@ -519,6 +529,13 @@ export default function ProductionReport() {
     if (filterPriority !== 'all' && order.priority !== filterPriority) return false;
     if (filterStage !== 'all' && order.currentStage !== filterStage) return false;
     if (filterCompany !== 'all' && order.companyId !== filterCompany) return false;
+    if (filterDateFrom || filterDateTo) {
+      const dateField = filterDateType === 'inHands' ? order.dueDate : order.nextActionDate;
+      if (!dateField) return false;
+      const d = new Date(dateField);
+      if (filterDateFrom && d < new Date(filterDateFrom)) return false;
+      if (filterDateTo && d > new Date(filterDateTo + "T23:59:59")) return false;
+    }
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
       const matchesOrderNumber = order.orderNumber.toLowerCase().includes(query);
@@ -903,8 +920,63 @@ export default function ProductionReport() {
             </div>
           </div>
 
+          {/* Date Range Filter */}
+          <div className="flex items-end gap-3 flex-wrap">
+            <div>
+              <Label>Date Type:</Label>
+              <Select value={filterDateType} onValueChange={(v) => setFilterDateType(v as 'inHands' | 'nextAction')}>
+                <SelectTrigger className="w-[160px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="inHands">In-Hands Date</SelectItem>
+                  <SelectItem value="nextAction">Next Action Date</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>From:</Label>
+              <Input type="date" value={filterDateFrom} onChange={(e) => setFilterDateFrom(e.target.value)} className="w-[150px]" />
+            </div>
+            <div>
+              <Label>To:</Label>
+              <Input type="date" value={filterDateTo} onChange={(e) => setFilterDateTo(e.target.value)} className="w-[150px]" />
+            </div>
+            <div className="flex gap-1.5">
+              <Button variant="outline" size="sm" className="text-xs h-9" onClick={() => {
+                const today = new Date();
+                setFilterDateFrom('');
+                setFilterDateTo(format(today, 'yyyy-MM-dd'));
+                setFilterDateType('inHands');
+              }}>
+                Overdue
+              </Button>
+              <Button variant="outline" size="sm" className="text-xs h-9" onClick={() => {
+                const today = new Date();
+                setFilterDateFrom(format(startOfWeek(today, { weekStartsOn: 1 }), 'yyyy-MM-dd'));
+                setFilterDateTo(format(endOfWeek(today, { weekStartsOn: 1 }), 'yyyy-MM-dd'));
+                setFilterDateType('inHands');
+              }}>
+                This Week
+              </Button>
+              <Button variant="outline" size="sm" className="text-xs h-9" onClick={() => {
+                const today = new Date();
+                setFilterDateFrom(format(startOfMonth(today), 'yyyy-MM-dd'));
+                setFilterDateTo(format(endOfMonth(today), 'yyyy-MM-dd'));
+                setFilterDateType('inHands');
+              }}>
+                This Month
+              </Button>
+              {(filterDateFrom || filterDateTo) && (
+                <Button variant="ghost" size="sm" className="text-xs h-9" onClick={() => { setFilterDateFrom(''); setFilterDateTo(''); }}>
+                  Clear
+                </Button>
+              )}
+            </div>
+          </div>
+
           {/* Active Filters Summary */}
-          {(searchQuery || filterStage !== 'all' || filterAssignee !== 'all' || filterPriority !== 'all' || filterCompany !== 'all') && (
+          {(searchQuery || filterStage !== 'all' || filterAssignee !== 'all' || filterPriority !== 'all' || filterCompany !== 'all' || filterDateFrom || filterDateTo) && (
             <div className="flex items-center gap-2 mt-3 pt-3 border-t">
               <span className="text-sm text-gray-600">Active filters:</span>
               {searchQuery && (
@@ -947,6 +1019,14 @@ export default function ProductionReport() {
                   </button>
                 </Badge>
               )}
+              {(filterDateFrom || filterDateTo) && (
+                <Badge variant="secondary" className="gap-1">
+                  {filterDateType === 'inHands' ? 'In-Hands' : 'Next Action'}: {filterDateFrom || '...'} – {filterDateTo || '...'}
+                  <button onClick={() => { setFilterDateFrom(''); setFilterDateTo(''); }} className="ml-1 hover:text-red-600">
+                    ×
+                  </button>
+                </Badge>
+              )}
               <Button
                 variant="ghost"
                 size="sm"
@@ -956,6 +1036,8 @@ export default function ProductionReport() {
                   setFilterAssignee('all');
                   setFilterPriority('all');
                   setFilterCompany('all');
+                  setFilterDateFrom('');
+                  setFilterDateTo('');
                 }}
                 className="text-xs"
               >
@@ -1085,7 +1167,7 @@ export default function ProductionReport() {
                             {order.margin != null && order.margin > 0 && (
                               <div className="text-xs text-green-600 font-medium">{order.margin}% margin</div>
                             )}
-                            <div className="text-xs text-gray-500">In-Hands Date: {order.dueDate ? format(new Date(order.dueDate), 'MMM dd') : 'TBD'}</div>
+                            <div className="text-xs text-gray-500 flex items-center gap-1.5">In-Hands: {order.dueDate ? format(new Date(order.dueDate), 'MMM dd') : 'TBD'}{order.dueDate && (() => { const ds = getDateStatus(order.dueDate); return ds ? <Badge className={`text-[10px] px-1 py-0 leading-4 ${ds.color}`}>{ds.label}</Badge> : null; })()}</div>
                           </td>
                           <td className="px-4 py-4">
                             <div className="flex items-center space-x-1">
@@ -1293,7 +1375,7 @@ export default function ProductionReport() {
                       {order.margin != null && order.margin > 0 && (
                         <p className="text-sm text-green-600 font-medium">{order.margin}% margin</p>
                       )}
-                      <p className="text-sm text-gray-500">In-Hands Date: {order.dueDate ? format(new Date(order.dueDate), 'MMM dd') : 'TBD'}</p>
+                      <p className="text-sm text-gray-500 flex items-center gap-1.5">In-Hands: {order.dueDate ? format(new Date(order.dueDate), 'MMM dd') : 'TBD'}{order.dueDate && (() => { const ds = getDateStatus(order.dueDate); return ds ? <Badge className={`text-[10px] px-1 py-0 leading-4 ${ds.color}`}>{ds.label}</Badge> : null; })()}</p>
                     </div>
                   </div>
                 </div>

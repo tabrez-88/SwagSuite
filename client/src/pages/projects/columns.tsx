@@ -1,6 +1,8 @@
 import { ColumnDef } from "@tanstack/react-table";
 import { format } from "date-fns";
-import { MoreHorizontal, Eye, FileEdit } from "lucide-react";
+import { MoreHorizontal, Eye, FileEdit, AlertTriangle } from "lucide-react";
+import { getDateStatus } from "@/lib/dateUtils";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -94,7 +96,18 @@ export const columns: ColumnDef<OrderWithRelations>[] = [
     ),
     cell: ({ row }) => {
       const date = row.getValue("inHandsDate");
-      return date ? format(new Date(date as string), "MMM dd, yyyy") : "-";
+      if (!date) return "-";
+      const status = getDateStatus(date as string);
+      return (
+        <div className="flex items-center gap-1.5">
+          <span>{format(new Date(date as string), "MMM dd, yyyy")}</span>
+          {status && (
+            <Badge className={`text-[10px] px-1.5 py-0 leading-4 ${status.color}`}>
+              {status.label}
+            </Badge>
+          )}
+        </div>
+      );
     },
   },
   {

@@ -90,7 +90,7 @@ export default function PresentationSection({ orderId, data }: PresentationSecti
   const [isInfoCollapsed, setIsInfoCollapsed] = useState(false);
   const [introduction, setIntroduction] = useState((order as any)?.notes || "");
   const [hidePricing, setHidePricing] = useState(false);
-  const [conversionTarget, setConversionTarget] = useState<"estimate" | "sales_order" | null>(null);
+  const [conversionTarget, setConversionTarget] = useState<"quote" | "sales_order" | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>("detailed");
   const [selectedContact, setSelectedContact] = useState(primaryContact?.id || "");
   const [editingItem, setEditingItem] = useState<any>(null);
@@ -192,10 +192,10 @@ export default function PresentationSection({ orderId, data }: PresentationSecti
               variant="outline"
               size="sm"
               className="gap-1.5 border-amber-300 text-amber-700 hover:bg-amber-50 hover:text-amber-700"
-              onClick={() => setConversionTarget("estimate")}
+              onClick={() => setConversionTarget("quote")}
             >
               <ArrowRight className="w-4 h-4" />
-              Convert to Estimate
+              Convert to Quote
             </Button>
             <Button
               size="sm"

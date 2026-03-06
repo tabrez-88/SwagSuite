@@ -52,11 +52,11 @@ function normalizeCountryCode(country: string): string {
   return mapping[c] || "US";
 }
 
-type StartingStage = "presentation" | "estimate" | "sales_order";
+type StartingStage = "presentation" | "quote" | "sales_order";
 
 const WIZARD_STAGES: { id: StartingStage; label: string; abbreviation: string; description: string }[] = [
   { id: "presentation", label: "Presentation", abbreviation: "P", description: "Start with a product presentation for your client" },
-  { id: "estimate", label: "Estimate", abbreviation: "E", description: "Create an estimate with billing & shipping details" },
+  { id: "quote", label: "Quote", abbreviation: "Q", description: "Create a quote with billing & shipping details" },
   { id: "sales_order", label: "Sales Order", abbreviation: "SO", description: "Jump straight to a confirmed sales order" },
 ];
 
@@ -85,7 +85,7 @@ export default function NewProjectWizard({ open, onOpenChange, initialCompanyId 
   const [inHandsDate, setInHandsDate] = useState("");
   const [eventDate, setEventDate] = useState("");
 
-  // Address fields (estimate & sales_order)
+  // Address fields (quote & sales_order)
   const [billingStreet, setBillingStreet] = useState("");
   const [billingCity, setBillingCity] = useState("");
   const [billingState, setBillingState] = useState("");
@@ -207,7 +207,7 @@ export default function NewProjectWizard({ open, onOpenChange, initialCompanyId 
       if (customerPo) payload.customerPo = customerPo;
     }
 
-    // Address serialization for estimate & sales_order
+    // Address serialization for quote & sales_order
     if (startingStage !== "presentation") {
       if (billingStreet || billingCity) {
         payload.billingAddress = JSON.stringify({
@@ -390,7 +390,7 @@ export default function NewProjectWizard({ open, onOpenChange, initialCompanyId 
               </div>
             </div>
 
-            {/* Addresses (Estimate & Sales Order) */}
+            {/* Addresses (Quote & Sales Order) */}
             {needsAddresses && (
               <div className="space-y-4">
                 {/* Billing */}

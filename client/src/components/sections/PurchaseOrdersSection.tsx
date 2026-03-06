@@ -6,7 +6,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
 import {
-  ClipboardList, Package, Building2, ChevronDown, ChevronRight,
+  AlertTriangle, ClipboardList, Package, Building2, ChevronDown, ChevronRight,
   FileText, Printer, Copy, Loader2, Download,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -20,6 +20,7 @@ import { DocumentEditor } from "@/components/DocumentEditor";
 interface PurchaseOrdersSectionProps {
   orderId: string;
   data: ProjectData;
+  isLocked?: boolean;
 }
 
 interface VendorPO {
@@ -48,7 +49,7 @@ function getEditedItem(_id: string, item: any) {
   };
 }
 
-export default function PurchaseOrdersSection({ orderId, data }: PurchaseOrdersSectionProps) {
+export default function PurchaseOrdersSection({ orderId, data, isLocked }: PurchaseOrdersSectionProps) {
   const { order, orderVendors, orderItems, allItemLines, allItemCharges } = data;
   const { toast } = useToast();
   const poRefs = useRef<Record<string, HTMLDivElement | null>>({});
@@ -127,7 +128,19 @@ export default function PurchaseOrdersSection({ orderId, data }: PurchaseOrdersS
     return doc.metadata.itemsHash !== vendorHashes[doc.vendorId];
   };
 
+  const hasShippingAddress = !!(order as any)?.shippingAddress ||
+    !!((order as any)?.shippingCity && (order as any)?.shippingState);
+
   const handleGeneratePO = async (vendorId: string, vendorName: string) => {
+    if (!hasShippingAddress) {
+      toast({
+        title: "Missing shipping address",
+        description: "Please set a shipping address before generating POs.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     const ref = poRefs.current[vendorId];
     if (!ref) return;
 
@@ -214,6 +227,14 @@ export default function PurchaseOrdersSection({ orderId, data }: PurchaseOrdersS
         </div>
       </div>
 
+      {/* Shipping Address Warning */}
+      {!hasShippingAddress && orderItems.length > 0 && (
+        <div className="flex items-center gap-2 rounded-lg border border-orange-200 bg-orange-50 px-4 py-3 text-sm text-orange-800">
+          <AlertTriangle className="h-4 w-4 flex-shrink-0" />
+          <span>No shipping address set. POs require a ship-to address — set it in the Sales Order section.</span>
+        </div>
+      )}
+
       {/* Empty state */}
       {vendorPOs.length === 0 ? (
         <Card>
@@ -274,7 +295,7 @@ export default function PurchaseOrdersSection({ orderId, data }: PurchaseOrdersS
                             size="sm"
                             className="h-7 text-xs gap-1"
                             onClick={() => handleGeneratePO(po.vendor.id, po.vendor.name)}
-                            disabled={isVendorGenerating || isGenerating}
+                            disabled={isVendorGenerating || isGenerating || isLocked}
                           >
                             {isVendorGenerating ? (
                               <Loader2 className="w-3 h-3 animate-spin" />
@@ -393,8 +414,8 @@ export default function PurchaseOrdersSection({ orderId, data }: PurchaseOrdersS
                     isStale={isVendorDocStale(doc)}
                     onPreview={() => setPreviewDocument(doc)}
                     onDelete={() => deleteDocument(doc.id)}
-                    onRegenerate={() => handleRegeneratePO(doc)}
-                    isDeleting={isDeleting}
+                    onRegenerate={isLocked ? undefined : () => handleRegeneratePO(doc)}
+                    isDeleting={isDeleting || isLocked}
                     isRegenerating={isGenerating}
                   />
                 ))}

@@ -52,9 +52,10 @@ import type { OrderItemLine, OrderAdditionalCharge } from "@shared/schema";
 interface ProductsSectionProps {
   orderId: string;
   data: ProjectData;
+  isLocked?: boolean;
 }
 
-export default function ProductsSection({ orderId, data }: ProductsSectionProps) {
+export default function ProductsSection({ orderId, data, isLocked }: ProductsSectionProps) {
   // Detect context: project vs order
   const [currentLocation] = useLocation();
   const isProjectContext = currentLocation.startsWith(`/project/`);
@@ -514,7 +515,7 @@ export default function ProductsSection({ orderId, data }: ProductsSectionProps)
             {orderItems.length} {orderItems.length === 1 ? "item" : "items"}
           </Badge>
         </div>
-        <Button size="sm" onClick={() => setLocation(addProductPath)}>
+        <Button size="sm" onClick={() => setLocation(addProductPath)} disabled={isLocked}>
           <Plus className="w-4 h-4 mr-2" />
           Add Product
         </Button>
@@ -527,7 +528,7 @@ export default function ProductsSection({ orderId, data }: ProductsSectionProps)
             <Package className="w-16 h-16 mx-auto mb-4 text-gray-400" />
             <p className="text-lg font-medium mb-2">No products in this order yet</p>
             <p className="text-sm mb-4">Click "Add Product" to add items from your catalog</p>
-            <Button variant="outline" onClick={() => setLocation(addProductPath)}>
+            <Button variant="outline" onClick={() => setLocation(addProductPath)} disabled={isLocked}>
               <Plus className="w-4 h-4 mr-2" />
               Add Your First Product
             </Button>
@@ -624,6 +625,7 @@ export default function ProductsSection({ orderId, data }: ProductsSectionProps)
                             variant="ghost"
                             size="sm"
                             className="h-8 w-8 p-0"
+                            disabled={isLocked}
                             onClick={(e) => {
                               e.stopPropagation();
                               startEditItem(item);
@@ -636,6 +638,7 @@ export default function ProductsSection({ orderId, data }: ProductsSectionProps)
                             variant="ghost"
                             size="sm"
                             className="h-8 w-8 p-0"
+                            disabled={isLocked}
                             onClick={(e) => {
                               e.stopPropagation();
                               setDeletingProduct(item);
@@ -718,6 +721,7 @@ export default function ProductsSection({ orderId, data }: ProductsSectionProps)
                           variant="outline"
                           size="sm"
                           className="h-7 text-xs"
+                          disabled={isLocked}
                           onClick={(e) => {
                             e.stopPropagation();
                             addLineMutation.mutate({
@@ -817,11 +821,12 @@ export default function ProductsSection({ orderId, data }: ProductsSectionProps)
                                     <td className="p-2.5 text-right text-xs font-medium">${lineTotal.toFixed(2)}</td>
                                     <td className="p-1.5">
                                       <div className="flex gap-0.5">
-                                        <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => startEditLine(line)}>
+                                        <Button variant="ghost" size="sm" className="h-6 w-6 p-0" disabled={isLocked} onClick={() => startEditLine(line)}>
                                           <Edit2 className="w-3 h-3 text-gray-400" />
                                         </Button>
                                         <Button
                                           variant="ghost" size="sm" className="h-6 w-6 p-0"
+                                          disabled={isLocked}
                                           onClick={() => deleteLineMutation.mutate({ lineId: line.id, orderItemId: line.orderItemId })}
                                         >
                                           <Trash2 className="w-3 h-3 text-gray-400 hover:text-red-500" />
@@ -871,6 +876,7 @@ export default function ProductsSection({ orderId, data }: ProductsSectionProps)
                           variant="outline"
                           size="sm"
                           className="h-7 text-xs"
+                          disabled={isLocked}
                           onClick={(e) => {
                             e.stopPropagation();
                             setAddChargeForItem(item.id);
@@ -899,6 +905,7 @@ export default function ProductsSection({ orderId, data }: ProductsSectionProps)
                                 <span className="font-semibold">${parseFloat(charge.amount || "0").toFixed(2)}</span>
                                 <Button
                                   variant="ghost" size="sm" className="h-6 w-6 p-0"
+                                  disabled={isLocked}
                                   onClick={() => deleteChargeMutation.mutate({ chargeId: charge.id, orderItemId: charge.orderItemId })}
                                 >
                                   <Trash2 className="w-3 h-3 text-gray-400 hover:text-red-500" />
@@ -926,6 +933,7 @@ export default function ProductsSection({ orderId, data }: ProductsSectionProps)
                           variant="outline"
                           size="sm"
                           className="h-7 text-xs"
+                          disabled={isLocked}
                           onClick={(e) => {
                             e.stopPropagation();
                             setUploadingArtworkForItem(item.id);
@@ -965,6 +973,7 @@ export default function ProductsSection({ orderId, data }: ProductsSectionProps)
                                   variant="ghost"
                                   size="sm"
                                   className="h-5 w-5 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                                  disabled={isLocked}
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     deleteArtworkMutation.mutate({ artworkId: art.id, orderItemId: item.id });

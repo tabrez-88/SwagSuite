@@ -15,7 +15,7 @@ export function buildItemsHash(items: any[], type: "quote" | "po", order?: any):
   const orderFields = order
     ? type === "quote"
       ? { notes: order.notes || "", additionalInfo: order.additionalInformation || "", ihd: order.inHandsDate || "", eventDate: order.eventDate || "" }
-      : { notes: order.notes || "", supplierNotes: order.supplierNotes || "", supplierIhd: order.supplierInHandsDate || "" }
+      : { notes: order.notes || "", supplierNotes: order.supplierNotes || "", supplierIhd: order.supplierInHandsDate || "", isFirm: order.isFirm || false, isRush: order.isRush || false }
     : {};
   return JSON.stringify({ items: itemsData, ...orderFields });
 }

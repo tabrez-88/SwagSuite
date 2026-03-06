@@ -36,7 +36,7 @@ client/src/
       ProjectHeader.tsx
       ProjectNestedSidebar.tsx
       hooks/useProjectData.ts  # Data fetching hook
-      sections/        # Project-specific sections (Overview, Estimate, Invoice, etc.)
+      sections/        # Project-specific sections (Overview, Quote, Invoice, etc.)
       components/      # Project-specific components (StageConversionDialog)
     crm/               # CRM sub-pages (companies, contacts, leads, vendors)
     settings/          # Settings sub-pages
@@ -131,14 +131,82 @@ Centralized file registry with dual-write pattern. All file uploads register in 
 
 ## Order / Project System
 - Orders table (`orders` in schema.ts) is the core entity.
-- Project detail page at `/project/:orderId` with sections: Overview, Presentation, Estimate, Sales Order, Shipping, POs, Invoice, Bills, Feedback.
+- Per-section status fields: `quoteStatus` (DB: `quote_status`), `salesOrderStatus`, `presentationStatus`.
+- Business stages: `presentation` → `quote` → `sales_order` → `invoice` (defined in `client/src/lib/businessStages.ts`).
+- **Renamed**: "Estimate" was renamed to "Quote" across the entire codebase. DB column `estimate_status` → `quote_status`, Drizzle field `estimateStatus` → `quoteStatus`, stage id `"estimate"` → `"quote"`. File `EstimateSection.tsx` → `QuoteSection.tsx`. Backward compat: `businessStages.ts` maps legacy `startingStage: "estimate"` → `"quote"`.
+- Project detail page at `/project/:orderId` with sections: Overview, Presentation, Quote, Sales Order, Shipping, POs, Invoice, Bills, Feedback.
 - Legacy `/orders` and `/orders/:id` routes redirect to `/projects` and `/project/:id`.
 - Shared sections (Activities, Products, Shipping, Files, Documents, Email, Vendor, POs) live in `components/sections/`.
-- Project-specific sections (Overview, Estimate, Invoice, etc.) live in `pages/project-detail/sections/`.
+- Project-specific sections (Overview, Quote, Invoice, etc.) live in `pages/project-detail/sections/`.
 - Shared types (`ProjectData`, `TeamMember`, etc.) in `client/src/types/project-types.ts`.
 - `projectActivities` table tracks all activity (comments, status changes, file uploads, mentions).
 - Order files stored in `orderFiles` table, linked to orders.
 - Artwork files in `artworkFiles` table, linked to order items.
+
+## Auto-Lock System (CommonSKU-style)
+
+### Architecture
+Section-level auto-locking that prevents edits on finalized stages. Lock state is derived from existing status fields (no schema migration). Unlock overrides stored in `orders.stageData.unlocks` JSONB.
+
+### Lock Rules
+- **Quote**: Locked when project advances to Sales Order stage (`businessStage >= sales_order`). Unlockable.
+- **Sales Order** (+ Shipping, POs): Locked when `salesOrderStatus === "ready_to_invoice"`. Unlockable.
+- **Invoice**: Locked when `invoice.status === "paid"`. Unlockable.
+
+### Key Files
+- `client/src/hooks/useLockStatus.ts` — Centralized hook: `useLockStatus(data) → LockStatus` with per-section `{ isLocked, reason, canUnlock, isOverridden }`
+- `client/src/components/LockBanner.tsx` — Reusable amber banner with lock icon + "Unlock" button + AlertDialog confirmation
+- `server/routes.ts` — `isSectionLocked()` helper + `checkLockByOrderItemId()` for nested routes. Lock validation on PATCH/DELETE endpoints returns 403.
+
+### Unlock Mechanism
+- Unlock overrides stored in `stageData.unlocks.{quote|salesOrder|invoice}`
+- Auto-relock: When `salesOrderStatus` transitions to `"ready_to_invoice"`, the `salesOrder` unlock override is cleared.
+- All lock/unlock events logged in `projectActivities` as `system_action`.
+
+### Audit Trail
+- `quoteStatus`, `salesOrderStatus`, `presentationStatus` changes logged as `status_change` activities with `metadata.section`
+- Lock/unlock events logged as `system_action` with `metadata.action: 'section_unlocked'`
+
+### PO Stage Gate
+- POs page requires `salesOrderStatus` to be `client_approved` or beyond (in_production, shipped, ready_to_invoice) — controlled via `requiresClientApproval` flag in `ProjectNestedSidebar.tsx`
+
+## Order Flow Improvements (CommonSKU-inspired)
+
+### Date Utilities
+- `client/src/lib/dateUtils.ts` — Centralized date status calculations:
+  - `getDateStatus(date)` → returns `{ urgency, label, color, daysRemaining }` for overdue/today/urgent/soon
+  - `hasTimelineConflict(order, shipments?)` → detects conflicts: supplier date > customer date, event before in-hands, shipment ETA > in-hands
+  - `isInvoiceOverdue(invoice)` → pending + past due date
+
+### Timeline Validation
+- `client/src/components/TimelineWarningBanner.tsx` — Red/orange warning banner for date conflicts (reusable, similar to LockBanner pattern)
+- Shown in **SalesOrderSection** and **ShippingSection** when conflicts detected
+- Conflicts: supplier deadline after customer in-hands, event date before delivery, shipment ETA exceeding deadline
+
+### Missing Fields Surfaced
+- **SalesOrderSection**: Added `supplierInHandsDate` and `eventDate` input fields with save-on-blur (`updateFieldMutation` → PATCH order)
+- **ShippingSection**: Added blue date context card showing Customer In-Hands, Supplier In-Hands, and Event Date at top of section
+
+### Overdue Indicators
+- **Projects table** (`columns.tsx`): In-Hands Date column shows colored badges (Overdue/Due Today/3d left/etc.)
+- **Kanban board** (`kanban-board.tsx`): Cards show red text + AlertTriangle icon when overdue
+- **Production report** (`production-report.tsx`): Improved priority calc using `getDateStatus()` (overdue/today=urgent, urgent/soon=high); overdue badges on all order cards
+- **OverviewSection**: In-Hands Date and Event Date display urgency badges
+
+### Date Range Filters (Production Report)
+- Filter by In-Hands Date or Next Action Date with from/to date inputs
+- Quick preset buttons: "Overdue", "This Week", "This Month"
+- Integrated into existing active filters display + clear all
+
+### PO Improvements
+- **Shipping validation**: PO generation blocked if no shipping address set; orange warning banner in PO section
+- **Rush/Firm indicators on PO template**: "FIRM ORDER — Date cannot be adjusted" (blue) and "RUSH ORDER — Please prioritize" (red) in header + special instructions
+- **Stale detection**: `buildItemsHash` now includes `isFirm` and `isRush` flags
+
+### Auto-Overdue Invoice Detection
+- `server/notificationScheduler.ts` — `processOverdueInvoices()` method runs hourly alongside next-action notifications
+- Queries invoices where `status='pending'` AND `dueDate < now()`, auto-updates to `'overdue'`
+- Logs `system_action` activity in `projectActivities` for each overdue invoice
 
 ## Important Notes
 - `routes.ts` is very large (~9800 lines). Search for specific endpoint patterns rather than reading the whole file.

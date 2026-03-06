@@ -20,7 +20,7 @@ import { useToast } from "@/hooks/use-toast";
 interface StageConversionDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  targetStage: "estimate" | "sales_order";
+  targetStage: "quote" | "sales_order";
   orderId: string;
   enrichedItems: any[];
   onSuccess: () => void;
@@ -40,7 +40,7 @@ export default function StageConversionDialog({
   onSuccess,
 }: StageConversionDialogProps) {
   const { toast } = useToast();
-  const targetLabel = targetStage === "estimate" ? "Estimate" : "Sales Order";
+  const targetLabel = targetStage === "quote" ? "Quote" : "Sales Order";
 
   const [selections, setSelections] = useState<Record<string, ItemSelection>>(() => {
     const initial: Record<string, ItemSelection> = {};
@@ -175,7 +175,7 @@ export default function StageConversionDialog({
             <Button
               onClick={() => convertMutation.mutate()}
               disabled={convertMutation.isPending || selectedCount === 0}
-              className={targetStage === "estimate" ? "bg-amber-600 hover:bg-amber-700" : "bg-blue-600 hover:bg-blue-700"}
+              className={targetStage === "quote" ? "bg-amber-600 hover:bg-amber-700" : "bg-blue-600 hover:bg-blue-700"}
             >
               {convertMutation.isPending && <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />}
               Convert to {targetLabel}

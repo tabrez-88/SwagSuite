@@ -280,7 +280,7 @@ export const orders = pgTable("orders", {
   // Per-section status management (CommonSKU-style)
   presentationStatus: varchar("presentation_status").default("draft"), // draft, open, sent, viewed, expired
   salesOrderStatus: varchar("sales_order_status").default("new"), // new, pending_client_approval, client_change_requested, client_approved, in_production, shipped, ready_to_invoice
-  estimateStatus: varchar("estimate_status").default("draft"), // draft, sent, approved, rejected, expired
+  quoteStatus: varchar("quote_status").default("draft"), // draft, sent, approved, rejected, expired
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

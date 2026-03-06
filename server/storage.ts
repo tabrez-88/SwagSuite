@@ -892,7 +892,7 @@ export class DatabaseStorage implements IStorage {
         // Section-specific statuses for business stage determination
         presentationStatus: orders.presentationStatus,
         salesOrderStatus: orders.salesOrderStatus,
-        estimateStatus: orders.estimateStatus,
+        quoteStatus: orders.quoteStatus,
         orderDiscount: orders.orderDiscount,
         // Related company info
         companyName: companies.name,

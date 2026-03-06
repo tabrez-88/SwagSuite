@@ -2261,6 +2261,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ── Section Lock Check Helper ──
+  function isSectionLocked(order: any, section: 'quote' | 'salesOrder' | 'invoice', invoice?: any): boolean {
+    const unlocks = (order.stageData as any)?.unlocks || {};
+    switch (section) {
+      case 'quote': {
+        const hasSalesOrder = order.orderType === 'sales_order' || order.orderType === 'rush_order' ||
+          (order.salesOrderStatus && order.salesOrderStatus !== 'new');
+        return hasSalesOrder && !unlocks.quote;
+      }
+      case 'salesOrder': {
+        return order.salesOrderStatus === 'ready_to_invoice' && !unlocks.salesOrder;
+      }
+      case 'invoice': {
+        return invoice?.status === 'paid' && !unlocks.invoice;
+      }
+    }
+  }
+
   app.patch('/api/orders/:id', isAuthenticated, async (req, res) => {
     try {
       const dataToValidate = { ...req.body };
@@ -2287,6 +2305,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Get old order to check if company/supplier changed
       const oldOrder = await storage.getOrder(req.params.id);
+
+      // ── Lock validation (allow stageData updates for unlock operations) ──
+      if (oldOrder && !req.body.stageData) {
+        const isQuoteField = req.body.quoteStatus !== undefined;
+        const isSalesOrderField = req.body.salesOrderStatus !== undefined ||
+          req.body.paymentTerms !== undefined || req.body.customerPo !== undefined ||
+          req.body.margin !== undefined || items;
+
+        if (isQuoteField && isSectionLocked(oldOrder, 'quote')) {
+          return res.status(403).json({ message: "Quote is locked. Unlock it first to make changes." });
+        }
+        if (isSalesOrderField && isSectionLocked(oldOrder, 'salesOrder')) {
+          return res.status(403).json({ message: "Sales Order is locked. Unlock it first to make changes." });
+        }
+      }
+
       const order = await storage.updateOrder(req.params.id, validatedData);
 
       // Handle order items if provided
@@ -2372,6 +2406,79 @@ export async function registerRoutes(app: Express): Promise<Server> {
             metadata: { oldStatus: oldOrder.status, newStatus: req.body.status },
             isSystemGenerated: false,
           });
+        }
+
+        // Log quoteStatus changes
+        if (oldOrder && req.body.quoteStatus && req.body.quoteStatus !== (oldOrder as any).quoteStatus) {
+          const quoteDisplayMap: Record<string, string> = {
+            draft: "Draft", sent: "Sent to Client", approved: "Approved", rejected: "Rejected", expired: "Expired",
+          };
+          const oldLabel = quoteDisplayMap[(oldOrder as any).quoteStatus || ""] || (oldOrder as any).quoteStatus || "None";
+          const newLabel = quoteDisplayMap[req.body.quoteStatus] || req.body.quoteStatus;
+          await actDb.insert(projectActivities).values({
+            orderId: order.id, userId: currentUserId, activityType: "status_change",
+            content: `Quote status changed from ${oldLabel} to ${newLabel}`,
+            metadata: { section: 'quote', oldStatus: (oldOrder as any).quoteStatus, newStatus: req.body.quoteStatus },
+            isSystemGenerated: false,
+          });
+        }
+
+        // Log salesOrderStatus changes
+        if (oldOrder && req.body.salesOrderStatus && req.body.salesOrderStatus !== (oldOrder as any).salesOrderStatus) {
+          const soDisplayMap: Record<string, string> = {
+            new: "New", pending_client_approval: "Pending Client Approval", client_change_requested: "Client Change Requested",
+            client_approved: "Client Approved", in_production: "In Production", shipped: "Shipped", ready_to_invoice: "Ready To Be Invoiced",
+          };
+          const oldLabel = soDisplayMap[(oldOrder as any).salesOrderStatus || ""] || (oldOrder as any).salesOrderStatus || "None";
+          const newLabel = soDisplayMap[req.body.salesOrderStatus] || req.body.salesOrderStatus;
+          await actDb.insert(projectActivities).values({
+            orderId: order.id, userId: currentUserId, activityType: "status_change",
+            content: `Sales Order status changed from ${oldLabel} to ${newLabel}`,
+            metadata: { section: 'sales_order', oldStatus: (oldOrder as any).salesOrderStatus, newStatus: req.body.salesOrderStatus },
+            isSystemGenerated: false,
+          });
+        }
+
+        // Log presentationStatus changes
+        if (oldOrder && req.body.presentationStatus && req.body.presentationStatus !== (oldOrder as any).presentationStatus) {
+          const presDisplayMap: Record<string, string> = {
+            draft: "Draft", open: "Open", sent: "Sent", viewed: "Viewed", expired: "Expired",
+          };
+          const oldLabel = presDisplayMap[(oldOrder as any).presentationStatus || ""] || (oldOrder as any).presentationStatus || "None";
+          const newLabel = presDisplayMap[req.body.presentationStatus] || req.body.presentationStatus;
+          await actDb.insert(projectActivities).values({
+            orderId: order.id, userId: currentUserId, activityType: "status_change",
+            content: `Presentation status changed from ${oldLabel} to ${newLabel}`,
+            metadata: { section: 'presentation', oldStatus: (oldOrder as any).presentationStatus, newStatus: req.body.presentationStatus },
+            isSystemGenerated: false,
+          });
+        }
+
+        // Log lock/unlock events via stageData.unlocks changes
+        if (oldOrder && req.body.stageData?.unlocks) {
+          const oldUnlocks = (oldOrder as any).stageData?.unlocks || {};
+          const newUnlocks = req.body.stageData.unlocks;
+          const sectionLabels: Record<string, string> = { quote: "Quote", salesOrder: "Sales Order", invoice: "Invoice" };
+          for (const section of ['quote', 'salesOrder', 'invoice'] as const) {
+            if (newUnlocks[section] && !oldUnlocks[section]) {
+              await actDb.insert(projectActivities).values({
+                orderId: order.id, userId: currentUserId, activityType: "system_action",
+                content: `${sectionLabels[section]} section unlocked for editing`,
+                metadata: { action: 'section_unlocked', section },
+                isSystemGenerated: false,
+              });
+            }
+          }
+        }
+
+        // Auto-relock: clear unlock overrides when status transitions trigger a new lock
+        if (oldOrder && req.body.salesOrderStatus === 'ready_to_invoice' && (oldOrder as any).salesOrderStatus !== 'ready_to_invoice') {
+          const currentStageData = (order as any).stageData || {};
+          if (currentStageData.unlocks?.salesOrder) {
+            const updatedStageData = { ...currentStageData, unlocks: { ...(currentStageData.unlocks || {}) } };
+            delete updatedStageData.unlocks.salesOrder;
+            await storage.updateOrder(order.id, { stageData: updatedStageData } as any);
+          }
         }
 
         if (req.body.assignedUserId !== undefined && oldOrder && req.body.assignedUserId !== oldOrder.assignedUserId) {
@@ -2519,6 +2626,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/orders/:orderId/items', isAuthenticated, async (req, res) => {
     try {
+      // Lock check
+      const parentOrder = await storage.getOrder(req.params.orderId);
+      if (parentOrder && isSectionLocked(parentOrder, 'salesOrder')) {
+        return res.status(403).json({ message: "Sales Order is locked. Unlock it first to make changes." });
+      }
+
       // If supplierId is not provided, get it from the product
       let dataToInsert = {
         ...req.body,
@@ -2586,6 +2699,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.delete('/api/orders/:orderId/items/:itemId', isAuthenticated, async (req, res) => {
     try {
+      // Lock check
+      const parentOrder = await storage.getOrder(req.params.orderId);
+      if (parentOrder && isSectionLocked(parentOrder, 'salesOrder')) {
+        return res.status(403).json({ message: "Sales Order is locked. Unlock it first to make changes." });
+      }
+
       // First, delete any artwork approvals associated with this order item
       // This prevents foreign key constraint violations
       const { db } = await import("./db");
@@ -2780,6 +2899,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ── Update single order item ──
   app.patch('/api/orders/:orderId/items/:itemId', isAuthenticated, async (req, res) => {
     try {
+      // Lock check
+      const parentOrder = await storage.getOrder(req.params.orderId);
+      if (parentOrder && isSectionLocked(parentOrder, 'salesOrder')) {
+        return res.status(403).json({ message: "Sales Order is locked. Unlock it first to make changes." });
+      }
+
       const updatedItem = await storage.updateOrderItem(req.params.itemId, req.body);
       res.json(updatedItem);
     } catch (error) {
@@ -2799,8 +2924,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Helper: check lock by orderItemId (looks up the item to find its orderId)
+  async function checkLockByOrderItemId(orderItemId: string, res: any): Promise<boolean> {
+    const { db } = await import("./db");
+    const { orderItems } = await import("@shared/schema");
+    const { eq } = await import("drizzle-orm");
+    const [item] = await db.select({ orderId: orderItems.orderId }).from(orderItems).where(eq(orderItems.id, orderItemId));
+    if (!item) return false;
+    const parentOrder = await storage.getOrder(item.orderId);
+    if (parentOrder && isSectionLocked(parentOrder, 'salesOrder')) {
+      res.status(403).json({ message: "Sales Order is locked. Unlock it first to make changes." });
+      return true;
+    }
+    return false;
+  }
+
   app.post('/api/order-items/:orderItemId/lines', isAuthenticated, async (req, res) => {
     try {
+      if (await checkLockByOrderItemId(req.params.orderItemId, res)) return;
       const validatedData = insertOrderItemLineSchema.parse({
         ...req.body,
         orderItemId: req.params.orderItemId,
@@ -2815,6 +2956,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.patch('/api/order-items/:orderItemId/lines/:lineId', isAuthenticated, async (req, res) => {
     try {
+      if (await checkLockByOrderItemId(req.params.orderItemId, res)) return;
       const line = await storage.updateOrderItemLine(req.params.lineId, req.body);
       res.json(line);
     } catch (error) {
@@ -2825,6 +2967,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.delete('/api/order-items/:orderItemId/lines/:lineId', isAuthenticated, async (req, res) => {
     try {
+      if (await checkLockByOrderItemId(req.params.orderItemId, res)) return;
       await storage.deleteOrderItemLine(req.params.lineId);
       res.status(204).send();
     } catch (error) {
@@ -2846,6 +2989,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/order-items/:orderItemId/charges', isAuthenticated, async (req, res) => {
     try {
+      if (await checkLockByOrderItemId(req.params.orderItemId, res)) return;
       const validatedData = insertOrderAdditionalChargeSchema.parse({
         ...req.body,
         orderItemId: req.params.orderItemId,
@@ -2860,6 +3004,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.patch('/api/order-items/:orderItemId/charges/:chargeId', isAuthenticated, async (req, res) => {
     try {
+      if (await checkLockByOrderItemId(req.params.orderItemId, res)) return;
       const charge = await storage.updateOrderAdditionalCharge(req.params.chargeId, req.body);
       res.json(charge);
     } catch (error) {
@@ -2870,6 +3015,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.delete('/api/order-items/:orderItemId/charges/:chargeId', isAuthenticated, async (req, res) => {
     try {
+      if (await checkLockByOrderItemId(req.params.orderItemId, res)) return;
       await storage.deleteOrderAdditionalCharge(req.params.chargeId);
       res.status(204).send();
     } catch (error) {
@@ -2904,14 +3050,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/orders/:orderId/shipments', isAuthenticated, async (req, res) => {
     try {
-      const validatedData = insertOrderShipmentSchema.parse({
-        ...req.body,
-        orderId: req.params.orderId,
-      });
+      const body = { ...req.body, orderId: req.params.orderId };
+      // Coerce date strings to Date objects for timestamp fields
+      if (body.shipDate) body.shipDate = new Date(body.shipDate);
+      if (body.estimatedDelivery) body.estimatedDelivery = new Date(body.estimatedDelivery);
+      if (body.actualDelivery) body.actualDelivery = new Date(body.actualDelivery);
+      const validatedData = insertOrderShipmentSchema.parse(body);
       const shipment = await storage.createOrderShipment(validatedData);
       res.status(201).json(shipment);
-    } catch (error) {
-      console.error("Error creating order shipment:", error);
+    } catch (error: any) {
+      console.error("Error creating order shipment:", error?.message || error);
       res.status(500).json({ message: "Failed to create order shipment" });
     }
   });

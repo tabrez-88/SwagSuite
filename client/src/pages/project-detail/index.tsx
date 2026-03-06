@@ -5,12 +5,13 @@ import ProjectHeader from "./ProjectHeader";
 import ProjectNestedSidebar from "./ProjectNestedSidebar";
 import { useProjectData } from "./hooks/useProjectData";
 import OrderModal from "@/components/modals/OrderModal";
+import { useLockStatus } from "@/hooks/useLockStatus";
 
 // Sections
 import OverviewSection from "./sections/OverviewSection";
 import PresentationSection from "./sections/PresentationSection";
 import PresentationPreviewPage from "./sections/PresentationPreviewPage";
-import EstimateSection from "./sections/EstimateSection";
+import QuoteSection from "./sections/QuoteSection";
 import SalesOrderSection from "./sections/SalesOrderSection";
 import ShippingSection from "@/components/sections/ShippingSection";
 import PurchaseOrdersSection from "@/components/sections/PurchaseOrdersSection";
@@ -27,6 +28,7 @@ export default function ProjectDetailPage() {
   const queryClient = useQueryClient();
 
   const data = useProjectData(orderId);
+  const lockStatus = useLockStatus(data);
 
   const getActiveSection = () => {
     if (!orderId) return "overview";
@@ -81,18 +83,18 @@ export default function ProjectDetailPage() {
         return <PresentationSection orderId={orderId!} data={data} />;
       case "presentation/preview":
         return <PresentationPreviewPage orderId={orderId!} data={data} />;
-      case "estimate":
-        return <EstimateSection orderId={orderId!} data={data} />;
+      case "quote":
+        return <QuoteSection orderId={orderId!} data={data} lockStatus={lockStatus.quote} />;
       case "sales-order":
-        return <SalesOrderSection orderId={orderId!} data={data} />;
+        return <SalesOrderSection orderId={orderId!} data={data} lockStatus={lockStatus.salesOrder} />;
       case "sales-order/add":
         return <AddProductPage orderId={orderId!} data={data} />;
       case "shipping":
-        return <ShippingSection orderId={orderId!} data={data} />;
+        return <ShippingSection orderId={orderId!} data={data} isLocked={lockStatus.shipping.isLocked} />;
       case "pos":
-        return <PurchaseOrdersSection orderId={orderId!} data={data} />;
+        return <PurchaseOrdersSection orderId={orderId!} data={data} isLocked={lockStatus.pos.isLocked} />;
       case "invoice":
-        return <InvoiceSection orderId={orderId!} data={data} />;
+        return <InvoiceSection orderId={orderId!} data={data} lockStatus={lockStatus.invoice} />;
       case "bills":
         return <BillsSection orderId={orderId!} data={data} />;
       case "feedback":
@@ -125,6 +127,7 @@ export default function ProjectDetailPage() {
           orderId={orderId!}
           orderItemsCount={data.orderItems.length}
           currentStage={data.businessStage?.stage.id}
+          salesOrderStatus={data.order?.salesOrderStatus}
         />
 
         <div className="flex-1 overflow-y-auto p-6 bg-gray-50">

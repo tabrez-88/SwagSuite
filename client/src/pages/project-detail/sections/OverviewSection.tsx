@@ -35,6 +35,7 @@ import {
   Users,
 } from "lucide-react";
 import { format } from "date-fns";
+import { getDateStatus } from "@/lib/dateUtils";
 import type { useProjectData } from "../hooks/useProjectData";
 
 import ActivitiesSection from "@/components/sections/ActivitiesSection";
@@ -271,17 +272,25 @@ export default function OverviewSection({ orderId, data }: OverviewSectionProps)
                       <div className="flex-1 space-y-1">
                         <div className="flex justify-between items-center">
                           <span className="text-sm text-muted-foreground">In Hands Date</span>
-                          <span className="text-sm font-medium">
+                          <span className="text-sm font-medium flex items-center gap-1.5">
                             {order.inHandsDate
                               ? format(new Date(order.inHandsDate), "MMM d, yyyy")
                               : "Not set"}
+                            {order.inHandsDate && (() => {
+                              const ds = getDateStatus(order.inHandsDate);
+                              return ds ? <Badge className={`text-[10px] px-1.5 py-0 leading-4 ${ds.color}`}>{ds.label}</Badge> : null;
+                            })()}
                           </span>
                         </div>
                         {order.eventDate && (
                           <div className="flex justify-between items-center">
                             <span className="text-sm text-muted-foreground">Event Date</span>
-                            <span className="text-sm">
+                            <span className="text-sm flex items-center gap-1.5">
                               {format(new Date(order.eventDate), "MMM d, yyyy")}
+                              {(() => {
+                                const ds = getDateStatus(order.eventDate);
+                                return ds ? <Badge className={`text-[10px] px-1.5 py-0 leading-4 ${ds.color}`}>{ds.label}</Badge> : null;
+                              })()}
                             </span>
                           </div>
                         )}

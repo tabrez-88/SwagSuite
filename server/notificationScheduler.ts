@@ -1,8 +1,9 @@
 import { db } from './db';
-import { orders } from '@shared/schema';
-import { notifications } from '@shared/project-schema';
-import { and, isNotNull, sql, eq } from 'drizzle-orm';
+import { orders, invoices } from '@shared/schema';
+import { notifications, projectActivities } from '@shared/project-schema';
+import { and, isNotNull, sql, eq, lt } from 'drizzle-orm';
 import { storage } from './storage';
+import { format } from 'date-fns';
 
 class NotificationScheduler {
   private intervalId: NodeJS.Timeout | null = null;
@@ -149,10 +150,60 @@ class NotificationScheduler {
       if (notificationsSent > 0 || emailsSent > 0) {
         console.log(`🔔 Daily notifications: ${ordersWithActions.length} orders, ${notificationsSent} in-app, ${emailsSent} emails`);
       }
+
+      // Also process overdue invoices
+      await this.processOverdueInvoices();
     } catch (error) {
       console.error('❌ Error processing daily notifications:', error);
     } finally {
       this.isProcessing = false;
+    }
+  }
+
+  async processOverdueInvoices() {
+    try {
+      const now = new Date();
+
+      const overdueInvoices = await db
+        .select()
+        .from(invoices)
+        .where(
+          and(
+            eq(invoices.status, 'pending'),
+            isNotNull(invoices.dueDate),
+            lt(invoices.dueDate, now)
+          )
+        );
+
+      if (overdueInvoices.length === 0) return;
+
+      let count = 0;
+      for (const invoice of overdueInvoices) {
+        try {
+          await storage.updateInvoice(invoice.id, { status: 'overdue' });
+
+          // Log activity
+          if (invoice.orderId) {
+            await db.insert(projectActivities).values({
+              orderId: invoice.orderId,
+              userId: 'system',
+              activityType: 'system_action',
+              content: `Invoice ${invoice.invoiceNumber} marked as overdue (was due ${invoice.dueDate ? format(new Date(invoice.dueDate), "MMM d, yyyy") : "N/A"})`,
+              metadata: { action: 'invoice_overdue', invoiceId: invoice.id },
+              isSystemGenerated: true,
+            });
+          }
+          count++;
+        } catch (e) {
+          console.error(`Failed to mark invoice ${invoice.id} as overdue:`, e);
+        }
+      }
+
+      if (count > 0) {
+        console.log(`📋 Auto-overdue: ${count} invoice(s) marked as overdue`);
+      }
+    } catch (error) {
+      console.error('❌ Error processing overdue invoices:', error);
     }
   }
 }

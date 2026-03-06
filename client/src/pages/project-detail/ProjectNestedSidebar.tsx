@@ -14,10 +14,14 @@ import {
 import { cn } from "@/lib/utils";
 import { type BusinessStage, STAGE_ORDER } from "@/lib/businessStages";
 
+// Sales order statuses that mean "client approved or beyond"
+const PO_UNLOCK_STATUSES = ["client_approved", "in_production", "shipped", "ready_to_invoice"];
+
 interface ProjectNestedSidebarProps {
   orderId: string;
   orderItemsCount?: number;
   currentStage?: BusinessStage;
+  salesOrderStatus?: string;
 }
 
 interface NavItem {
@@ -26,15 +30,16 @@ interface NavItem {
   icon: any;
   showCount?: boolean;
   stageGate?: BusinessStage;
+  requiresClientApproval?: boolean;
 }
 
 const navItems: NavItem[] = [
   { name: "Overview", href: "overview", icon: LayoutDashboard },
   { name: "Presentation", href: "presentation", icon: Presentation },
-  { name: "Estimate", href: "estimate", icon: Calculator, stageGate: "estimate" },
+  { name: "Quote", href: "quote", icon: Calculator, stageGate: "quote" },
   { name: "Sales Order", href: "sales-order", icon: ShoppingCart, showCount: true, stageGate: "sales_order" },
   { name: "Shipping", href: "shipping", icon: Truck, stageGate: "sales_order" },
-  { name: "POs", href: "pos", icon: ClipboardList, stageGate: "sales_order" },
+  { name: "POs", href: "pos", icon: ClipboardList, stageGate: "sales_order", requiresClientApproval: true },
   { name: "Invoice", href: "invoice", icon: Receipt, stageGate: "invoice" },
   { name: "Bills", href: "bills", icon: FileText, stageGate: "invoice" },
   { name: "Feedback", href: "feedback", icon: Star },
@@ -48,7 +53,7 @@ function isStageUnlocked(stageGate: BusinessStage | undefined, currentStage: Bus
   return currentIndex >= gateIndex;
 }
 
-export default function ProjectNestedSidebar({ orderId, orderItemsCount, currentStage }: ProjectNestedSidebarProps) {
+export default function ProjectNestedSidebar({ orderId, orderItemsCount, currentStage, salesOrderStatus }: ProjectNestedSidebarProps) {
   const [location] = useLocation();
 
   const getActiveSection = () => {
@@ -78,7 +83,8 @@ export default function ProjectNestedSidebar({ orderId, orderItemsCount, current
       <nav className="p-2 space-y-0.5">
         {navItems.map((item) => {
           const isActive = activeSection === item.href;
-          const isLocked = !isStageUnlocked(item.stageGate, currentStage);
+          const stageUnlocked = isStageUnlocked(item.stageGate, currentStage);
+          const isLocked = !stageUnlocked || (item.requiresClientApproval && !PO_UNLOCK_STATUSES.includes(salesOrderStatus || ""));
 
           if (isLocked) {
             return (

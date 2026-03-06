@@ -6,7 +6,8 @@ import { Badge } from "@/components/ui/badge";
 import { UserAvatar } from "@/components/UserAvatar";
 import { StageBadge } from "@/components/StageBadge";
 import { format } from "date-fns";
-import { Calendar, DollarSign, GripVertical } from "lucide-react";
+import { AlertTriangle, Calendar, DollarSign, GripVertical } from "lucide-react";
+import { getDateStatus } from "@/lib/dateUtils";
 import type { Order } from "@shared/schema";
 import type { OrderWithRelations } from "./columns";
 import {
@@ -217,12 +218,19 @@ export function KanbanBoard({ data, onViewOrder, onViewProject }: KanbanBoardPro
                             }).format(Number(order.total || 0))}
                           </span>
                         </div>
-                        {order.inHandsDate && (
-                          <div className="flex items-center gap-1">
-                            <Calendar className="w-3 h-3" />
-                            <span>{format(new Date(order.inHandsDate), "MMM dd")}</span>
-                          </div>
-                        )}
+                        {order.inHandsDate && (() => {
+                          const dateStatus = getDateStatus(order.inHandsDate);
+                          const urgencyClass = dateStatus?.urgency === 'overdue' ? 'text-red-600 font-semibold'
+                            : dateStatus?.urgency === 'today' ? 'text-red-500 font-medium'
+                            : dateStatus?.urgency === 'urgent' ? 'text-orange-500'
+                            : '';
+                          return (
+                            <div className={`flex items-center gap-1 ${urgencyClass}`}>
+                              {dateStatus?.urgency === 'overdue' ? <AlertTriangle className="w-3 h-3" /> : <Calendar className="w-3 h-3" />}
+                              <span>{format(new Date(order.inHandsDate), "MMM dd")}</span>
+                            </div>
+                          );
+                        })()}
                       </div>
                     </div>
                   </Card>

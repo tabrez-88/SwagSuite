@@ -27,13 +27,18 @@ import { format } from "date-fns";
 import { useLocation } from "wouter";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { hasTimelineConflict } from "@/lib/dateUtils";
+import TimelineWarningBanner from "@/components/TimelineWarningBanner";
 import type { useProjectData } from "../hooks/useProjectData";
+import type { SectionLockStatus } from "@/hooks/useLockStatus";
+import LockBanner from "@/components/LockBanner";
 
 import ProductsSection from "@/components/sections/ProductsSection";
 
 interface SalesOrderSectionProps {
   orderId: string;
   data: ReturnType<typeof useProjectData>;
+  lockStatus?: SectionLockStatus;
 }
 
 const salesOrderStatuses = [
@@ -46,7 +51,7 @@ const salesOrderStatuses = [
   { value: "ready_to_invoice", label: "Ready To Be Invoiced", color: "bg-teal-100 text-teal-800" },
 ];
 
-export default function SalesOrderSection({ orderId, data }: SalesOrderSectionProps) {
+export default function SalesOrderSection({ orderId, data, lockStatus }: SalesOrderSectionProps) {
   const { order, companyName, primaryContact, contacts } = data;
   const [, setLocation] = useLocation();
   const [isInfoCollapsed, setIsInfoCollapsed] = useState(false);
@@ -64,6 +69,18 @@ export default function SalesOrderSection({ orderId, data }: SalesOrderSectionPr
     },
     onError: () => {
       toast({ title: "Failed to update status", variant: "destructive" });
+    },
+  });
+
+  const updateFieldMutation = useMutation({
+    mutationFn: async (fields: Record<string, any>) => {
+      await apiRequest("PATCH", `/api/orders/${orderId}`, fields);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/orders/${orderId}`] });
+    },
+    onError: () => {
+      toast({ title: "Failed to update field", variant: "destructive" });
     },
   });
 
@@ -91,15 +108,21 @@ export default function SalesOrderSection({ orderId, data }: SalesOrderSectionPr
 
   const contactEmail = primaryContact?.email || "";
 
+  const isLocked = lockStatus?.isLocked ?? false;
+  const timelineConflicts = hasTimelineConflict(order);
+
   return (
     <div className="space-y-6">
+      {lockStatus && <LockBanner lockStatus={lockStatus} sectionName="Sales Order" sectionKey="salesOrder" orderId={orderId} />}
+      <TimelineWarningBanner conflicts={timelineConflicts} />
+
       {/* Sales Order Header - CommonSKU style */}
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div className="flex items-center gap-6 flex-wrap">
           {/* Status */}
           <div>
             <label className="text-xs font-medium text-gray-500 block mb-1">Status</label>
-            <Select value={currentStatus} onValueChange={(val) => updateStatusMutation.mutate(val)}>
+            <Select value={currentStatus} onValueChange={(val) => updateStatusMutation.mutate(val)} disabled={isLocked}>
               <SelectTrigger className="w-[220px] h-9">
                 <SelectValue>
                   <span className="flex items-center gap-2">
@@ -128,6 +151,7 @@ export default function SalesOrderSection({ orderId, data }: SalesOrderSectionPr
               type="date"
               defaultValue={order.createdAt ? format(new Date(order.createdAt), "yyyy-MM-dd") : ""}
               className="w-[160px] h-9"
+              disabled={isLocked}
             />
           </div>
         </div>
@@ -222,7 +246,7 @@ export default function SalesOrderSection({ orderId, data }: SalesOrderSectionPr
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="text-xs font-medium text-gray-500 block mb-1">Terms</label>
-                    <Select defaultValue={(order as any)?.paymentTerms || "net_30"}>
+                    <Select defaultValue={(order as any)?.paymentTerms || "net_30"} disabled={isLocked}>
                       <SelectTrigger className="h-8 text-sm">
                         <SelectValue />
                       </SelectTrigger>
@@ -238,7 +262,7 @@ export default function SalesOrderSection({ orderId, data }: SalesOrderSectionPr
                   </div>
                   <div>
                     <label className="text-xs font-medium text-gray-500 block mb-1">Currency</label>
-                    <Select defaultValue="USD">
+                    <Select defaultValue="USD" disabled={isLocked}>
                       <SelectTrigger className="h-8 text-sm">
                         <SelectValue />
                       </SelectTrigger>
@@ -257,7 +281,44 @@ export default function SalesOrderSection({ orderId, data }: SalesOrderSectionPr
                     type="date"
                     defaultValue={order.inHandsDate ? format(new Date(order.inHandsDate), "yyyy-MM-dd") : ""}
                     className="h-8 text-sm"
+                    disabled={isLocked}
+                    onBlur={(e) => {
+                      const newVal = e.target.value || null;
+                      const oldVal = order.inHandsDate ? format(new Date(order.inHandsDate), "yyyy-MM-dd") : "";
+                      if (newVal !== oldVal) updateFieldMutation.mutate({ inHandsDate: newVal });
+                    }}
                   />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs font-medium text-gray-500 block mb-1">Supplier In-Hands</label>
+                    <Input
+                      type="date"
+                      defaultValue={(order as any)?.supplierInHandsDate ? format(new Date((order as any).supplierInHandsDate), "yyyy-MM-dd") : ""}
+                      className="h-8 text-sm"
+                      disabled={isLocked}
+                      onBlur={(e) => {
+                        const newVal = e.target.value || null;
+                        const oldVal = (order as any)?.supplierInHandsDate ? format(new Date((order as any).supplierInHandsDate), "yyyy-MM-dd") : "";
+                        if (newVal !== oldVal) updateFieldMutation.mutate({ supplierInHandsDate: newVal });
+                      }}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-gray-500 block mb-1">Event Date</label>
+                    <Input
+                      type="date"
+                      defaultValue={(order as any)?.eventDate ? format(new Date((order as any).eventDate), "yyyy-MM-dd") : ""}
+                      className="h-8 text-sm"
+                      disabled={isLocked}
+                      onBlur={(e) => {
+                        const newVal = e.target.value || null;
+                        const oldVal = (order as any)?.eventDate ? format(new Date((order as any).eventDate), "yyyy-MM-dd") : "";
+                        if (newVal !== oldVal) updateFieldMutation.mutate({ eventDate: newVal });
+                      }}
+                    />
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
@@ -267,6 +328,7 @@ export default function SalesOrderSection({ orderId, data }: SalesOrderSectionPr
                       defaultValue={Number((order as any)?.margin || 0).toFixed(1)}
                       className="h-8 text-sm"
                       placeholder="%"
+                      disabled={isLocked}
                     />
                   </div>
                   <div>
@@ -275,6 +337,7 @@ export default function SalesOrderSection({ orderId, data }: SalesOrderSectionPr
                       defaultValue={(order as any)?.customerPo || ""}
                       className="h-8 text-sm"
                       placeholder="PO #"
+                      disabled={isLocked}
                     />
                   </div>
                 </div>
@@ -331,6 +394,7 @@ export default function SalesOrderSection({ orderId, data }: SalesOrderSectionPr
             }}
             size="sm"
             className="bg-emerald-600 hover:bg-emerald-700 gap-1"
+            disabled={isLocked}
           >
             <Plus className="w-4 h-4" />
             Product From Database
@@ -339,7 +403,7 @@ export default function SalesOrderSection({ orderId, data }: SalesOrderSectionPr
 
         {/* Products Tab */}
         <TabsContent value="products" className="mt-4">
-          <ProductsSection orderId={orderId} data={data} />
+          <ProductsSection orderId={orderId} data={data} isLocked={isLocked} />
         </TabsContent>
 
         {/* Artwork Tab */}

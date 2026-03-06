@@ -24,13 +24,15 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import type { useProjectData } from "../hooks/useProjectData";
+import type { SectionLockStatus } from "@/hooks/useLockStatus";
+import LockBanner from "@/components/LockBanner";
 import StageConversionDialog from "../components/StageConversionDialog";
 import { useDocumentGeneration, buildItemsHash } from "@/hooks/useDocumentGeneration";
 import QuoteTemplate from "@/components/documents/QuoteTemplate";
 import GeneratedDocumentCard from "@/components/documents/GeneratedDocumentCard";
 import { DocumentEditor } from "@/components/DocumentEditor";
 
-const estimateStatuses = [
+const quoteStatuses = [
   { value: "draft", label: "Draft", color: "bg-gray-100 text-gray-800" },
   { value: "sent", label: "Sent to Client", color: "bg-blue-100 text-blue-800" },
   { value: "approved", label: "Approved", color: "bg-green-100 text-green-800" },
@@ -56,12 +58,13 @@ function getEditedItem(_id: string, item: any) {
   };
 }
 
-interface EstimateSectionProps {
+interface QuoteSectionProps {
   orderId: string;
   data: ReturnType<typeof useProjectData>;
+  lockStatus?: SectionLockStatus;
 }
 
-export default function EstimateSection({ orderId, data }: EstimateSectionProps) {
+export default function QuoteSection({ orderId, data, lockStatus }: QuoteSectionProps) {
   const { order, orderItems, allItemLines, allItemCharges, quoteApprovals, companyName, primaryContact, allProducts } = data;
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -91,7 +94,7 @@ export default function EstimateSection({ orderId, data }: EstimateSectionProps)
   const updateStatusMutation = useMutation({
     mutationFn: async (newStatus: string) => {
       await apiRequest("PATCH", `/api/orders/${orderId}`, {
-        estimateStatus: newStatus,
+        quoteStatus: newStatus,
       });
     },
     onSuccess: () => {
@@ -161,8 +164,8 @@ export default function EstimateSection({ orderId, data }: EstimateSectionProps)
 
   if (!order) return null;
 
-  const currentStatus = (order as any)?.estimateStatus || "draft";
-  const statusInfo = estimateStatuses.find((s) => s.value === currentStatus) || estimateStatuses[0];
+  const currentStatus = (order as any)?.quoteStatus || "draft";
+  const statusInfo = quoteStatuses.find((s) => s.value === currentStatus) || quoteStatuses[0];
   const isQuotePhase = currentStatus === "draft" || currentStatus === "sent";
 
   const totalItems = orderItems.length;
@@ -170,19 +173,23 @@ export default function EstimateSection({ orderId, data }: EstimateSectionProps)
   const subtotal = Number(order.subtotal || 0);
   const total = Number(order.total || 0);
 
+  const isLocked = lockStatus?.isLocked ?? false;
+
   return (
     <div className="space-y-6">
+      {lockStatus && <LockBanner lockStatus={lockStatus} sectionName="Quote" sectionKey="quote" orderId={orderId} />}
+
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-lg font-semibold flex items-center gap-2">
             <Calculator className="w-5 h-5" />
-            Estimate
+            Quote
           </h2>
           <p className="text-sm text-gray-500">
-            Quote and estimate details for {companyName}
+            Quote details for {companyName}
           </p>
         </div>
-        <Select value={currentStatus} onValueChange={(val) => updateStatusMutation.mutate(val)}>
+        <Select value={currentStatus} onValueChange={(val) => updateStatusMutation.mutate(val)} disabled={isLocked}>
           <SelectTrigger className="w-[180px] h-9">
             <SelectValue>
               <span className="flex items-center gap-2">
@@ -192,7 +199,7 @@ export default function EstimateSection({ orderId, data }: EstimateSectionProps)
             </SelectValue>
           </SelectTrigger>
           <SelectContent>
-            {estimateStatuses.map((s) => (
+            {quoteStatuses.map((s) => (
               <SelectItem key={s.value} value={s.value}>
                 <span className="flex items-center gap-2">
                   <span className={`inline-block w-2 h-2 rounded-full ${s.color.split(" ")[0]}`} />
@@ -205,10 +212,10 @@ export default function EstimateSection({ orderId, data }: EstimateSectionProps)
       </div>
 
       {/* Stage Conversion Banner */}
-      {data.businessStage?.stage.id === "estimate" && currentStatus === "approved" && (
+      {data.businessStage?.stage.id === "quote" && currentStatus === "approved" && (
         <div className="flex items-center justify-between bg-gradient-to-r from-amber-50 to-blue-50 border border-amber-200 rounded-lg px-5 py-4">
           <div>
-            <h3 className="text-sm font-semibold text-gray-900">Estimate approved!</h3>
+            <h3 className="text-sm font-semibold text-gray-900">Quote approved!</h3>
             <p className="text-xs text-gray-500 mt-0.5">Convert to a sales order to proceed with fulfillment.</p>
           </div>
           <Button
@@ -234,7 +241,7 @@ export default function EstimateSection({ orderId, data }: EstimateSectionProps)
               <Button
                 size="sm"
                 onClick={handleGenerateQuote}
-                disabled={isGenerating}
+                disabled={isGenerating || isLocked}
                 className="gap-1.5"
               >
                 {isGenerating ? (
@@ -265,9 +272,9 @@ export default function EstimateSection({ orderId, data }: EstimateSectionProps)
                   isStale={isQuoteStale(doc)}
                   onPreview={() => setPreviewDocument(doc)}
                   onDelete={() => deleteDocument(doc.id)}
-                  onRegenerate={() => handleRegenerateQuote(doc.id)}
-                  onGetApprovalLink={() => handleGetApprovalLink(doc)}
-                  isDeleting={isDeleting}
+                  onRegenerate={isLocked ? undefined : () => handleRegenerateQuote(doc.id)}
+                  onGetApprovalLink={isLocked ? undefined : () => handleGetApprovalLink(doc)}
+                  isDeleting={isDeleting || isLocked}
                   isRegenerating={isGenerating}
                 />
               ))}
@@ -315,7 +322,7 @@ export default function EstimateSection({ orderId, data }: EstimateSectionProps)
         <CardContent>
           {orderItems.length === 0 ? (
             <p className="text-sm text-gray-500 text-center py-4">
-              No items added to this estimate yet
+              No items added to this quote yet
             </p>
           ) : (
             <div className="overflow-x-auto">
@@ -384,7 +391,7 @@ export default function EstimateSection({ orderId, data }: EstimateSectionProps)
               <p className="text-sm text-gray-500">No approval requests sent yet</p>
               {isQuotePhase && primaryContact && (
                 <p className="text-xs text-gray-400 mt-1">
-                  Send this estimate to {primaryContact.firstName} {primaryContact.lastName} for approval
+                  Send this quote to {primaryContact.firstName} {primaryContact.lastName} for approval
                 </p>
               )}
             </div>

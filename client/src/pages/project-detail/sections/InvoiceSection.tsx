@@ -12,10 +12,13 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import type { useProjectData } from "../hooks/useProjectData";
+import type { SectionLockStatus } from "@/hooks/useLockStatus";
+import LockBanner from "@/components/LockBanner";
 
 interface InvoiceSectionProps {
   orderId: string;
   data: ReturnType<typeof useProjectData>;
+  lockStatus?: SectionLockStatus;
 }
 
 const invoiceStatusColors: Record<string, string> = {
@@ -25,7 +28,7 @@ const invoiceStatusColors: Record<string, string> = {
   cancelled: "bg-gray-100 text-gray-800",
 };
 
-export default function InvoiceSection({ orderId, data }: InvoiceSectionProps) {
+export default function InvoiceSection({ orderId, data, lockStatus }: InvoiceSectionProps) {
   const { order, invoice, invoiceLoading } = data;
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -56,6 +59,8 @@ export default function InvoiceSection({ orderId, data }: InvoiceSectionProps) {
 
   return (
     <div className="space-y-6">
+      {lockStatus && <LockBanner lockStatus={lockStatus} sectionName="Invoice" sectionKey="invoice" orderId={orderId} />}
+
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-lg font-semibold flex items-center gap-2">

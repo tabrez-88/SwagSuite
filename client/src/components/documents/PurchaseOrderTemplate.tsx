@@ -32,6 +32,12 @@ const PurchaseOrderTemplate = forwardRef<HTMLDivElement, PurchaseOrderTemplatePr
                   Required by: {format(new Date(order.supplierInHandsDate), "MMMM dd, yyyy")}
                 </p>
               )}
+              {order?.isFirm && (
+                <p className="text-sm font-bold text-blue-700">FIRM ORDER — Date cannot be adjusted</p>
+              )}
+              {order?.isRush && !order?.supplierInHandsDate && (
+                <p className="text-sm font-bold text-red-600">RUSH ORDER — Please prioritize</p>
+              )}
             </div>
             <div className="text-right">
               <h2 className="text-2xl font-bold mb-1">SwagSuite</h2>
@@ -117,6 +123,16 @@ const PurchaseOrderTemplate = forwardRef<HTMLDivElement, PurchaseOrderTemplatePr
               {order?.supplierInHandsDate && (
                 <p className="font-bold text-red-600">
                   ⚠️ RUSH ORDER - Must ship by {format(new Date(order.supplierInHandsDate), "MMMM dd, yyyy")}
+                </p>
+              )}
+              {order?.isFirm && (
+                <p className="font-bold text-blue-700">
+                  📌 FIRM ORDER — Delivery date is locked and cannot be adjusted.
+                </p>
+              )}
+              {order?.isRush && !order?.supplierInHandsDate && (
+                <p className="font-bold text-red-600">
+                  ⚡ RUSH ORDER — Please prioritize this order.
                 </p>
               )}
               {order?.supplierNotes && <p className="whitespace-pre-wrap">{order.supplierNotes}</p>}

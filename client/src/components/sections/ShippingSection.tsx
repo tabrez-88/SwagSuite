@@ -19,6 +19,8 @@ import {
   Calendar, Clock, Loader2, AlertTriangle, CheckCircle2,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { hasTimelineConflict, getDateStatus } from "@/lib/dateUtils";
+import TimelineWarningBanner from "@/components/TimelineWarningBanner";
 import type { ProjectData } from "@/types/project-types";
 import type { OrderShipment } from "@shared/schema";
 
@@ -47,9 +49,10 @@ interface ShipmentFormData {
 interface ShippingSectionProps {
   orderId: string;
   data: ProjectData;
+  isLocked?: boolean;
 }
 
-export default function ShippingSection({ orderId, data }: ShippingSectionProps) {
+export default function ShippingSection({ orderId, data, isLocked }: ShippingSectionProps) {
   const { order, shipments, shipmentsLoading } = data;
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -208,10 +211,39 @@ export default function ShippingSection({ orderId, data }: ShippingSectionProps)
             {shipments.length} shipment{shipments.length !== 1 ? "s" : ""}
           </Badge>
         </div>
-        <Button size="sm" onClick={openNew}>
+        <Button size="sm" onClick={openNew} disabled={isLocked}>
           <Plus className="w-4 h-4 mr-2" /> Add Shipment
         </Button>
       </div>
+
+      {/* Timeline Warnings */}
+      <TimelineWarningBanner conflicts={hasTimelineConflict(order, shipments)} />
+
+      {/* Key Dates Context */}
+      {(order?.inHandsDate || (order as any)?.supplierInHandsDate || (order as any)?.eventDate) && (
+        <Card className="bg-blue-50 border-blue-200">
+          <CardContent className="py-3 flex items-center gap-6 text-sm flex-wrap">
+            {order?.inHandsDate && (
+              <div>
+                <span className="text-blue-600 text-xs font-medium">Customer In-Hands</span>
+                <p className="font-semibold">{fmtDate(order.inHandsDate)}</p>
+              </div>
+            )}
+            {(order as any)?.supplierInHandsDate && (
+              <div>
+                <span className="text-blue-600 text-xs font-medium">Supplier In-Hands</span>
+                <p className="font-semibold">{fmtDate((order as any).supplierInHandsDate)}</p>
+              </div>
+            )}
+            {(order as any)?.eventDate && (
+              <div>
+                <span className="text-blue-600 text-xs font-medium">Event Date</span>
+                <p className="font-semibold">{fmtDate((order as any).eventDate)}</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Ship-to Address Card */}
       {parsedAddress && (
@@ -244,7 +276,7 @@ export default function ShippingSection({ orderId, data }: ShippingSectionProps)
             <Truck className="w-14 h-14 text-gray-300 mx-auto mb-3" />
             <p className="text-gray-500 font-medium mb-1">No shipments yet</p>
             <p className="text-xs text-gray-400 mb-4">Click "Add Shipment" to create your first shipment</p>
-            <Button variant="outline" size="sm" onClick={openNew}>
+            <Button variant="outline" size="sm" onClick={openNew} disabled={isLocked}>
               <Plus className="w-4 h-4 mr-1" /> Add Shipment
             </Button>
           </CardContent>
@@ -319,10 +351,10 @@ export default function ShippingSection({ orderId, data }: ShippingSectionProps)
                           <span className="text-sm font-semibold">${parseFloat(s.shippingCost).toFixed(2)}</span>
                         )}
                         <div className="flex gap-1">
-                          <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => openEdit(s)}>
+                          <Button variant="ghost" size="sm" className="h-7 w-7 p-0" disabled={isLocked} onClick={() => openEdit(s)}>
                             <Edit2 className="w-3.5 h-3.5 text-gray-400" />
                           </Button>
-                          <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => setDeleteTarget(s)}>
+                          <Button variant="ghost" size="sm" className="h-7 w-7 p-0" disabled={isLocked} onClick={() => setDeleteTarget(s)}>
                             <Trash2 className="w-3.5 h-3.5 text-gray-400 hover:text-red-500" />
                           </Button>
                         </div>
