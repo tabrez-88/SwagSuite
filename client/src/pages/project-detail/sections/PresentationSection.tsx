@@ -1104,8 +1104,12 @@ function ProductPricingEditor({ item, orderId, onClose }: {
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-3">
-            {item.imageUrl && (
+            {item.imageUrl ? (
               <img src={item.imageUrl} alt="" className="w-12 h-12 object-contain rounded-lg bg-gray-50" />
+            ) : (
+              <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                <Package className="w-5 h-5 text-gray-400" />
+              </div>
             )}
             <div>
               <p>{item.productName}</p>
@@ -1120,11 +1124,15 @@ function ProductPricingEditor({ item, orderId, onClose }: {
         )}
 
         {/* Product Image thumbnails */}
-        {item.imageUrl && (
-          <div className="flex gap-2 mt-2">
+        <div className="flex gap-2 mt-2">
+          {item.imageUrl ? (
             <img src={item.imageUrl} alt="" className="w-14 h-14 object-contain rounded-lg bg-gray-50 border" />
-          </div>
-        )}
+          ) : (
+            <div className="w-14 h-14 bg-gray-100 rounded-lg border flex items-center justify-center">
+              <Package className="w-5 h-5 text-gray-400" />
+            </div>
+          )}
+        </div>
 
         {/* Price Label */}
         <div className="mt-3">

@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef } from "react";
+import { useLocation } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -20,6 +21,9 @@ import {
   Eye,
   FileText,
   Loader2,
+  Package,
+  Plus,
+  Send,
   XCircle,
 } from "lucide-react";
 import { format } from "date-fns";
@@ -31,6 +35,8 @@ import { useDocumentGeneration, buildItemsHash } from "@/hooks/useDocumentGenera
 import QuoteTemplate from "@/components/documents/QuoteTemplate";
 import GeneratedDocumentCard from "@/components/documents/GeneratedDocumentCard";
 import { DocumentEditor } from "@/components/DocumentEditor";
+import SendQuoteDialog from "@/components/modals/SendQuoteDialog";
+import ProductsSection from "@/components/sections/ProductsSection";
 
 const quoteStatuses = [
   { value: "draft", label: "Draft", color: "bg-gray-100 text-gray-800" },
@@ -65,11 +71,13 @@ interface QuoteSectionProps {
 }
 
 export default function QuoteSection({ orderId, data, lockStatus }: QuoteSectionProps) {
-  const { order, orderItems, allItemLines, allItemCharges, quoteApprovals, companyName, primaryContact, allProducts } = data;
+  const { order, orderItems, quoteApprovals, companyName, primaryContact, allProducts } = data;
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [, setLocation] = useLocation();
   const [showConversionDialog, setShowConversionDialog] = useState(false);
   const [previewDocument, setPreviewDocument] = useState<any>(null);
+  const [showSendDialog, setShowSendDialog] = useState(false);
   const quoteRef = useRef<HTMLDivElement>(null);
 
   const {
@@ -237,21 +245,29 @@ export default function QuoteSection({ orderId, data, lockStatus }: QuoteSection
               <FileText className="w-4 h-4" />
               Quote Document
             </CardTitle>
-            {quoteDocuments.length === 0 && orderItems.length > 0 && (
-              <Button
-                size="sm"
-                onClick={handleGenerateQuote}
-                disabled={isGenerating || isLocked}
-                className="gap-1.5"
-              >
-                {isGenerating ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <FileText className="w-4 h-4" />
-                )}
-                Generate Quote PDF
-              </Button>
-            )}
+            <div className="flex items-center gap-2">
+              {quoteDocuments.length > 0 && !isLocked && (
+                <Button size="sm" className="gap-1" onClick={() => setShowSendDialog(true)}>
+                  <Send className="w-4 h-4" />
+                  Send to Client
+                </Button>
+              )}
+              {quoteDocuments.length === 0 && orderItems.length > 0 && (
+                <Button
+                  size="sm"
+                  onClick={handleGenerateQuote}
+                  disabled={isGenerating || isLocked}
+                  className="gap-1.5"
+                >
+                  {isGenerating ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <FileText className="w-4 h-4" />
+                  )}
+                  Generate Quote PDF
+                </Button>
+              )}
+            </div>
           </div>
         </CardHeader>
         <CardContent>
@@ -311,70 +327,8 @@ export default function QuoteSection({ orderId, data, lockStatus }: QuoteSection
         </Card>
       </div>
 
-      {/* Quote Items */}
-      <Card>
-        <CardHeader className="py-3">
-          <CardTitle className="text-sm flex items-center gap-2">
-            <FileText className="w-4 h-4" />
-            Quote Line Items
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {orderItems.length === 0 ? (
-            <p className="text-sm text-gray-500 text-center py-4">
-              No items added to this quote yet
-            </p>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b text-left">
-                    <th className="pb-2 font-medium text-gray-500">Product</th>
-                    <th className="pb-2 font-medium text-gray-500">SKU</th>
-                    <th className="pb-2 font-medium text-gray-500">Color</th>
-                    <th className="pb-2 font-medium text-gray-500 text-right">Qty</th>
-                    <th className="pb-2 font-medium text-gray-500 text-right">Unit Price</th>
-                    <th className="pb-2 font-medium text-gray-500 text-right">Total</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {orderItems.map((item: any) => {
-                    const charges = allItemCharges[item.id] || [];
-                    const itemTotal = Number(item.totalPrice || 0);
-                    const chargesTotal = charges.reduce((s: number, c: any) => s + Number(c.amount || 0), 0);
-
-                    return (
-                      <tr key={item.id} className="border-b last:border-0">
-                        <td className="py-3">
-                          <p className="font-medium">{item.productName}</p>
-                          {item.supplierName && (
-                            <p className="text-xs text-gray-400">{item.supplierName}</p>
-                          )}
-                        </td>
-                        <td className="py-3 text-gray-500">{item.productSku || "-"}</td>
-                        <td className="py-3 text-gray-500">{item.color || "-"}</td>
-                        <td className="py-3 text-right">{item.quantity || 0}</td>
-                        <td className="py-3 text-right">${Number(item.unitPrice || 0).toFixed(2)}</td>
-                        <td className="py-3 text-right font-medium">
-                          ${(itemTotal + chargesTotal).toFixed(2)}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-                <tfoot>
-                  <tr className="border-t-2">
-                    <td colSpan={5} className="py-3 text-right font-bold">Total</td>
-                    <td className="py-3 text-right font-bold text-green-600">
-                      ${total.toLocaleString()}
-                    </td>
-                  </tr>
-                </tfoot>
-              </table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      {/* Quote Products */}
+      <ProductsSection orderId={orderId} data={data} isLocked={isLocked} />
 
       {/* Quote Approval Status */}
       <Card>
@@ -415,8 +369,8 @@ export default function QuoteSection({ orderId, data, lockStatus }: QuoteSection
                         approval.status === "approved"
                           ? "default"
                           : approval.status === "declined"
-                          ? "destructive"
-                          : "secondary"
+                            ? "destructive"
+                            : "secondary"
                       }
                       className={
                         approval.status === "approved"
@@ -447,32 +401,55 @@ export default function QuoteSection({ orderId, data, lockStatus }: QuoteSection
       />
 
       {/* Document Editor Modal */}
-      {previewDocument && (
-        <DocumentEditor
-          document={previewDocument}
-          order={order}
-          orderItems={orderItems}
-          companyName={companyName}
-          primaryContact={primaryContact}
-          getEditedItem={getEditedItem}
-          onClose={() => setPreviewDocument(null)}
-        />
-      )}
+      {
+        previewDocument && (
+          <DocumentEditor
+            document={previewDocument}
+            order={order}
+            orderItems={orderItems}
+            companyName={companyName}
+            primaryContact={primaryContact}
+            getEditedItem={getEditedItem}
+            onClose={() => setPreviewDocument(null)}
+          />
+        )
+      }
 
-      {showConversionDialog && (
-        <StageConversionDialog
-          open={showConversionDialog}
-          onOpenChange={setShowConversionDialog}
-          targetStage="sales_order"
-          orderId={orderId}
-          enrichedItems={enrichedItems}
-          onSuccess={() => {
-            setShowConversionDialog(false);
-            queryClient.invalidateQueries({ queryKey: [`/api/orders/${orderId}`] });
-            queryClient.invalidateQueries({ queryKey: [`/api/orders/${orderId}/items`] });
-          }}
-        />
-      )}
-    </div>
+      {
+        showSendDialog && quoteDocuments.length > 0 && (
+          <SendQuoteDialog
+            open={showSendDialog}
+            onOpenChange={setShowSendDialog}
+            orderId={orderId}
+            recipientEmail={primaryContact?.email || ""}
+            recipientName={primaryContact ? `${primaryContact.firstName} ${primaryContact.lastName}` : companyName}
+            companyName={companyName}
+            orderNumber={(order as any)?.orderNumber || ""}
+            quoteDocument={quoteDocuments[0]}
+            primaryContact={primaryContact}
+            quoteTotal={Number(order.total || 0)}
+            quoteApprovals={quoteApprovals}
+            createQuoteApproval={createQuoteApproval}
+          />
+        )
+      }
+
+      {
+        showConversionDialog && (
+          <StageConversionDialog
+            open={showConversionDialog}
+            onOpenChange={setShowConversionDialog}
+            targetStage="sales_order"
+            orderId={orderId}
+            enrichedItems={enrichedItems}
+            onSuccess={() => {
+              setShowConversionDialog(false);
+              queryClient.invalidateQueries({ queryKey: [`/api/orders/${orderId}`] });
+              queryClient.invalidateQueries({ queryKey: [`/api/orders/${orderId}/items`] });
+            }}
+          />
+        )
+      }
+    </div >
   );
 }

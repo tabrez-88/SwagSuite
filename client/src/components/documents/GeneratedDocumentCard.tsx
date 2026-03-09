@@ -126,14 +126,14 @@ export default function GeneratedDocumentCard({
         </div>
 
         <div className="flex items-center flex-wrap gap-1.5">
-          {/* Stale warning + regenerate for draft docs */}
-          {isStale && !isProtected && onRegenerate && (
+          {/* Regenerate button — always available for non-protected docs */}
+          {!isProtected && onRegenerate && (
             <Button
               variant="outline"
               size="sm"
               onClick={onRegenerate}
               disabled={isRegenerating}
-              className="text-amber-600 hover:text-amber-700 hover:bg-amber-50"
+              className={isStale ? "text-amber-600 hover:text-amber-700 hover:bg-amber-50" : ""}
             >
               <RefreshCw className={`w-4 h-4 mr-1 ${isRegenerating ? "animate-spin" : ""}`} />
               Regenerate

@@ -61,10 +61,7 @@ export function AINewsMonitor() {
 
   const updateSettingsMutation = useMutation({
     mutationFn: async (newSettings: Partial<NewsMonitorSettings>) => {
-      await apiRequest('/api/integrations/news/settings', {
-        method: 'POST',
-        body: newSettings
-      });
+      await apiRequest('POST', '/api/integrations/news/settings', newSettings);
     },
     onSuccess: () => {
       toast({
@@ -77,9 +74,7 @@ export function AINewsMonitor() {
 
   const toggleAlertMutation = useMutation({
     mutationFn: async (newsId: string) => {
-      await apiRequest(`/api/integrations/news/${newsId}/toggle-alert`, {
-        method: 'POST'
-      });
+      await apiRequest('POST', `/api/integrations/news/${newsId}/toggle-alert`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/integrations/news/items'] });
@@ -88,9 +83,7 @@ export function AINewsMonitor() {
 
   const sendManualAlertMutation = useMutation({
     mutationFn: async (newsId: string) => {
-      await apiRequest(`/api/integrations/news/${newsId}/send-alert`, {
-        method: 'POST'
-      });
+      await apiRequest('POST', `/api/integrations/news/${newsId}/send-alert`);
     },
     onSuccess: () => {
       toast({

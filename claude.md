@@ -22,7 +22,7 @@ client/src/
     sections/          # Shared detail sections (Activities, Products, Shipping, Files, etc.)
     modals/            # Modal/dialog components (OrderModal, FilePickerDialog, etc.)
     data-table/        # Data table utilities (column header, pagination, view options)
-    documents/         # Document templates (PO, Quote)
+    documents/         # Document templates (PO, Quote, Sales Order)
     dashboard/         # Dashboard components
     integrations/      # Vendor integration components
     newsletter/        # Newsletter/email campaign components
@@ -208,6 +208,49 @@ Section-level auto-locking that prevents edits on finalized stages. Lock state i
 - `server/notificationScheduler.ts` — `processOverdueInvoices()` method runs hourly alongside next-action notifications
 - Queries invoices where `status='pending'` AND `dueDate < now()`, auto-updates to `'overdue'`
 - Logs `system_action` activity in `projectActivities` for each overdue invoice
+
+## Purchase Order System (CommonSKU-style)
+
+### PO Stages & Status
+- **PO Stages** (lifecycle): Created → Submitted → Confirmed → Shipped → Ready for Billing → Billed → Closed
+- **PO Status** (urgency): OK, Follow Up, Problem
+- Stage/status stored in `generatedDocuments.metadata.poStage` / `metadata.poStatus` (JSONB, no schema migration)
+- `PATCH /api/documents/:documentId` supports `status`, `sentAt`, and `metadata` updates
+
+### PO Email to Vendor
+- "Email to Vendor" button appears when PO stage is "created" (or "Resend" after first send)
+- Sends via `/api/orders/:orderId/communications` with `communicationType: "vendor_email"`
+- Auto-updates PO stage to "submitted" and document status to "sent"
+
+### Proofing Workflow (in PO Section)
+- Proofing lives in PO section (per vendor), NOT in SO Artwork tab
+- Proof statuses: pending → awaiting_proof → proof_received → pending_approval → approved → change_requested → proofing_complete
+- Actions: Request Proof from Vendor, Upload Vendor Proof (via FilePickerDialog), Send Proof to Client (with approval link), Mark Proofing Complete
+- Proof files stored in `artworkItems.proofFilePath` and `artworkItems.proofFileName` columns
+- SO Artwork tab is view-only (shows artwork files + status badges, no proofing actions)
+
+### Key Files
+- `client/src/components/sections/PurchaseOrdersSection.tsx` — Full PO management with stages, email, proofing
+- `client/src/components/documents/PurchaseOrderTemplate.tsx` — PO PDF template
+
+## Sales Order Document & Email
+
+### SO Document Generation
+- `useDocumentGeneration` hook extended for `sales_order` document type
+- `SalesOrderTemplate` component for PDF capture (emerald header, billing/shipping, payment terms, firm/rush badges)
+- `DocumentEditor` treats `sales_order` same as `quote` (shows unit prices, not vendor costs)
+- Stale detection via `buildItemsHash(items, "sales_order", order)` — includes notes, IHD, eventDate, billing, shipping
+
+### Send SO to Client
+- `client/src/components/modals/SendSODialog.tsx` — Email dialog (like SendQuoteDialog)
+- Reuses `quoteApprovals` table for approval tokens (same approval flow as quotes)
+- Auto-sets `salesOrderStatus` to `pending_client_approval` after sending
+- Approval link: `/quote-approval/:token` (shared public page for both quote and SO approvals)
+
+### Key Files
+- `client/src/components/modals/SendSODialog.tsx` — Send SO email dialog
+- `client/src/components/modals/SendQuoteDialog.tsx` — Send Quote email dialog (reference)
+- `client/src/components/documents/SalesOrderTemplate.tsx` — SO PDF template
 
 ## Important Notes
 - `routes.ts` is very large (~9800 lines). Search for specific endpoint patterns rather than reading the whole file.

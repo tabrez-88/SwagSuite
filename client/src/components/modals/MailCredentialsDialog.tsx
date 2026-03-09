@@ -29,7 +29,7 @@ export function MailCredentialsDialog({ open, onOpenChange }: MailCredentialsDia
   const [testingSmtp, setTestingSmtp] = useState(false);
   const [testingImap, setTestingImap] = useState(false);
 
-  const { data: settings, isLoading } = useQuery({
+  const { data: settings, isLoading } = useQuery<any>({
     queryKey: ["/api/user-email-settings"],
     enabled: open,
   });

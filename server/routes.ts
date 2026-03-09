@@ -2847,8 +2847,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         size: req.body.size || null,
         status: req.body.status,
         notes: req.body.notes || null,
+        proofFilePath: req.body.proofFilePath !== undefined ? req.body.proofFilePath : undefined,
+        proofFileName: req.body.proofFileName !== undefined ? req.body.proofFileName : undefined,
         updatedAt: new Date(),
       };
+      // Remove undefined fields so they don't overwrite existing values
+      Object.keys(updateData).forEach(key => updateData[key] === undefined && delete updateData[key]);
 
       // Handle file upload if present
       if (req.file) {
@@ -6191,9 +6195,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             sizes: [ssProduct.sizeName], // Store as string array
             imprintMethods: null, // S&S API doesn't provide this
             leadTime: null, // S&S API doesn't provide this directly
-            imageUrl: ssProduct.colorFrontImage
-              ? `https://www.ssactivewear.com/${ssProduct.colorFrontImage}`
-              : null,
+            imageUrl: null, // S&S CDN images are behind Cloudflare — can't be loaded externally
             productType: 'apparel',
           };
 
@@ -10233,7 +10235,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch("/api/documents/:documentId", isAuthenticated, async (req, res) => {
     try {
       const { documentId } = req.params;
-      const { status, sentAt } = req.body;
+      const { status, sentAt, metadata } = req.body;
 
       const { db } = await import("./db");
       const { generatedDocuments } = await import("@shared/schema");
@@ -10242,6 +10244,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const updates: any = { updatedAt: new Date() };
       if (status) updates.status = status;
       if (sentAt) updates.sentAt = new Date(sentAt);
+      if (metadata) updates.metadata = metadata;
 
       const [updated] = await db
         .update(generatedDocuments)

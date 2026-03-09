@@ -320,9 +320,11 @@ export const artworkItems = pgTable("artwork_items", {
   location: varchar("location", { length: 255 }), // e.g., "Front - Centered"
   color: varchar("color", { length: 100 }), // e.g., "White", "PMS 186"
   size: varchar("size", { length: 100 }), // e.g., "3\" x 3\""
-  status: varchar("status", { length: 50 }).notNull().default("pending"), // pending, in-review, approved, rejected, revision-needed
+  status: varchar("status", { length: 50 }).notNull().default("pending"), // pending, awaiting_proof, proof_received, pending_approval, approved, change_requested, proofing_complete
   fileName: varchar("file_name", { length: 500 }),
   filePath: varchar("file_path", { length: 500 }),
+  proofFilePath: varchar("proof_file_path", { length: 500 }), // Vendor proof file URL
+  proofFileName: varchar("proof_file_name", { length: 500 }), // Vendor proof file name
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),

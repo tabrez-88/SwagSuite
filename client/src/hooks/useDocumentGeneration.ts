@@ -5,24 +5,26 @@ import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
 
 // Build a fingerprint string for items + order-level fields to detect changes
-export function buildItemsHash(items: any[], type: "quote" | "po", order?: any): string {
+export function buildItemsHash(items: any[], type: "quote" | "po" | "sales_order", order?: any): string {
   const sorted = [...items].sort((a, b) => (a.id || "").localeCompare(b.id || ""));
   const itemsData = sorted.map((i) => ({
     id: i.id,
     qty: i.quantity,
-    price: type === "quote" ? i.unitPrice : (i.cost || i.unitPrice),
+    price: type === "quote" || type === "sales_order" ? i.unitPrice : (i.cost || i.unitPrice),
   }));
   const orderFields = order
     ? type === "quote"
       ? { notes: order.notes || "", additionalInfo: order.additionalInformation || "", ihd: order.inHandsDate || "", eventDate: order.eventDate || "" }
-      : { notes: order.notes || "", supplierNotes: order.supplierNotes || "", supplierIhd: order.supplierInHandsDate || "", isFirm: order.isFirm || false, isRush: order.isRush || false }
+      : type === "sales_order"
+        ? { notes: order.notes || "", ihd: order.inHandsDate || "", eventDate: order.eventDate || "", billing: order.billingAddress || "", shipping: order.shippingAddress || "" }
+        : { notes: order.notes || "", supplierNotes: order.supplierNotes || "", supplierIhd: order.supplierInHandsDate || "", isFirm: order.isFirm || false, isRush: order.isRush || false }
     : {};
   return JSON.stringify({ items: itemsData, ...orderFields });
 }
 
 interface GenerateDocumentParams {
   elementRef: HTMLDivElement | null;
-  documentType: "quote" | "purchase_order";
+  documentType: "quote" | "purchase_order" | "sales_order";
   documentNumber: string;
   vendorId?: string;
   vendorName?: string;
@@ -47,6 +49,7 @@ export function useDocumentGeneration(orderId: string) {
   });
 
   const quoteDocuments = documents.filter((d: any) => d.documentType === "quote");
+  const soDocuments = documents.filter((d: any) => d.documentType === "sales_order");
   const poDocuments = documents.filter((d: any) => d.documentType === "purchase_order");
 
   // Generate PDF and upload
@@ -183,6 +186,7 @@ export function useDocumentGeneration(orderId: string) {
   return {
     documents,
     quoteDocuments,
+    soDocuments,
     poDocuments,
     quoteApprovals,
     isGenerating,

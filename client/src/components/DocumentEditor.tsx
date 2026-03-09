@@ -140,7 +140,7 @@ export function DocumentEditor({
   
   // Initialize editable fields from document/order data
   const [fields, setFields] = useState<EditableFields>(() => {
-    const isQuote = doc.documentType === 'quote';
+    const isQuote = doc.documentType === 'quote' || doc.documentType === 'sales_order';
     
     // Calculate items and totals
     const relevantItems = isQuote 

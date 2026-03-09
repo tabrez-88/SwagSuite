@@ -55,6 +55,14 @@ interface ConfigLine {
 
 type SourceTab = "sage" | "sanmar" | "ss_activewear" | "catalog" | "manual";
 
+// S&S CDN is behind Cloudflare — images can't be loaded directly or via proxy
+// Store the raw URL for later Cloudinary caching on sync; display uses placeholder
+function getSsImageUrl(product: any): string | undefined {
+  const img = product.colorFrontImage || product.colorSideImage || product.colorSwatchImage || product.imageUrl;
+  if (!img) return undefined;
+  return img.startsWith('http') ? img : `https://www.ssactivewear.com/${img}`;
+}
+
 export default function AddProductPage({ orderId, data }: AddProductPageProps) {
   const [currentLocation, setLocation] = useLocation();
   const queryClient = useQueryClient();
@@ -63,10 +71,13 @@ export default function AddProductPage({ orderId, data }: AddProductPageProps) {
   // Detect context: project vs order, and which section we came from
   const isProjectContext = currentLocation.startsWith(`/project/`);
   const isPresentationContext = currentLocation.includes("/presentation/add");
+  const isQuoteContext = currentLocation.includes("/quote/add");
   const productsPath = isProjectContext
     ? isPresentationContext
       ? `/project/${orderId}/presentation`
-      : `/project/${orderId}/sales-order`
+      : isQuoteContext
+        ? `/project/${orderId}/quote`
+        : `/project/${orderId}/sales-order`
     : `/orders/${orderId}/products`;
 
   // Search state
@@ -249,7 +260,7 @@ export default function AddProductPage({ orderId, data }: AddProductPageProps) {
           description: p.description || `${p.brandName} ${p.styleName}`,
           supplierName: p.brandName || "S&S Activewear",
           category: p.category,
-          imageUrl: p.colorFrontImage || p.imageUrl,
+          imageUrl: getSsImageUrl(p),
           basePrice: p.customerPrice || p.piecePrice || p.basePrice,
           baseCost: p.casePrice || p.costPrice,
           colors: Array.from(colors),
@@ -713,8 +724,12 @@ export default function AddProductPage({ orderId, data }: AddProductPageProps) {
                   >
                     <CardContent className="p-4">
                       <div className="flex gap-3">
-                        {product.imageUrl ? (
-                          <img src={product.imageUrl} alt={product.name} className="w-16 h-16 object-contain rounded border bg-white flex-shrink-0" />
+                        {product.imageUrl && product.source !== 'ss_activewear' ? (
+                          <img src={product.imageUrl} alt={product.name} className="w-16 h-16 object-contain rounded border bg-white flex-shrink-0" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                        ) : product.source === 'ss_activewear' ? (
+                          <div className="w-16 h-16 bg-blue-50 rounded border border-blue-200 flex items-center justify-center flex-shrink-0">
+                            <span className="text-[10px] font-bold text-blue-600 text-center leading-tight">S&S</span>
+                          </div>
                         ) : (
                           <div className="w-16 h-16 bg-gray-100 rounded border flex items-center justify-center flex-shrink-0">
                             <ImageIcon className="w-6 h-6 text-gray-400" />
@@ -861,7 +876,7 @@ export default function AddProductPage({ orderId, data }: AddProductPageProps) {
                                     description: p.description || `${p.brandName} ${p.styleName}`,
                                     supplierName: p.brandName || "S&S Activewear",
                                     category: p.category,
-                                    imageUrl: p.colorFrontImage || p.imageUrl,
+                                    imageUrl: getSsImageUrl(p),
                                     basePrice: p.customerPrice || p.piecePrice || p.basePrice,
                                     baseCost: p.casePrice || p.costPrice,
                                     colors: Array.from(colors),
@@ -950,6 +965,28 @@ export default function AddProductPage({ orderId, data }: AddProductPageProps) {
                     value={manualForm.unitPrice}
                     onChange={(e) => setManualForm(f => ({ ...f, unitPrice: parseFloat(e.target.value) || 0 }))}
                   />
+                </div>
+                <div>
+                  <Label>Margin %</Label>
+                  <div className="relative">
+                    <Input
+                      type="number"
+                      step="0.1"
+                      min={0}
+                      max={99.9}
+                      value={manualForm.unitPrice > 0
+                        ? parseFloat(((manualForm.unitPrice - manualForm.unitCost) / manualForm.unitPrice * 100).toFixed(1))
+                        : 0}
+                      onChange={(e) => {
+                        const targetMargin = parseFloat(e.target.value) || 0;
+                        const cost = manualForm.unitCost || 0;
+                        const newPrice = targetMargin >= 100 ? cost * 100 : cost / (1 - targetMargin / 100);
+                        setManualForm(f => ({ ...f, unitPrice: parseFloat(newPrice.toFixed(4)) }));
+                      }}
+                      className="pr-7"
+                    />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">%</span>
+                  </div>
                 </div>
                 <div>
                   <Label>Color</Label>
@@ -1241,10 +1278,24 @@ export default function AddProductPage({ orderId, data }: AddProductPageProps) {
                                 onChange={(e) => updateConfigLine(line.id, "unitPrice", parseFloat(e.target.value) || 0)}
                               />
                             </td>
-                            <td className="p-2 text-right">
-                              <span className={`text-xs font-medium ${lineMargin >= 30 ? "text-green-600" : lineMargin >= 15 ? "text-yellow-600" : "text-red-600"}`}>
-                                {lineMargin.toFixed(1)}%
-                              </span>
+                            <td className="p-2">
+                              <div className="relative">
+                                <Input
+                                  className="h-8 text-xs text-right pr-5"
+                                  type="number"
+                                  step="0.1"
+                                  min={0}
+                                  max={99.9}
+                                  value={parseFloat(lineMargin.toFixed(1))}
+                                  onChange={(e) => {
+                                    const targetMargin = parseFloat(e.target.value) || 0;
+                                    const cost = line.unitCost || 0;
+                                    const newPrice = targetMargin >= 100 ? cost * 100 : cost / (1 - targetMargin / 100);
+                                    updateConfigLine(line.id, "unitPrice", parseFloat(newPrice.toFixed(4)));
+                                  }}
+                                />
+                                <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-400">%</span>
+                              </div>
                             </td>
                             <td className="p-2 text-right">
                               <span className="text-xs font-medium">${lineTotal.toFixed(2)}</span>

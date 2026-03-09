@@ -151,6 +151,49 @@ export default function NewProjectWizard({ open, onOpenChange, initialCompanyId 
     }
   }, [companyId, contacts]);
 
+  // Auto-populate addresses from selected contact (or company fallback)
+  useEffect(() => {
+    if (!contactId || startingStage === "presentation") return;
+    const contact = contacts.find((c: any) => c.id === contactId);
+    if (!contact) return;
+
+    // Try billing address from contact
+    if (contact.billingAddress) {
+      try {
+        const addr = JSON.parse(contact.billingAddress);
+        if (addr.street) setBillingStreet(addr.street);
+        if (addr.city) setBillingCity(addr.city);
+        if (addr.state) setBillingState(addr.state);
+        if (addr.zipCode) setBillingZipCode(addr.zipCode);
+        if (addr.country) setBillingCountry(normalizeCountryCode(addr.country));
+      } catch { /* non-JSON, skip */ }
+    }
+
+    // Try shipping address from contact
+    if (contact.shippingAddress) {
+      try {
+        const addr = JSON.parse(contact.shippingAddress);
+        if (addr.street) setShippingStreet(addr.street);
+        if (addr.city) setShippingCity(addr.city);
+        if (addr.state) setShippingState(addr.state);
+        if (addr.zipCode) setShippingZipCode(addr.zipCode);
+        if (addr.country) setShippingCountry(normalizeCountryCode(addr.country));
+      } catch { /* non-JSON, skip */ }
+    }
+
+    // Fallback: if no contact addresses, try company address
+    if (!contact.billingAddress && !contact.shippingAddress) {
+      const company = companies.find((c) => c.id === companyId);
+      if (company?.address || company?.city) {
+        setBillingStreet(company.address || "");
+        setBillingCity(company.city || "");
+        setBillingState(company.state || "");
+        setBillingZipCode(company.zipCode || "");
+        if (company.country) setBillingCountry(normalizeCountryCode(company.country));
+      }
+    }
+  }, [contactId, contacts, companies, companyId, startingStage]);
+
   // Sync shipping with billing
   useEffect(() => {
     if (sameAsBilling) {

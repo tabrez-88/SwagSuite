@@ -64,8 +64,11 @@ export default function ProductsSection({ orderId, data, isLocked }: ProductsSec
   // Detect context: project vs order
   const [currentLocation] = useLocation();
   const isProjectContext = currentLocation.startsWith(`/project/`);
+  const isQuoteContext = currentLocation.includes("/quote");
   const addProductPath = isProjectContext
-    ? `/project/${orderId}/sales-order/add`
+    ? isQuoteContext
+      ? `/project/${orderId}/quote/add`
+      : `/project/${orderId}/sales-order/add`
     : `/orders/${orderId}/products/add`;
   const {
     orderItems, allProducts, allArtworkItems, suppliers,
@@ -1328,10 +1331,25 @@ export default function ProductsSection({ orderId, data, isLocked }: ProductsSec
                                 onChange={(e) => updateEditDialogLine(line.id, "unitPrice", parseFloat(e.target.value) || 0)}
                               />
                             </td>
-                            <td className="p-2 text-right">
-                              <span className={`text-xs font-medium ${marginColor(lineMargin)}`}>
-                                {lineMargin.toFixed(1)}%
-                              </span>
+                            <td className="p-2">
+                              <div className="relative">
+                                <Input
+                                  className="h-8 text-xs text-right pr-5"
+                                  type="number"
+                                  step="0.1"
+                                  min={0}
+                                  max={99.9}
+                                  value={parseFloat(lineMargin.toFixed(1))}
+                                  onChange={(e) => {
+                                    const targetMargin = parseFloat(e.target.value) || 0;
+                                    const cost = line.cost || 0;
+                                    // unitPrice = cost / (1 - margin/100)
+                                    const newPrice = targetMargin >= 100 ? cost * 100 : cost / (1 - targetMargin / 100);
+                                    updateEditDialogLine(line.id, "unitPrice", parseFloat(newPrice.toFixed(4)));
+                                  }}
+                                />
+                                <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-400">%</span>
+                              </div>
                             </td>
                             <td className="p-2 text-right">
                               <span className="text-xs font-medium">${lineTotal.toFixed(2)}</span>

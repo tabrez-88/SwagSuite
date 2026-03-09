@@ -1,11 +1,9 @@
-import { useState } from "react";
+import { useState, useMemo, useRef } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Select,
@@ -17,11 +15,15 @@ import {
 import {
   ChevronDown,
   ChevronUp,
+  Clock,
   CreditCard,
+  Eye,
+  FileText,
+  Loader2,
   MapPin,
   Package,
   Palette,
-  Plus,
+  Send,
 } from "lucide-react";
 import { format } from "date-fns";
 import { useLocation } from "wouter";
@@ -32,6 +34,12 @@ import TimelineWarningBanner from "@/components/TimelineWarningBanner";
 import type { useProjectData } from "../hooks/useProjectData";
 import type { SectionLockStatus } from "@/hooks/useLockStatus";
 import LockBanner from "@/components/LockBanner";
+import { useDocumentGeneration, buildItemsHash } from "@/hooks/useDocumentGeneration";
+import SalesOrderTemplate from "@/components/documents/SalesOrderTemplate";
+import GeneratedDocumentCard from "@/components/documents/GeneratedDocumentCard";
+import { DocumentEditor } from "@/components/DocumentEditor";
+import { FilePreviewModal } from "@/components/modals/FilePreviewModal";
+import SendSODialog from "@/components/modals/SendSODialog";
 
 import ProductsSection from "@/components/sections/ProductsSection";
 
@@ -51,12 +59,53 @@ const salesOrderStatuses = [
   { value: "ready_to_invoice", label: "Ready To Be Invoiced", color: "bg-teal-100 text-teal-800" },
 ];
 
+const proofStatuses: Record<string, { label: string; color: string }> = {
+  pending: { label: "Pending", color: "bg-gray-100 text-gray-700" },
+  awaiting_proof: { label: "Awaiting Proof", color: "bg-yellow-100 text-yellow-800" },
+  proof_received: { label: "Proof Received", color: "bg-blue-100 text-blue-800" },
+  pending_approval: { label: "Pending Approval", color: "bg-orange-100 text-orange-800" },
+  approved: { label: "Approved", color: "bg-green-100 text-green-800" },
+  change_requested: { label: "Change Requested", color: "bg-red-100 text-red-800" },
+  proofing_complete: { label: "Proofing Complete", color: "bg-teal-100 text-teal-800" },
+};
+
+function getEditedItem(_id: string, item: any) {
+  return {
+    id: item.id,
+    productId: item.productId,
+    productName: item.productName,
+    productSku: item.productSku,
+    supplierId: item.supplierId,
+    color: item.color || "",
+    quantity: item.quantity || 0,
+    unitPrice: parseFloat(item.unitPrice) || 0,
+    cost: parseFloat(item.cost || 0),
+    decorationCost: parseFloat(item.decorationCost || 0),
+    charges: parseFloat(item.charges || 0),
+    margin: 44,
+    sizePricing: item.sizePricing || {},
+  };
+}
+
 export default function SalesOrderSection({ orderId, data, lockStatus }: SalesOrderSectionProps) {
-  const { order, companyName, primaryContact, contacts } = data;
+  const { order, orderItems, companyName, primaryContact, contacts } = data;
   const [, setLocation] = useLocation();
   const [isInfoCollapsed, setIsInfoCollapsed] = useState(false);
+  const [previewDocument, setPreviewDocument] = useState<any>(null);
+  const [showSendDialog, setShowSendDialog] = useState(false);
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const soRef = useRef<HTMLDivElement>(null);
+
+  const {
+    soDocuments,
+    quoteApprovals,
+    isGenerating,
+    generateDocument,
+    deleteDocument,
+    createQuoteApproval,
+    isDeleting,
+  } = useDocumentGeneration(orderId);
 
   const updateStatusMutation = useMutation({
     mutationFn: async (newStatus: string) => {
@@ -84,6 +133,38 @@ export default function SalesOrderSection({ orderId, data, lockStatus }: SalesOr
     },
   });
 
+  // SO document generation
+  const currentSOHash = useMemo(() => {
+    return buildItemsHash(orderItems, "sales_order", order);
+  }, [orderItems, order]);
+
+  const isSOStale = (doc: any) => {
+    const storedHash = doc.metadata?.itemsHash;
+    if (!storedHash) return false;
+    return storedHash !== currentSOHash;
+  };
+
+  const handleGenerateSO = async () => {
+    if (!soRef.current || orderItems.length === 0) return;
+    try {
+      await generateDocument({
+        elementRef: soRef.current,
+        documentType: "sales_order",
+        documentNumber: (order as any)?.orderNumber || "DRAFT",
+        itemsHash: currentSOHash,
+      });
+      toast({ title: "Sales Order PDF generated successfully" });
+    } catch {
+      // Error handled by hook
+    }
+  };
+
+  const handleRegenerateSO = async (docId: string) => {
+    await deleteDocument(docId);
+    await new Promise((r) => setTimeout(r, 300));
+    await handleGenerateSO();
+  };
+
   if (!order) return null;
 
   const currentStatus = (order as any)?.salesOrderStatus || "new";
@@ -105,8 +186,6 @@ export default function SalesOrderSection({ orderId, data, lockStatus }: SalesOr
       return null;
     }
   })();
-
-  const contactEmail = primaryContact?.email || "";
 
   const isLocked = lockStatus?.isLocked ?? false;
   const timelineConflicts = hasTimelineConflict(order);
@@ -356,81 +435,166 @@ export default function SalesOrderSection({ orderId, data, lockStatus }: SalesOr
         </Card>
       )}
 
+      {/* Sales Order Document Section */}
+      <Card>
+        <CardHeader className="py-3">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <FileText className="w-4 h-4" />
+              Sales Order Document
+            </CardTitle>
+            <div className="flex items-center gap-2">
+              {soDocuments.length > 0 && (
+                <Button
+                  size="sm"
+                  variant="default"
+                  onClick={() => setShowSendDialog(true)}
+                  disabled={isLocked}
+                  className="gap-1.5"
+                >
+                  <Send className="w-4 h-4" />
+                  Send to Client
+                </Button>
+              )}
+              {soDocuments.length === 0 && orderItems.length > 0 && (
+                <Button
+                  size="sm"
+                  onClick={handleGenerateSO}
+                  disabled={isGenerating || isLocked}
+                  className="gap-1.5"
+                >
+                  {isGenerating ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <FileText className="w-4 h-4" />
+                  )}
+                  Generate Sales Order PDF
+                </Button>
+              )}
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {soDocuments.length === 0 ? (
+            <div className="text-center py-4">
+              <FileText className="w-8 h-8 mx-auto text-gray-300 mb-2" />
+              <p className="text-sm text-gray-500">No sales order document generated yet</p>
+              {orderItems.length > 0 && (
+                <p className="text-xs text-gray-400 mt-1">Click "Generate Sales Order PDF" to create a professional document</p>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {soDocuments.map((doc: any) => (
+                <GeneratedDocumentCard
+                  key={doc.id}
+                  document={doc}
+                  isStale={isSOStale(doc)}
+                  onPreview={() => setPreviewDocument(doc)}
+                  onDelete={() => deleteDocument(doc.id)}
+                  onRegenerate={isLocked ? undefined : () => handleRegenerateSO(doc.id)}
+                  isDeleting={isDeleting || isLocked}
+                  isRegenerating={isGenerating}
+                />
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       {/* Products / Artwork Tabs - CommonSKU style */}
       <Tabs defaultValue="products" className="w-full">
-        <div className="flex items-center justify-between flex-wrap gap-3">
-          <TabsList>
-            <TabsTrigger value="products" className="gap-1">
-              <Package className="w-4 h-4" />
-              Products
-            </TabsTrigger>
-            <TabsTrigger value="artwork" className="gap-1">
-              <Palette className="w-4 h-4" />
-              Artwork
-            </TabsTrigger>
-          </TabsList>
-
-          {/* View Controls */}
-          <div className="flex border rounded-md overflow-hidden">
-            <Button variant="ghost" size="sm" className="rounded-none px-3 h-8">
-              Compact
-            </Button>
-            <Button variant="default" size="sm" className="rounded-none px-3 h-8">
-              Detailed
-            </Button>
-          </div>
-        </div>
-
-        {/* Action Buttons */}
-        <div className="flex items-center gap-3 mt-4">
-          <Button
-            onClick={() => {
-              const isProjectContext = window.location.pathname.startsWith("/project/");
-              if (isProjectContext) {
-                setLocation(`/project/${orderId}/sales-order/add`);
-              } else {
-                setLocation(`/orders/${orderId}/products/add`);
-              }
-            }}
-            size="sm"
-            className="bg-emerald-600 hover:bg-emerald-700 gap-1"
-            disabled={isLocked}
-          >
-            <Plus className="w-4 h-4" />
-            Product From Database
-          </Button>
-        </div>
+        <TabsList>
+          <TabsTrigger value="products" className="gap-1">
+            <Package className="w-4 h-4" />
+            Products
+          </TabsTrigger>
+          <TabsTrigger value="artwork" className="gap-1">
+            <Palette className="w-4 h-4" />
+            Artwork
+          </TabsTrigger>
+        </TabsList>
 
         {/* Products Tab */}
         <TabsContent value="products" className="mt-4">
           <ProductsSection orderId={orderId} data={data} isLocked={isLocked} />
         </TabsContent>
 
-        {/* Artwork Tab */}
+        {/* Artwork & Proofing Tab */}
         <TabsContent value="artwork" className="mt-4">
-          <SalesOrderArtwork orderId={orderId} data={data} />
+          <SalesOrderArtwork orderId={orderId} data={data} isLocked={isLocked} />
         </TabsContent>
       </Tabs>
+
+      {/* Hidden SO template for PDF generation */}
+      <SalesOrderTemplate
+        ref={soRef}
+        order={order}
+        orderItems={orderItems}
+        companyName={companyName}
+        primaryContact={primaryContact}
+      />
+
+      {/* Document Editor Modal */}
+      {previewDocument && (
+        <DocumentEditor
+          document={previewDocument}
+          order={order}
+          orderItems={orderItems}
+          companyName={companyName}
+          primaryContact={primaryContact}
+          getEditedItem={getEditedItem}
+          onClose={() => setPreviewDocument(null)}
+        />
+      )}
+
+      {/* Send SO to Client Dialog */}
+      {showSendDialog && soDocuments.length > 0 && (
+        <SendSODialog
+          open={showSendDialog}
+          onOpenChange={setShowSendDialog}
+          orderId={orderId}
+          recipientEmail={primaryContact?.email || ""}
+          recipientName={primaryContact ? `${primaryContact.firstName} ${primaryContact.lastName}` : companyName}
+          companyName={companyName}
+          orderNumber={(order as any)?.orderNumber || ""}
+          soDocument={soDocuments[0]}
+          soTotal={orderItems.reduce((sum: number, item: any) => sum + (parseFloat(item.unitPrice) || 0) * (item.quantity || 0), 0)}
+          quoteApprovals={quoteApprovals}
+          createQuoteApproval={createQuoteApproval}
+        />
+      )}
     </div>
   );
 }
 
-// Artwork sub-component for sales order
-function SalesOrderArtwork({ orderId, data }: { orderId: string; data: ReturnType<typeof useProjectData> }) {
-  const { allArtworkItems, orderItems } = data;
+// ── Artwork Sub-component (view-only, proofing is in PO section) ─────────────
+function SalesOrderArtwork({ orderId, data, isLocked }: { orderId: string; data: ReturnType<typeof useProjectData>; isLocked: boolean }) {
+  const { allArtworkItems, orderItems, suppliers } = data;
+  const [previewFile, setPreviewFile] = useState<{ url: string; name: string } | null>(null);
 
+  // Flatten artworks with product info
   const artworks: any[] = [];
   if (allArtworkItems && typeof allArtworkItems === "object") {
     Object.entries(allArtworkItems).forEach(([itemId, arts]: [string, any[]]) => {
       const item = orderItems.find((i: any) => i.id === itemId);
+      const supplier = item?.supplierId ? suppliers?.find((s: any) => s.id === item.supplierId) : null;
       arts.forEach((art: any) => {
         artworks.push({
           ...art,
           productName: item?.productName || "Unknown Product",
+          productSku: item?.productSku || "",
+          supplierName: supplier?.name || item?.supplierName || "Unknown Vendor",
         });
       });
     });
   }
+
+  const statusCounts = artworks.reduce((acc: Record<string, number>, art) => {
+    const s = art.status || "pending";
+    acc[s] = (acc[s] || 0) + 1;
+    return acc;
+  }, {});
 
   if (artworks.length === 0) {
     return (
@@ -438,36 +602,130 @@ function SalesOrderArtwork({ orderId, data }: { orderId: string; data: ReturnTyp
         <CardContent className="p-12 text-center">
           <Palette className="w-12 h-12 mx-auto text-gray-300 mb-4" />
           <h3 className="text-lg font-medium text-gray-900 mb-2">No artwork files</h3>
-          <p className="text-gray-500">Artwork files will appear here when uploaded to order items</p>
+          <p className="text-gray-500">Add artwork to products in the Products tab</p>
         </CardContent>
       </Card>
     );
   }
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-      {artworks.map((art: any) => (
-        <Card key={art.id} className="overflow-hidden hover:shadow-md transition-shadow">
-          <div className="aspect-video bg-gray-50 flex items-center justify-center overflow-hidden">
-            {art.fileUrl || art.filePath ? (
-              <img
-                src={art.fileUrl || art.filePath}
-                alt={art.fileName || "Artwork"}
-                className="w-full h-full object-contain p-2"
-              />
-            ) : (
-              <Palette className="w-12 h-12 text-gray-200" />
-            )}
-          </div>
-          <CardContent className="p-3">
-            <p className="text-sm font-medium truncate">{art.fileName || "Artwork"}</p>
-            <p className="text-xs text-gray-400">{art.productName}</p>
-            {art.status && (
-              <Badge variant="outline" className="mt-1 text-xs">{art.status}</Badge>
-            )}
-          </CardContent>
-        </Card>
-      ))}
+    <div className="space-y-4">
+      {/* Status Summary Bar */}
+      {Object.keys(statusCounts).length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {Object.entries(statusCounts).map(([status, count]) => {
+            const info = proofStatuses[status] || proofStatuses.pending;
+            return (
+              <Badge key={status} variant="outline" className={`text-xs ${info.color}`}>
+                {info.label}: {count}
+              </Badge>
+            );
+          })}
+        </div>
+      )}
+
+      <p className="text-xs text-gray-500">Proofing workflow is managed in the Purchase Orders section after PO generation.</p>
+
+      {/* Artwork Cards */}
+      <div className="space-y-3">
+        {artworks.map((art: any) => {
+          const statusInfo = proofStatuses[art.status] || proofStatuses.pending;
+          return (
+            <Card key={art.id} className="overflow-hidden">
+              <div className="p-4">
+                <div className="flex gap-4">
+                  {/* Artwork Thumbnail */}
+                  <div
+                    className="w-20 h-20 flex-shrink-0 bg-gray-50 rounded-lg overflow-hidden flex items-center justify-center cursor-pointer border"
+                    onClick={() => {
+                      const url = art.fileUrl || art.filePath;
+                      if (url) setPreviewFile({ url, name: art.fileName || art.name || "Artwork" });
+                    }}
+                  >
+                    {art.fileUrl || art.filePath ? (
+                      <img src={art.fileUrl || art.filePath} alt={art.name || "Artwork"} className="w-full h-full object-contain p-1" />
+                    ) : (
+                      <Palette className="w-8 h-8 text-gray-300" />
+                    )}
+                  </div>
+
+                  {/* Info */}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium">{art.name || art.fileName || "Artwork"}</p>
+                    <p className="text-xs text-gray-500">{art.productName} {art.productSku ? `(${art.productSku})` : ""}</p>
+                    <div className="flex items-center gap-2 mt-1">
+                      {art.location && <span className="text-xs text-gray-400">{art.location}</span>}
+                      {art.artworkType && <span className="text-xs text-gray-400">· {art.artworkType}</span>}
+                    </div>
+                    <div className="flex items-center gap-2 mt-1.5">
+                      <Badge variant="outline" className={`text-xs ${statusInfo.color}`}>
+                        {statusInfo.label}
+                      </Badge>
+                      <span className="text-xs text-gray-400">Vendor: {art.supplierName}</span>
+                    </div>
+                  </div>
+
+                  {/* View buttons */}
+                  <div className="flex flex-col gap-1">
+                    {(art.fileUrl || art.filePath) && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 gap-1 text-xs"
+                        onClick={() => setPreviewFile({ url: art.fileUrl || art.filePath, name: art.name || "Artwork" })}
+                      >
+                        <Eye className="w-3.5 h-3.5" />
+                        View
+                      </Button>
+                    )}
+                    {art.proofFilePath && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 gap-1 text-xs text-blue-600"
+                        onClick={() => setPreviewFile({ url: art.proofFilePath, name: art.proofFileName || "Vendor Proof" })}
+                      >
+                        <Eye className="w-3.5 h-3.5" />
+                        Proof
+                      </Button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Proof File Preview (if exists) */}
+                {art.proofFilePath && (
+                  <div className="mt-3 flex items-center gap-3 p-2 bg-blue-50 rounded-lg border border-blue-100">
+                    <div
+                      className="w-12 h-12 flex-shrink-0 bg-white rounded border overflow-hidden flex items-center justify-center cursor-pointer"
+                      onClick={() => setPreviewFile({ url: art.proofFilePath, name: art.proofFileName || "Vendor Proof" })}
+                    >
+                      <img src={art.proofFilePath} alt="Proof" className="w-full h-full object-contain p-0.5" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-medium text-blue-800">Vendor Proof</p>
+                      <p className="text-xs text-blue-600 truncate">{art.proofFileName || "proof-file"}</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </Card>
+          );
+        })}
+      </div>
+
+      {/* File Preview Modal */}
+      {previewFile && (
+        <FilePreviewModal
+          open={true}
+          file={{
+            fileName: previewFile.name,
+            originalName: previewFile.name,
+            filePath: previewFile.url,
+            mimeType: previewFile.url.match(/\.(png|jpg|jpeg|gif|webp|svg)$/i) ? "image/png" : "application/pdf",
+          }}
+          onClose={() => setPreviewFile(null)}
+        />
+      )}
     </div>
   );
 }

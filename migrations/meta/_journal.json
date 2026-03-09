@@ -127,6 +127,34 @@
       "when": 1772594881272,
       "tag": "0017_natural_ikaris",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1772594881273,
+      "tag": "0018_rename_estimate_to_quote",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1772594881274,
+      "tag": "0019_add_token_type",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1772594881275,
+      "tag": "0020_add_display_to_client",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1741484400000,
+      "tag": "0021_add_artwork_proof_fields",
+      "breakpoints": true
     }
   ]
 }

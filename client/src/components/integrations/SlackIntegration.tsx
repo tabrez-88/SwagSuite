@@ -56,10 +56,7 @@ export function SlackIntegration() {
 
   const sendMessageMutation = useMutation({
     mutationFn: async (data: { channel: string; message: string }) => {
-      await apiRequest('/api/integrations/slack/send', {
-        method: 'POST',
-        body: data
-      });
+      await apiRequest('POST', '/api/integrations/slack/send', data);
     },
     onSuccess: () => {
       toast({
@@ -80,10 +77,7 @@ export function SlackIntegration() {
 
   const updateSettingsMutation = useMutation({
     mutationFn: async (settings: Partial<SlackNotificationSettings>) => {
-      await apiRequest('/api/integrations/slack/settings', {
-        method: 'POST',
-        body: settings
-      });
+      await apiRequest('POST', '/api/integrations/slack/settings', settings);
     },
     onSuccess: () => {
       toast({

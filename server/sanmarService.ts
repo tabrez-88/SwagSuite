@@ -147,7 +147,11 @@ ${body}
 
     if (!returnData || !returnData.listResponse) {
       if (returnData?.errorOccured === 'true' || returnData?.errorOccured === true) {
-        console.log(`SanMar API error (${action}):`, returnData?.message);
+        const msg = returnData?.message || 'Unknown error';
+        console.log(`SanMar API error (${action}):`, msg);
+        // Throw on explicit API errors (invalid style/brand) so callers can distinguish
+        // from "valid query, no results"
+        throw new Error(`SanMar API: ${msg}`);
       }
       return [];
     }
@@ -188,19 +192,21 @@ ${body}
 
   /**
    * Search product by style number (e.g., "5000", "PC54", "G500")
-   * This is much faster than brand search as it returns only one style
+   * Uses getProductInfoByStyleColorSize with empty color/size to get all variants
    */
   async searchByStyleNumber(styleNumber: string): Promise<SanMarProduct[]> {
     try {
-      const action = 'getProductInfoByStyleNumber';
-      const soapBody = `      <impl:getProductInfoByStyleNumber>
+      const action = 'getProductInfoByStyleColorSize';
+      const soapBody = `      <impl:getProductInfoByStyleColorSize>
         <arg0>
-          <styleNumber>${this.escapeXml(styleNumber.trim())}</styleNumber>
+          <style>${this.escapeXml(styleNumber.trim())}</style>
+          <color></color>
+          <size></size>
         </arg0>
         <arg1>
           ${this.getCredentialsXml()}
         </arg1>
-      </impl:getProductInfoByStyleNumber>`;
+      </impl:getProductInfoByStyleColorSize>`;
 
       console.log(`SanMar: searching by style number "${styleNumber}"...`);
       const xmlResponse = await this.makeSoapRequest(action, soapBody);
@@ -263,65 +269,71 @@ ${body}
   async searchProducts(query: string): Promise<SanMarProduct[]> {
     const trimmed = query.trim();
 
-    // If query contains digits, try style number search first
+    // If query contains digits, it's likely a style number — try that first
     const hasDigits = /\d/.test(trimmed);
+    const isNumericOnly = /^\d+$/.test(trimmed);
 
     if (hasDigits) {
-      console.log(`SanMar: query "${trimmed}" contains digits, trying style number search first...`);
+      console.log(`SanMar: query "${trimmed}" contains digits, trying style number search...`);
       try {
         const products = await this.searchByStyleNumber(trimmed);
         if (products.length > 0) {
           console.log(`SanMar: found ${products.length} product(s) by style number`);
           return products;
         }
+      } catch (err: any) {
+        // If SanMar says "Invalid style", don't waste time on brand/keyword fallback for numeric queries
+        if (isNumericOnly && err.message?.includes('Invalid style')) {
+          console.log(`SanMar: "${trimmed}" is not a valid style number. No fallback for numeric-only queries.`);
+          return [];
+        }
+        console.log(`SanMar: style number search failed, trying other methods...`);
+      }
+    }
+
+    // Try exact brand name match (skip if query is purely numeric)
+    if (!isNumericOnly) {
+      console.log(`SanMar: searching by brand name "${trimmed}"...`);
+      try {
+        const brandResults = await this.searchByBrand(trimmed, 50);
+        if (brandResults.length > 0) {
+          return brandResults;
+        }
       } catch {
-        console.log(`SanMar: style number search failed, falling back to brand search...`);
+        console.log(`SanMar: brand search for "${trimmed}" failed`);
+      }
+
+      // For keyword queries, try matching against known brands
+      // Only for text queries — not numeric style numbers
+      console.log(`SanMar: trying keyword search by scanning popular brands for "${trimmed}"...`);
+      const lowerQuery = trimmed.toLowerCase();
+      const results: SanMarProduct[] = [];
+
+      const brandsToTry = ['Port & Company', 'Port Authority', 'Sport-Tek', 'District'];
+      const brandSearchResults = await Promise.allSettled(
+        brandsToTry.map(brand =>
+          this.searchByBrand(brand, 20).catch(() => [] as SanMarProduct[])
+        )
+      );
+
+      for (const result of brandSearchResults) {
+        if (results.length >= 30) break;
+        if (result.status === 'fulfilled' && Array.isArray(result.value)) {
+          const matched = result.value.filter(p => {
+            const text = `${p.productTitle} ${p.productDescription} ${p.categoryName} ${p.keywords || ''}`.toLowerCase();
+            return text.includes(lowerQuery);
+          });
+          results.push(...matched);
+        }
+      }
+
+      if (results.length > 0) {
+        console.log(`SanMar: keyword search found ${results.length} products matching "${trimmed}"`);
+        return results.slice(0, 50);
       }
     }
 
-    // Try exact brand name match first
-    console.log(`SanMar: searching by brand name "${trimmed}"...`);
-    try {
-      const brandResults = await this.searchByBrand(trimmed, 50);
-      if (brandResults.length > 0) {
-        return brandResults;
-      }
-    } catch {
-      console.log(`SanMar: brand search for "${trimmed}" failed`);
-    }
-
-    // For keyword queries (not a brand name), try searching popular brands in parallel
-    // and filter results by keyword in product title/description
-    console.log(`SanMar: trying keyword search by scanning popular brands for "${trimmed}"...`);
-    const lowerQuery = trimmed.toLowerCase();
-    const results: SanMarProduct[] = [];
-
-    // Search popular brands in parallel for speed
-    const brandsToTry = ['Port & Company', 'Port Authority', 'Sport-Tek', 'District'];
-    const brandSearchResults = await Promise.allSettled(
-      brandsToTry.map(brand =>
-        this.searchByBrand(brand, 20).catch(() => [] as SanMarProduct[])
-      )
-    );
-
-    for (const result of brandSearchResults) {
-      if (results.length >= 30) break;
-      if (result.status === 'fulfilled' && Array.isArray(result.value)) {
-        const matched = result.value.filter(p => {
-          const text = `${p.productTitle} ${p.productDescription} ${p.categoryName} ${p.keywords || ''}`.toLowerCase();
-          return text.includes(lowerQuery);
-        });
-        results.push(...matched);
-      }
-    }
-
-    if (results.length > 0) {
-      console.log(`SanMar: keyword search found ${results.length} products matching "${trimmed}"`);
-    } else {
-      console.log(`SanMar: no results for "${trimmed}". SanMar works best with style numbers (e.g., PC54, G500) or brand names (e.g., Nike, OGIO).`);
-    }
-
-    return results.slice(0, 50);
+    console.log(`SanMar: no results for "${trimmed}". Try a style number (e.g., PC54, G500) or brand name (e.g., Nike, OGIO).`);
   }
 
   /**

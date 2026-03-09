@@ -43,10 +43,7 @@ export function HubSpotIntegration() {
 
   const syncMutation = useMutation({
     mutationFn: async (syncType: 'full' | 'incremental') => {
-      await apiRequest('/api/integrations/hubspot/sync', {
-        method: 'POST',
-        body: { syncType }
-      });
+      await apiRequest('POST', '/api/integrations/hubspot/sync', { syncType });
     },
     onSuccess: () => {
       toast({
@@ -66,10 +63,7 @@ export function HubSpotIntegration() {
 
   const configMutation = useMutation({
     mutationFn: async (config: { autoSync: boolean; syncInterval: number }) => {
-      await apiRequest('/api/integrations/hubspot/config', {
-        method: 'POST',
-        body: config
-      });
+      await apiRequest('POST', '/api/integrations/hubspot/config', config);
     },
     onSuccess: () => {
       toast({
