@@ -88,7 +88,7 @@ function getEditedItem(_id: string, item: any) {
 }
 
 export default function SalesOrderSection({ orderId, data, lockStatus }: SalesOrderSectionProps) {
-  const { order, orderItems, companyName, primaryContact, contacts } = data;
+  const { order, orderItems, companyName, primaryContact, contacts, allArtworkItems } = data;
   const [, setLocation] = useLocation();
   const [isInfoCollapsed, setIsInfoCollapsed] = useState(false);
   const [previewDocument, setPreviewDocument] = useState<any>(null);
@@ -533,6 +533,7 @@ export default function SalesOrderSection({ orderId, data, lockStatus }: SalesOr
         orderItems={orderItems}
         companyName={companyName}
         primaryContact={primaryContact}
+        allArtworkItems={allArtworkItems}
       />
 
       {/* Document Editor Modal */}
@@ -545,6 +546,7 @@ export default function SalesOrderSection({ orderId, data, lockStatus }: SalesOr
           primaryContact={primaryContact}
           getEditedItem={getEditedItem}
           onClose={() => setPreviewDocument(null)}
+          allArtworkItems={allArtworkItems}
         />
       )}
 

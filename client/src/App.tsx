@@ -132,7 +132,9 @@ function Router() {
       {/* Public approval route - accessible without authentication */}
       <Route path="/approval/:token" component={ApprovalPage} />
 
-      {/* Public quote approval route - accessible without authentication */}
+      {/* Public quote/SO approval route - accessible without authentication */}
+      <Route path="/client-approval/:token" component={QuoteApprovalPage} />
+      {/* Legacy redirect for old quote-approval links */}
       <Route path="/quote-approval/:token" component={QuoteApprovalPage} />
 
       {/* Public invitation acceptance route */}

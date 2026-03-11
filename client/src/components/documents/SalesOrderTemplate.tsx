@@ -1,15 +1,17 @@
 import { forwardRef } from "react";
 import { format } from "date-fns";
+import { proxyImg } from "@/lib/imageUtils";
 
 interface SalesOrderTemplateProps {
   order: any;
   orderItems: any[];
   companyName: string;
   primaryContact: any;
+  allArtworkItems?: Record<string, any[]>;
 }
 
 const SalesOrderTemplate = forwardRef<HTMLDivElement, SalesOrderTemplateProps>(
-  ({ order, orderItems, companyName, primaryContact }, ref) => {
+  ({ order, orderItems, companyName, primaryContact, allArtworkItems = {} }, ref) => {
     const subtotal = orderItems.reduce((sum: number, item: any) => {
       const unitPrice = parseFloat(item.unitPrice) || 0;
       const quantity = item.quantity || 0;
@@ -60,12 +62,12 @@ const SalesOrderTemplate = forwardRef<HTMLDivElement, SalesOrderTemplateProps>(
               <h2 className="text-2xl font-bold mb-1">SwagSuite</h2>
               <p className="text-sm text-gray-600">Your Promotional Products Partner</p>
               {order?.isFirm && (
-                <div className="mt-2 inline-block px-3 py-1 bg-blue-100 text-blue-800 text-xs font-semibold rounded">
+                <div className="mt-2 inline-flex items-center justify-center px-4 py-1.5 bg-blue-100 text-blue-800 text-xs font-bold uppercase tracking-wider rounded">
                   FIRM ORDER
                 </div>
               )}
               {order?.isRush && (
-                <div className="mt-1 inline-block px-3 py-1 bg-red-100 text-red-800 text-xs font-semibold rounded">
+                <div className="mt-1 inline-flex items-center justify-center px-4 py-1.5 bg-red-100 text-red-800 text-xs font-bold uppercase tracking-wider rounded">
                   RUSH ORDER
                 </div>
               )}
@@ -116,47 +118,146 @@ const SalesOrderTemplate = forwardRef<HTMLDivElement, SalesOrderTemplateProps>(
             </div>
           )}
 
-          {/* Items Table */}
-          <table className="w-full mb-6">
-            <thead>
-              <tr className="border-b-2 border-gray-300">
-                <th className="text-left py-2 text-sm font-bold">Item</th>
-                <th className="text-left py-2 text-sm font-bold">Decoration</th>
-                <th className="text-center py-2 text-sm font-bold">Qty</th>
-                <th className="text-right py-2 text-sm font-bold">Unit Price</th>
-                <th className="text-right py-2 text-sm font-bold">Total</th>
-              </tr>
-            </thead>
-            <tbody>
-              {orderItems.map((item: any) => {
-                const unitPrice = parseFloat(item.unitPrice) || 0;
-                const quantity = item.quantity || 0;
-                const itemTotal = unitPrice * quantity;
-                return (
-                  <tr key={item.id} className="border-b border-gray-200">
-                    <td className="py-2 text-sm">
-                      <div className="font-medium">{item.productName}</div>
-                      {item.productSku && <div className="text-xs text-gray-500">SKU: {item.productSku}</div>}
-                      {(item.color || item.size) && (
-                        <div className="text-xs text-gray-500">
-                          {item.color && <span>Color: {item.color}</span>}
-                          {item.color && item.size && <span> | </span>}
-                          {item.size && <span>Size: {item.size}</span>}
+          {/* Items */}
+          <div className="mb-6">
+            {orderItems.map((item: any) => {
+              const unitPrice = parseFloat(item.unitPrice) || 0;
+              const quantity = item.quantity || 0;
+              const itemTotal = unitPrice * quantity;
+              const itemArtworks = allArtworkItems[item.id] || [];
+
+              return (
+                <div key={item.id} className="mb-6 pb-4 border-b border-gray-200">
+                  {/* Product name as section header */}
+                  <h3 className="text-base font-bold text-gray-900 mb-3 pb-1 border-b border-gray-300">
+                    {item.productName}
+                    {item.productSku && <span className="text-xs font-normal text-gray-500 ml-2">SKU: {item.productSku}</span>}
+                  </h3>
+                  {item.description && (
+                    <p className="text-xs text-gray-600 mb-3 leading-relaxed">{item.description}</p>
+                  )}
+
+                  {/* Product image + items table side by side */}
+                  <div className="flex gap-4">
+                    {/* Product image - large like CommonSKU */}
+                    {(item.imageUrl || item.productImageUrl) && (
+                      <div style={{ width: "160px", flexShrink: 0 }}>
+                        <div style={{ width: "150px", height: "150px" }} className="border rounded bg-white overflow-hidden">
+                          <img src={proxyImg(item.imageUrl || item.productImageUrl)} alt="" style={{ width: "100%", height: "100%", objectFit: "contain" }} />
                         </div>
-                      )}
-                    </td>
-                    <td className="py-2 text-sm text-gray-600">
-                      {item.imprintMethod && <div className="text-xs">{item.imprintMethod}</div>}
-                      {item.imprintLocation && <div className="text-xs text-gray-400">{item.imprintLocation}</div>}
-                    </td>
-                    <td className="py-2 text-center text-sm">{quantity}</td>
-                    <td className="py-2 text-right text-sm">${unitPrice.toFixed(2)}</td>
-                    <td className="py-2 text-right text-sm font-medium">${itemTotal.toFixed(2)}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                        <p className="text-[8px] text-gray-400 text-center mt-1 italic">Product image for reference only.</p>
+                      </div>
+                    )}
+
+                    {/* Items detail table */}
+                    <div className="flex-1">
+                      <table className="w-full">
+                        <thead>
+                          <tr className="border-b border-gray-300">
+                            <th className="text-left py-1 text-xs font-bold text-gray-700">ITEM</th>
+                            <th className="text-center py-1 text-xs font-bold text-gray-700" style={{ width: "60px" }}>QTY</th>
+                            <th className="text-right py-1 text-xs font-bold text-gray-700" style={{ width: "70px" }}>PRICE</th>
+                            <th className="text-right py-1 text-xs font-bold text-gray-700" style={{ width: "80px" }}>AMOUNT</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr className="border-b border-gray-100">
+                            <td className="py-1.5 text-xs">
+                              {item.color && item.size ? `Size: ${item.size} - Color: ${item.color}` :
+                               item.color ? `Color: ${item.color}` :
+                               item.size ? `Size: ${item.size}` : item.productName}
+                            </td>
+                            <td className="py-1.5 text-xs text-center">{quantity}</td>
+                            <td className="py-1.5 text-xs text-right">${unitPrice.toFixed(2)}</td>
+                            <td className="py-1.5 text-xs text-right font-medium">${itemTotal.toFixed(2)}</td>
+                          </tr>
+                          {/* Imprint info row */}
+                          {item.imprintMethod && item.imprintLocation && (
+                            <tr className="border-b border-gray-100">
+                              <td className="py-1.5 text-xs text-gray-600">
+                                Imprint Cost - {item.imprintLocation}
+                              </td>
+                              <td className="py-1.5 text-xs text-center">{quantity}</td>
+                              <td className="py-1.5 text-xs text-right">—</td>
+                              <td className="py-1.5 text-xs text-right">—</td>
+                            </tr>
+                          )}
+                          <tr className="border-t border-gray-300">
+                            <td className="py-1.5 text-xs font-bold">TOTAL</td>
+                            <td></td>
+                            <td></td>
+                            <td className="py-1.5 text-xs text-right font-bold">${itemTotal.toFixed(2)}</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  {/* Artwork Details section - CommonSKU style */}
+                  {itemArtworks.length > 0 && (
+                    <div className="mt-4">
+                      <h4 className="text-sm font-bold text-gray-900 mb-2 pb-1 border-b border-gray-300">Artwork Details</h4>
+                      {itemArtworks.map((art: any, idx: number) => (
+                        <div key={art.id || idx} className="flex gap-4 py-2">
+                          {/* Artwork fields */}
+                          <div className="flex-1">
+                            <table className="text-xs">
+                              <tbody>
+                                {art.name && (
+                                  <tr>
+                                    <td className="py-0.5 pr-4 font-bold text-gray-800 whitespace-nowrap">DESIGN NAME</td>
+                                    <td className="py-0.5 text-gray-700">{art.name}</td>
+                                  </tr>
+                                )}
+                                {(art.artworkType || art.imprintMethod) && (
+                                  <tr>
+                                    <td className="py-0.5 pr-4 font-bold text-gray-800 whitespace-nowrap">IMPRINT TYPE</td>
+                                    <td className="py-0.5 text-gray-700">{art.artworkType || art.imprintMethod}</td>
+                                  </tr>
+                                )}
+                                {art.location && (
+                                  <tr>
+                                    <td className="py-0.5 pr-4 font-bold text-gray-800 whitespace-nowrap">DESIGN LOCATION</td>
+                                    <td className="py-0.5 text-gray-700">{art.location}</td>
+                                  </tr>
+                                )}
+                                {(art.size || art.designSize) && (
+                                  <tr>
+                                    <td className="py-0.5 pr-4 font-bold text-gray-800 whitespace-nowrap">DESIGN SIZE</td>
+                                    <td className="py-0.5 text-gray-700">{art.size || art.designSize}</td>
+                                  </tr>
+                                )}
+                                {(art.color || art.colors) && (
+                                  <tr>
+                                    <td className="py-0.5 pr-4 font-bold text-gray-800 whitespace-nowrap">DESIGN COLOR</td>
+                                    <td className="py-0.5 text-gray-700">{art.color || art.colors}</td>
+                                  </tr>
+                                )}
+                                {art.notes && (
+                                  <tr>
+                                    <td className="py-0.5 pr-4 font-bold text-gray-800 whitespace-nowrap">NOTES</td>
+                                    <td className="py-0.5 text-gray-700">{art.notes}</td>
+                                  </tr>
+                                )}
+                              </tbody>
+                            </table>
+                          </div>
+                          {/* Artwork thumbnail - larger */}
+                          {(art.filePath || art.fileUrl) && (
+                            <div style={{ width: "120px", flexShrink: 0 }}>
+                              <div style={{ width: "110px", height: "110px" }} className="border rounded bg-white overflow-hidden">
+                                <img src={proxyImg(art.filePath || art.fileUrl)} alt={art.name || "Artwork"} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
 
           {/* Totals */}
           <div className="flex justify-end mb-6">

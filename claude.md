@@ -216,6 +216,8 @@ Section-level auto-locking that prevents edits on finalized stages. Lock state i
 - **PO Status** (urgency): OK, Follow Up, Problem
 - Stage/status stored in `generatedDocuments.metadata.poStage` / `metadata.poStatus` (JSONB, no schema migration)
 - `PATCH /api/documents/:documentId` supports `status`, `sentAt`, and `metadata` updates
+- Full stage transition buttons in PO section: Email to Vendor, Confirm, Mark Shipped, Ready for Billing, Mark as Billed, Close PO
+- All PO stage changes and proofing status changes log activity via `POST /api/projects/:orderId/activities`
 
 ### PO Email to Vendor
 - "Email to Vendor" button appears when PO stage is "created" (or "Resend" after first send)
@@ -245,12 +247,23 @@ Section-level auto-locking that prevents edits on finalized stages. Lock state i
 - `client/src/components/modals/SendSODialog.tsx` — Email dialog (like SendQuoteDialog)
 - Reuses `quoteApprovals` table for approval tokens (same approval flow as quotes)
 - Auto-sets `salesOrderStatus` to `pending_client_approval` after sending
-- Approval link: `/quote-approval/:token` (shared public page for both quote and SO approvals)
+- When reusing existing pending approval, PATCHes `documentId`/`pdfPath`/`quoteTotal` via `PATCH /api/orders/:orderId/quote-approvals/:approvalId`
+
+### Client Approval System (Unified Quote & SO)
+- **Public page**: `/client-approval/:token` — single page handles both Quote and SO approvals
+- **Legacy redirect**: `/quote-approval/:token` still works (redirects to `/client-approval/`)
+- **API endpoints**: `GET /api/client-approvals/:token`, `POST /api/client-approvals/:token/approve`, `POST /api/client-approvals/:token/decline`
+- **Legacy API redirects**: Old `/api/quote-approvals/:token` paths redirect (307) to `/api/client-approvals/:token`
+- **Document type detection**: Joins `generatedDocuments` to get `documentType`; fallback: if `documentType` is null but `order.salesOrderStatus === "pending_client_approval"`, treats as SO
+- **SO approval**: Sets `salesOrderStatus: "client_approved"` on approve, `"draft"` on decline
+- **Quote approval**: Converts order to Sales Order stage on approve (existing behavior)
+- **PDF preview**: Uses Google Docs Viewer iframe with cache-buster (`&t={timestamp}`) + "Reload Preview" button
 
 ### Key Files
 - `client/src/components/modals/SendSODialog.tsx` — Send SO email dialog
 - `client/src/components/modals/SendQuoteDialog.tsx` — Send Quote email dialog (reference)
 - `client/src/components/documents/SalesOrderTemplate.tsx` — SO PDF template
+- `client/src/pages/quote-approval.tsx` — Public approval page (serves both `/client-approval/` and `/quote-approval/` routes)
 
 ## Important Notes
 - `routes.ts` is very large (~9800 lines). Search for specific endpoint patterns rather than reading the whole file.

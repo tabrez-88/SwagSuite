@@ -61,7 +61,7 @@ export default function SendQuoteDialog({
         });
         approvalToken = result.approvalToken;
       }
-      const approvalUrl = `${window.location.origin}/quote-approval/${approvalToken}`;
+      const approvalUrl = `${window.location.origin}/client-approval/${approvalToken}`;
 
       // 2. Send email via communications endpoint
       const emailBody = `${body}\n\n---\nView & Approve Quote: ${approvalUrl}`;

@@ -101,12 +101,16 @@ export default function ProductsSection({ orderId, data, isLocked }: ProductsSec
   const [artUploadName, setArtUploadName] = useState("");
   const [artUploadLocation, setArtUploadLocation] = useState("");
   const [artUploadMethod, setArtUploadMethod] = useState("");
+  const [artUploadColor, setArtUploadColor] = useState("");
+  const [artUploadSize, setArtUploadSize] = useState("");
 
   const resetArtForm = () => {
     setArtPickedFile(null);
     setArtUploadName("");
     setArtUploadLocation("");
     setArtUploadMethod("");
+    setArtUploadColor("");
+    setArtUploadSize("");
   };
 
   // Toggle expand/collapse
@@ -245,7 +249,7 @@ export default function ProductsSection({ orderId, data, isLocked }: ProductsSec
   });
 
   const createArtworkMutation = useMutation({
-    mutationFn: async (payload: { orderItemId: string; name: string; filePath: string; fileName: string; location?: string; artworkType?: string }) => {
+    mutationFn: async (payload: { orderItemId: string; name: string; filePath: string; fileName: string; location?: string; artworkType?: string; color?: string; size?: string }) => {
       const res = await apiRequest("POST", `/api/order-items/${payload.orderItemId}/artworks`, payload);
       return res.json();
     },
@@ -1444,12 +1448,16 @@ export default function ProductsSection({ orderId, data, isLocked }: ProductsSec
         onSelect={(files) => {
           const file = files[0];
           if (file && pickingArtworkForItem) {
+            // Auto-populate from product defaults
+            const item = orderItems.find((i: any) => i.id === pickingArtworkForItem);
             setArtPickedFile({
               orderItemId: pickingArtworkForItem,
               filePath: file.cloudinaryUrl,
               fileName: file.originalName || file.fileName,
             });
             setArtUploadName(file.originalName || file.fileName);
+            if (item?.imprintMethod) setArtUploadMethod(item.imprintMethod);
+            if (item?.imprintLocation) setArtUploadLocation(item.imprintLocation);
           }
           setPickingArtworkForItem(null);
         }}
@@ -1485,7 +1493,7 @@ export default function ProductsSection({ orderId, data, isLocked }: ProductsSec
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label>Decoration Location</Label>
+                <Label>Decoration Location <span className="text-red-500">*</span></Label>
                 <Select value={artUploadLocation} onValueChange={setArtUploadLocation}>
                   <SelectTrigger>
                     <SelectValue placeholder="Select location" />
@@ -1498,7 +1506,7 @@ export default function ProductsSection({ orderId, data, isLocked }: ProductsSec
                 </Select>
               </div>
               <div>
-                <Label>Imprint Method</Label>
+                <Label>Imprint Method <span className="text-red-500">*</span></Label>
                 <Select value={artUploadMethod} onValueChange={setArtUploadMethod}>
                   <SelectTrigger>
                     <SelectValue placeholder="Select method" />
@@ -1511,11 +1519,21 @@ export default function ProductsSection({ orderId, data, isLocked }: ProductsSec
                 </Select>
               </div>
             </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Design Size</Label>
+                <Input value={artUploadSize} onChange={(e) => setArtUploadSize(e.target.value)} placeholder='e.g., 3" x 3"' />
+              </div>
+              <div>
+                <Label>Design Color</Label>
+                <Input value={artUploadColor} onChange={(e) => setArtUploadColor(e.target.value)} placeholder="e.g., White, PMS 186" />
+              </div>
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={resetArtForm}>Cancel</Button>
             <Button
-              disabled={createArtworkMutation.isPending || !artPickedFile}
+              disabled={createArtworkMutation.isPending || !artPickedFile || !artUploadLocation || !artUploadMethod}
               onClick={() => {
                 if (!artPickedFile) return;
                 createArtworkMutation.mutate({
@@ -1525,6 +1543,8 @@ export default function ProductsSection({ orderId, data, isLocked }: ProductsSec
                   fileName: artPickedFile.fileName,
                   location: artUploadLocation || undefined,
                   artworkType: artUploadMethod || undefined,
+                  color: artUploadColor || undefined,
+                  size: artUploadSize || undefined,
                 });
               }}
             >

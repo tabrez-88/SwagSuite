@@ -1,6 +1,7 @@
 import { useState, useCallback } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
+import { preloadAndConvertImages } from "@/lib/imageUtils";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
 
@@ -63,24 +64,32 @@ export function useDocumentGeneration(orderId: string) {
       const originalVisibility = elementRef.style.visibility;
       elementRef.style.visibility = "visible";
 
-      await new Promise((resolve) => setTimeout(resolve, 200));
+      // Convert cross-origin images to base64 so html2canvas can capture them
+      const restoreImages = await preloadAndConvertImages(elementRef);
 
-      const canvas = await html2canvas(elementRef, {
-        scale: 2,
-        useCORS: true,
-        logging: false,
-        backgroundColor: "#ffffff",
-        allowTaint: true,
-        foreignObjectRendering: false,
-      });
+      // Small delay to let the DOM settle after image replacement
+      await new Promise((resolve) => setTimeout(resolve, 300));
 
-      elementRef.style.visibility = originalVisibility;
+      let canvas: HTMLCanvasElement;
+      try {
+        canvas = await html2canvas(elementRef, {
+          scale: 2,
+          useCORS: true,
+          logging: false,
+          backgroundColor: "#ffffff",
+          allowTaint: true,
+          foreignObjectRendering: false,
+        });
+      } finally {
+        // Restore original image src attributes
+        restoreImages();
+        elementRef.style.visibility = originalVisibility;
+      }
 
       if (canvas.width === 0 || canvas.height === 0) {
         throw new Error("Failed to capture document - canvas is empty");
       }
 
-      const imgData = canvas.toDataURL("image/png", 1.0);
       const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4", compress: true });
 
       const pageWidth = 210;
@@ -88,14 +97,35 @@ export function useDocumentGeneration(orderId: string) {
       const imgWidth = pageWidth;
       const imgHeight = (canvas.height * imgWidth) / canvas.width;
 
-      if (imgHeight > pageHeight) {
-        const scaleFactor = pageHeight / imgHeight;
-        const scaledWidth = imgWidth * scaleFactor;
-        const scaledHeight = pageHeight;
-        const xOffset = (pageWidth - scaledWidth) / 2;
-        pdf.addImage(imgData, "PNG", xOffset, 0, scaledWidth, scaledHeight);
-      } else {
+      if (imgHeight <= pageHeight) {
+        // Content fits on one page
+        const imgData = canvas.toDataURL("image/png", 1.0);
         pdf.addImage(imgData, "PNG", 0, 0, imgWidth, imgHeight);
+      } else {
+        // Multi-page: split canvas into page-sized chunks
+        const pxPerMm = canvas.width / pageWidth;
+        const pageHeightPx = Math.floor(pageHeight * pxPerMm);
+        const totalPages = Math.ceil(canvas.height / pageHeightPx);
+
+        for (let page = 0; page < totalPages; page++) {
+          if (page > 0) pdf.addPage();
+
+          const sourceY = page * pageHeightPx;
+          const sourceHeight = Math.min(pageHeightPx, canvas.height - sourceY);
+          if (sourceHeight <= 0) break;
+
+          // Create a cropped canvas for this page
+          const pageCanvas = document.createElement("canvas");
+          pageCanvas.width = canvas.width;
+          pageCanvas.height = sourceHeight;
+          const ctx = pageCanvas.getContext("2d");
+          if (!ctx) continue;
+          ctx.drawImage(canvas, 0, sourceY, canvas.width, sourceHeight, 0, 0, canvas.width, sourceHeight);
+
+          const pageImgData = pageCanvas.toDataURL("image/png", 1.0);
+          const sliceHeightMm = (sourceHeight * pageWidth) / canvas.width;
+          pdf.addImage(pageImgData, "PNG", 0, 0, pageWidth, sliceHeightMm);
+        }
       }
 
       const pdfBlob = pdf.output("blob");

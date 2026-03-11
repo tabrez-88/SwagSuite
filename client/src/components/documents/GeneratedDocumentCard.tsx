@@ -81,13 +81,15 @@ export default function GeneratedDocumentCard({
           <div className="mt-0.5">
             {doc.documentType === "quote" ? (
               <FileText className="w-5 h-5 text-blue-500" />
+            ) : doc.documentType === "sales_order" ? (
+              <FileText className="w-5 h-5 text-emerald-500" />
             ) : (
               <ShoppingCart className="w-5 h-5 text-green-500" />
             )}
           </div>
           <div>
             <p className="font-medium text-sm">
-              {doc.documentType === "quote" ? "Quote" : "Purchase Order"} #{doc.documentNumber}
+              {doc.documentType === "quote" ? "Quote" : doc.documentType === "sales_order" ? "Sales Order" : "Purchase Order"} #{doc.documentNumber}
             </p>
             {doc.vendorName && (
               <p className="text-xs text-gray-500">Vendor: {doc.vendorName}</p>
@@ -178,7 +180,7 @@ export default function GeneratedDocumentCard({
               Delete Document
             </AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete this {doc.documentType === "quote" ? "quote" : "purchase order"}?
+              Are you sure you want to delete this {doc.documentType === "quote" ? "quote" : doc.documentType === "sales_order" ? "sales order" : "purchase order"}?
               This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>

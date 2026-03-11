@@ -230,7 +230,7 @@ export default function PurchaseOrdersSection({ orderId, data, isLocked }: Purch
     await handleGeneratePO(doc.vendorId, doc.vendorName);
   };
 
-  // Update PO document metadata (stage/status)
+  // Update PO document metadata (stage/status) with activity logging
   const updateDocMetaMutation = useMutation({
     mutationFn: async ({ docId, updates }: { docId: string; updates: Record<string, any> }) => {
       const res = await fetch(`/api/documents/${docId}`, {
@@ -240,10 +240,28 @@ export default function PurchaseOrdersSection({ orderId, data, isLocked }: Purch
         body: JSON.stringify(updates),
       });
       if (!res.ok) throw new Error("Failed to update document");
-      return res.json();
+      const result = await res.json();
+
+      // Log activity for PO stage changes
+      const newStage = updates.metadata?.poStage;
+      if (newStage) {
+        const stageLabel = PO_STAGES[newStage as keyof typeof PO_STAGES]?.label || newStage;
+        const docNum = result.documentNumber || docId;
+        try {
+          await apiRequest("POST", `/api/projects/${orderId}/activities`, {
+            activityType: "system_action",
+            content: `PO #${docNum} stage changed to "${stageLabel}"`,
+          });
+        } catch { /* activity log is best-effort */ }
+      }
+
+      return result;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/orders/${orderId}/documents`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/projects/${orderId}/activities`] });
+      // PO stage change may auto-transition SO status
+      queryClient.invalidateQueries({ queryKey: [`/api/orders/${orderId}`] });
     },
     onError: () => toast({ title: "Failed to update PO", variant: "destructive" }),
   });
@@ -264,6 +282,8 @@ export default function PurchaseOrdersSection({ orderId, data, isLocked }: Purch
         subject,
         body: emailBodyFull,
         metadata: { type: "purchase_order", documentId: doc.id, vendorId: doc.vendorId },
+        autoAttachArtworkForVendor: doc.vendorId,
+        autoAttachDocumentFile: doc.fileUrl ? { fileUrl: doc.fileUrl, fileName: doc.fileName || `PO-${doc.documentNumber}.pdf` } : undefined,
       });
 
       // Update PO stage to "submitted" and mark sentAt
@@ -283,7 +303,7 @@ export default function PurchaseOrdersSection({ orderId, data, isLocked }: Purch
     onError: () => toast({ title: "Failed to send PO", variant: "destructive" }),
   });
 
-  // Update artwork (for proofing)
+  // Update artwork (for proofing) with activity logging
   const updateArtworkMutation = useMutation({
     mutationFn: async ({ artworkId, orderItemId, updates }: { artworkId: string; orderItemId: string; updates: any }) => {
       const res = await fetch(`/api/order-items/${orderItemId}/artworks/${artworkId}`, {
@@ -295,8 +315,19 @@ export default function PurchaseOrdersSection({ orderId, data, isLocked }: Purch
       if (!res.ok) throw new Error("Failed to update artwork");
       return res.json();
     },
-    onSuccess: () => {
+    onSuccess: (_data, vars) => {
       queryClient.invalidateQueries({ queryKey: [`/api/orders/${orderId}/all-artworks`] });
+      // Log proofing status changes
+      const newStatus = vars.updates.status;
+      if (newStatus) {
+        const statusLabel = PROOF_STATUSES[newStatus as keyof typeof PROOF_STATUSES]?.label || newStatus;
+        const artName = vars.updates.name || "Artwork";
+        apiRequest("POST", `/api/projects/${orderId}/activities`, {
+          activityType: "system_action",
+          content: `Proof status for "${artName}" changed to "${statusLabel}"`,
+        }).catch(() => { /* best-effort */ });
+        queryClient.invalidateQueries({ queryKey: [`/api/projects/${orderId}/activities`] });
+      }
     },
     onError: () => toast({ title: "Failed to update artwork", variant: "destructive" }),
   });
@@ -524,6 +555,22 @@ export default function PurchaseOrdersSection({ orderId, data, isLocked }: Purch
                                     updates: { metadata: { ...vendorDoc.metadata, poStage: "ready_for_billing" } },
                                   })}>
                                     <ClipboardList className="w-4 h-4 mr-2" /> Ready for Billing
+                                  </DropdownMenuItem>
+                                )}
+                                {poStage === "ready_for_billing" && (
+                                  <DropdownMenuItem onClick={() => updateDocMetaMutation.mutate({
+                                    docId: vendorDoc.id,
+                                    updates: { metadata: { ...vendorDoc.metadata, poStage: "billed" } },
+                                  })}>
+                                    <FileText className="w-4 h-4 mr-2" /> Mark as Billed
+                                  </DropdownMenuItem>
+                                )}
+                                {poStage === "billed" && (
+                                  <DropdownMenuItem onClick={() => updateDocMetaMutation.mutate({
+                                    docId: vendorDoc.id,
+                                    updates: { metadata: { ...vendorDoc.metadata, poStage: "closed" } },
+                                  })}>
+                                    <CheckCircle className="w-4 h-4 mr-2" /> Close PO
                                   </DropdownMenuItem>
                                 )}
                               </DropdownMenuContent>
@@ -781,6 +828,7 @@ export default function PurchaseOrdersSection({ orderId, data, isLocked }: Purch
             vendor={po.vendor}
             vendorItems={po.items}
             poNumber={poNumber}
+            artworkItems={getVendorArtworks(po.vendor.id)}
           />
         );
       })}
@@ -814,7 +862,7 @@ export default function PurchaseOrdersSection({ orderId, data, isLocked }: Purch
             <div>
               <label className="text-xs font-medium text-gray-500 block mb-1">Message</label>
               <Textarea value={emailBody} onChange={(e) => setEmailBody(e.target.value)} className="min-h-[140px] resize-none text-sm" />
-              <p className="text-xs text-gray-400 mt-1">The PO PDF link will be automatically included.</p>
+              <p className="text-xs text-gray-400 mt-1">The PO PDF and artwork files will be automatically attached.</p>
             </div>
           </div>
           <DialogFooter>
@@ -976,7 +1024,8 @@ export default function PurchaseOrdersSection({ orderId, data, isLocked }: Purch
       {previewDocument && (
         <DocumentEditor document={previewDocument} order={order} orderItems={orderItems}
           companyName={(data as any).companyName || ""} primaryContact={(data as any).primaryContact}
-          getEditedItem={getEditedItem} onClose={() => setPreviewDocument(null)} />
+          getEditedItem={getEditedItem} onClose={() => setPreviewDocument(null)}
+          allArtworkItems={allArtworkItems} />
       )}
 
       {/* File Preview */}

@@ -53,6 +53,7 @@ interface DocumentsTabProps {
   getEditedItem: (id: string, item: any) => any;
   calculateItemTotals: (item: any) => any;
   onSendEmail?: (data: DocumentEmailData) => void;
+  allArtworkItems?: Record<string, any[]>;
 }
 
 // Build a fingerprint string for items + order-level fields to detect changes
@@ -80,6 +81,7 @@ export function DocumentsTab({
   getEditedItem,
   calculateItemTotals,
   onSendEmail,
+  allArtworkItems = {},
 }: DocumentsTabProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -478,7 +480,7 @@ export function DocumentsTab({
       const existingApproval = quoteApprovals.find((a: any) => a.status === 'pending');
 
       if (existingApproval) {
-        approvalUrl = `${window.location.origin}/quote-approval/${existingApproval.approvalToken}`;
+        approvalUrl = `${window.location.origin}/client-approval/${existingApproval.approvalToken}`;
       } else {
         try {
           const clientName = primaryContact
@@ -492,7 +494,7 @@ export function DocumentsTab({
             quoteTotal: order?.total,
           });
           if (result?.approvalToken) {
-            approvalUrl = `${window.location.origin}/quote-approval/${result.approvalToken}`;
+            approvalUrl = `${window.location.origin}/client-approval/${result.approvalToken}`;
           }
         } catch (err) {
           console.error('Failed to create quote approval:', err);
@@ -707,7 +709,7 @@ SwagSuite Team`,
                             // Check for existing pending approval
                             const existingApproval = quoteApprovals.find((a: any) => a.status === 'pending');
                             if (existingApproval) {
-                              const approvalUrl = `${window.location.origin}/quote-approval/${existingApproval.approvalToken}`;
+                              const approvalUrl = `${window.location.origin}/client-approval/${existingApproval.approvalToken}`;
                               navigator.clipboard.writeText(approvalUrl);
                               toast({
                                 title: "Approval Link Copied",
@@ -725,7 +727,7 @@ SwagSuite Team`,
                                 quoteTotal: order?.total,
                               });
 
-                              const approvalUrl = `${window.location.origin}/quote-approval/${result.approvalToken}`;
+                              const approvalUrl = `${window.location.origin}/client-approval/${result.approvalToken}`;
                               navigator.clipboard.writeText(approvalUrl);
                               toast({
                                 title: "Approval Link Generated",
@@ -1088,6 +1090,7 @@ SwagSuite Team`,
           primaryContact={primaryContact}
           getEditedItem={getEditedItem}
           onClose={() => setPreviewDocument(null)}
+          allArtworkItems={allArtworkItems}
         />
       )}
 

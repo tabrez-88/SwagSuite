@@ -50,6 +50,12 @@ export default function SendSODialog({
 
       if (existingApproval) {
         approvalToken = existingApproval.approvalToken;
+        // Update existing approval with SO document info
+        await apiRequest("PATCH", `/api/orders/${orderId}/quote-approvals/${existingApproval.id}`, {
+          documentId: soDocument.id,
+          pdfPath: soDocument.fileUrl,
+          quoteTotal: soTotal,
+        });
       } else {
         const result = await createQuoteApproval({
           clientEmail: to,
@@ -60,7 +66,7 @@ export default function SendSODialog({
         });
         approvalToken = result.approvalToken;
       }
-      const approvalUrl = `${window.location.origin}/quote-approval/${approvalToken}`;
+      const approvalUrl = `${window.location.origin}/client-approval/${approvalToken}`;
 
       // Send email via communications endpoint
       const emailBody = `${body}\n\n---\nView & Approve Sales Order: ${approvalUrl}`;

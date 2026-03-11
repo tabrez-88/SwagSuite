@@ -459,6 +459,7 @@ export const vendorInvoices = pgTable("vendor_invoices", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   supplierId: varchar("supplier_id").references(() => suppliers.id),
   orderId: varchar("order_id").references(() => orders.id), // The PO this is vouching against
+  documentId: varchar("document_id"), // Link to PO document (generatedDocuments.id) for vouching
   invoiceNumber: varchar("invoice_number").notNull(),
   amount: decimal("amount", { precision: 12, scale: 2 }).notNull(),
   status: varchar("status").default("pending"), // pending, vouched, paid, rejection

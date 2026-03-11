@@ -10,14 +10,13 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
-import { Download, FileText, Loader2, Save, ShoppingCart } from "lucide-react";
+import { Download, FileText, ImageIcon, Loader2, Save, ShoppingCart } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { preloadAndConvertImages } from "@/lib/imageUtils";
 
 // Helper function to format address from JSON
 function formatAddress(addressData: string | object | null | undefined): string {
   if (!addressData) return '';
-
-  console.log('formatAddress input:', addressData, typeof addressData);
 
   try {
     let address: any;
@@ -53,12 +52,8 @@ function formatAddress(addressData: string | object | null | undefined): string 
     if (address.phone) parts.push(`Phone: ${address.phone}`);
     if (address.email) parts.push(`Email: ${address.email}`);
 
-    const result = parts.join('\n');
-    console.log('formatAddress output:', result);
-    return result;
-  } catch (e) {
-    // If parsing fails, return the original string
-    console.error('Error parsing address:', e);
+    return parts.join('\n');
+  } catch {
     return typeof addressData === 'string' ? addressData : JSON.stringify(addressData);
   }
 }
@@ -71,6 +66,7 @@ interface DocumentEditorProps {
   primaryContact: any;
   onClose: () => void;
   getEditedItem: (id: string, item: any) => any;
+  allArtworkItems?: Record<string, any[]>;
 }
 
 interface EditableFields {
@@ -115,6 +111,7 @@ interface EditableFields {
     quantity: number;
     unitPrice: number;
     total: number;
+    imageUrl: string;
   }[];
   
   // Totals
@@ -132,30 +129,33 @@ export function DocumentEditor({
   primaryContact,
   onClose,
   getEditedItem,
+  allArtworkItems = {},
 }: DocumentEditorProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const previewRef = useRef<HTMLDivElement>(null);
   const [isSaving, setIsSaving] = useState(false);
   
+  const docType = doc.documentType as string; // 'quote' | 'sales_order' | 'purchase_order'
+  const isClientFacing = docType === 'quote' || docType === 'sales_order';
+  const isSalesOrder = docType === 'sales_order';
+  const isPurchaseOrder = docType === 'purchase_order';
+
   // Initialize editable fields from document/order data
   const [fields, setFields] = useState<EditableFields>(() => {
-    const isQuote = doc.documentType === 'quote' || doc.documentType === 'sales_order';
-    
     // Calculate items and totals
-    const relevantItems = isQuote 
-      ? orderItems 
+    const relevantItems = isClientFacing
+      ? orderItems
       : orderItems.filter((item: any) => item.supplierId === doc.vendorId);
-    
+
     const items = relevantItems.map((item: any) => {
       const editedItem = getEditedItem(item.id, item);
-      // Use parseFloat for unitPrice (Quote) and cost (PO) with fallback
-      // For PO: cost first, then fallback to unitPrice if cost not available
-      const unitPrice = isQuote 
+      // Use parseFloat for unitPrice (Quote/SO) and cost (PO) with fallback
+      const unitPrice = isClientFacing
         ? (parseFloat(editedItem.unitPrice) || parseFloat(item.unitPrice) || 0)
         : (parseFloat(editedItem.cost) || parseFloat(item.cost) || parseFloat(editedItem.unitPrice) || parseFloat(item.unitPrice) || 0);
       const quantity = editedItem.quantity || item.quantity || 1;
-      
+
       return {
         id: item.id,
         name: item.product?.name || item.productName || 'Unknown Product',
@@ -165,16 +165,17 @@ export function DocumentEditor({
         quantity: quantity,
         unitPrice: unitPrice,
         total: unitPrice * quantity,
+        imageUrl: item.productImageUrl || item.imageUrl || '',
       };
     });
-    
+
     const subtotal = items.reduce((sum, item) => sum + item.total, 0);
-    
+
     return {
-      documentTitle: isQuote ? 'QUOTE' : 'PURCHASE ORDER',
+      documentTitle: isSalesOrder ? 'SALES ORDER' : isPurchaseOrder ? 'PURCHASE ORDER' : 'QUOTE',
       documentNumber: doc.documentNumber || order?.orderNumber || 'N/A',
       documentDate: order?.createdAt ? format(new Date(order.createdAt), 'MMMM dd, yyyy') : format(new Date(), 'MMMM dd, yyyy'),
-      inHandsDate: isQuote
+      inHandsDate: isClientFacing
         ? (order?.inHandsDate ? format(new Date(order.inHandsDate), 'MMMM dd, yyyy') : '')
         : ((order as any)?.supplierInHandsDate ? format(new Date((order as any).supplierInHandsDate), 'MMMM dd, yyyy') : ''),
       eventDate: (order as any)?.eventDate ? format(new Date((order as any).eventDate), 'MMMM dd, yyyy') : '',
@@ -195,12 +196,14 @@ export function DocumentEditor({
       vendorAddress: '',
       vendorEmail: '',
       
-      specialInstructions: isQuote
+      specialInstructions: isClientFacing
         ? (order?.notes || '')
         : [order?.notes, (order as any)?.supplierNotes].filter(Boolean).join('\n\n') || '',
-      footerNote: isQuote
-        ? 'Thank you for your business! This quote is valid for 30 days.'
-        : 'Please confirm receipt of this PO and provide production timeline.',
+      footerNote: isPurchaseOrder
+        ? 'Please confirm receipt of this PO and provide production timeline.'
+        : isSalesOrder
+        ? 'Thank you for your business! This sales order confirms the agreed-upon terms.'
+        : 'Thank you for your business! This quote is valid for 30 days.',
       
       items,
       
@@ -243,17 +246,24 @@ export function DocumentEditor({
       
       if (!previewRef.current) throw new Error('Preview not found');
 
-      // Generate PDF from preview
-      const canvas = await html2canvas(previewRef.current, {
-        scale: 2,
-        useCORS: true,
-        logging: false,
-        backgroundColor: '#ffffff',
-        allowTaint: true,
-        foreignObjectRendering: false,
-      });
+      // Convert cross-origin images to base64 for capture
+      const restoreImages = await preloadAndConvertImages(previewRef.current);
+      await new Promise((r) => setTimeout(r, 300));
 
-      const imgData = canvas.toDataURL('image/png', 1.0);
+      let canvas: HTMLCanvasElement;
+      try {
+        canvas = await html2canvas(previewRef.current, {
+          scale: 2,
+          useCORS: true,
+          logging: false,
+          backgroundColor: '#ffffff',
+          allowTaint: true,
+          foreignObjectRendering: false,
+        });
+      } finally {
+        restoreImages();
+      }
+
       const pdf = new jsPDF({
         orientation: 'portrait',
         unit: 'mm',
@@ -266,15 +276,34 @@ export function DocumentEditor({
       const imgWidth = pageWidth;
       const imgHeight = (canvas.height * imgWidth) / canvas.width;
 
-      // Scale down if content is taller than page
-      if (imgHeight > pageHeight) {
-        const scaleFactor = pageHeight / imgHeight;
-        const scaledWidth = imgWidth * scaleFactor;
-        const scaledHeight = pageHeight;
-        const xOffset = (pageWidth - scaledWidth) / 2;
-        pdf.addImage(imgData, 'PNG', xOffset, 0, scaledWidth, scaledHeight);
-      } else {
+      if (imgHeight <= pageHeight) {
+        // Content fits on one page
+        const imgData = canvas.toDataURL('image/png', 1.0);
         pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight);
+      } else {
+        // Multi-page: split canvas into page-sized chunks
+        const pxPerMm = canvas.width / pageWidth;
+        const pageHeightPx = Math.floor(pageHeight * pxPerMm);
+        const totalPages = Math.ceil(canvas.height / pageHeightPx);
+
+        for (let page = 0; page < totalPages; page++) {
+          if (page > 0) pdf.addPage();
+
+          const sourceY = page * pageHeightPx;
+          const sourceHeight = Math.min(pageHeightPx, canvas.height - sourceY);
+          if (sourceHeight <= 0) break;
+
+          const pageCanvas = document.createElement('canvas');
+          pageCanvas.width = canvas.width;
+          pageCanvas.height = sourceHeight;
+          const ctx = pageCanvas.getContext('2d');
+          if (!ctx) continue;
+          ctx.drawImage(canvas, 0, sourceY, canvas.width, sourceHeight, 0, 0, canvas.width, sourceHeight);
+
+          const pageImgData = pageCanvas.toDataURL('image/png', 1.0);
+          const sliceHeightMm = (sourceHeight * pageWidth) / canvas.width;
+          pdf.addImage(pageImgData, 'PNG', 0, 0, pageWidth, sliceHeightMm);
+        }
       }
 
       const pdfBlob = pdf.output('blob');
@@ -334,16 +363,23 @@ export function DocumentEditor({
   const handleDownload = async () => {
     if (!previewRef.current) return;
 
-    const canvas = await html2canvas(previewRef.current, {
-      scale: 2,
-      useCORS: true,
-      logging: false,
-      backgroundColor: '#ffffff',
-      allowTaint: true,
-      foreignObjectRendering: false,
-    });
+    const restoreImages = await preloadAndConvertImages(previewRef.current);
+    await new Promise((r) => setTimeout(r, 300));
 
-    const imgData = canvas.toDataURL('image/png', 1.0);
+    let canvas: HTMLCanvasElement;
+    try {
+      canvas = await html2canvas(previewRef.current, {
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        backgroundColor: '#ffffff',
+        allowTaint: true,
+        foreignObjectRendering: false,
+      });
+    } finally {
+      restoreImages();
+    }
+
     const pdf = new jsPDF({
       orientation: 'portrait',
       unit: 'mm',
@@ -356,29 +392,48 @@ export function DocumentEditor({
     const imgWidth = pageWidth;
     const imgHeight = (canvas.height * imgWidth) / canvas.width;
 
-    // Scale down if content is taller than page
-    if (imgHeight > pageHeight) {
-      const scaleFactor = pageHeight / imgHeight;
-      const scaledWidth = imgWidth * scaleFactor;
-      const scaledHeight = pageHeight;
-      const xOffset = (pageWidth - scaledWidth) / 2;
-      pdf.addImage(imgData, 'PNG', xOffset, 0, scaledWidth, scaledHeight);
-    } else {
+    if (imgHeight <= pageHeight) {
+      // Content fits on one page
+      const imgData = canvas.toDataURL('image/png', 1.0);
       pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight);
+    } else {
+      // Multi-page: split canvas into page-sized chunks
+      const pxPerMm = canvas.width / pageWidth;
+      const pageHeightPx = Math.floor(pageHeight * pxPerMm);
+      const totalPages = Math.ceil(canvas.height / pageHeightPx);
+
+      for (let page = 0; page < totalPages; page++) {
+        if (page > 0) pdf.addPage();
+
+        const sourceY = page * pageHeightPx;
+        const sourceHeight = Math.min(pageHeightPx, canvas.height - sourceY);
+        if (sourceHeight <= 0) break;
+
+        const pageCanvas = document.createElement('canvas');
+        pageCanvas.width = canvas.width;
+        pageCanvas.height = sourceHeight;
+        const ctx = pageCanvas.getContext('2d');
+        if (!ctx) continue;
+        ctx.drawImage(canvas, 0, sourceY, canvas.width, sourceHeight, 0, 0, canvas.width, sourceHeight);
+
+        const pageImgData = pageCanvas.toDataURL('image/png', 1.0);
+        const sliceHeightMm = (sourceHeight * pageWidth) / canvas.width;
+        pdf.addImage(pageImgData, 'PNG', 0, 0, pageWidth, sliceHeightMm);
+      }
     }
 
     pdf.save(`${doc.documentType}-${fields.documentNumber}.pdf`);
   };
 
-  const isQuote = doc.documentType === 'quote';
+  const dialogTitle = isSalesOrder ? 'Sales Order' : isPurchaseOrder ? 'Purchase Order' : 'Quote';
 
   return (
     <Dialog open={true} onOpenChange={() => onClose()}>
       <DialogContent className="max-w-[90vw] h-[95vh] flex flex-col">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            {isQuote ? <FileText className="w-5 h-5" /> : <ShoppingCart className="w-5 h-5" />}
-            Edit {isQuote ? 'Quote' : 'Purchase Order'} - {doc.documentNumber}
+            {isPurchaseOrder ? <ShoppingCart className="w-5 h-5" /> : <FileText className="w-5 h-5" />}
+            Edit {dialogTitle} - {doc.documentNumber}
           </DialogTitle>
         </DialogHeader>
 
@@ -414,7 +469,7 @@ export function DocumentEditor({
                   />
                 </div>
                 <div>
-                  <Label className="text-xs">{isQuote ? 'In-Hands Date' : 'Supplier IHD (Required by)'}</Label>
+                  <Label className="text-xs">{isClientFacing ? 'In-Hands Date' : 'Supplier IHD (Required by)'}</Label>
                   <Input
                     value={fields.inHandsDate}
                     onChange={(e) => updateField('inHandsDate', e.target.value)}
@@ -422,7 +477,7 @@ export function DocumentEditor({
                     placeholder="Optional"
                   />
                 </div>
-                {isQuote && (
+                {isClientFacing && (
                   <div>
                     <Label className="text-xs">Event Date</Label>
                     <Input
@@ -516,7 +571,7 @@ export function DocumentEditor({
               />
             </div>
 
-            {!isQuote && (
+            {isPurchaseOrder && (
               <>
                 <Separator />
                 {/* Vendor Info (for PO) */}
@@ -564,10 +619,29 @@ export function DocumentEditor({
                       <span className="font-medium text-sm">{item.name}</span>
                       <Badge variant="outline" className="text-xs">{item.sku}</Badge>
                     </div>
+                    {/* Product Image */}
+                    <div className="flex items-center gap-3">
+                      <div className="w-12 h-12 flex-shrink-0 border rounded bg-white overflow-hidden flex items-center justify-center">
+                        {item.imageUrl ? (
+                          <img src={item.imageUrl} alt="" className="w-full h-full object-contain" />
+                        ) : (
+                          <ImageIcon className="w-5 h-5 text-gray-300" />
+                        )}
+                      </div>
+                      <div className="flex-1">
+                        <Label className="text-xs">Image URL</Label>
+                        <Input
+                          value={item.imageUrl}
+                          onChange={(e) => updateItem(index, 'imageUrl', e.target.value)}
+                          className="h-7 text-xs"
+                          placeholder="Paste product image URL..."
+                        />
+                      </div>
+                    </div>
                     <div className="grid grid-cols-4 gap-2">
                       <div>
                         <Label className="text-xs">Color</Label>
-                        <Input 
+                        <Input
                           value={item.color}
                           onChange={(e) => updateItem(index, 'color', e.target.value)}
                           className="h-7 text-xs"
@@ -575,7 +649,7 @@ export function DocumentEditor({
                       </div>
                       <div>
                         <Label className="text-xs">Size</Label>
-                        <Input 
+                        <Input
                           value={item.size}
                           onChange={(e) => updateItem(index, 'size', e.target.value)}
                           className="h-7 text-xs"
@@ -583,7 +657,7 @@ export function DocumentEditor({
                       </div>
                       <div>
                         <Label className="text-xs">Qty</Label>
-                        <Input 
+                        <Input
                           type="number"
                           value={item.quantity}
                           onChange={(e) => updateItem(index, 'quantity', parseInt(e.target.value) || 0)}
@@ -592,7 +666,7 @@ export function DocumentEditor({
                       </div>
                       <div>
                         <Label className="text-xs">Unit Price</Label>
-                        <Input 
+                        <Input
                           type="number"
                           step="0.01"
                           value={item.unitPrice}
@@ -686,15 +760,15 @@ export function DocumentEditor({
                 {/* Header */}
                 <div className="flex justify-between items-start mb-6 pb-4 border-b-2 border-gray-300">
                   <div>
-                    <h1 className={`text-4xl font-bold mb-2 ${isQuote ? 'text-blue-600' : 'text-green-600'}`}>{fields.documentTitle}</h1>
+                    <h1 className={`text-4xl font-bold mb-2 ${isPurchaseOrder ? 'text-green-600' : isSalesOrder ? 'text-emerald-600' : 'text-blue-600'}`}>{fields.documentTitle}</h1>
                     <p className="text-sm text-gray-700">{fields.documentTitle} #{fields.documentNumber}</p>
                     <p className="text-sm text-gray-700">Date: {fields.documentDate}</p>
                     {fields.inHandsDate && (
-                      isQuote
+                      isClientFacing
                         ? <p className="text-sm text-gray-700">In-Hands Date: {fields.inHandsDate}</p>
                         : <p className="text-sm font-bold text-red-600">Required by: {fields.inHandsDate}</p>
                     )}
-                    {isQuote && fields.eventDate && (
+                    {isClientFacing && fields.eventDate && (
                       <p className="text-sm text-gray-700">Event Date: {fields.eventDate}</p>
                     )}
                   </div>
@@ -715,7 +789,7 @@ export function DocumentEditor({
                       {fields.billToPhone && <p>{fields.billToPhone}</p>}
                     </div>
                   </div>
-                  {!isQuote && fields.vendorName && (
+                  {isPurchaseOrder && fields.vendorName && (
                     <div>
                       <h3 className="text-sm font-bold text-gray-800 mb-2">VENDOR:</h3>
                       <div className="text-sm text-gray-700">
@@ -735,37 +809,128 @@ export function DocumentEditor({
                   </div>
                 )}
 
-                {/* Items Table */}
-                <table className="w-full mb-6">
-                  <thead>
-                    <tr className="border-b-2 border-gray-300">
-                      <th className="text-left py-2 text-sm font-bold text-gray-800">Item</th>
-                      <th className="text-center py-2 text-sm font-bold text-gray-800 w-20">Qty</th>
-                      <th className="text-right py-2 text-sm font-bold text-gray-800 w-24">Unit Price</th>
-                      <th className="text-right py-2 text-sm font-bold text-gray-800 w-24">Total</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {fields.items.map((item) => (
-                      <tr key={item.id} className="border-b border-gray-200">
-                        <td className="py-2 text-sm">
-                          <div className="font-medium">{item.name}</div>
-                          {item.sku && <div className="text-xs text-gray-500">SKU: {item.sku}</div>}
-                          {(item.color || item.size) && (
-                            <div className="text-xs text-gray-500">
-                              {item.color && <span>Color: {item.color}</span>}
-                              {item.color && item.size && <span> | </span>}
-                              {item.size && <span>Size: {item.size}</span>}
+                {/* Items - CommonSKU style with product images */}
+                <div className="mb-6">
+                  {fields.items.map((item) => {
+                    const itemArtworks = allArtworkItems[item.id] || [];
+                    return (
+                      <div key={item.id} className="mb-6 pb-4 border-b border-gray-200">
+                        {/* Product name as section header */}
+                        <h3 className="text-base font-bold text-gray-900 mb-3 pb-1 border-b border-gray-300">
+                          {item.name}
+                          {item.sku && <span className="text-xs font-normal text-gray-500 ml-2">SKU: {item.sku}</span>}
+                        </h3>
+
+                        {/* Product image + items table side by side */}
+                        <div className="flex gap-4">
+                          {/* Product image */}
+                          {item.imageUrl && (
+                            <div style={{ width: "160px", flexShrink: 0 }}>
+                              <div style={{ width: "150px", height: "150px" }} className="border rounded bg-white overflow-hidden">
+                                <img src={item.imageUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+                              </div>
+                              <p className="text-[8px] text-gray-400 text-center mt-1 italic">Product image for reference only.</p>
                             </div>
                           )}
-                        </td>
-                        <td className="py-2 text-center text-sm">{item.quantity}</td>
-                        <td className="py-2 text-right text-sm">${item.unitPrice.toFixed(2)}</td>
-                        <td className="py-2 text-right text-sm font-medium">${item.total.toFixed(2)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+
+                          {/* Items detail table */}
+                          <div className="flex-1">
+                            <table className="w-full">
+                              <thead>
+                                <tr className="border-b border-gray-300">
+                                  <th className="text-left py-1 text-xs font-bold text-gray-700">ITEM</th>
+                                  <th className="text-center py-1 text-xs font-bold text-gray-700" style={{ width: "60px" }}>QTY</th>
+                                  <th className="text-right py-1 text-xs font-bold text-gray-700" style={{ width: "70px" }}>PRICE</th>
+                                  <th className="text-right py-1 text-xs font-bold text-gray-700" style={{ width: "80px" }}>AMOUNT</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                <tr className="border-b border-gray-100">
+                                  <td className="py-1.5 text-xs">
+                                    {item.color && item.size ? `Size: ${item.size} - Color: ${item.color}` :
+                                     item.color ? `Color: ${item.color}` :
+                                     item.size ? `Size: ${item.size}` : item.name}
+                                  </td>
+                                  <td className="py-1.5 text-xs text-center">{item.quantity}</td>
+                                  <td className="py-1.5 text-xs text-right">${item.unitPrice.toFixed(2)}</td>
+                                  <td className="py-1.5 text-xs text-right font-medium">${item.total.toFixed(2)}</td>
+                                </tr>
+                                <tr className="border-t border-gray-300">
+                                  <td className="py-1.5 text-xs font-bold">TOTAL</td>
+                                  <td></td>
+                                  <td></td>
+                                  <td className="py-1.5 text-xs text-right font-bold">${item.total.toFixed(2)}</td>
+                                </tr>
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+
+                        {/* Artwork Details section */}
+                        {itemArtworks.length > 0 && (
+                          <div className="mt-4">
+                            <h4 className="text-sm font-bold text-gray-900 mb-2 pb-1 border-b border-gray-300">Artwork Details</h4>
+                            {itemArtworks.map((art: any, idx: number) => (
+                              <div key={art.id || idx} className="flex gap-4 py-2">
+                                {/* Artwork fields */}
+                                <div className="flex-1">
+                                  <table className="text-xs">
+                                    <tbody>
+                                      {art.name && (
+                                        <tr>
+                                          <td className="py-0.5 pr-4 font-bold text-gray-800 whitespace-nowrap">DESIGN NAME</td>
+                                          <td className="py-0.5 text-gray-700">{art.name}</td>
+                                        </tr>
+                                      )}
+                                      {(art.artworkType || art.imprintMethod) && (
+                                        <tr>
+                                          <td className="py-0.5 pr-4 font-bold text-gray-800 whitespace-nowrap">IMPRINT TYPE</td>
+                                          <td className="py-0.5 text-gray-700">{art.artworkType || art.imprintMethod}</td>
+                                        </tr>
+                                      )}
+                                      {art.location && (
+                                        <tr>
+                                          <td className="py-0.5 pr-4 font-bold text-gray-800 whitespace-nowrap">DESIGN LOCATION</td>
+                                          <td className="py-0.5 text-gray-700">{art.location}</td>
+                                        </tr>
+                                      )}
+                                      {(art.size || art.designSize) && (
+                                        <tr>
+                                          <td className="py-0.5 pr-4 font-bold text-gray-800 whitespace-nowrap">DESIGN SIZE</td>
+                                          <td className="py-0.5 text-gray-700">{art.size || art.designSize}</td>
+                                        </tr>
+                                      )}
+                                      {(art.color || art.colors) && (
+                                        <tr>
+                                          <td className="py-0.5 pr-4 font-bold text-gray-800 whitespace-nowrap">DESIGN COLOR</td>
+                                          <td className="py-0.5 text-gray-700">{art.color || art.colors}</td>
+                                        </tr>
+                                      )}
+                                      {art.notes && (
+                                        <tr>
+                                          <td className="py-0.5 pr-4 font-bold text-gray-800 whitespace-nowrap">NOTES</td>
+                                          <td className="py-0.5 text-gray-700">{art.notes}</td>
+                                        </tr>
+                                      )}
+                                    </tbody>
+                                  </table>
+                                </div>
+                                {/* Artwork thumbnail */}
+                                {(art.filePath || art.fileUrl) && (
+                                  <div style={{ width: "120px", flexShrink: 0 }}>
+                                    <div style={{ width: "110px", height: "110px" }} className="border rounded bg-white overflow-hidden">
+                                      <img src={art.filePath || art.fileUrl} alt={art.name || "Artwork"} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
 
                 {/* Totals */}
                 <div className="flex justify-end mb-6">
@@ -799,21 +964,21 @@ export function DocumentEditor({
                     {fields.specialInstructions && (
                       <>
                         <h3 className="text-sm font-bold text-gray-800 mb-2">
-                          {isQuote ? 'NOTES:' : 'SPECIAL INSTRUCTIONS:'}
+                          {isPurchaseOrder ? 'SPECIAL INSTRUCTIONS:' : 'NOTES:'}
                         </h3>
-                        {!isQuote && fields.inHandsDate && (
+                        {isPurchaseOrder && fields.inHandsDate && (
                           <p className="text-sm font-bold text-red-600 mb-1">⚠️ RUSH ORDER - Must ship by {fields.inHandsDate}</p>
                         )}
                         <p className="text-sm text-gray-700 whitespace-pre-line">{fields.specialInstructions}</p>
                       </>
                     )}
-                    {isQuote && fields.additionalInformation && (
+                    {isClientFacing && fields.additionalInformation && (
                       <>
                         <h3 className="text-sm font-bold text-gray-800 mb-2 mt-3">ADDITIONAL INFORMATION:</h3>
                         <p className="text-sm text-gray-700 whitespace-pre-line">{fields.additionalInformation}</p>
                       </>
                     )}
-                    {!isQuote && (
+                    {isPurchaseOrder && (
                       <p className="text-sm text-gray-700 mt-2">Please confirm receipt of this PO and provide production timeline.</p>
                     )}
                   </div>

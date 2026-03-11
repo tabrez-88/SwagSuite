@@ -55,6 +55,7 @@ export default function DocumentsSection({ orderId, data }: DocumentsSectionProp
         orderVendors={data.orderVendors}
         getEditedItem={getEditedItem}
         calculateItemTotals={calculateItemTotals}
+        allArtworkItems={data.allArtworkItems}
       />
     </div>
   );

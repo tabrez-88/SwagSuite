@@ -8,12 +8,12 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
-import { 
-  CheckCircle2, 
-  XCircle, 
-  Clock, 
-  AlertCircle, 
-  FileText, 
+import {
+  CheckCircle2,
+  XCircle,
+  Clock,
+  AlertCircle,
+  FileText,
   Download,
   Package,
   Calendar,
@@ -40,10 +40,12 @@ interface QuoteApprovalData {
   orderTotal?: string;
   companyName?: string;
   inHandsDate?: string;
+  documentType?: string;
   items: Array<{
     id: string;
     productName?: string;
     productSku?: string;
+    productImageUrl?: string;
     quantity: number;
     unitPrice?: string;
     totalPrice?: string;
@@ -53,43 +55,48 @@ interface QuoteApprovalData {
 }
 
 export default function QuoteApprovalPage() {
-  const [, params] = useRoute("/quote-approval/:token");
-  const token = params?.token;
+  const [, newParams] = useRoute("/client-approval/:token");
+  const [, legacyParams] = useRoute("/quote-approval/:token");
+  const token = newParams?.token || legacyParams?.token;
   const { toast } = useToast();
   const [notes, setNotes] = useState("");
   const [declineReason, setDeclineReason] = useState("");
   const [showDeclineForm, setShowDeclineForm] = useState(false);
+  const [pdfLoadKey, setPdfLoadKey] = useState(() => Date.now());
   const queryClient = useQueryClient();
 
   // Fetch quote approval data
   const { data: approval, isLoading, error } = useQuery<QuoteApprovalData>({
-    queryKey: [`/api/quote-approvals/${token}`],
+    queryKey: [`/api/client-approvals/${token}`],
     enabled: !!token,
     retry: false,
   });
 
+  const isSalesOrder = approval?.documentType === "sales_order";
+  const docLabel = isSalesOrder ? "Sales Order" : "Quote";
+
   // Approve mutation
   const approveMutation = useMutation({
     mutationFn: async (data: { notes?: string }) => {
-      const response = await fetch(`/api/quote-approvals/${token}/approve`, {
+      const response = await fetch(`/api/client-approvals/${token}/approve`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
       });
-      if (!response.ok) throw new Error("Failed to approve quote");
+      if (!response.ok) throw new Error(`Failed to approve ${docLabel.toLowerCase()}`);
       return response.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/quote-approvals/${token}`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/client-approvals/${token}`] });
       toast({
-        title: "Quote Approved! ✅",
+        title: `${docLabel} Approved!`,
         description: "Thank you! Your order has been confirmed and will proceed to production.",
       });
     },
     onError: () => {
       toast({
         title: "Error",
-        description: "Failed to approve quote. Please try again.",
+        description: `Failed to approve ${docLabel.toLowerCase()}. Please try again.`,
         variant: "destructive",
       });
     },
@@ -98,28 +105,28 @@ export default function QuoteApprovalPage() {
   // Decline mutation
   const declineMutation = useMutation({
     mutationFn: async (data: { reason: string }) => {
-      const response = await fetch(`/api/quote-approvals/${token}/decline`, {
+      const response = await fetch(`/api/client-approvals/${token}/decline`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
       });
       if (!response.ok) {
         const err = await response.json();
-        throw new Error(err.message || "Failed to decline quote");
+        throw new Error(err.message || `Failed to decline ${docLabel.toLowerCase()}`);
       }
       return response.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/quote-approvals/${token}`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/client-approvals/${token}`] });
       toast({
-        title: "Quote Declined",
+        title: `${docLabel} Declined`,
         description: "Your feedback has been sent to the sales team. They will contact you shortly.",
       });
     },
     onError: (error: Error) => {
       toast({
         title: "Error",
-        description: error.message || "Failed to decline quote. Please try again.",
+        description: error.message || `Failed to decline ${docLabel.toLowerCase()}. Please try again.`,
         variant: "destructive",
       });
     },
@@ -133,7 +140,7 @@ export default function QuoteApprovalPage() {
     if (!declineReason.trim()) {
       toast({
         title: "Reason Required",
-        description: "Please provide a reason for declining the quote.",
+        description: `Please provide a reason for declining the ${docLabel.toLowerCase()}.`,
         variant: "destructive",
       });
       return;
@@ -146,7 +153,7 @@ export default function QuoteApprovalPage() {
       <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading quote...</p>
+          <p className="text-gray-600">Loading...</p>
         </div>
       </div>
     );
@@ -160,9 +167,9 @@ export default function QuoteApprovalPage() {
             <div className="mx-auto w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mb-4">
               <AlertCircle className="w-8 h-8 text-red-600" />
             </div>
-            <CardTitle className="text-red-600">Quote Not Found</CardTitle>
+            <CardTitle className="text-red-600">Approval Not Found</CardTitle>
             <CardDescription>
-              This quote approval link is invalid or has expired. Please contact your sales representative for assistance.
+              This approval link is invalid or has expired. Please contact your sales representative for assistance.
             </CardDescription>
           </CardHeader>
         </Card>
@@ -191,15 +198,16 @@ export default function QuoteApprovalPage() {
   };
 
   const quoteTotal = parseFloat(approval.quoteTotal || approval.orderTotal || "0");
+  const headerGradient = isSalesOrder ? "from-emerald-50 to-white" : "from-blue-50 to-white";
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
+    <div className={`min-h-screen bg-gradient-to-b ${headerGradient}`}>
       {/* Header */}
       <div className="bg-white border-b shadow-sm">
         <div className="max-w-4xl mx-auto px-4 py-6">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">Quote Approval</h1>
+              <h1 className="text-2xl font-bold text-gray-900">{docLabel} Approval</h1>
               <p className="text-gray-600">Order #{approval.orderNumber}</p>
             </div>
             <div className="flex items-center gap-3">
@@ -218,7 +226,7 @@ export default function QuoteApprovalPage() {
               <div className="flex items-center gap-3">
                 <CheckCircle2 className="w-6 h-6 text-green-600" />
                 <div>
-                  <p className="font-semibold text-green-800">Quote Approved</p>
+                  <p className="font-semibold text-green-800">{docLabel} Approved</p>
                   <p className="text-sm text-green-700">
                     Approved on {approval.approvedAt ? format(new Date(approval.approvedAt), 'MMMM dd, yyyy \'at\' h:mm a') : 'N/A'}
                     {approval.clientName && ` by ${approval.clientName}`}
@@ -238,7 +246,7 @@ export default function QuoteApprovalPage() {
               <div className="flex items-center gap-3">
                 <XCircle className="w-6 h-6 text-red-600" />
                 <div>
-                  <p className="font-semibold text-red-800">Quote Declined</p>
+                  <p className="font-semibold text-red-800">{docLabel} Declined</p>
                   <p className="text-sm text-red-700">
                     Declined on {approval.declinedAt ? format(new Date(approval.declinedAt), 'MMMM dd, yyyy \'at\' h:mm a') : 'N/A'}
                   </p>
@@ -251,12 +259,12 @@ export default function QuoteApprovalPage() {
           </Card>
         )}
 
-        {/* Quote Summary */}
+        {/* Document Summary */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <FileText className="w-5 h-5" />
-              Quote Summary
+              {docLabel} Summary
             </CardTitle>
             <CardDescription>
               {approval.companyName || 'Your Order'} • Sent {approval.sentAt ? format(new Date(approval.sentAt), 'MMMM dd, yyyy') : 'N/A'}
@@ -266,11 +274,11 @@ export default function QuoteApprovalPage() {
             {/* Key Details */}
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
               <div className="flex items-center gap-2">
-                <div className="p-2 bg-blue-100 rounded">
-                  <FileText className="w-4 h-4 text-blue-600" />
+                <div className={`p-2 ${isSalesOrder ? 'bg-emerald-100' : 'bg-blue-100'} rounded`}>
+                  <FileText className={`w-4 h-4 ${isSalesOrder ? 'text-emerald-600' : 'text-blue-600'}`} />
                 </div>
                 <div>
-                  <p className="text-xs text-gray-500">Quote Number</p>
+                  <p className="text-xs text-gray-500">{docLabel} Number</p>
                   <p className="font-medium">{approval.orderNumber}</p>
                 </div>
               </div>
@@ -304,17 +312,17 @@ export default function QuoteApprovalPage() {
                   onClick={() => {
                     const link = document.createElement('a');
                     link.href = approval.pdfPath!;
-                    const fileName = `Quote-${approval.orderNumber || 'document'}.pdf`;
+                    const fileName = `${docLabel.replace(' ', '-')}-${approval.orderNumber || 'document'}.pdf`;
                     link.download = fileName;
                     link.target = '_blank';
                     document.body.appendChild(link);
                     link.click();
                     document.body.removeChild(link);
                   }}
-                  className="text-blue-600 hover:text-blue-800"
+                  className={isSalesOrder ? "text-emerald-600 hover:text-emerald-800" : "text-blue-600 hover:text-blue-800"}
                 >
                   <Download className="w-4 h-4 mr-2" />
-                  Download Quote PDF
+                  Download {docLabel} PDF
                 </Button>
               </div>
             )}
@@ -327,25 +335,45 @@ export default function QuoteApprovalPage() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <FileText className="w-5 h-5" />
-                Quote Document
+                {docLabel} Document
               </CardTitle>
               <CardDescription>
-                Review the full quote document below
+                Review the full {docLabel.toLowerCase()} document below
               </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="border rounded-lg overflow-hidden bg-gray-100">
-                {/* Use Google Docs Viewer for Cloudinary PDFs */}
-                <iframe
-                  src={`https://docs.google.com/viewer?url=${encodeURIComponent(approval.pdfPath)}&embedded=true`}
-                  className="w-full h-[600px] md:h-[800px]"
-                  title="Quote PDF Preview"
-                  style={{ border: 'none' }}
-                />
+                {approval.pdfPath!.includes('cloudinary.com') ? (
+                  <iframe
+                    key={pdfLoadKey}
+                    src={`/api/pdf-proxy?url=${encodeURIComponent(approval.pdfPath!)}`}
+                    className="w-full h-[600px] md:h-[800px]"
+                    title={`${docLabel} PDF Preview`}
+                    style={{ border: 'none' }}
+                  />
+                ) : (
+                  <iframe
+                    key={pdfLoadKey}
+                    src={approval.pdfPath!}
+                    className="w-full h-[600px] md:h-[800px]"
+                    title={`${docLabel} PDF Preview`}
+                    style={{ border: 'none' }}
+                  />
+                )}
               </div>
-              <p className="text-xs text-gray-500 mt-2 text-center">
-                If the preview doesn't load, please use the download button above.
-              </p>
+              <div className="flex items-center justify-center gap-3 mt-2">
+                <p className="text-xs text-gray-500">
+                  If the preview doesn't load, please use the download button above.
+                </p>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-xs text-gray-400 hover:text-gray-600 h-auto py-0.5 px-2"
+                  onClick={() => setPdfLoadKey(Date.now())}
+                >
+                  Reload Preview
+                </Button>
+              </div>
             </CardContent>
           </Card>
         )}
@@ -362,8 +390,13 @@ export default function QuoteApprovalPage() {
             <div className="divide-y">
               {approval.items.map((item, index) => (
                 <div key={item.id || index} className="py-4 first:pt-0 last:pb-0">
-                  <div className="flex justify-between items-start">
-                    <div>
+                  <div className="flex gap-4 items-start">
+                    {item.productImageUrl && (
+                      <div className="w-16 h-16 flex-shrink-0 border rounded bg-white overflow-hidden">
+                        <img src={item.productImageUrl} alt="" className="w-full h-full object-contain" />
+                      </div>
+                    )}
+                    <div className="flex-1">
                       <p className="font-medium">{item.productName || 'Product'}</p>
                       {item.productSku && <p className="text-sm text-gray-500">SKU: {item.productSku}</p>}
                       <div className="flex gap-3 mt-1 text-sm text-gray-600">
@@ -385,7 +418,7 @@ export default function QuoteApprovalPage() {
 
             <div className="flex justify-between items-center text-lg font-bold">
               <span>Total</span>
-              <span className="text-blue-600">${quoteTotal.toFixed(2)}</span>
+              <span className={isSalesOrder ? "text-emerald-600" : "text-blue-600"}>${quoteTotal.toFixed(2)}</span>
             </div>
           </CardContent>
         </Card>
@@ -396,7 +429,7 @@ export default function QuoteApprovalPage() {
             <CardHeader>
               <CardTitle>Your Decision</CardTitle>
               <CardDescription>
-                Hi {approval.clientName || 'there'}! Please review the quote above and approve or request changes.
+                Hi {approval.clientName || 'there'}! Please review the {docLabel.toLowerCase()} above and approve or request changes.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -418,10 +451,10 @@ export default function QuoteApprovalPage() {
                     <Button
                       onClick={handleApprove}
                       disabled={approveMutation.isPending}
-                      className="flex-1 bg-green-600 hover:bg-green-700"
+                      className={`flex-1 ${isSalesOrder ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-green-600 hover:bg-green-700'}`}
                     >
                       <CheckCircle2 className="w-4 h-4 mr-2" />
-                      {approveMutation.isPending ? "Processing..." : "Approve Quote"}
+                      {approveMutation.isPending ? "Processing..." : `Approve ${docLabel}`}
                     </Button>
                     <Button
                       variant="outline"

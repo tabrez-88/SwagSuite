@@ -433,6 +433,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Image proxy for CORS-restricted external images (used by PDF generation)
+  app.get('/api/image-proxy', isAuthenticated, async (req, res) => {
+    try {
+      const url = req.query.url as string;
+      if (!url) return res.status(400).json({ message: "url parameter required" });
+
+      // Only proxy http(s) URLs
+      if (!url.startsWith('http://') && !url.startsWith('https://')) {
+        return res.status(400).json({ message: "Invalid URL" });
+      }
+
+      const response = await fetch(url);
+      if (!response.ok) return res.status(502).json({ message: "Failed to fetch image" });
+
+      const contentType = response.headers.get('content-type') || 'image/jpeg';
+      const buffer = Buffer.from(await response.arrayBuffer());
+
+      res.set('Content-Type', contentType);
+      res.set('Cache-Control', 'public, max-age=86400');
+      res.send(buffer);
+    } catch (error) {
+      console.error('Image proxy error:', error);
+      res.status(502).json({ message: "Failed to proxy image" });
+    }
+  });
+
   // Auth routes
   app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
     try {
@@ -3056,6 +3082,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Helper: auto-transition SO to "shipped" when shipment is created/updated with shipped status
+  async function checkShipmentAutoTransition(orderId: string, shipmentStatus: string) {
+    if (!['shipped', 'in_transit', 'delivered'].includes(shipmentStatus)) return;
+    try {
+      const { db } = await import("./db");
+      const { orders } = await import("@shared/schema");
+      const { eq } = await import("drizzle-orm");
+
+      const [currentOrder] = await db
+        .select({ salesOrderStatus: orders.salesOrderStatus })
+        .from(orders)
+        .where(eq(orders.id, orderId));
+
+      if (currentOrder && ['client_approved', 'in_production'].includes(currentOrder.salesOrderStatus || '')) {
+        await db
+          .update(orders)
+          .set({ salesOrderStatus: 'shipped', updatedAt: new Date() })
+          .where(eq(orders.id, orderId));
+
+        const { projectActivities } = await import("@shared/project-schema");
+        await db.insert(projectActivities).values({
+          orderId,
+          activityType: 'system_action',
+          content: `Sales Order auto-transitioned to "Shipped" — shipment marked as "${shipmentStatus}"`,
+          metadata: {
+            action: 'shipment_auto_transition',
+            previousStatus: currentOrder.salesOrderStatus,
+            newStatus: 'shipped',
+          },
+        });
+        console.log(`[Shipment→SO Auto] Order ${orderId}: SO → shipped`);
+      }
+    } catch (err) {
+      console.error('[Shipment→SO Auto] Error:', err);
+    }
+  }
+
   app.post('/api/orders/:orderId/shipments', isAuthenticated, async (req, res) => {
     try {
       const body = { ...req.body, orderId: req.params.orderId };
@@ -3065,6 +3128,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (body.actualDelivery) body.actualDelivery = new Date(body.actualDelivery);
       const validatedData = insertOrderShipmentSchema.parse(body);
       const shipment = await storage.createOrderShipment(validatedData);
+
+      // Auto-transition SO when shipment is created with shipped/delivered status
+      if (body.status) {
+        await checkShipmentAutoTransition(req.params.orderId, body.status);
+      }
+
       res.status(201).json(shipment);
     } catch (error: any) {
       console.error("Error creating order shipment:", error?.message || error);
@@ -3075,6 +3144,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch('/api/orders/:orderId/shipments/:shipmentId', isAuthenticated, async (req, res) => {
     try {
       const shipment = await storage.updateOrderShipment(req.params.shipmentId, req.body);
+
+      // Auto-transition SO when shipment status changes to shipped/delivered
+      if (req.body.status) {
+        await checkShipmentAutoTransition(req.params.orderId, req.body.status);
+      }
+
       res.json(shipment);
     } catch (error) {
       console.error("Error updating order shipment:", error);
@@ -5648,6 +5723,412 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
 
+  // ── Production Alerts & PO-centric Report ──────────────────────────
+
+  // GET /api/production/alerts — aggregate counts for smart alert tiles
+  app.get('/api/production/alerts', isAuthenticated, async (req, res) => {
+    try {
+      const { db: database } = await import("./db");
+      const { generatedDocuments, orders, artworkItems, orderItems } = await import("@shared/schema");
+      const { eq, and, sql, lt, inArray, isNull, not } = await import("drizzle-orm");
+      const now = new Date();
+
+      // 1. Overdue POs (open POs where order's inHandsDate < now)
+      const overduePOsByInHands = await database
+        .select({ count: sql<number>`count(*)::int` })
+        .from(generatedDocuments)
+        .innerJoin(orders, eq(generatedDocuments.orderId, orders.id))
+        .where(and(
+          eq(generatedDocuments.documentType, "purchase_order"),
+          not(inArray(sql`${generatedDocuments.metadata}->>'poStage'`, ["billed", "closed"])),
+          lt(orders.inHandsDate, now)
+        ));
+
+      // 2. Overdue POs by next action date
+      const overduePOsByNextAction = await database
+        .select({ count: sql<number>`count(*)::int` })
+        .from(generatedDocuments)
+        .innerJoin(orders, eq(generatedDocuments.orderId, orders.id))
+        .where(and(
+          eq(generatedDocuments.documentType, "purchase_order"),
+          not(inArray(sql`${generatedDocuments.metadata}->>'poStage'`, ["billed", "closed"])),
+          lt(orders.nextActionDate, now)
+        ));
+
+      // 3. POs in Problem status
+      const problemPOs = await database
+        .select({ count: sql<number>`count(*)::int` })
+        .from(generatedDocuments)
+        .where(and(
+          eq(generatedDocuments.documentType, "purchase_order"),
+          sql`${generatedDocuments.metadata}->>'poStatus' = 'problem'`,
+          not(inArray(sql`${generatedDocuments.metadata}->>'poStage'`, ["billed", "closed"]))
+        ));
+
+      // 4. POs in Follow Up status
+      const followUpPOs = await database
+        .select({ count: sql<number>`count(*)::int` })
+        .from(generatedDocuments)
+        .where(and(
+          eq(generatedDocuments.documentType, "purchase_order"),
+          sql`${generatedDocuments.metadata}->>'poStatus' = 'follow_up'`,
+          not(inArray(sql`${generatedDocuments.metadata}->>'poStage'`, ["billed", "closed"]))
+        ));
+
+      // 5. SOs in "client_approved" without any PO
+      const sosWithoutPO = await database
+        .select({ count: sql<number>`count(*)::int` })
+        .from(orders)
+        .where(and(
+          eq(orders.salesOrderStatus, "client_approved"),
+          isNull(
+            database
+              .select({ id: generatedDocuments.id })
+              .from(generatedDocuments)
+              .where(and(
+                eq(generatedDocuments.orderId, orders.id),
+                eq(generatedDocuments.documentType, "purchase_order")
+              ))
+              .limit(1)
+          )
+        ));
+
+      // 5b. Alternative: use NOT EXISTS subquery for SOs without PO
+      const sosWithoutPOResult = await database.execute(sql`
+        SELECT COUNT(*)::int as count FROM orders o
+        WHERE o.sales_order_status = 'client_approved'
+        AND NOT EXISTS (
+          SELECT 1 FROM generated_documents gd
+          WHERE gd.order_id = o.id AND gd.document_type = 'purchase_order'
+        )
+      `);
+
+      // 6. Overdue proofs (active proofing past in-hands date)
+      const overdueProofs = await database.execute(sql`
+        SELECT COUNT(*)::int as count
+        FROM artwork_items ai
+        INNER JOIN order_items oi ON ai.order_item_id = oi.id
+        INNER JOIN orders o ON oi.order_id = o.id
+        WHERE ai.status IN ('awaiting_proof', 'proof_received', 'pending_approval', 'change_requested')
+        AND o.in_hands_date < NOW()
+      `);
+
+      res.json({
+        overduePOsByInHands: overduePOsByInHands[0]?.count ?? 0,
+        overduePOsByNextAction: overduePOsByNextAction[0]?.count ?? 0,
+        problemPOs: problemPOs[0]?.count ?? 0,
+        followUpPOs: followUpPOs[0]?.count ?? 0,
+        sosWithoutPO: (sosWithoutPOResult as any).rows?.[0]?.count ?? (sosWithoutPOResult as any)[0]?.count ?? 0,
+        overdueProofs: (overdueProofs as any).rows?.[0]?.count ?? (overdueProofs as any)[0]?.count ?? 0,
+      });
+    } catch (error) {
+      console.error('Error fetching production alerts:', error);
+      res.status(500).json({ message: 'Failed to fetch production alerts' });
+    }
+  });
+
+  // GET /api/production/po-report — PO-centric production report
+  app.get('/api/production/po-report', isAuthenticated, async (req, res) => {
+    try {
+      const { db: database } = await import("./db");
+      const { sql } = await import("drizzle-orm");
+
+      const {
+        stage, status, vendorId, assigneeId, search,
+        dateFrom, dateTo, dateType, proofStatus,
+        sortBy = 'created_at', sortOrder = 'desc',
+        page = '1', limit = '50'
+      } = req.query as Record<string, string>;
+
+      const offset = (parseInt(page) - 1) * parseInt(limit);
+
+      // Build WHERE conditions
+      const conditions: string[] = ["gd.document_type = 'purchase_order'"];
+
+      if (stage) conditions.push(`gd.metadata->>'poStage' = '${stage}'`);
+      if (status) conditions.push(`gd.metadata->>'poStatus' = '${status}'`);
+      if (vendorId) conditions.push(`gd.vendor_id = '${vendorId}'`);
+      if (assigneeId) conditions.push(`o.assigned_user_id = '${assigneeId}'`);
+      if (search) {
+        conditions.push(`(
+          gd.document_number ILIKE '%${search}%'
+          OR o.order_number ILIKE '%${search}%'
+          OR gd.vendor_name ILIKE '%${search}%'
+          OR c.name ILIKE '%${search}%'
+        )`);
+      }
+      if (dateFrom) {
+        const dateCol = dateType === 'nextAction' ? 'o.next_action_date' : 'o.in_hands_date';
+        conditions.push(`${dateCol} >= '${dateFrom}'`);
+      }
+      if (dateTo) {
+        const dateCol = dateType === 'nextAction' ? 'o.next_action_date' : 'o.in_hands_date';
+        conditions.push(`${dateCol} <= '${dateTo}'`);
+      }
+      // Filter by alert type (from clicking alert tiles)
+      const alertFilter = req.query.alertFilter as string;
+      if (alertFilter === 'overdue_in_hands') {
+        conditions.push(`o.in_hands_date < NOW()`);
+        conditions.push(`gd.metadata->>'poStage' NOT IN ('billed', 'closed')`);
+      } else if (alertFilter === 'overdue_next_action') {
+        conditions.push(`o.next_action_date < NOW()`);
+        conditions.push(`gd.metadata->>'poStage' NOT IN ('billed', 'closed')`);
+      } else if (alertFilter === 'problem') {
+        conditions.push(`gd.metadata->>'poStatus' = 'problem'`);
+      } else if (alertFilter === 'follow_up') {
+        conditions.push(`gd.metadata->>'poStatus' = 'follow_up'`);
+      }
+      if (proofStatus) {
+        // Filter POs that have items with a specific proof status
+        conditions.push(`EXISTS (
+          SELECT 1 FROM order_items oi
+          INNER JOIN artwork_items ai ON ai.order_item_id = oi.id
+          WHERE oi.order_id = o.id
+          AND (oi.supplier_id = gd.vendor_id OR gd.vendor_id IS NULL)
+          AND ai.status = '${proofStatus}'
+        )`);
+      }
+
+      const whereClause = conditions.join(' AND ');
+
+      // Determine sort column
+      const sortMap: Record<string, string> = {
+        created_at: 'gd.created_at',
+        document_number: 'gd.document_number',
+        order_number: 'o.order_number',
+        vendor_name: 'gd.vendor_name',
+        in_hands_date: 'o.in_hands_date',
+        po_stage: "gd.metadata->>'poStage'",
+        total: 'gd.metadata->>\'totalCost\'',
+      };
+      const sortCol = sortMap[sortBy] || 'gd.created_at';
+      const order = sortOrder === 'asc' ? 'ASC' : 'DESC';
+
+      // Main query — get POs with joined order/company/vendor/user data
+      const result = await database.execute(sql.raw(`
+        SELECT
+          gd.id as "documentId",
+          gd.document_number as "documentNumber",
+          gd.order_id as "orderId",
+          gd.vendor_id as "vendorId",
+          gd.vendor_name as "vendorName",
+          gd.file_url as "fileUrl",
+          gd.status as "documentStatus",
+          gd.sent_at as "sentAt",
+          gd.metadata,
+          gd.created_at as "createdAt",
+          o.order_number as "orderNumber",
+          o.in_hands_date as "inHandsDate",
+          o.supplier_in_hands_date as "supplierInHandsDate",
+          o.event_date as "eventDate",
+          o.next_action_date as "nextActionDate",
+          o.next_action_notes as "nextActionNotes",
+          o.is_firm as "isFirm",
+          o.is_rush as "isRush",
+          o.sales_order_status as "salesOrderStatus",
+          o.assigned_user_id as "assignedUserId",
+          o.csr_user_id as "csrUserId",
+          c.name as "companyName",
+          c.id as "companyId",
+          u_assigned.full_name as "assignedUserName",
+          u_csr.full_name as "csrUserName"
+        FROM generated_documents gd
+        INNER JOIN orders o ON gd.order_id = o.id
+        LEFT JOIN companies c ON o.company_id = c.id
+        LEFT JOIN users u_assigned ON o.assigned_user_id = u_assigned.id
+        LEFT JOIN users u_csr ON o.csr_user_id = u_csr.id
+        WHERE ${whereClause}
+        ORDER BY ${sortCol} ${order} NULLS LAST
+        LIMIT ${parseInt(limit)}
+        OFFSET ${offset}
+      `));
+
+      // Count query for pagination
+      const countResult = await database.execute(sql.raw(`
+        SELECT COUNT(*)::int as total
+        FROM generated_documents gd
+        INNER JOIN orders o ON gd.order_id = o.id
+        LEFT JOIN companies c ON o.company_id = c.id
+        WHERE ${whereClause}
+      `));
+
+      const rows = (result as any).rows ?? result;
+      const total = (countResult as any).rows?.[0]?.total ?? (countResult as any)[0]?.total ?? 0;
+
+      // For each PO, get the aggregated proof status from artwork items
+      const poIds = rows.map((r: any) => r.documentId);
+      let proofData: Record<string, any> = {};
+
+      if (poIds.length > 0) {
+        // Get proof statuses per vendor (PO)
+        const proofResult = await database.execute(sql.raw(`
+          SELECT
+            gd.id as "documentId",
+            COALESCE(
+              json_agg(
+                json_build_object(
+                  'status', ai.status,
+                  'name', ai.name,
+                  'proofFilePath', ai.proof_file_path
+                )
+              ) FILTER (WHERE ai.id IS NOT NULL),
+              '[]'::json
+            ) as "proofItems"
+          FROM generated_documents gd
+          INNER JOIN orders o ON gd.order_id = o.id
+          LEFT JOIN order_items oi ON oi.order_id = o.id AND (oi.supplier_id = gd.vendor_id OR gd.vendor_id IS NULL)
+          LEFT JOIN artwork_items ai ON ai.order_item_id = oi.id
+          WHERE gd.id IN (${poIds.map((id: string) => `'${id}'`).join(',')})
+          GROUP BY gd.id
+        `));
+        const proofRows = (proofResult as any).rows ?? proofResult;
+        for (const row of proofRows) {
+          proofData[row.documentId] = row.proofItems;
+        }
+      }
+
+      // Get shipment data per order
+      let shipmentData: Record<string, any[]> = {};
+      const orderIds = Array.from(new Set(rows.map((r: any) => r.orderId))) as string[];
+      if (orderIds.length > 0) {
+        const shipmentResult = await database.execute(sql.raw(`
+          SELECT
+            os.order_id as "orderId",
+            os.carrier, os.tracking_number as "trackingNumber",
+            os.status, os.ship_date as "shipDate",
+            os.estimated_delivery as "estimatedDelivery",
+            os.actual_delivery as "actualDelivery"
+          FROM order_shipments os
+          WHERE os.order_id IN (${(orderIds as string[]).map(id => `'${id}'`).join(',')})
+          ORDER BY os.created_at DESC
+        `));
+        const shipRows = (shipmentResult as any).rows ?? shipmentResult;
+        for (const row of shipRows) {
+          if (!shipmentData[row.orderId]) shipmentData[row.orderId] = [];
+          shipmentData[row.orderId].push(row);
+        }
+      }
+
+      // Enrich rows
+      const enrichedRows = rows.map((row: any) => {
+        const metadata = typeof row.metadata === 'string' ? JSON.parse(row.metadata) : (row.metadata || {});
+        return {
+          ...row,
+          poStage: metadata.poStage || 'created',
+          poStatus: metadata.poStatus || 'ok',
+          totalCost: metadata.totalCost || 0,
+          itemCount: metadata.items?.length || 0,
+          proofItems: proofData[row.documentId] || [],
+          shipments: shipmentData[row.orderId] || [],
+        };
+      });
+
+      res.json({
+        data: enrichedRows,
+        pagination: {
+          page: parseInt(page),
+          limit: parseInt(limit),
+          total,
+          totalPages: Math.ceil(total / parseInt(limit)),
+        }
+      });
+    } catch (error) {
+      console.error('Error fetching PO report:', error);
+      res.status(500).json({ message: 'Failed to fetch PO report' });
+    }
+  });
+
+  // GET /api/production/po-report/:documentId — Single PO detail for slide-out panel
+  app.get('/api/production/po-report/:documentId', isAuthenticated, async (req, res) => {
+    try {
+      const { db: database } = await import("./db");
+      const { sql } = await import("drizzle-orm");
+      const { documentId } = req.params;
+
+      // Get full PO detail
+      const result = await database.execute(sql.raw(`
+        SELECT
+          gd.*,
+          o.order_number, o.in_hands_date, o.supplier_in_hands_date, o.event_date,
+          o.next_action_date, o.next_action_notes, o.is_firm, o.is_rush,
+          o.sales_order_status, o.assigned_user_id, o.csr_user_id,
+          o.shipping_address, o.billing_address, o.payment_terms,
+          o.notes as order_notes, o.supplier_notes,
+          c.name as company_name, c.id as company_id,
+          s.name as supplier_name, s.email as supplier_email, s.phone as supplier_phone,
+          s.contact_name as supplier_contact,
+          u_assigned.full_name as assigned_user_name,
+          u_csr.full_name as csr_user_name
+        FROM generated_documents gd
+        INNER JOIN orders o ON gd.order_id = o.id
+        LEFT JOIN companies c ON o.company_id = c.id
+        LEFT JOIN suppliers s ON gd.vendor_id = s.id
+        LEFT JOIN users u_assigned ON o.assigned_user_id = u_assigned.id
+        LEFT JOIN users u_csr ON o.csr_user_id = u_csr.id
+        WHERE gd.id = '${documentId}'
+      `));
+
+      const rows = (result as any).rows ?? result;
+      if (rows.length === 0) {
+        return res.status(404).json({ message: "Document not found" });
+      }
+
+      const doc = rows[0];
+      const metadata = typeof doc.metadata === 'string' ? JSON.parse(doc.metadata) : (doc.metadata || {});
+
+      // Get order items for this vendor
+      const itemsResult = await database.execute(sql.raw(`
+        SELECT oi.*, p.name as product_name, p.sku as product_sku
+        FROM order_items oi
+        LEFT JOIN products p ON oi.product_id = p.id
+        WHERE oi.order_id = '${doc.order_id}'
+        AND (oi.supplier_id = '${doc.vendor_id}' OR '${doc.vendor_id}' = 'null')
+      `));
+
+      // Get artwork/proof items
+      const artworkResult = await database.execute(sql.raw(`
+        SELECT ai.*, oi.product_id
+        FROM artwork_items ai
+        INNER JOIN order_items oi ON ai.order_item_id = oi.id
+        WHERE oi.order_id = '${doc.order_id}'
+        AND (oi.supplier_id = '${doc.vendor_id}' OR '${doc.vendor_id}' = 'null')
+        ORDER BY ai.created_at
+      `));
+
+      // Get shipments
+      const shipmentsResult = await database.execute(sql.raw(`
+        SELECT * FROM order_shipments
+        WHERE order_id = '${doc.order_id}'
+        ORDER BY created_at DESC
+      `));
+
+      // Get activity log for this order
+      const activitiesResult = await database.execute(sql.raw(`
+        SELECT pa.*, u.full_name as user_name
+        FROM project_activities pa
+        LEFT JOIN users u ON pa.user_id = u.id
+        WHERE pa.order_id = '${doc.order_id}'
+        ORDER BY pa.created_at DESC
+        LIMIT 20
+      `));
+
+      res.json({
+        ...doc,
+        metadata,
+        poStage: metadata.poStage || 'created',
+        poStatus: metadata.poStatus || 'ok',
+        totalCost: metadata.totalCost || 0,
+        items: (itemsResult as any).rows ?? itemsResult,
+        artworkItems: (artworkResult as any).rows ?? artworkResult,
+        shipments: (shipmentsResult as any).rows ?? shipmentsResult,
+        activities: (activitiesResult as any).rows ?? activitiesResult,
+      });
+    } catch (error) {
+      console.error('Error fetching PO detail:', error);
+      res.status(500).json({ message: 'Failed to fetch PO detail' });
+    }
+  });
+
   // Artwork Kanban API routes
   app.get("/api/artwork/columns", isAuthenticated, async (req, res) => {
     try {
@@ -8102,6 +8583,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .where(eq(artworkApprovals.id, approval.id))
         .returning();
 
+      // Auto-update artworkItems proof status to "approved"
+      if (approval.orderItemId) {
+        try {
+          const { artworkItems } = await import("@shared/schema");
+          // Update all artwork items for this order item that are in pending_approval status
+          await db
+            .update(artworkItems)
+            .set({ status: "approved", updatedAt: new Date() })
+            .where(eq(artworkItems.orderItemId, approval.orderItemId));
+        } catch (artErr) {
+          console.error('Error auto-updating artwork status:', artErr);
+        }
+      }
+
       // Create activity log and handle notifications + stage progression
       if (approval.orderId) {
         try {
@@ -8237,6 +8732,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         })
         .where(eq(artworkApprovals.id, approval.id))
         .returning();
+
+      // Auto-update artworkItems proof status to "change_requested"
+      if (approval.orderItemId) {
+        try {
+          const { artworkItems } = await import("@shared/schema");
+          await db
+            .update(artworkItems)
+            .set({ status: "change_requested", updatedAt: new Date() })
+            .where(eq(artworkItems.orderItemId, approval.orderItemId));
+        } catch (artErr) {
+          console.error('Error auto-updating artwork status:', artErr);
+        }
+      }
 
       // Create activity log and notify team
       if (approval.orderId) {
@@ -8732,7 +9240,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json({
         ...approval,
-        approvalUrl: `/quote-approval/${approvalToken}`,
+        approvalUrl: `/client-approval/${approvalToken}`,
       });
     } catch (error) {
       console.error('Error creating quote approval:', error);
@@ -8749,6 +9257,77 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Error fetching vendor invoices:', error);
       res.status(500).json({ message: 'Failed to fetch vendor invoices' });
+    }
+  });
+
+  // Create vendor invoice (bill) for an order — with optional PO vouching
+  app.post("/api/orders/:orderId/vendor-invoices", isAuthenticated, async (req, res) => {
+    try {
+      const { orderId } = req.params;
+      const { supplierId, documentId, invoiceNumber, amount, dueDate, notes } = req.body;
+
+      const invoice = await storage.createVendorInvoice({
+        orderId,
+        supplierId,
+        documentId: documentId || null,
+        invoiceNumber,
+        amount,
+        dueDate: dueDate ? new Date(dueDate) : undefined,
+        notes,
+      });
+
+      // ── Bill → PO "Billed" Auto-Transition ──
+      // When a vendor bill is created and linked to a PO document, auto-transition the PO to "billed"
+      if (documentId) {
+        try {
+          const { db } = await import("./db");
+          const { generatedDocuments } = await import("@shared/schema");
+          const { eq } = await import("drizzle-orm");
+
+          const [poDoc] = await db
+            .select()
+            .from(generatedDocuments)
+            .where(eq(generatedDocuments.id, documentId));
+
+          if (poDoc && poDoc.documentType === 'purchase_order') {
+            const currentMeta = typeof poDoc.metadata === 'string' ? JSON.parse(poDoc.metadata) : (poDoc.metadata || {});
+            const currentStage = currentMeta.poStage || 'created';
+
+            // Only auto-transition if PO is at ready_for_billing stage
+            if (currentStage === 'ready_for_billing') {
+              await db
+                .update(generatedDocuments)
+                .set({
+                  metadata: { ...currentMeta, poStage: 'billed' },
+                  updatedAt: new Date(),
+                })
+                .where(eq(generatedDocuments.id, documentId));
+
+              // Log activity
+              const { projectActivities } = await import("@shared/project-schema");
+              await db.insert(projectActivities).values({
+                orderId,
+                activityType: 'system_action',
+                content: `PO #${poDoc.documentNumber || documentId} auto-transitioned to "Billed" — vendor bill #${invoiceNumber} recorded`,
+                metadata: {
+                  action: 'bill_po_vouching',
+                  documentId,
+                  invoiceNumber,
+                },
+              });
+
+              console.log(`[Bill→PO Auto] PO ${documentId} → billed (bill #${invoiceNumber})`);
+            }
+          }
+        } catch (autoErr) {
+          console.error('[Bill→PO Auto] Error:', autoErr);
+        }
+      }
+
+      res.status(201).json(invoice);
+    } catch (error) {
+      console.error('Error creating vendor invoice:', error);
+      res.status(500).json({ message: 'Failed to create vendor invoice' });
     }
   });
 
@@ -8773,13 +9352,74 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // PUBLIC: Get quote approval by token
-  app.get("/api/quote-approvals/:token", async (req, res) => {
+  // Update a quote approval (e.g. link SO document to existing approval)
+  app.patch("/api/orders/:orderId/quote-approvals/:approvalId", isAuthenticated, async (req, res) => {
+    try {
+      const { approvalId } = req.params;
+      const { documentId, pdfPath, quoteTotal } = req.body;
+
+      const { db } = await import("./db");
+      const { quoteApprovals } = await import("@shared/schema");
+      const { eq } = await import("drizzle-orm");
+
+      const updateData: Record<string, any> = { updatedAt: new Date() };
+      if (documentId !== undefined) updateData.documentId = documentId;
+      if (pdfPath !== undefined) updateData.pdfPath = pdfPath;
+      if (quoteTotal !== undefined) updateData.quoteTotal = String(quoteTotal);
+
+      const [updated] = await db
+        .update(quoteApprovals)
+        .set(updateData)
+        .where(eq(quoteApprovals.id, Number(approvalId)))
+        .returning();
+
+      res.json(updated);
+    } catch (error) {
+      console.error("Error updating quote approval:", error);
+      res.status(500).json({ message: "Failed to update approval" });
+    }
+  });
+
+  // PUBLIC: Proxy PDF for inline viewing (avoids Content-Disposition: attachment from Cloudinary)
+  app.get("/api/pdf-proxy", async (req, res) => {
+    try {
+      const { url } = req.query;
+      if (!url || typeof url !== "string") {
+        return res.status(400).json({ message: "Missing url parameter" });
+      }
+      // Only allow Cloudinary URLs for security
+      if (!url.includes("cloudinary.com")) {
+        return res.status(403).json({ message: "Only Cloudinary URLs are allowed" });
+      }
+      console.log("PDF proxy fetching:", url);
+      const response = await fetch(url);
+      if (!response.ok) {
+        console.error("PDF proxy upstream error:", response.status, response.statusText, "for URL:", url);
+        return res.status(response.status).json({ message: "Failed to fetch PDF" });
+      }
+      const buffer = await response.arrayBuffer();
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader("Content-Disposition", "inline");
+      res.setHeader("Cache-Control", "public, max-age=86400");
+      res.send(Buffer.from(buffer));
+    } catch (error) {
+      console.error("PDF proxy error:", error);
+      res.status(500).json({ message: "Failed to proxy PDF" });
+    }
+  });
+
+  // Legacy redirect for old quote-approval endpoints
+  app.get("/api/quote-approvals/:token", (req, res) => res.redirect(307, `/api/client-approvals/${req.params.token}`));
+  app.post("/api/quote-approvals/:token/approve", (req, res) => res.redirect(307, `/api/client-approvals/${req.params.token}/approve`));
+  app.post("/api/quote-approvals/:token/decline", (req, res) => res.redirect(307, `/api/client-approvals/${req.params.token}/decline`));
+
+  // PUBLIC: Get approval by token (quote or sales order)
+  app.get("/api/client-approvals/:token", async (req, res) => {
     try {
       const { token } = req.params;
 
       const { db } = await import("./db");
-      const { quoteApprovals, orders, companies, orderItems, products } = await import("@shared/schema");
+      const { quoteApprovals, orders, companies, orderItems, products, generatedDocuments } = await import("@shared/schema");
       const { eq } = await import("drizzle-orm");
 
       const [approval] = await db
@@ -8802,14 +9442,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
           orderTotal: orders.total,
           companyName: companies.name,
           inHandsDate: orders.inHandsDate,
+          salesOrderStatus: orders.salesOrderStatus,
+          documentType: generatedDocuments.documentType,
         })
         .from(quoteApprovals)
         .leftJoin(orders, eq(quoteApprovals.orderId, orders.id))
         .leftJoin(companies, eq(orders.companyId, companies.id))
+        .leftJoin(generatedDocuments, eq(quoteApprovals.documentId, generatedDocuments.id))
         .where(eq(quoteApprovals.approvalToken, token));
 
       if (!approval) {
-        return res.status(404).json({ message: "Quote approval not found" });
+        return res.status(404).json({ message: "Approval not found" });
       }
 
       // Mark as viewed if first time
@@ -8826,6 +9469,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           id: orderItems.id,
           productName: products.name,
           productSku: products.sku,
+          productImageUrl: products.imageUrl,
           quantity: orderItems.quantity,
           unitPrice: orderItems.unitPrice,
           totalPrice: orderItems.totalPrice,
@@ -8836,18 +9480,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .leftJoin(products, eq(orderItems.productId, products.id))
         .where(eq(orderItems.orderId, approval.orderId));
 
+      // Determine document type: from document join, or fallback to order's salesOrderStatus
+      const resolvedDocType = approval.documentType
+        || (approval.salesOrderStatus === "pending_client_approval" ? "sales_order" : "quote");
+
+      const { salesOrderStatus: _sos, documentType: _dt, ...approvalData } = approval;
       res.json({
-        ...approval,
+        ...approvalData,
+        documentType: resolvedDocType,
         items,
       });
     } catch (error) {
-      console.error('Error fetching quote approval:', error);
-      res.status(500).json({ message: 'Failed to fetch quote approval' });
+      console.error('Error fetching approval:', error);
+      res.status(500).json({ message: 'Failed to fetch approval' });
     }
   });
 
-  // PUBLIC: Approve quote
-  app.post("/api/quote-approvals/:token/approve", async (req, res) => {
+  // PUBLIC: Approve quote or sales order
+  app.post("/api/client-approvals/:token/approve", async (req, res) => {
     try {
       const { token } = req.params;
       const { notes, clientName } = req.body;
@@ -8856,18 +9506,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { quoteApprovals, orders, users, generatedDocuments } = await import("@shared/schema");
       const { eq, or } = await import("drizzle-orm");
 
-      // Get approval
-      const [approval] = await db
-        .select()
+      // Get approval with document type
+      const [approvalRow] = await db
+        .select({
+          approval: quoteApprovals,
+          documentType: generatedDocuments.documentType,
+        })
         .from(quoteApprovals)
+        .leftJoin(generatedDocuments, eq(quoteApprovals.documentId, generatedDocuments.id))
         .where(eq(quoteApprovals.approvalToken, token));
 
-      if (!approval) {
-        return res.status(404).json({ message: "Quote approval not found" });
+      if (!approvalRow) {
+        return res.status(404).json({ message: "Approval not found" });
       }
 
+      const approval = approvalRow.approval;
+
       if (approval.status !== "pending") {
-        return res.status(400).json({ message: "This quote has already been processed" });
+        return res.status(400).json({ message: "This has already been processed" });
       }
 
       // Update approval status
@@ -8901,31 +9557,52 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .where(eq(orders.id, approval.orderId));
 
       if (order) {
-        // Update order status to sales_order and move to production stage
-        await db
-          .update(orders)
-          .set({
-            orderType: "sales_order",
-            status: "approved",
-            currentStage: "po-sent", // Move to PO stage for CSR to process
-            stagesCompleted: JSON.stringify([...JSON.parse(JSON.stringify(order.stagesCompleted || '["sales-booked"]')), "quote-approved"]),
-            updatedAt: new Date(),
-          })
-          .where(eq(orders.id, order.id));
+        // Determine if SO approval: check document type OR fallback to order's salesOrderStatus
+        const isSalesOrder = approvalRow.documentType === "sales_order"
+          || order.salesOrderStatus === "pending_client_approval";
+        const docLabel = isSalesOrder ? "Sales Order" : "Quote";
 
-        // Log activity for quote approval
+        if (isSalesOrder) {
+          // SO approval: update salesOrderStatus to client_approved
+          await db
+            .update(orders)
+            .set({
+              salesOrderStatus: "client_approved",
+              updatedAt: new Date(),
+            })
+            .where(eq(orders.id, order.id));
+        } else {
+          // Quote approval: convert to sales order and move to production
+          await db
+            .update(orders)
+            .set({
+              orderType: "sales_order",
+              status: "approved",
+              currentStage: "po-sent",
+              stagesCompleted: JSON.stringify([...JSON.parse(JSON.stringify(order.stagesCompleted || '["sales-booked"]')), "quote-approved"]),
+              updatedAt: new Date(),
+            })
+            .where(eq(orders.id, order.id));
+        }
+
+        // Log activity — use order's assigned user or CSR as the activity userId (public endpoint has no req.user)
         try {
           const { projectActivities } = await import("@shared/project-schema");
-          await db.insert(projectActivities).values({
-            orderId: order.id,
-            userId: "system-user",
-            activityType: "system_action",
-            content: `Quote approved by ${clientName || approval.clientName || approval.clientEmail}. Order converted to Sales Order and moved to production.${notes ? ` Client notes: ${notes}` : ''}`,
-            metadata: { action: 'quote_approved', approvalId: updated.id, clientName: clientName || approval.clientName },
-            isSystemGenerated: true,
-          });
+          const systemUserId = order.assignedUserId || order.csrUserId;
+          if (systemUserId) {
+            await db.insert(projectActivities).values({
+              orderId: order.id,
+              userId: systemUserId,
+              activityType: "system_action",
+              content: isSalesOrder
+                ? `Sales Order approved by ${clientName || approval.clientName || approval.clientEmail}.${notes ? ` Client notes: ${notes}` : ''}`
+                : `Quote approved by ${clientName || approval.clientName || approval.clientEmail}. Order converted to Sales Order and moved to production.${notes ? ` Client notes: ${notes}` : ''}`,
+              metadata: { action: isSalesOrder ? 'sales_order_approved' : 'quote_approved', approvalId: updated.id, clientName: clientName || approval.clientName },
+              isSystemGenerated: true,
+            });
+          }
         } catch (activityError) {
-          console.error("Failed to log quote approval activity:", activityError);
+          console.error("Failed to log approval activity:", activityError);
         }
 
         // Collect users to notify: sales rep and CSR
@@ -8938,9 +9615,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Create in-app notifications
         if (usersToNotify.length > 0) {
           await storage.createNotificationsForUsers(usersToNotify, {
-            type: 'quote_approved',
-            title: 'Quote Approved - Ready for Production',
-            message: `Client ${clientName || approval.clientName || approval.clientEmail} has approved quote #${order.orderNumber}. Order is now ready for production.`,
+            type: isSalesOrder ? 'sales_order_approved' : 'quote_approved',
+            title: isSalesOrder ? 'Sales Order Approved by Client' : 'Quote Approved - Ready for Production',
+            message: `Client ${clientName || approval.clientName || approval.clientEmail} has approved ${docLabel.toLowerCase()} #${order.orderNumber}.${isSalesOrder ? '' : ' Order is now ready for production.'}`,
             orderId: order.id,
           });
         }
@@ -8954,10 +9631,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
             if (user?.email) {
               await emailService.sendEmail({
                 to: user.email,
-                subject: `✅ Quote Approved - Order #${order.orderNumber} Ready for Production`,
+                subject: isSalesOrder
+                  ? `✅ Sales Order Approved - Order #${order.orderNumber}`
+                  : `✅ Quote Approved - Order #${order.orderNumber} Ready for Production`,
                 html: `
-                  <h2>Quote Approved!</h2>
-                  <p>Great news! The client has approved the quote and it's ready to be converted to a sales order.</p>
+                  <h2>${docLabel} Approved!</h2>
+                  <p>Great news! The client has approved the ${docLabel.toLowerCase()}${isSalesOrder ? '.' : ' and it\'s ready to be converted to a sales order.'}</p>
                   <h3>Order Details:</h3>
                   <ul>
                     <li><strong>Order Number:</strong> ${order.orderNumber}</li>
@@ -8966,13 +9645,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
                     <li><strong>Total:</strong> $${parseFloat(order.total || "0").toFixed(2)}</li>
                   </ul>
                   ${notes ? `<p><strong>Client Notes:</strong> ${notes}</p>` : ''}
-                  <p>The order is now on the production kanban board waiting for PO processing.</p>
+                  <p>${isSalesOrder ? 'The sales order has been marked as client approved.' : 'The order is now on the production kanban board waiting for PO processing.'}</p>
                 `,
               });
             }
           }
         } catch (emailError) {
-          console.error("Failed to send quote approval emails:", emailError);
+          console.error("Failed to send approval emails:", emailError);
         }
       }
 
@@ -8983,32 +9662,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // PUBLIC: Decline quote
-  app.post("/api/quote-approvals/:token/decline", async (req, res) => {
+  // PUBLIC: Decline quote or sales order
+  app.post("/api/client-approvals/:token/decline", async (req, res) => {
     try {
       const { token } = req.params;
       const { reason, clientName } = req.body;
 
       if (!reason || !reason.trim()) {
-        return res.status(400).json({ message: "Please provide a reason for declining the quote" });
+        return res.status(400).json({ message: "Please provide a reason for declining" });
       }
 
       const { db } = await import("./db");
-      const { quoteApprovals, orders } = await import("@shared/schema");
+      const { quoteApprovals, orders, generatedDocuments } = await import("@shared/schema");
       const { eq } = await import("drizzle-orm");
 
-      // Get approval
-      const [approval] = await db
-        .select()
+      // Get approval with document type
+      const [approvalRow] = await db
+        .select({
+          approval: quoteApprovals,
+          documentType: generatedDocuments.documentType,
+        })
         .from(quoteApprovals)
+        .leftJoin(generatedDocuments, eq(quoteApprovals.documentId, generatedDocuments.id))
         .where(eq(quoteApprovals.approvalToken, token));
 
-      if (!approval) {
-        return res.status(404).json({ message: "Quote approval not found" });
+      if (!approvalRow) {
+        return res.status(404).json({ message: "Approval not found" });
       }
 
+      const approval = approvalRow.approval;
+
       if (approval.status !== "pending") {
-        return res.status(400).json({ message: "This quote has already been processed" });
+        return res.status(400).json({ message: "This has already been processed" });
       }
 
       // Update approval status
@@ -9031,28 +9716,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .where(eq(orders.id, approval.orderId));
 
       if (order) {
-        // Update order status
-        await db
-          .update(orders)
-          .set({
-            status: "pending_approval",
-            updatedAt: new Date(),
-          })
-          .where(eq(orders.id, order.id));
+        // Determine if SO: check document type OR fallback to order's salesOrderStatus
+        const isSalesOrder = approvalRow.documentType === "sales_order"
+          || order.salesOrderStatus === "pending_client_approval";
+        const docLabel = isSalesOrder ? "Sales Order" : "Quote";
 
-        // Log activity for quote decline
+        // Update order status based on document type
+        if (isSalesOrder) {
+          await db
+            .update(orders)
+            .set({
+              salesOrderStatus: "draft",
+              updatedAt: new Date(),
+            })
+            .where(eq(orders.id, order.id));
+        } else {
+          await db
+            .update(orders)
+            .set({
+              status: "pending_approval",
+              updatedAt: new Date(),
+            })
+            .where(eq(orders.id, order.id));
+        }
+
+        // Log activity — use order's assigned user (public endpoint has no req.user)
         try {
           const { projectActivities } = await import("@shared/project-schema");
-          await db.insert(projectActivities).values({
-            orderId: order.id,
-            userId: "system-user",
-            activityType: "system_action",
-            content: `Quote declined by ${clientName || approval.clientName || approval.clientEmail}. Reason: ${reason}`,
-            metadata: { action: 'quote_declined', approvalId: updated.id, reason },
-            isSystemGenerated: true,
-          });
+          const systemUserId = order.assignedUserId || order.csrUserId;
+          if (systemUserId) {
+            await db.insert(projectActivities).values({
+              orderId: order.id,
+              userId: systemUserId,
+              activityType: "system_action",
+              content: `${docLabel} declined by ${clientName || approval.clientName || approval.clientEmail}. Reason: ${reason}`,
+              metadata: { action: isSalesOrder ? 'sales_order_declined' : 'quote_declined', approvalId: updated.id, reason },
+              isSystemGenerated: true,
+            });
+          }
         } catch (activityError) {
-          console.error("Failed to log quote decline activity:", activityError);
+          console.error("Failed to log decline activity:", activityError);
         }
 
         // Notify sales rep
@@ -9061,9 +9764,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         if (usersToNotify.length > 0) {
           await storage.createNotificationsForUsers(usersToNotify, {
-            type: 'quote_declined',
-            title: 'Quote Declined',
-            message: `Client ${clientName || approval.clientName || approval.clientEmail} has declined quote #${order.orderNumber}. Reason: ${reason}`,
+            type: isSalesOrder ? 'sales_order_declined' : 'quote_declined',
+            title: `${docLabel} Declined`,
+            message: `Client ${clientName || approval.clientName || approval.clientEmail} has declined ${docLabel.toLowerCase()} #${order.orderNumber}. Reason: ${reason}`,
             orderId: order.id,
           });
         }
@@ -9077,10 +9780,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
             if (user?.email) {
               await emailService.sendEmail({
                 to: user.email,
-                subject: `❌ Quote Declined - Order #${order.orderNumber}`,
+                subject: `❌ ${docLabel} Declined - Order #${order.orderNumber}`,
                 html: `
-                  <h2>Quote Declined</h2>
-                  <p>Unfortunately, the client has declined the quote.</p>
+                  <h2>${docLabel} Declined</h2>
+                  <p>Unfortunately, the client has declined the ${docLabel.toLowerCase()}.</p>
                   <h3>Order Details:</h3>
                   <ul>
                     <li><strong>Order Number:</strong> ${order.orderNumber}</li>
@@ -9094,7 +9797,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             }
           }
         } catch (emailError) {
-          console.error("Failed to send quote decline emails:", emailError);
+          console.error("Failed to send decline emails:", emailError);
         }
       }
 
@@ -10238,8 +10941,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { status, sentAt, metadata } = req.body;
 
       const { db } = await import("./db");
-      const { generatedDocuments } = await import("@shared/schema");
-      const { eq } = await import("drizzle-orm");
+      const { generatedDocuments, orders } = await import("@shared/schema");
+      const { eq, and } = await import("drizzle-orm");
 
       const updates: any = { updatedAt: new Date() };
       if (status) updates.status = status;
@@ -10251,6 +10954,84 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .set(updates)
         .where(eq(generatedDocuments.id, documentId))
         .returning();
+
+      // ── PO → SO Auto-Transition ──
+      // When a PO stage changes, check if ALL POs for this order have reached
+      // a milestone stage and auto-update the parent Sales Order accordingly.
+      if (metadata?.poStage && updated.orderId && updated.documentType === 'purchase_order') {
+        try {
+          // Get all POs for this order
+          const allPOs = await db
+            .select()
+            .from(generatedDocuments)
+            .where(
+              and(
+                eq(generatedDocuments.orderId, updated.orderId),
+                eq(generatedDocuments.documentType, 'purchase_order')
+              )
+            );
+
+          if (allPOs.length > 0) {
+            const allStages = allPOs.map((po: any) => {
+              const m = typeof po.metadata === 'string' ? JSON.parse(po.metadata) : (po.metadata || {});
+              return m.poStage || 'created';
+            });
+
+            // Stage order for comparison
+            const stageOrder: Record<string, number> = {
+              created: 1, submitted: 2, confirmed: 3, shipped: 4,
+              ready_for_billing: 5, billed: 6, closed: 7,
+            };
+
+            const minStageOrder = Math.min(...allStages.map((s: string) => stageOrder[s] || 1));
+
+            // Get current SO status
+            const [currentOrder] = await db
+              .select({ salesOrderStatus: orders.salesOrderStatus })
+              .from(orders)
+              .where(eq(orders.id, updated.orderId));
+
+            if (currentOrder) {
+              let newSOStatus: string | null = null;
+              const currentSO = currentOrder.salesOrderStatus || '';
+
+              // All POs shipped (or beyond) → SO "shipped" (if currently in_production or client_approved)
+              if (minStageOrder >= stageOrder.shipped && ['client_approved', 'in_production'].includes(currentSO)) {
+                newSOStatus = 'shipped';
+              }
+              // All POs ready_for_billing (or beyond) → SO "ready_to_invoice" (if currently shipped or in_production)
+              if (minStageOrder >= stageOrder.ready_for_billing && ['client_approved', 'in_production', 'shipped'].includes(currentSO)) {
+                newSOStatus = 'ready_to_invoice';
+              }
+
+              if (newSOStatus && newSOStatus !== currentSO) {
+                await db
+                  .update(orders)
+                  .set({ salesOrderStatus: newSOStatus, updatedAt: new Date() })
+                  .where(eq(orders.id, updated.orderId));
+
+                // Log activity
+                const { projectActivities } = await import("@shared/project-schema");
+                await db.insert(projectActivities).values({
+                  orderId: updated.orderId,
+                  activityType: 'system_action',
+                  content: `Sales Order auto-transitioned to "${newSOStatus === 'ready_to_invoice' ? 'Ready to Invoice' : 'Shipped'}" — all POs reached ${allStages[0]} stage`,
+                  metadata: {
+                    action: 'po_auto_transition',
+                    previousStatus: currentSO,
+                    newStatus: newSOStatus,
+                  },
+                });
+
+                console.log(`[PO→SO Auto] Order ${updated.orderId}: SO status ${currentSO} → ${newSOStatus} (all ${allPOs.length} POs at ${metadata.poStage}+)`);
+              }
+            }
+          }
+        } catch (autoErr) {
+          console.error('[PO→SO Auto] Error checking auto-transition:', autoErr);
+          // Don't fail the main update
+        }
+      }
 
       res.json(updated);
     } catch (error) {

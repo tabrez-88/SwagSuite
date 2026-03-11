@@ -71,7 +71,7 @@ interface QuoteSectionProps {
 }
 
 export default function QuoteSection({ orderId, data, lockStatus }: QuoteSectionProps) {
-  const { order, orderItems, quoteApprovals, companyName, primaryContact, allProducts } = data;
+  const { order, orderItems, quoteApprovals, companyName, primaryContact, allProducts, allArtworkItems } = data;
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [, setLocation] = useLocation();
@@ -149,7 +149,7 @@ export default function QuoteSection({ orderId, data, lockStatus }: QuoteSection
   const handleGetApprovalLink = async (doc: any) => {
     const existingApproval = quoteApprovals.find((a: any) => a.status === "pending");
     if (existingApproval) {
-      const approvalUrl = `${window.location.origin}/quote-approval/${existingApproval.approvalToken}`;
+      const approvalUrl = `${window.location.origin}/client-approval/${existingApproval.approvalToken}`;
       navigator.clipboard.writeText(approvalUrl);
       toast({ title: "Approval Link Copied", description: "The existing approval link has been copied to clipboard." });
       return;
@@ -162,7 +162,7 @@ export default function QuoteSection({ orderId, data, lockStatus }: QuoteSection
         pdfPath: doc.fileUrl,
         quoteTotal: (order as any)?.total,
       });
-      const approvalUrl = `${window.location.origin}/quote-approval/${result.approvalToken}`;
+      const approvalUrl = `${window.location.origin}/client-approval/${result.approvalToken}`;
       navigator.clipboard.writeText(approvalUrl);
       toast({ title: "Approval Link Generated", description: "Link copied to clipboard." });
     } catch {
@@ -398,6 +398,7 @@ export default function QuoteSection({ orderId, data, lockStatus }: QuoteSection
         orderItems={orderItems}
         companyName={companyName}
         primaryContact={primaryContact}
+        allArtworkItems={allArtworkItems}
       />
 
       {/* Document Editor Modal */}
@@ -411,6 +412,7 @@ export default function QuoteSection({ orderId, data, lockStatus }: QuoteSection
             primaryContact={primaryContact}
             getEditedItem={getEditedItem}
             onClose={() => setPreviewDocument(null)}
+            allArtworkItems={allArtworkItems}
           />
         )
       }

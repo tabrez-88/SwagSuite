@@ -150,7 +150,7 @@ export default function ProfilePage() {
     };
 
     // Check if user was just registered (created within last 5 seconds)
-    const isNewlyRegistered = user && dataUpdatedAt && 
+    const isNewlyRegistered = user && dataUpdatedAt &&
         new Date(user.createdAt).getTime() > (Date.now() - 5000);
 
     // Redirect to login if not authenticated
@@ -204,7 +204,7 @@ export default function ProfilePage() {
     };
 
     return (
-        <div className="container mx-auto py-8 max-w-4xl space-y-6">
+        <div className="container mx-auto py-8 max-w-4xl px-4 space-y-6">
             {/* Profile Header */}
             <Card>
                 <CardHeader>
@@ -231,22 +231,25 @@ export default function ProfilePage() {
                                 className="hidden"
                             />
                         </div>
-                        <div className="flex-1">
-                            <CardTitle className="text-2xl mb-2">
-                                {user.firstName} {user.lastName}
-                            </CardTitle>
-                            <div className="flex items-center gap-2 mb-2">
-                                <Mail className="h-4 w-4 text-gray-500" />
-                                <span className="text-gray-600">{user.email}</span>
-                            </div>
-                            <div className="flex items-center gap-2">
+                        <div className="flex-1 gap-2 flex flex-col">
+                            <CardTitle className="flex flex-col md:flex-row gap-2 text-2xl">
+                                <p>
+                                    {user.firstName} {user.lastName}
+                                </p>
                                 <Badge
                                     variant="outline"
-                                    className={`${config.bgColor} ${config.borderColor}`}
+                                    className={`${config.bgColor} ${config.borderColor} w-fit`}
                                 >
                                     <Icon className={`h-4 w-4 mr-1 ${config.color}`} />
                                     {config.label}
                                 </Badge>
+                            </CardTitle>
+                            <div className="flex items-center gap-2">
+                                <Mail className="h-4 w-4 text-gray-500" />
+                                <span className="text-gray-600 text-xs md:text-sm">{user.email}</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+
                                 <Button
                                     variant="outline"
                                     size="sm"
@@ -351,7 +354,7 @@ export default function ProfilePage() {
                     <CardDescription>Configure your personal SMTP/IMAP settings to send emails from your own account</CardDescription>
                 </CardHeader>
                 <CardContent>
-                    <div className="flex items-center justify-between p-4 border rounded-lg">
+                    <div className="flex flex-col md:flex-row md:items-center gap-2 justify-between p-4 border rounded-lg">
                         <div>
                             <p className="font-medium text-sm">Personal SMTP / IMAP</p>
                             <p className="text-sm text-gray-500">Set up your email credentials to send and receive emails through SwagSuite using your own email address.</p>
