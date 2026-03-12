@@ -323,7 +323,7 @@ export default function NewProjectWizard({ open, onOpenChange, initialCompanyId 
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>New Project</DialogTitle>
         </DialogHeader>
