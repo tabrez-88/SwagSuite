@@ -10,7 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { ScrollArea } from "@/components/ui/scroll-area";
+
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMediaLibrary, useUploadToMediaLibrary } from "@/hooks/useMediaLibrary";
 import {
@@ -73,8 +73,25 @@ function getFileIcon(mimeType: string | null) {
   }
 }
 
+/** Infer MIME type from file extension when server doesn't provide it */
+function inferMimeType(fileName: string | null, url: string | null): string | null {
+  const source = fileName || url || "";
+  const ext = source.split("?")[0].split(".").pop()?.toLowerCase();
+  const mimeMap: Record<string, string> = {
+    jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", gif: "image/gif",
+    webp: "image/webp", svg: "image/svg+xml", bmp: "image/bmp", ico: "image/x-icon",
+    pdf: "application/pdf", doc: "application/msword",
+    docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    xls: "application/vnd.ms-excel",
+    xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    csv: "text/csv", ai: "application/postscript", eps: "application/postscript",
+  };
+  return ext ? mimeMap[ext] || null : null;
+}
+
 /** Map an order file (from GET /api/orders/:id/files) to MediaLibraryItem shape */
 function orderFileToMediaItem(file: any): MediaLibraryItem {
+  const mimeType = file.mimeType || inferMimeType(file.originalName, file.filePath);
   return {
     id: `orderfile-${file.id}`,
     cloudinaryPublicId: file.fileName,
@@ -83,7 +100,7 @@ function orderFileToMediaItem(file: any): MediaLibraryItem {
     fileName: file.fileName,
     originalName: file.originalName,
     fileSize: file.fileSize,
-    mimeType: file.mimeType,
+    mimeType,
     fileExtension: file.originalName?.split(".").pop()?.toLowerCase() || null,
     thumbnailUrl: file.thumbnailPath || null,
     folder: "project",
@@ -275,7 +292,7 @@ export default function FilePickerDialog({
     onUploadClick: () => void,
     uploading: boolean,
   ) => (
-    <ScrollArea className="flex-1 min-h-0" style={{ maxHeight: "400px" }}>
+    <div className="flex-1 min-h-0 overflow-y-auto">
       {loading ? (
         <div className="flex items-center justify-center py-12">
           <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
@@ -331,7 +348,7 @@ export default function FilePickerDialog({
                 )}
 
                 <div className="w-full aspect-square rounded bg-gray-100 flex items-center justify-center overflow-hidden mb-1.5">
-                  {isImageFile(item.mimeType) ? (
+                  {isImageFile(item.mimeType, item.cloudinaryUrl) ? (
                     <img
                       src={getCloudinaryThumbnail(item.cloudinaryUrl, 200, 200)}
                       alt={item.originalName}
@@ -360,7 +377,7 @@ export default function FilePickerDialog({
           })}
         </div>
       )}
-    </ScrollArea>
+    </div>
   );
 
   const libraryUploading = libraryUploadMutation.isPending;

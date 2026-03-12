@@ -2597,22 +2597,216 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Duplicate an order (SO reorder/copy)
+  app.post('/api/orders/:orderId/duplicate', isAuthenticated, async (req, res) => {
+    try {
+      const { orderId } = req.params;
+      const { db } = await import("./db");
+      const { orders, orderItems, artworkItems, orderAdditionalCharges, orderServiceCharges } = await import("@shared/schema");
+      const { eq, sql } = await import("drizzle-orm");
+
+      // Get source order
+      const [sourceOrder] = await db.select().from(orders).where(eq(orders.id, orderId));
+      if (!sourceOrder) return res.status(404).json({ message: "Order not found" });
+
+      // Get source items
+      const sourceItems = await db.select().from(orderItems).where(eq(orderItems.orderId, orderId));
+
+      // Generate new order number
+      const year = new Date().getFullYear();
+      const countResult = await db.execute(sql.raw(`SELECT COUNT(*) as count FROM orders WHERE order_number LIKE 'ORD-${year}-%'`));
+      const countRows = (countResult as any).rows ?? countResult;
+      const nextNum = parseInt(countRows[0]?.count || "0") + 1;
+      const newOrderNumber = `ORD-${year}-${String(nextNum).padStart(3, "0")}`;
+
+      // Create duplicate order (reset statuses, keep content)
+      const [newOrder] = await db.insert(orders).values({
+        orderNumber: newOrderNumber,
+        companyId: sourceOrder.companyId,
+        contactId: sourceOrder.contactId,
+        assignedUserId: sourceOrder.assignedUserId,
+        csrUserId: sourceOrder.csrUserId,
+        status: "quote",
+        orderType: "quote",
+        subtotal: sourceOrder.subtotal,
+        tax: "0",
+        shipping: sourceOrder.shipping,
+        total: sourceOrder.subtotal,
+        margin: sourceOrder.margin,
+        inHandsDate: sourceOrder.inHandsDate,
+        eventDate: sourceOrder.eventDate,
+        supplierInHandsDate: sourceOrder.supplierInHandsDate,
+        isFirm: sourceOrder.isFirm,
+        isRush: sourceOrder.isRush,
+        customerPo: null,
+        paymentTerms: sourceOrder.paymentTerms,
+        orderDiscount: sourceOrder.orderDiscount,
+        notes: sourceOrder.notes,
+        customerNotes: sourceOrder.customerNotes,
+        internalNotes: sourceOrder.internalNotes,
+        supplierNotes: sourceOrder.supplierNotes,
+        additionalInformation: sourceOrder.additionalInformation,
+        shippingAddress: sourceOrder.shippingAddress,
+        billingAddress: sourceOrder.billingAddress,
+        shippingMethod: sourceOrder.shippingMethod,
+        currentStage: "sales-booked",
+        stagesCompleted: ["sales-booked"],
+        stageData: {},
+        customNotes: {},
+        presentationStatus: "open",
+        salesOrderStatus: "new",
+        quoteStatus: "draft",
+      } as any).returning();
+
+      // Copy order items
+      const itemIdMap: Record<string, string> = {};
+      for (const item of sourceItems) {
+        const [newItem] = await db.insert(orderItems).values({
+          orderId: newOrder.id,
+          productId: item.productId,
+          supplierId: item.supplierId,
+          quantity: item.quantity,
+          cost: item.cost,
+          unitPrice: item.unitPrice,
+          totalPrice: item.totalPrice,
+          decorationCost: item.decorationCost,
+          charges: item.charges,
+          sizePricing: item.sizePricing,
+          uomFactory: item.uomFactory,
+          color: item.color,
+          size: item.size,
+          imprintLocation: item.imprintLocation,
+          imprintMethod: item.imprintMethod,
+          decoratorType: item.decoratorType,
+          priceLabel: item.priceLabel,
+          personalComment: item.personalComment,
+          privateNotes: item.privateNotes,
+          notes: item.notes,
+          shippingDestination: item.shippingDestination,
+          shippingAccountType: item.shippingAccountType,
+          shippingMethodOverride: item.shippingMethodOverride,
+          shippingNotes: item.shippingNotes,
+        } as any).returning();
+        itemIdMap[item.id] = newItem.id;
+
+        // Copy artwork items for this order item
+        const sourceArtworks = await db.select().from(artworkItems).where(eq(artworkItems.orderItemId, item.id));
+        for (const art of sourceArtworks) {
+          await db.insert(artworkItems).values({
+            orderItemId: newItem.id,
+            name: art.name,
+            artworkType: art.artworkType,
+            location: art.location,
+            color: art.color,
+            size: art.size,
+            status: "pending",
+            fileName: art.fileName,
+            filePath: art.filePath,
+            proofRequired: art.proofRequired,
+            notes: art.notes,
+          } as any);
+        }
+
+        // Copy additional charges for this order item
+        const sourceCharges = await db.select().from(orderAdditionalCharges).where(eq(orderAdditionalCharges.orderItemId, item.id));
+        for (const charge of sourceCharges) {
+          await db.insert(orderAdditionalCharges).values({
+            orderItemId: newItem.id,
+            description: charge.description,
+            chargeType: charge.chargeType,
+            amount: charge.amount,
+            isVendorCharge: charge.isVendorCharge,
+            displayToClient: charge.displayToClient,
+          } as any);
+        }
+      }
+
+      // Copy service charges
+      const sourceServiceCharges = await db.select().from(orderServiceCharges).where(eq(orderServiceCharges.orderId, orderId));
+      for (const sc of sourceServiceCharges) {
+        await db.insert(orderServiceCharges).values({
+          orderId: newOrder.id,
+          chargeType: sc.chargeType,
+          description: sc.description,
+          quantity: sc.quantity,
+          unitCost: sc.unitCost,
+          unitPrice: sc.unitPrice,
+          taxable: sc.taxable,
+          includeInMargin: sc.includeInMargin,
+          displayToClient: sc.displayToClient,
+          vendorId: sc.vendorId,
+          notes: sc.notes,
+        } as any);
+      }
+
+      // Log activity
+      const { projectActivities } = await import("@shared/project-schema");
+      await db.insert(projectActivities).values({
+        orderId: newOrder.id,
+        userId: (req.user as any)?.claims?.sub || (req.user as any)?.id,
+        activityType: "system_action",
+        content: `Order duplicated from #${sourceOrder.orderNumber}`,
+        metadata: { action: "order_duplicated", sourceOrderId: orderId, sourceOrderNumber: sourceOrder.orderNumber },
+      } as any);
+
+      res.json({ success: true, order: newOrder });
+    } catch (error) {
+      console.error("Error duplicating order:", error);
+      res.status(500).json({ message: "Failed to duplicate order" });
+    }
+  });
+
   // Recalculate order total from items
   app.post('/api/orders/:id/recalculate-total', isAuthenticated, async (req, res) => {
     try {
-      const allItems = await storage.getOrderItems(req.params.id);
-      const subtotal = allItems.reduce((sum, item) => {
-        return sum + parseFloat(item.totalPrice);
-      }, 0);
+      const { db } = await import("./db");
+      const { orderServiceCharges, orderAdditionalCharges, orderShipments } = await import("@shared/schema");
+      const { eq } = await import("drizzle-orm");
 
-      console.log(`Manual recalculation for order ${req.params.id}:`, {
-        itemCount: allItems.length,
-        subtotal: subtotal.toFixed(2),
+      const allItems = await storage.getOrderItems(req.params.id);
+      const itemsSubtotal = allItems.reduce((sum, item) => sum + parseFloat(item.totalPrice), 0);
+
+      // Sum per-item additional charges (client-visible)
+      let additionalChargesTotal = 0;
+      for (const item of allItems) {
+        const charges = await db.select().from(orderAdditionalCharges).where(eq(orderAdditionalCharges.orderItemId, item.id));
+        additionalChargesTotal += charges
+          .filter((c: any) => c.displayToClient)
+          .reduce((sum: number, c: any) => sum + parseFloat(c.amount || "0"), 0);
+      }
+
+      // Sum order-level service charges (client-visible)
+      const serviceCharges = await db.select().from(orderServiceCharges).where(eq(orderServiceCharges.orderId, req.params.id));
+      const serviceChargesTotal = serviceCharges
+        .filter((c: any) => c.displayToClient)
+        .reduce((sum: number, c: any) => {
+          const qty = c.quantity || 1;
+          const price = parseFloat(c.unitPrice || "0");
+          return sum + qty * price;
+        }, 0);
+
+      // Sum shipping costs from shipments
+      const shipments = await db.select().from(orderShipments).where(eq(orderShipments.orderId, req.params.id));
+      const shippingTotal = shipments.reduce((sum: number, s: any) => sum + parseFloat(s.shippingCost || "0"), 0);
+
+      const subtotal = itemsSubtotal + additionalChargesTotal + serviceChargesTotal;
+      const existingOrder = await storage.getOrder(req.params.id);
+      const tax = parseFloat((existingOrder as any)?.tax || "0");
+      const total = subtotal + shippingTotal + tax;
+
+      console.log(`Recalculation for order ${req.params.id}:`, {
+        itemsSubtotal: itemsSubtotal.toFixed(2),
+        additionalCharges: additionalChargesTotal.toFixed(2),
+        serviceCharges: serviceChargesTotal.toFixed(2),
+        shipping: shippingTotal.toFixed(2),
+        tax: tax.toFixed(2),
+        total: total.toFixed(2),
       });
 
       const updatedOrder = await storage.updateOrder(req.params.id, {
         subtotal: subtotal.toFixed(2),
-        total: subtotal.toFixed(2),
+        shipping: shippingTotal.toFixed(2),
+        total: total.toFixed(2),
       });
 
       // Update YTD spending after total change
@@ -2628,11 +2822,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       res.json(updatedOrder);
-
-      res.json({
-        message: "Order total recalculated successfully",
-        order: updatedOrder,
-      });
     } catch (error) {
       console.error("Error recalculating order total:", error);
       res.status(500).json({ message: "Failed to recalculate order total" });
@@ -2873,6 +3062,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         size: req.body.size || null,
         status: req.body.status,
         notes: req.body.notes || null,
+        proofRequired: req.body.proofRequired !== undefined ? req.body.proofRequired : undefined,
         proofFilePath: req.body.proofFilePath !== undefined ? req.body.proofFilePath : undefined,
         proofFileName: req.body.proofFileName !== undefined ? req.body.proofFileName : undefined,
         updatedAt: new Date(),
@@ -3055,6 +3245,79 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error deleting order additional charge:", error);
       res.status(500).json({ message: "Failed to delete order additional charge" });
+    }
+  });
+
+  // ── Order Service Charges (order-level: Freight, Fulfillment, Shipping, Rush, Other, Custom) ──
+
+  app.get('/api/orders/:orderId/service-charges', isAuthenticated, async (req, res) => {
+    try {
+      const { db } = await import("./db");
+      const { orderServiceCharges } = await import("@shared/schema");
+      const { eq } = await import("drizzle-orm");
+      const charges = await db.select().from(orderServiceCharges).where(eq(orderServiceCharges.orderId, req.params.orderId));
+      res.json(charges);
+    } catch (error) {
+      console.error("Error fetching service charges:", error);
+      res.status(500).json({ message: "Failed to fetch service charges" });
+    }
+  });
+
+  app.post('/api/orders/:orderId/service-charges', isAuthenticated, async (req, res) => {
+    try {
+      if (await isSectionLocked(req.params.orderId, "salesOrder", res)) return;
+      const { db } = await import("./db");
+      const { orderServiceCharges } = await import("@shared/schema");
+      const [charge] = await db.insert(orderServiceCharges).values({
+        orderId: req.params.orderId,
+        chargeType: req.body.chargeType,
+        description: req.body.description,
+        quantity: req.body.quantity || 1,
+        unitCost: req.body.unitCost || "0",
+        unitPrice: req.body.unitPrice || "0",
+        taxable: req.body.taxable || false,
+        includeInMargin: req.body.includeInMargin || false,
+        displayToClient: req.body.displayToClient !== false,
+        vendorId: req.body.vendorId || null,
+        notes: req.body.notes || null,
+      }).returning();
+      res.status(201).json(charge);
+    } catch (error) {
+      console.error("Error creating service charge:", error);
+      res.status(500).json({ message: "Failed to create service charge" });
+    }
+  });
+
+  app.patch('/api/orders/:orderId/service-charges/:chargeId', isAuthenticated, async (req, res) => {
+    try {
+      if (await isSectionLocked(req.params.orderId, "salesOrder", res)) return;
+      const { db } = await import("./db");
+      const { orderServiceCharges } = await import("@shared/schema");
+      const { eq } = await import("drizzle-orm");
+      const updateData: any = { updatedAt: new Date() };
+      const fields = ['chargeType', 'description', 'quantity', 'unitCost', 'unitPrice', 'taxable', 'includeInMargin', 'displayToClient', 'vendorId', 'notes'];
+      fields.forEach(f => { if (req.body[f] !== undefined) updateData[f] = req.body[f]; });
+      const [charge] = await db.update(orderServiceCharges).set(updateData)
+        .where(eq(orderServiceCharges.id, req.params.chargeId)).returning();
+      if (!charge) return res.status(404).json({ message: "Service charge not found" });
+      res.json(charge);
+    } catch (error) {
+      console.error("Error updating service charge:", error);
+      res.status(500).json({ message: "Failed to update service charge" });
+    }
+  });
+
+  app.delete('/api/orders/:orderId/service-charges/:chargeId', isAuthenticated, async (req, res) => {
+    try {
+      if (await isSectionLocked(req.params.orderId, "salesOrder", res)) return;
+      const { db } = await import("./db");
+      const { orderServiceCharges } = await import("@shared/schema");
+      const { eq } = await import("drizzle-orm");
+      await db.delete(orderServiceCharges).where(eq(orderServiceCharges.id, req.params.chargeId));
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting service charge:", error);
+      res.status(500).json({ message: "Failed to delete service charge" });
     }
   });
 
@@ -5845,7 +6108,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Build WHERE conditions
       const conditions: string[] = ["gd.document_type = 'purchase_order'"];
 
-      if (stage) conditions.push(`gd.metadata->>'poStage' = '${stage}'`);
+      if (stage) {
+        if (stage === 'open') {
+          conditions.push(`gd.metadata->>'poStage' IN ('created','submitted','confirmed','shipped','ready_for_billing')`);
+        } else if (stage === 'in_production') {
+          conditions.push(`gd.metadata->>'poStage' IN ('created','submitted','confirmed')`);
+        } else {
+          conditions.push(`gd.metadata->>'poStage' = '${stage}'`);
+        }
+      }
       if (status) conditions.push(`gd.metadata->>'poStatus' = '${status}'`);
       if (vendorId) conditions.push(`gd.vendor_id = '${vendorId}'`);
       if (assigneeId) conditions.push(`o.assigned_user_id = '${assigneeId}'`);
@@ -8480,8 +8751,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { token } = req.params;
 
       const { db } = await import("./db");
-      const { artworkApprovals, orders, orderItems, products, companies } = await import("@shared/schema");
-      const { eq } = await import("drizzle-orm");
+      const { artworkApprovals, artworkItems, orders, orderItems, products, companies } = await import("@shared/schema");
+      const { eq, and, desc } = await import("drizzle-orm");
 
       const [approval] = await db
         .select({
@@ -8495,11 +8766,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
           declinedAt: artworkApprovals.declinedAt,
           declineReason: artworkApprovals.declineReason,
           pdfPath: artworkApprovals.pdfPath,
+          clientName: artworkApprovals.clientName,
+          sentAt: artworkApprovals.sentAt,
           orderNumber: orders.orderNumber,
           companyId: orders.companyId,
           companyName: companies.name,
           productName: products.name,
           productSku: products.sku,
+          productImageUrl: products.imageUrl,
           itemQuantity: orderItems.quantity,
           itemColor: orderItems.color,
           itemSize: orderItems.size,
@@ -8515,6 +8789,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Approval not found" });
       }
 
+      // Fetch artwork items for this order item (decoration details)
+      let artworkDetails: any[] = [];
+      if (approval.orderItemId) {
+        artworkDetails = await db
+          .select()
+          .from(artworkItems)
+          .where(eq(artworkItems.orderItemId, approval.orderItemId));
+      }
+
+      // Fetch approval history for this order item (previous approvals)
+      let approvalHistory: any[] = [];
+      if (approval.orderItemId) {
+        approvalHistory = await db
+          .select({
+            id: artworkApprovals.id,
+            status: artworkApprovals.status,
+            approvedAt: artworkApprovals.approvedAt,
+            declinedAt: artworkApprovals.declinedAt,
+            declineReason: artworkApprovals.declineReason,
+            clientName: artworkApprovals.clientName,
+            sentAt: artworkApprovals.sentAt,
+            createdAt: artworkApprovals.createdAt,
+          })
+          .from(artworkApprovals)
+          .where(and(
+            eq(artworkApprovals.orderItemId, approval.orderItemId),
+            eq(artworkApprovals.orderId, approval.orderId)
+          ))
+          .orderBy(desc(artworkApprovals.createdAt));
+      }
+
       // Format response
       const response = {
         id: approval.id,
@@ -8526,6 +8831,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         approvedAt: approval.approvedAt,
         rejectedAt: approval.declinedAt,
         comments: approval.declineReason,
+        clientName: approval.clientName,
+        sentAt: approval.sentAt,
         order: {
           orderNumber: approval.orderNumber,
           companyName: approval.companyName || "Individual Client",
@@ -8536,7 +8843,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
           quantity: approval.itemQuantity || 0,
           color: approval.itemColor,
           size: approval.itemSize,
+          imageUrl: approval.productImageUrl,
         },
+        artworkDetails: artworkDetails.map((art: any) => ({
+          id: art.id,
+          name: art.name,
+          artworkType: art.artworkType,
+          location: art.location,
+          color: art.color,
+          size: art.size,
+          status: art.status,
+          filePath: art.filePath,
+          fileName: art.fileName,
+          proofFilePath: art.proofFilePath,
+          proofFileName: art.proofFileName,
+          notes: art.notes,
+        })),
+        approvalHistory: approvalHistory
+          .filter((h: any) => h.id !== approval.id) // exclude current
+          .map((h: any) => ({
+            id: h.id,
+            status: h.status,
+            approvedAt: h.approvedAt,
+            declinedAt: h.declinedAt,
+            declineReason: h.declineReason,
+            clientName: h.clientName,
+            sentAt: h.sentAt,
+            createdAt: h.createdAt,
+          })),
       };
 
       res.json(response);
@@ -9805,6 +10139,221 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Error declining quote:', error);
       res.status(500).json({ message: 'Failed to decline quote' });
+    }
+  });
+
+  // =============== PO Confirmation Portal (Vendor) ===============
+
+  // Create PO confirmation (sends to vendor)
+  app.post('/api/orders/:orderId/po-confirmations', isAuthenticated, async (req, res) => {
+    try {
+      const { orderId } = req.params;
+      const { documentId, vendorEmail, vendorName, vendorId, poTotal, pdfPath } = req.body;
+      const { db } = await import("./db");
+      const { poConfirmations } = await import("@shared/schema");
+      const crypto = await import("crypto");
+
+      const token = crypto.randomBytes(32).toString("hex");
+      const [confirmation] = await db.insert(poConfirmations).values({
+        orderId,
+        documentId,
+        confirmationToken: token,
+        vendorEmail,
+        vendorName,
+        vendorId,
+        poTotal: poTotal || null,
+        pdfPath: pdfPath || null,
+        sentAt: new Date(),
+      } as any).returning();
+
+      res.json({ success: true, confirmation, confirmationUrl: `/po-confirmation/${token}` });
+    } catch (error) {
+      console.error("Error creating PO confirmation:", error);
+      res.status(500).json({ message: "Failed to create PO confirmation" });
+    }
+  });
+
+  // Get PO confirmation (public — vendor portal)
+  app.get('/api/po-confirmations/:token', async (req, res) => {
+    try {
+      const { token } = req.params;
+      const { db } = await import("./db");
+      const { poConfirmations, orders, companies, generatedDocuments, orderItems, products } = await import("@shared/schema");
+      const { eq, and, sql } = await import("drizzle-orm");
+
+      const result = await db.execute(sql.raw(`
+        SELECT
+          pc.*,
+          o.order_number, o.in_hands_date, o.supplier_in_hands_date, o.event_date,
+          o.is_firm, o.is_rush, o.supplier_notes, o.shipping_method,
+          o.shipping_address,
+          c.name as company_name,
+          gd.document_number, gd.file_url as pdf_url, gd.vendor_name as doc_vendor_name
+        FROM po_confirmations pc
+        INNER JOIN orders o ON pc.order_id = o.id
+        LEFT JOIN companies c ON o.company_id = c.id
+        LEFT JOIN generated_documents gd ON pc.document_id = gd.id
+        WHERE pc.confirmation_token = '${token}'
+      `));
+
+      const rows = (result as any).rows ?? result;
+      if (rows.length === 0) return res.status(404).json({ message: "PO confirmation not found" });
+
+      const confirmation = rows[0];
+
+      // Mark as viewed on first access
+      if (!confirmation.viewed_at) {
+        await db.execute(sql.raw(`
+          UPDATE po_confirmations SET viewed_at = NOW() WHERE confirmation_token = '${token}'
+        `));
+      }
+
+      // Get PO items
+      const itemsResult = await db.execute(sql.raw(`
+        SELECT
+          oi.quantity, oi.unit_price, oi.total_price, oi.color, oi.size,
+          oi.imprint_location, oi.imprint_method, oi.notes,
+          p.name as product_name, p.sku as product_sku, p.image_url as product_image
+        FROM order_items oi
+        LEFT JOIN products p ON oi.product_id = p.id
+        LEFT JOIN generated_documents gd ON gd.order_id = oi.order_id
+        WHERE gd.id = '${confirmation.document_id}'
+          AND oi.supplier_id = gd.vendor_id
+      `));
+      const items = (itemsResult as any).rows ?? itemsResult;
+
+      res.json({
+        ...confirmation,
+        items,
+      });
+    } catch (error) {
+      console.error("Error fetching PO confirmation:", error);
+      res.status(500).json({ message: "Failed to fetch PO confirmation" });
+    }
+  });
+
+  // Vendor confirms PO (public)
+  app.post('/api/po-confirmations/:token/confirm', async (req, res) => {
+    try {
+      const { token } = req.params;
+      const { notes } = req.body;
+      const { db } = await import("./db");
+      const { poConfirmations, generatedDocuments } = await import("@shared/schema");
+      const { eq, sql } = await import("drizzle-orm");
+
+      // Get confirmation
+      const result = await db.execute(sql.raw(`
+        SELECT * FROM po_confirmations WHERE confirmation_token = '${token}'
+      `));
+      const rows = (result as any).rows ?? result;
+      if (rows.length === 0) return res.status(404).json({ message: "Not found" });
+
+      const confirmation = rows[0];
+      if (confirmation.status !== "pending") {
+        return res.status(400).json({ message: "PO already " + confirmation.status });
+      }
+
+      // Update confirmation
+      await db.execute(sql.raw(`
+        UPDATE po_confirmations
+        SET status = 'confirmed', confirmed_at = NOW(), confirmation_notes = ${notes ? `'${notes.replace(/'/g, "''")}'` : 'NULL'}, updated_at = NOW()
+        WHERE confirmation_token = '${token}'
+      `));
+
+      // Auto-transition PO stage to "confirmed"
+      if (confirmation.document_id) {
+        const docResult = await db.execute(sql.raw(`
+          SELECT metadata FROM generated_documents WHERE id = '${confirmation.document_id}'
+        `));
+        const docRows = (docResult as any).rows ?? docResult;
+        if (docRows.length > 0) {
+          const metadata = typeof docRows[0].metadata === 'string' ? JSON.parse(docRows[0].metadata) : (docRows[0].metadata || {});
+          metadata.poStage = "confirmed";
+          await db.execute(sql.raw(`
+            UPDATE generated_documents SET metadata = '${JSON.stringify(metadata).replace(/'/g, "''")}' WHERE id = '${confirmation.document_id}'
+          `));
+        }
+      }
+
+      // Log activity
+      const { projectActivities } = await import("@shared/project-schema");
+      await db.insert(projectActivities).values({
+        orderId: confirmation.order_id,
+        activityType: "system_action",
+        content: `Vendor ${confirmation.vendor_name || confirmation.vendor_email} confirmed PO`,
+        metadata: { action: "po_vendor_confirmed", vendorName: confirmation.vendor_name, vendorEmail: confirmation.vendor_email, notes },
+      } as any);
+
+      // Notify order rep
+      const { orders: ordersTable } = await import("@shared/schema");
+      const orderResult = await db.execute(sql.raw(`SELECT assigned_user_id, order_number FROM orders WHERE id = '${confirmation.order_id}'`));
+      const orderRows = (orderResult as any).rows ?? orderResult;
+      if (orderRows.length > 0 && orderRows[0].assigned_user_id) {
+        await storage.createNotificationsForUsers([orderRows[0].assigned_user_id], {
+          type: 'po_confirmed',
+          title: 'PO Confirmed by Vendor',
+          message: `${confirmation.vendor_name || 'Vendor'} has confirmed PO for order #${orderRows[0].order_number}`,
+          orderId: confirmation.order_id,
+        });
+      }
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error confirming PO:", error);
+      res.status(500).json({ message: "Failed to confirm PO" });
+    }
+  });
+
+  // Vendor declines PO (public)
+  app.post('/api/po-confirmations/:token/decline', async (req, res) => {
+    try {
+      const { token } = req.params;
+      const { reason } = req.body;
+      const { db } = await import("./db");
+      const { sql } = await import("drizzle-orm");
+
+      const result = await db.execute(sql.raw(`
+        SELECT * FROM po_confirmations WHERE confirmation_token = '${token}'
+      `));
+      const rows = (result as any).rows ?? result;
+      if (rows.length === 0) return res.status(404).json({ message: "Not found" });
+
+      const confirmation = rows[0];
+      if (confirmation.status !== "pending") {
+        return res.status(400).json({ message: "PO already " + confirmation.status });
+      }
+
+      await db.execute(sql.raw(`
+        UPDATE po_confirmations
+        SET status = 'declined', declined_at = NOW(), decline_reason = ${reason ? `'${reason.replace(/'/g, "''")}'` : 'NULL'}, updated_at = NOW()
+        WHERE confirmation_token = '${token}'
+      `));
+
+      // Log activity
+      const { projectActivities } = await import("@shared/project-schema");
+      await db.insert(projectActivities).values({
+        orderId: confirmation.order_id,
+        activityType: "system_action",
+        content: `Vendor ${confirmation.vendor_name || confirmation.vendor_email} declined PO. Reason: ${reason || 'No reason given'}`,
+        metadata: { action: "po_vendor_declined", vendorName: confirmation.vendor_name, reason },
+      } as any);
+
+      // Notify order rep
+      const orderResult = await db.execute(sql.raw(`SELECT assigned_user_id, order_number FROM orders WHERE id = '${confirmation.order_id}'`));
+      const orderRows = (orderResult as any).rows ?? orderResult;
+      if (orderRows.length > 0 && orderRows[0].assigned_user_id) {
+        await storage.createNotificationsForUsers([orderRows[0].assigned_user_id], {
+          type: 'po_declined',
+          title: 'PO Declined by Vendor',
+          message: `${confirmation.vendor_name || 'Vendor'} declined PO for order #${orderRows[0].order_number}. Reason: ${reason || 'Not specified'}`,
+          orderId: confirmation.order_id,
+        });
+      }
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error declining PO:", error);
+      res.status(500).json({ message: "Failed to decline PO" });
     }
   });
 

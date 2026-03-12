@@ -38,6 +38,7 @@ import AcceptInvitation from "@/pages/accept-invitation";
 import CustomerPortalPage from "@/pages/customer-portal";
 import PublicPresentationPage from "@/pages/public-presentation";
 import MediaLibraryPage from "@/pages/media-library";
+import POConfirmationPage from "@/pages/po-confirmation";
 import { SlackSidebar } from "@/components/SlackSidebar";
 import { SidebarProvider, SidebarInset, useSidebar } from "@/components/ui/sidebar";
 import { ThemeProvider } from "@/providers/ThemeProvider";
@@ -139,6 +140,9 @@ function Router() {
 
       {/* Public invitation acceptance route */}
       <Route path="/accept-invitation" component={AcceptInvitation} />
+
+      {/* Public PO confirmation portal - vendor confirmation */}
+      <Route path="/po-confirmation/:token" component={POConfirmationPage} />
 
       {/* Public customer portal - order tracking */}
       <Route path="/portal/:token" component={CustomerPortalPage} />

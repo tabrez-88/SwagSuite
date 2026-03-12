@@ -147,20 +147,18 @@ Reference document comparing CommonSKU's order flow with SwagSuite's implementat
 
 ### 🟡 Important Gaps
 
-#### 3.5 Service Charges System (NOT IMPLEMENTED)
+#### 3.5 Service Charges System ✅ IMPLEMENTED
 **CommonSKU**: Dedicated service types (Freight, Fulfillment, Shipping, Other, Custom) with cost/margin tracking, tax support, admin margin controls.
-**SwagSuite**: Shipping cost is a single field on shipments. No formal service charge system for freight, fulfillment, or custom services.
-**Impact**: Can't properly track and bill for various service charges with margins.
+**SwagSuite**: `orderServiceCharges` table with 6 charge types, cost/price/margin tracking, taxable flag, margin inclusion control. CRUD endpoints + UI in SalesOrderSection "Services" tab. Included in SO and Quote PDF templates.
 
 #### 3.6 Multi-Leg Shipping / Fulfillment POs (NOT IMPLEMENTED)
 **CommonSKU**: Supports multi-leg shipping chains (Supplier → Decorator → Fulfillment → Client) with separate POs per leg, auto-generated.
 **SwagSuite**: Single-leg shipping only. One PO per vendor. No fulfillment routing or multi-destination PO generation.
 **Impact**: Can't handle orders that go through decoration or fulfillment before reaching client.
 
-#### 3.7 Per-Product Shipping Configuration (NOT IMPLEMENTED)
+#### 3.7 Per-Product Shipping Configuration ✅ IMPLEMENTED
 **CommonSKU**: Each product in SO has individual shipping config: destination, account type, courier, ship method, dates.
-**SwagSuite**: Shipping is at order level, not per product. All items share same shipping address and method.
-**Impact**: Can't split-ship different products to different destinations or through different routes.
+**SwagSuite**: `shippingDestination`, `shippingAccountType`, `shippingMethodOverride`, `shippingNotes` fields on orderItems. Editable in ProductsSection edit dialog.
 
 #### 3.8 Supplier Live PO Confirmation (NOT IMPLEMENTED)
 **CommonSKU**: Suppliers can approve POs via live forms (auto-confirms). For non-integrated suppliers, manual confirmation.

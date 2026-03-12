@@ -70,6 +70,7 @@ export interface ProjectData {
   portalTokens: CustomerPortalToken[];
   quoteApprovals: any[];
   vendorInvoices: any[];
+  serviceCharges: any[];
   companyName: string;
   primaryContact: any;
   companyData: any;

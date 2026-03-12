@@ -43,7 +43,7 @@ export function useProjectData(orderId: string | null | undefined): ProjectData 
       if (!response.ok) return null;
       return response.json();
     },
-    enabled,
+    enabled: enabled && !!order,
     retry: false,
   });
 
@@ -199,6 +199,11 @@ export function useProjectData(orderId: string | null | undefined): ProjectData 
     retry: false,
   });
 
+  const { data: serviceCharges = [] } = useQuery<any[]>({
+    queryKey: [`/api/orders/${orderId}/service-charges`],
+    enabled: enabled && !!order,
+  });
+
   // Computed values
 
   const companyName = order?.companyId
@@ -272,6 +277,7 @@ export function useProjectData(orderId: string | null | undefined): ProjectData 
     // Project-specific
     quoteApprovals,
     vendorInvoices,
+    serviceCharges,
     // Computed values
     companyName,
     primaryContact,

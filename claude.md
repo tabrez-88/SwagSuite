@@ -265,6 +265,45 @@ Section-level auto-locking that prevents edits on finalized stages. Lock state i
 - `client/src/components/documents/SalesOrderTemplate.tsx` — SO PDF template
 - `client/src/pages/quote-approval.tsx` — Public approval page (serves both `/client-approval/` and `/quote-approval/` routes)
 
+## Image Proxy & PDF Image Rendering
+
+### CORS Problem & Solution
+External product images (e.g., SanMar CDN) are blocked by CORS, preventing html2canvas from capturing them in PDF generation. Solution: server-side image proxy makes external images same-origin.
+
+### Server Proxy
+- `GET /api/image-proxy?url=...` — Authenticated endpoint that fetches external images server-side, returns as same-origin
+- Validates URL starts with `http://` or `https://`
+- Returns original content-type, caches for 24h (`Cache-Control: public, max-age=86400`)
+
+### Client Utilities (`client/src/lib/imageUtils.ts`)
+- **`proxyImg(url)`** — Wraps external image URLs through `/api/image-proxy`. Passes through `data:`, `/` (relative), and `cloudinary.com` URLs unchanged.
+- **`imageToBase64(url)`** — Converts image URL to base64 data URL via canvas. Tries direct CORS first, falls back to server proxy. Handles 0x0 canvas bug (CORS-failed images fire `onload` with `naturalWidth=0`).
+- **`preloadAndConvertImages(element)`** — Pre-PDF-generation: waits for all `<img>` to load, converts cross-origin to base64. Returns cleanup function to restore original `src` attributes.
+- All three PDF templates (`QuoteTemplate`, `SalesOrderTemplate`, `PurchaseOrderTemplate`) use `proxyImg()` on all `<img src>` and have NO `crossOrigin="anonymous"` attributes.
+- `useDocumentGeneration` hook and `DocumentEditor` import from `@/lib/imageUtils` (no duplicate code).
+
+### CommonSKU-style PDF Layout
+- All templates show product image (left) + details (right) per line item
+- Artwork thumbnails with decoration details (type, location, color, size) shown per item
+- PO template additionally shows proof status and proof file thumbnails
+
+### Client Approval Page
+- `/client-approval/:token` shows product image thumbnails (64x64) next to each item
+- Server includes `productImageUrl` from `products.imageUrl` in approval API response
+
+## Media Library & FilePickerDialog Improvements
+
+### FilePickerDialog Scroll & Thumbnails
+- Uses plain `<div className="flex-1 min-h-0 overflow-y-auto">` for scrollable file grid (NOT Radix ScrollArea — it breaks flex height propagation)
+- `isImageFile(mimeType, url?)` — Enhanced with optional `url` parameter for fallback detection from file extension or Cloudinary `/image/upload/` path when `mimeType` is null
+- `inferMimeType(fileName, url)` — Helper in FilePickerDialog that infers MIME type from file extension (supports jpg/png/gif/webp/svg/pdf/doc/xls/csv/ai/eps)
+- `orderFileToMediaItem()` — Uses `inferMimeType` fallback when server returns null `mimeType`
+
+### Artwork Creation Fields
+- **Design Size** and **Design Color** fields added to artwork upload dialog in ProductsSection
+- **Decoration Location** and **Imprint Method** are required fields (red asterisk, button disabled until filled)
+- Auto-populates imprint method/location from product-level defaults when file is picked
+
 ## Important Notes
 - `routes.ts` is very large (~9800 lines). Search for specific endpoint patterns rather than reading the whole file.
 - `storage.ts` is also large (~3200 lines). New methods follow existing patterns.

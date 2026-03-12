@@ -14,10 +14,11 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import {
   AlertTriangle, Building2, CheckCircle, ChevronDown, ChevronRight,
-  ClipboardList, Copy, Download, Eye, FileText, Loader2,
-  Mail, MoreHorizontal, Package, Palette, Printer, Send, Upload,
+  ClipboardList, Copy, Download, ExternalLink, Eye, FileText, Loader2,
+  Mail, MoreHorizontal, Package, Palette, Printer, Send, ShieldCheck, Upload,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
@@ -499,6 +500,18 @@ export default function PurchaseOrdersSection({ orderId, data, isLocked }: Purch
                                 <Mail className="w-3 h-3" /> Email to Vendor
                               </Button>
                             )}
+                            {/* Send for Vendor Confirmation */}
+                            {(poStage === "submitted") && (
+                              <Button variant="outline" size="sm" className="h-7 text-xs gap-1 border-green-200 text-green-700 hover:bg-green-50"
+                                onClick={() => sendForConfirmationMutation.mutate({
+                                  doc: vendorDoc,
+                                  vendor: po.vendor,
+                                })}
+                                disabled={isLocked || sendForConfirmationMutation.isPending}>
+                                {sendForConfirmationMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <ExternalLink className="w-3 h-3" />}
+                                Send for Confirmation
+                              </Button>
+                            )}
                             {/* More Actions Dropdown */}
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
@@ -648,13 +661,14 @@ export default function PurchaseOrdersSection({ orderId, data, isLocked }: Purch
                         </h4>
                         <div className="space-y-2">
                           {vendorArtworks.map((art: any) => {
+                            const proofRequired = art.proofRequired !== false; // default true
                             const si = PROOF_STATUSES[art.status] || PROOF_STATUSES.pending;
-                            const canUpload = ["awaiting_proof", "change_requested"].includes(art.status);
-                            const canSendClient = ["proof_received", "change_requested"].includes(art.status);
-                            const canMarkComplete = art.status === "approved";
+                            const canUpload = proofRequired && ["awaiting_proof", "change_requested"].includes(art.status);
+                            const canSendClient = proofRequired && ["proof_received", "change_requested"].includes(art.status);
+                            const canMarkComplete = proofRequired && art.status === "approved";
 
                             return (
-                              <div key={art.id} className="flex items-center gap-3 p-2 bg-gray-50 rounded-lg border">
+                              <div key={art.id} className={`flex items-center gap-3 p-2 rounded-lg border ${proofRequired ? "bg-gray-50" : "bg-gray-50/50 opacity-60"}`}>
                                 <div className="w-10 h-10 flex-shrink-0 bg-white rounded border overflow-hidden flex items-center justify-center cursor-pointer"
                                   onClick={() => { const url = art.fileUrl || art.filePath; if (url) setPreviewFile({ url, name: art.name || "Artwork" }); }}>
                                   {art.fileUrl || art.filePath ? (
@@ -667,58 +681,82 @@ export default function PurchaseOrdersSection({ orderId, data, isLocked }: Purch
                                   <p className="text-xs font-medium truncate">{art.name || art.fileName}</p>
                                   <p className="text-[10px] text-gray-400">{art.productName} {art.location ? `· ${art.location}` : ""}</p>
                                 </div>
-                                <Badge variant="outline" className={`text-[10px] ${si.color}`}>{si.label}</Badge>
+
+                                {/* Proof Required toggle */}
+                                <div className="flex items-center gap-1.5" title={proofRequired ? "Proof required" : "No proof needed"}>
+                                  <ShieldCheck className={`w-3 h-3 ${proofRequired ? "text-blue-500" : "text-gray-300"}`} />
+                                  <Switch
+                                    checked={proofRequired}
+                                    onCheckedChange={(checked) => {
+                                      updateArtworkMutation.mutate({
+                                        artworkId: art.id, orderItemId: art.orderItemId,
+                                        updates: { name: art.name, proofRequired: checked },
+                                      });
+                                    }}
+                                    className="h-4 w-7"
+                                    disabled={isLocked}
+                                  />
+                                </div>
+
+                                {proofRequired && (
+                                  <Badge variant="outline" className={`text-[10px] ${si.color}`}>{si.label}</Badge>
+                                )}
+                                {!proofRequired && (
+                                  <Badge variant="outline" className="text-[10px] bg-gray-50 text-gray-400">No Proof</Badge>
+                                )}
 
                                 {/* Proof actions */}
-                                <DropdownMenu>
-                                  <DropdownMenuTrigger asChild>
-                                    <Button variant="ghost" size="sm" className="h-7 w-7 p-0">
-                                      <MoreHorizontal className="w-3 h-3" />
-                                    </Button>
-                                  </DropdownMenuTrigger>
-                                  <DropdownMenuContent align="end">
-                                    {["pending", "change_requested"].includes(art.status || "pending") && (
-                                      <DropdownMenuItem onClick={() => {
-                                        updateArtworkMutation.mutate({
-                                          artworkId: art.id, orderItemId: art.orderItemId,
-                                          updates: { name: art.name, status: "awaiting_proof" },
-                                        });
-                                        toast({ title: "Status set to Awaiting Proof" });
-                                      }}>
-                                        <Mail className="w-4 h-4 mr-2" /> Mark Awaiting Proof
-                                      </DropdownMenuItem>
-                                    )}
-                                    {canUpload && (
-                                      <DropdownMenuItem onClick={() => setUploadProofArt(art)}>
-                                        <Upload className="w-4 h-4 mr-2" /> Upload Vendor Proof
-                                      </DropdownMenuItem>
-                                    )}
-                                    {canSendClient && (
-                                      <DropdownMenuItem onClick={() => openSendProof(art)}>
-                                        <Send className="w-4 h-4 mr-2" /> Send Proof to Client
-                                      </DropdownMenuItem>
-                                    )}
-                                    {canMarkComplete && (
-                                      <DropdownMenuItem onClick={() => {
-                                        updateArtworkMutation.mutate({
-                                          artworkId: art.id, orderItemId: art.orderItemId,
-                                          updates: { name: art.name, status: "proofing_complete" },
-                                        });
-                                        toast({ title: "Proofing marked as complete" });
-                                      }}>
-                                        <CheckCircle className="w-4 h-4 mr-2" /> Mark Proofing Complete
-                                      </DropdownMenuItem>
-                                    )}
-                                    {art.proofFilePath && (
-                                      <>
-                                        <DropdownMenuSeparator />
-                                        <DropdownMenuItem onClick={() => setPreviewFile({ url: art.proofFilePath, name: art.proofFileName || "Vendor Proof" })}>
-                                          <Eye className="w-4 h-4 mr-2" /> View Vendor Proof
+                                {proofRequired && (
+                                  <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                      <Button variant="ghost" size="sm" className="h-7 w-7 p-0">
+                                        <MoreHorizontal className="w-3 h-3" />
+                                      </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end">
+                                      {["pending", "change_requested"].includes(art.status || "pending") && (
+                                        <DropdownMenuItem onClick={() => {
+                                          updateArtworkMutation.mutate({
+                                            artworkId: art.id, orderItemId: art.orderItemId,
+                                            updates: { name: art.name, status: "awaiting_proof" },
+                                          });
+                                          toast({ title: "Status set to Awaiting Proof" });
+                                        }}>
+                                          <Mail className="w-4 h-4 mr-2" /> Mark Awaiting Proof
                                         </DropdownMenuItem>
-                                      </>
-                                    )}
-                                  </DropdownMenuContent>
-                                </DropdownMenu>
+                                      )}
+                                      {canUpload && (
+                                        <DropdownMenuItem onClick={() => setUploadProofArt(art)}>
+                                          <Upload className="w-4 h-4 mr-2" /> Upload Vendor Proof
+                                        </DropdownMenuItem>
+                                      )}
+                                      {canSendClient && (
+                                        <DropdownMenuItem onClick={() => openSendProof(art)}>
+                                          <Send className="w-4 h-4 mr-2" /> Send Proof to Client
+                                        </DropdownMenuItem>
+                                      )}
+                                      {canMarkComplete && (
+                                        <DropdownMenuItem onClick={() => {
+                                          updateArtworkMutation.mutate({
+                                            artworkId: art.id, orderItemId: art.orderItemId,
+                                            updates: { name: art.name, status: "proofing_complete" },
+                                          });
+                                          toast({ title: "Proofing marked as complete" });
+                                        }}>
+                                          <CheckCircle className="w-4 h-4 mr-2" /> Mark Proofing Complete
+                                        </DropdownMenuItem>
+                                      )}
+                                      {art.proofFilePath && (
+                                        <>
+                                          <DropdownMenuSeparator />
+                                          <DropdownMenuItem onClick={() => setPreviewFile({ url: art.proofFilePath, name: art.proofFileName || "Vendor Proof" })}>
+                                            <Eye className="w-4 h-4 mr-2" /> View Vendor Proof
+                                          </DropdownMenuItem>
+                                        </>
+                                      )}
+                                    </DropdownMenuContent>
+                                  </DropdownMenu>
+                                )}
                               </div>
                             );
                           })}

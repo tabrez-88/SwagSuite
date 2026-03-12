@@ -36,8 +36,15 @@ export function getCloudinaryThumbnail(url: string, width = 200, height = 200): 
   return url.replace("/upload/", `/upload/w_${width},h_${height},c_fill,q_auto,f_auto/`);
 }
 
-export function isImageFile(mimeType: string | null): boolean {
-  return !!mimeType?.startsWith("image/");
+export function isImageFile(mimeType: string | null, url?: string | null): boolean {
+  if (mimeType?.startsWith("image/")) return true;
+  // Fallback: detect from URL or file extension when mimeType is missing
+  if (!mimeType && url) {
+    const cleanUrl = url.split("?")[0].split("#")[0].toLowerCase();
+    return /\.(jpe?g|png|gif|webp|svg|bmp|ico|tiff?)$/.test(cleanUrl) ||
+      cleanUrl.includes("/image/upload/"); // Cloudinary image URLs
+  }
+  return false;
 }
 
 export function isPdfFile(mimeType: string | null): boolean {

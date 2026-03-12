@@ -8,18 +8,23 @@ interface SalesOrderTemplateProps {
   companyName: string;
   primaryContact: any;
   allArtworkItems?: Record<string, any[]>;
+  serviceCharges?: any[];
 }
 
 const SalesOrderTemplate = forwardRef<HTMLDivElement, SalesOrderTemplateProps>(
-  ({ order, orderItems, companyName, primaryContact, allArtworkItems = {} }, ref) => {
+  ({ order, orderItems, companyName, primaryContact, allArtworkItems = {}, serviceCharges = [] }, ref) => {
     const subtotal = orderItems.reduce((sum: number, item: any) => {
       const unitPrice = parseFloat(item.unitPrice) || 0;
       const quantity = item.quantity || 0;
       return sum + unitPrice * quantity;
     }, 0);
-    const shipping = parseFloat(order?.shippingCost) || 0;
+    const shipping = parseFloat(order?.shippingCost) || parseFloat(order?.shipping) || 0;
     const tax = parseFloat(order?.tax) || 0;
-    const total = subtotal + shipping + tax;
+    const clientServiceCharges = serviceCharges.filter((c: any) => c.displayToClient !== false);
+    const serviceChargesTotal = clientServiceCharges.reduce((sum: number, c: any) => {
+      return sum + (c.quantity || 1) * parseFloat(c.unitPrice || "0");
+    }, 0);
+    const total = subtotal + shipping + tax + serviceChargesTotal;
 
     const billingAddr = (() => {
       try {
@@ -259,6 +264,37 @@ const SalesOrderTemplate = forwardRef<HTMLDivElement, SalesOrderTemplateProps>(
             })}
           </div>
 
+          {/* Service Charges */}
+          {clientServiceCharges.length > 0 && (
+            <div className="mb-6">
+              <h3 className="text-sm font-bold text-gray-800 mb-2 pb-1 border-b border-gray-300">Services & Fees</h3>
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-gray-200">
+                    <th className="text-left py-1 text-xs font-bold text-gray-700">SERVICE</th>
+                    <th className="text-center py-1 text-xs font-bold text-gray-700" style={{ width: "60px" }}>QTY</th>
+                    <th className="text-right py-1 text-xs font-bold text-gray-700" style={{ width: "70px" }}>PRICE</th>
+                    <th className="text-right py-1 text-xs font-bold text-gray-700" style={{ width: "80px" }}>AMOUNT</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {clientServiceCharges.map((charge: any) => {
+                    const qty = charge.quantity || 1;
+                    const price = parseFloat(charge.unitPrice || "0");
+                    return (
+                      <tr key={charge.id} className="border-b border-gray-100">
+                        <td className="py-1.5 text-xs">{charge.description}</td>
+                        <td className="py-1.5 text-xs text-center">{qty}</td>
+                        <td className="py-1.5 text-xs text-right">${price.toFixed(2)}</td>
+                        <td className="py-1.5 text-xs text-right font-medium">${(qty * price).toFixed(2)}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+
           {/* Totals */}
           <div className="flex justify-end mb-6">
             <div className="w-64">
@@ -266,6 +302,12 @@ const SalesOrderTemplate = forwardRef<HTMLDivElement, SalesOrderTemplateProps>(
                 <span>Subtotal:</span>
                 <span>${subtotal.toFixed(2)}</span>
               </div>
+              {serviceChargesTotal > 0 && (
+                <div className="flex justify-between py-1 text-sm">
+                  <span>Services & Fees:</span>
+                  <span>${serviceChargesTotal.toFixed(2)}</span>
+                </div>
+              )}
               {shipping > 0 && (
                 <div className="flex justify-between py-1 text-sm">
                   <span>Shipping:</span>

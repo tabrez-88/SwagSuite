@@ -4,7 +4,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -13,17 +15,25 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+} from "@/components/ui/dialog";
+import {
   ChevronDown,
   ChevronUp,
   Clock,
+  Copy,
   CreditCard,
+  DollarSign,
   Eye,
   FileText,
   Loader2,
   MapPin,
   Package,
   Palette,
+  Plus,
   Send,
+  Trash2,
+  Wrench,
 } from "lucide-react";
 import { format } from "date-fns";
 import { useLocation } from "wouter";
@@ -133,6 +143,20 @@ export default function SalesOrderSection({ orderId, data, lockStatus }: SalesOr
     },
   });
 
+  const duplicateOrderMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", `/api/orders/${orderId}/duplicate`);
+      return res;
+    },
+    onSuccess: (data: any) => {
+      toast({ title: "Order duplicated!", description: `New order #${data.order?.orderNumber} created` });
+      setLocation(`/project/${data.order?.id}`);
+    },
+    onError: () => {
+      toast({ title: "Failed to duplicate order", variant: "destructive" });
+    },
+  });
+
   // SO document generation
   const currentSOHash = useMemo(() => {
     return buildItemsHash(orderItems, "sales_order", order);
@@ -235,11 +259,25 @@ export default function SalesOrderSection({ orderId, data, lockStatus }: SalesOr
           </div>
         </div>
 
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => setIsInfoCollapsed(!isInfoCollapsed)}
-        >
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              if (!confirm("Duplicate this order? A new project will be created with all items and settings copied.")) return;
+              duplicateOrderMutation.mutate();
+            }}
+            disabled={duplicateOrderMutation.isPending}
+            className="gap-1.5"
+          >
+            {duplicateOrderMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Copy className="w-4 h-4" />}
+            Duplicate Order
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setIsInfoCollapsed(!isInfoCollapsed)}
+          >
           {isInfoCollapsed ? (
             <>
               <ChevronDown className="w-4 h-4 mr-1" />
@@ -251,7 +289,8 @@ export default function SalesOrderSection({ orderId, data, lockStatus }: SalesOr
               Collapse Info
             </>
           )}
-        </Button>
+          </Button>
+        </div>
       </div>
 
       {/* Collapsible Order Info Section */}
@@ -502,12 +541,19 @@ export default function SalesOrderSection({ orderId, data, lockStatus }: SalesOr
         </CardContent>
       </Card>
 
-      {/* Products / Artwork Tabs - CommonSKU style */}
+      {/* Products / Services / Artwork Tabs - CommonSKU style */}
       <Tabs defaultValue="products" className="w-full">
         <TabsList>
           <TabsTrigger value="products" className="gap-1">
             <Package className="w-4 h-4" />
             Products
+          </TabsTrigger>
+          <TabsTrigger value="services" className="gap-1">
+            <Wrench className="w-4 h-4" />
+            Services
+            {data.serviceCharges.length > 0 && (
+              <Badge variant="secondary" className="ml-1 h-5 text-[10px]">{data.serviceCharges.length}</Badge>
+            )}
           </TabsTrigger>
           <TabsTrigger value="artwork" className="gap-1">
             <Palette className="w-4 h-4" />
@@ -518,6 +564,11 @@ export default function SalesOrderSection({ orderId, data, lockStatus }: SalesOr
         {/* Products Tab */}
         <TabsContent value="products" className="mt-4">
           <ProductsSection orderId={orderId} data={data} isLocked={isLocked} />
+        </TabsContent>
+
+        {/* Services Tab */}
+        <TabsContent value="services" className="mt-4">
+          <ServiceChargesTab orderId={orderId} data={data} isLocked={isLocked} />
         </TabsContent>
 
         {/* Artwork & Proofing Tab */}
@@ -534,6 +585,7 @@ export default function SalesOrderSection({ orderId, data, lockStatus }: SalesOr
         companyName={companyName}
         primaryContact={primaryContact}
         allArtworkItems={allArtworkItems}
+        serviceCharges={data.serviceCharges}
       />
 
       {/* Document Editor Modal */}
@@ -566,6 +618,345 @@ export default function SalesOrderSection({ orderId, data, lockStatus }: SalesOr
           createQuoteApproval={createQuoteApproval}
         />
       )}
+    </div>
+  );
+}
+
+// ── Service Charges Sub-component (CommonSKU-style order-level services) ──────
+
+const SERVICE_CHARGE_TYPES = [
+  { value: "freight", label: "Freight" },
+  { value: "fulfillment", label: "Fulfillment" },
+  { value: "shipping", label: "Shipping" },
+  { value: "rush_fee", label: "Rush Fee" },
+  { value: "other", label: "Other Service" },
+  { value: "custom", label: "Custom Service" },
+];
+
+function ServiceChargesTab({ orderId, data, isLocked }: { orderId: string; data: ReturnType<typeof useProjectData>; isLocked: boolean }) {
+  const { serviceCharges, suppliers } = data;
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const [showAddDialog, setShowAddDialog] = useState(false);
+  const [editingCharge, setEditingCharge] = useState<any>(null);
+
+  // Form state
+  const [formType, setFormType] = useState("freight");
+  const [formDesc, setFormDesc] = useState("");
+  const [formQty, setFormQty] = useState("1");
+  const [formCost, setFormCost] = useState("0");
+  const [formPrice, setFormPrice] = useState("0");
+  const [formTaxable, setFormTaxable] = useState(false);
+  const [formMargin, setFormMargin] = useState(false);
+  const [formDisplay, setFormDisplay] = useState(true);
+  const [formVendor, setFormVendor] = useState("");
+  const [formNotes, setFormNotes] = useState("");
+
+  const resetForm = () => {
+    setFormType("freight"); setFormDesc(""); setFormQty("1");
+    setFormCost("0"); setFormPrice("0"); setFormTaxable(false);
+    setFormMargin(false); setFormDisplay(true); setFormVendor(""); setFormNotes("");
+  };
+
+  const openAdd = () => { resetForm(); setEditingCharge(null); setShowAddDialog(true); };
+
+  const openEdit = (charge: any) => {
+    setFormType(charge.chargeType || "other");
+    setFormDesc(charge.description || "");
+    setFormQty(String(charge.quantity || 1));
+    setFormCost(String(charge.unitCost || "0"));
+    setFormPrice(String(charge.unitPrice || "0"));
+    setFormTaxable(!!charge.taxable);
+    setFormMargin(!!charge.includeInMargin);
+    setFormDisplay(charge.displayToClient !== false);
+    setFormVendor(charge.vendorId || "");
+    setFormNotes(charge.notes || "");
+    setEditingCharge(charge);
+    setShowAddDialog(true);
+  };
+
+  const createMutation = useMutation({
+    mutationFn: async (body: any) => {
+      const res = await fetch(`/api/orders/${orderId}/service-charges`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) throw new Error("Failed");
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/orders/${orderId}/service-charges`] });
+      toast({ title: "Service charge added" });
+      setShowAddDialog(false);
+    },
+    onError: () => toast({ title: "Failed to add service charge", variant: "destructive" }),
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: async ({ id, body }: { id: string; body: any }) => {
+      const res = await fetch(`/api/orders/${orderId}/service-charges/${id}`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" }, credentials: "include",
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) throw new Error("Failed");
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/orders/${orderId}/service-charges`] });
+      toast({ title: "Service charge updated" });
+      setShowAddDialog(false);
+    },
+    onError: () => toast({ title: "Failed to update service charge", variant: "destructive" }),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await fetch(`/api/orders/${orderId}/service-charges/${id}`, {
+        method: "DELETE", credentials: "include",
+      });
+      if (!res.ok) throw new Error("Failed");
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/orders/${orderId}/service-charges`] });
+      toast({ title: "Service charge removed" });
+    },
+    onError: () => toast({ title: "Failed to delete service charge", variant: "destructive" }),
+  });
+
+  const handleSave = () => {
+    const body = {
+      chargeType: formType,
+      description: formDesc || SERVICE_CHARGE_TYPES.find(t => t.value === formType)?.label || formType,
+      quantity: parseInt(formQty) || 1,
+      unitCost: formCost || "0",
+      unitPrice: formPrice || "0",
+      taxable: formTaxable,
+      includeInMargin: formMargin,
+      displayToClient: formDisplay,
+      vendorId: formVendor || null,
+      notes: formNotes || null,
+    };
+    if (editingCharge) {
+      updateMutation.mutate({ id: editingCharge.id, body });
+    } else {
+      createMutation.mutate(body);
+    }
+  };
+
+  const totalCost = serviceCharges.reduce((sum: number, c: any) => sum + (c.quantity || 1) * parseFloat(c.unitCost || "0"), 0);
+  const totalPrice = serviceCharges.reduce((sum: number, c: any) => sum + (c.quantity || 1) * parseFloat(c.unitPrice || "0"), 0);
+  const totalMargin = totalPrice - totalCost;
+
+  return (
+    <div className="space-y-4">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <h3 className="text-sm font-semibold">Service Charges</h3>
+          <Badge variant="secondary" className="text-[10px]">
+            {serviceCharges.length} charge{serviceCharges.length !== 1 ? "s" : ""}
+          </Badge>
+        </div>
+        {!isLocked && (
+          <Button variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={openAdd}>
+            <Plus className="w-3 h-3" /> Add Service
+          </Button>
+        )}
+      </div>
+
+      {/* Charges list */}
+      {serviceCharges.length === 0 ? (
+        <Card>
+          <CardContent className="py-10 text-center">
+            <Wrench className="w-10 h-10 text-gray-300 mx-auto mb-3" />
+            <p className="text-gray-500 text-sm mb-1">No service charges</p>
+            <p className="text-gray-400 text-xs">Add freight, fulfillment, rush fees, or other service charges</p>
+          </CardContent>
+        </Card>
+      ) : (
+        <>
+          <div className="border rounded-lg overflow-hidden">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 border-b">
+                <tr>
+                  <th className="text-left p-3 font-medium text-xs">Type</th>
+                  <th className="text-left p-3 font-medium text-xs">Description</th>
+                  <th className="text-center p-3 font-medium text-xs">Qty</th>
+                  <th className="text-right p-3 font-medium text-xs">Cost</th>
+                  <th className="text-right p-3 font-medium text-xs">Price</th>
+                  <th className="text-right p-3 font-medium text-xs">Total</th>
+                  <th className="p-3 w-16"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {serviceCharges.map((charge: any) => {
+                  const typeInfo = SERVICE_CHARGE_TYPES.find(t => t.value === charge.chargeType);
+                  const qty = charge.quantity || 1;
+                  const cost = parseFloat(charge.unitCost || "0");
+                  const price = parseFloat(charge.unitPrice || "0");
+                  const lineTotal = qty * price;
+
+                  return (
+                    <tr key={charge.id} className="border-b last:border-0 hover:bg-gray-50">
+                      <td className="p-3">
+                        <Badge variant="outline" className="text-[10px]">
+                          {typeInfo?.label || charge.chargeType}
+                        </Badge>
+                      </td>
+                      <td className="p-3 text-xs">
+                        <span className="font-medium">{charge.description}</span>
+                        {!charge.displayToClient && (
+                          <Badge variant="outline" className="ml-1.5 text-[9px] text-gray-400">Hidden</Badge>
+                        )}
+                        {charge.taxable && (
+                          <Badge variant="outline" className="ml-1.5 text-[9px] text-gray-400">Taxable</Badge>
+                        )}
+                      </td>
+                      <td className="p-3 text-xs text-center">{qty}</td>
+                      <td className="p-3 text-xs text-right text-gray-500">${cost.toFixed(2)}</td>
+                      <td className="p-3 text-xs text-right">${price.toFixed(2)}</td>
+                      <td className="p-3 text-xs text-right font-medium">${lineTotal.toFixed(2)}</td>
+                      <td className="p-3">
+                        {!isLocked && (
+                          <div className="flex gap-1 justify-end">
+                            <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => openEdit(charge)}>
+                              <FileText className="w-3 h-3" />
+                            </Button>
+                            <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-red-500 hover:text-red-700"
+                              onClick={() => deleteMutation.mutate(charge.id)} disabled={deleteMutation.isPending}>
+                              <Trash2 className="w-3 h-3" />
+                            </Button>
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Totals */}
+          <Card className="bg-gray-50">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between text-sm">
+                <div className="flex gap-6">
+                  <div>
+                    <span className="text-xs text-gray-500">Total Cost</span>
+                    <p className="font-medium text-gray-600">${totalCost.toFixed(2)}</p>
+                  </div>
+                  <div>
+                    <span className="text-xs text-gray-500">Total Price</span>
+                    <p className="font-semibold">${totalPrice.toFixed(2)}</p>
+                  </div>
+                  <div>
+                    <span className="text-xs text-gray-500">Margin</span>
+                    <p className={`font-medium ${totalMargin >= 0 ? "text-green-600" : "text-red-600"}`}>
+                      ${totalMargin.toFixed(2)}
+                      {totalPrice > 0 && (
+                        <span className="text-[10px] text-gray-400 ml-1">
+                          ({((totalMargin / totalPrice) * 100).toFixed(0)}%)
+                        </span>
+                      )}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </>
+      )}
+
+      {/* Add/Edit Dialog */}
+      <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <DollarSign className="w-5 h-5" />
+              {editingCharge ? "Edit Service Charge" : "Add Service Charge"}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-medium text-gray-500 block mb-1">Type</label>
+                <Select value={formType} onValueChange={(val) => {
+                  setFormType(val);
+                  if (!formDesc) setFormDesc(SERVICE_CHARGE_TYPES.find(t => t.value === val)?.label || "");
+                }}>
+                  <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {SERVICE_CHARGE_TYPES.map(t => (
+                      <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <label className="text-xs font-medium text-gray-500 block mb-1">Description</label>
+                <Input value={formDesc} onChange={(e) => setFormDesc(e.target.value)} placeholder="e.g., Freight to client" className="h-9" />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-3 gap-3">
+              <div>
+                <label className="text-xs font-medium text-gray-500 block mb-1">Quantity</label>
+                <Input type="number" value={formQty} onChange={(e) => setFormQty(e.target.value)} className="h-9" min="1" />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-gray-500 block mb-1">Unit Cost (our cost)</label>
+                <Input type="number" step="0.01" value={formCost} onChange={(e) => setFormCost(e.target.value)} className="h-9" />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-gray-500 block mb-1">Unit Price (client)</label>
+                <Input type="number" step="0.01" value={formPrice} onChange={(e) => setFormPrice(e.target.value)} className="h-9" />
+              </div>
+            </div>
+
+            {suppliers && suppliers.length > 0 && (
+              <div>
+                <label className="text-xs font-medium text-gray-500 block mb-1">Vendor (optional)</label>
+                <Select value={formVendor} onValueChange={setFormVendor}>
+                  <SelectTrigger className="h-9"><SelectValue placeholder="No vendor" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">None</SelectItem>
+                    {suppliers.map((s: any) => (
+                      <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            <div>
+              <label className="text-xs font-medium text-gray-500 block mb-1">Notes</label>
+              <Textarea value={formNotes} onChange={(e) => setFormNotes(e.target.value)} className="min-h-[60px] resize-none text-sm" placeholder="Internal notes..." />
+            </div>
+
+            <div className="flex flex-wrap gap-4">
+              <label className="flex items-center gap-2 text-xs">
+                <Checkbox checked={formDisplay} onCheckedChange={(v) => setFormDisplay(!!v)} />
+                Show to client
+              </label>
+              <label className="flex items-center gap-2 text-xs">
+                <Checkbox checked={formTaxable} onCheckedChange={(v) => setFormTaxable(!!v)} />
+                Taxable
+              </label>
+              <label className="flex items-center gap-2 text-xs">
+                <Checkbox checked={formMargin} onCheckedChange={(v) => setFormMargin(!!v)} />
+                Include in margin calc
+              </label>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowAddDialog(false)}>Cancel</Button>
+            <Button onClick={handleSave} disabled={createMutation.isPending || updateMutation.isPending}>
+              {(createMutation.isPending || updateMutation.isPending) && <Loader2 className="w-4 h-4 animate-spin mr-1" />}
+              {editingCharge ? "Update" : "Add"} Charge
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

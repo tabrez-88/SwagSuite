@@ -370,7 +370,7 @@ export default function MediaLibraryPage() {
                 {/* Thumbnail - click opens preview */}
                 <div onClick={(e) => handleItemClick(item, e)}>
                   <div className="aspect-square bg-gray-50 flex items-center justify-center overflow-hidden">
-                    {isImageFile(item.mimeType) ? (
+                    {isImageFile(item.mimeType, item.cloudinaryUrl) ? (
                       <img
                         src={getCloudinaryThumbnail(item.cloudinaryUrl, 300, 300)}
                         alt={item.originalName}
@@ -425,7 +425,7 @@ export default function MediaLibraryPage() {
                 )}
 
                 <div className="w-10 h-10 rounded bg-gray-100 flex items-center justify-center overflow-hidden flex-shrink-0">
-                  {isImageFile(item.mimeType) ? (
+                  {isImageFile(item.mimeType, item.cloudinaryUrl) ? (
                     <img
                       src={getCloudinaryThumbnail(item.cloudinaryUrl, 80, 80)}
                       alt={item.originalName}

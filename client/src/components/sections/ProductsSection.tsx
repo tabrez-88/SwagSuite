@@ -363,6 +363,9 @@ export default function ProductsSection({ orderId, data, isLocked }: ProductsSec
       imprintMethod: item.imprintMethod || "",
       imprintLocation: item.imprintLocation || "",
       notes: item.notes || "",
+      shippingDestination: item.shippingDestination || "",
+      shippingAccountType: item.shippingAccountType || "",
+      shippingNotes: item.shippingNotes || "",
     });
     // Copy lines for local editing
     if (itemLines.length > 0) {
@@ -438,6 +441,9 @@ export default function ProductsSection({ orderId, data, isLocked }: ProductsSec
         imprintMethod: editItemData.imprintMethod,
         imprintLocation: editItemData.imprintLocation,
         notes: editItemData.notes,
+        shippingDestination: editItemData.shippingDestination || null,
+        shippingAccountType: editItemData.shippingAccountType || null,
+        shippingNotes: editItemData.shippingNotes || null,
         quantity: totalQty,
         cost: avgCost.toFixed(2),
         unitPrice: avgPrice.toFixed(2),
@@ -1421,6 +1427,51 @@ export default function ProductsSection({ orderId, data, isLocked }: ProductsSec
                   placeholder="Product-specific notes..."
                   rows={3}
                 />
+              </div>
+
+              {/* Per-product Shipping Config */}
+              <div className="border rounded-lg p-3 bg-gray-50/50">
+                <p className="text-xs font-semibold text-gray-600 mb-2">Shipping Config</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label className="text-xs">Destination</Label>
+                    <select
+                      className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm"
+                      value={editItemData.shippingDestination || ""}
+                      onChange={(e: any) => setEditItemData((d: any) => ({ ...d, shippingDestination: e.target.value || null }))}
+                    >
+                      <option value="">Default (Client)</option>
+                      <option value="client">Client</option>
+                      <option value="decorator">Decorator</option>
+                      <option value="other_supplier">Other Supplier</option>
+                      <option value="fulfillment">Fulfillment Warehouse</option>
+                    </select>
+                  </div>
+                  <div>
+                    <Label className="text-xs">Account Type</Label>
+                    <select
+                      className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm"
+                      value={editItemData.shippingAccountType || ""}
+                      onChange={(e: any) => setEditItemData((d: any) => ({ ...d, shippingAccountType: e.target.value || null }))}
+                    >
+                      <option value="">Default</option>
+                      <option value="ours">Our Account</option>
+                      <option value="client">Client's Account</option>
+                      <option value="supplier">Supplier's Account</option>
+                      <option value="other">Other</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="mt-2">
+                  <Label className="text-xs">Shipping Notes</Label>
+                  <Textarea
+                    value={editItemData.shippingNotes || ""}
+                    onChange={(e: any) => setEditItemData((d: any) => ({ ...d, shippingNotes: e.target.value }))}
+                    placeholder="Special shipping instructions for this product..."
+                    rows={2}
+                    className="text-xs"
+                  />
+                </div>
               </div>
             </div>
           )}

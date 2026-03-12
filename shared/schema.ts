@@ -308,6 +308,11 @@ export const orderItems = pgTable("order_items", {
   personalComment: text("personal_comment"),
   privateNotes: text("private_notes"),
   notes: text("notes"), // Product-specific notes
+  // Per-product shipping config (CommonSKU style)
+  shippingDestination: varchar("shipping_destination"), // client, decorator, other_supplier, fulfillment
+  shippingAccountType: varchar("shipping_account_type"), // client, supplier, ours, other
+  shippingMethodOverride: varchar("shipping_method_override"), // Override order-level method
+  shippingNotes: text("shipping_notes"), // Per-product shipping notes
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -323,6 +328,7 @@ export const artworkItems = pgTable("artwork_items", {
   status: varchar("status", { length: 50 }).notNull().default("pending"), // pending, awaiting_proof, proof_received, pending_approval, approved, change_requested, proofing_complete
   fileName: varchar("file_name", { length: 500 }),
   filePath: varchar("file_path", { length: 500 }),
+  proofRequired: boolean("proof_required").default(true), // Whether this decoration requires a proof
   proofFilePath: varchar("proof_file_path", { length: 500 }), // Vendor proof file URL
   proofFileName: varchar("proof_file_name", { length: 500 }), // Vendor proof file name
   notes: text("notes"),
@@ -405,6 +411,28 @@ export const quoteApprovals = pgTable("quote_approvals", {
   approvalNotes: text("approval_notes"), // Client can add notes when approving
   pdfPath: varchar("pdf_path", { length: 500 }),
   reminderSentAt: timestamp("reminder_sent_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// PO confirmations - for vendor confirmation of purchase orders
+export const poConfirmations = pgTable("po_confirmations", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  orderId: varchar("order_id").references(() => orders.id).notNull(),
+  documentId: varchar("document_id"), // Reference to generated PO document
+  confirmationToken: varchar("confirmation_token", { length: 255 }).notNull().unique(),
+  status: varchar("status", { length: 50 }).notNull().default("pending"), // pending, confirmed, declined
+  vendorEmail: varchar("vendor_email", { length: 255 }),
+  vendorName: varchar("vendor_name", { length: 255 }),
+  vendorId: varchar("vendor_id").references(() => suppliers.id),
+  poTotal: decimal("po_total", { precision: 12, scale: 2 }),
+  sentAt: timestamp("sent_at"),
+  viewedAt: timestamp("viewed_at"),
+  confirmedAt: timestamp("confirmed_at"),
+  declinedAt: timestamp("declined_at"),
+  declineReason: text("decline_reason"),
+  confirmationNotes: text("confirmation_notes"),
+  pdfPath: varchar("pdf_path", { length: 500 }),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -1981,6 +2009,39 @@ export const orderAdditionalChargesRelations = relations(orderAdditionalCharges,
 export const insertOrderAdditionalChargeSchema = createInsertSchema(orderAdditionalCharges);
 export type OrderAdditionalCharge = typeof orderAdditionalCharges.$inferSelect;
 export type InsertOrderAdditionalCharge = z.infer<typeof insertOrderAdditionalChargeSchema>;
+
+// ── Order Service Charges (order-level: Freight, Fulfillment, Shipping, Other, Custom) ──
+export const orderServiceCharges = pgTable("order_service_charges", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  orderId: varchar("order_id").notNull().references(() => orders.id, { onDelete: 'cascade' }),
+  chargeType: varchar("charge_type").notNull(), // freight, fulfillment, shipping, rush_fee, other, custom
+  description: varchar("description").notNull(),
+  quantity: integer("quantity").default(1),
+  unitCost: decimal("unit_cost", { precision: 10, scale: 2 }).notNull().default("0"), // What we pay
+  unitPrice: decimal("unit_price", { precision: 10, scale: 2 }).notNull().default("0"), // What client pays
+  taxable: boolean("taxable").default(false),
+  includeInMargin: boolean("include_in_margin").default(false), // Include in margin calculation?
+  displayToClient: boolean("display_to_client").default(true),
+  vendorId: varchar("vendor_id").references(() => suppliers.id), // Optional vendor link
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const orderServiceChargesRelations = relations(orderServiceCharges, ({ one }) => ({
+  order: one(orders, {
+    fields: [orderServiceCharges.orderId],
+    references: [orders.id],
+  }),
+  vendor: one(suppliers, {
+    fields: [orderServiceCharges.vendorId],
+    references: [suppliers.id],
+  }),
+}));
+
+export const insertOrderServiceChargeSchema = createInsertSchema(orderServiceCharges);
+export type OrderServiceCharge = typeof orderServiceCharges.$inferSelect;
+export type InsertOrderServiceCharge = z.infer<typeof insertOrderServiceChargeSchema>;
 
 // ── Order Shipments ──
 export const orderShipments = pgTable("order_shipments", {

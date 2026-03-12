@@ -326,6 +326,8 @@ export default function ProductionReport() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Stages</SelectItem>
+                <SelectItem value="open" className="font-medium text-blue-700">Open POs</SelectItem>
+                <SelectItem value="in_production" className="font-medium text-purple-700">In Production</SelectItem>
                 {PO_STAGES_ORDERED.map((s) => (
                   <SelectItem key={s.key} value={s.key}>{s.label}</SelectItem>
                 ))}

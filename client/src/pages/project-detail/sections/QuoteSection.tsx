@@ -399,6 +399,7 @@ export default function QuoteSection({ orderId, data, lockStatus }: QuoteSection
         companyName={companyName}
         primaryContact={primaryContact}
         allArtworkItems={allArtworkItems}
+        serviceCharges={data.serviceCharges}
       />
 
       {/* Document Editor Modal */}
