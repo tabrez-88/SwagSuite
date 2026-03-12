@@ -2805,10 +2805,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const subtotal = itemsSubtotal + additionalChargesTotal + serviceChargesTotal;
     const existingOrder = await storage.getOrder(orderId);
 
-    // Apply discount
-    const discountPercent = parseFloat((existingOrder as any)?.orderDiscount || "0");
-    const discountAmount = discountPercent > 0 ? subtotal * (discountPercent / 100) : 0;
-    const discountedSubtotal = subtotal - discountAmount;
+    // Discount disabled for now — kept in schema but not applied
+    const discountedSubtotal = subtotal;
 
     // Calculate tax: try TaxJar first, fallback to manual taxRate
     let tax = 0;
@@ -2844,7 +2842,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 id: item.id,
                 quantity: item.quantity,
                 unit_price: parseFloat(item.unitPrice) || 0,
-                discount: discountPercent > 0 ? (parseFloat(item.unitPrice) || 0) * item.quantity * (discountPercent / 100) : 0,
+                discount: 0,
               })),
             });
             tax = taxResult.amount_to_collect;
@@ -2871,7 +2869,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       additionalCharges: additionalChargesTotal.toFixed(2),
       serviceCharges: serviceChargesTotal.toFixed(2),
       subtotal: subtotal.toFixed(2),
-      discount: discountAmount > 0 ? `-${discountAmount.toFixed(2)} (${discountPercent}%)` : "none",
+      discount: "disabled",
       tax: `${tax.toFixed(2)} (${taxSource})`,
       shipping: shippingTotal.toFixed(2),
       total: total.toFixed(2),
@@ -11567,6 +11565,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .returning();
 
       console.log('Document saved successfully:', document.id);
+
+      // Update any pending approvals to point to the new document
+      if (documentType === "quote" || documentType === "sales_order") {
+        const { quoteApprovals } = await import("@shared/schema");
+        const pendingApprovals = await db
+          .select()
+          .from(quoteApprovals)
+          .where(and(eq(quoteApprovals.orderId, orderId), eq(quoteApprovals.status, "pending")));
+        for (const approval of pendingApprovals) {
+          await db
+            .update(quoteApprovals)
+            .set({
+              documentId: document.id,
+              pdfPath: fileUrl,
+              updatedAt: new Date(),
+            })
+            .where(eq(quoteApprovals.id, approval.id));
+          console.log(`Updated approval ${approval.id} to new document ${document.id}`);
+        }
+      }
+
       res.json(document);
     } catch (error) {
       console.error('Error saving generated document:', error);

@@ -496,7 +496,7 @@ export default function QuoteSection({ orderId, data, lockStatus }: QuoteSection
       <ProductsSection orderId={orderId} data={data} isLocked={isLocked} />
 
       {/* Pricing Breakdown */}
-      <Card>
+      {/* <Card>
         <CardContent className="p-0">
           <div className="flex justify-end">
             <div className="w-full max-w-sm">
@@ -504,14 +504,13 @@ export default function QuoteSection({ orderId, data, lockStatus }: QuoteSection
                 <span className="text-muted-foreground">Subtotal ({totalItems} item, {totalQty.toLocaleString()} qty)</span>
                 <span className="font-medium">${subtotal.toFixed(2)}</span>
               </div>
-              {/* Discount line hidden — feature not yet finalized
               {discountAmount > 0 && (
                 <div className="flex justify-between py-2.5 px-5 text-sm bg-red-50">
                   <span className="text-red-600">Discount ({discountPercent}%)</span>
                   <span className="font-medium text-red-600">-${discountAmount.toFixed(2)}</span>
                 </div>
               )}
-              */}
+             
               {Number(order.shipping || 0) > 0 && (
                 <div className="flex justify-between py-2.5 px-5 text-sm">
                   <span className="text-muted-foreground">Shipping</span>
@@ -531,7 +530,7 @@ export default function QuoteSection({ orderId, data, lockStatus }: QuoteSection
             </div>
           </div>
         </CardContent>
-      </Card>
+      </Card> */}
 
       {/* Quote Approval Status */}
       <Card>

@@ -23,10 +23,8 @@ const SalesOrderTemplate = forwardRef<HTMLDivElement, SalesOrderTemplateProps>(
       return sum + (c.quantity || 1) * parseFloat(c.unitPrice || "0");
     }, 0);
     const grossSubtotal = subtotal + serviceChargesTotal;
-    const discountPercent = parseFloat(order?.orderDiscount || "0");
-    const discountAmount = discountPercent > 0 ? grossSubtotal * (discountPercent / 100) : 0;
-    const discountedSubtotal = grossSubtotal - discountAmount;
-    const total = discountedSubtotal + shipping + tax;
+    // Discount disabled for now — kept in schema
+    const total = grossSubtotal + shipping + tax;
 
     const billingAddr = (() => {
       try {
@@ -315,12 +313,7 @@ const SalesOrderTemplate = forwardRef<HTMLDivElement, SalesOrderTemplateProps>(
                   <span>${serviceChargesTotal.toFixed(2)}</span>
                 </div>
               )}
-              {discountAmount > 0 && (
-                <div className="flex justify-between py-1 text-sm text-red-600">
-                  <span>Discount ({discountPercent}%):</span>
-                  <span>-${discountAmount.toFixed(2)}</span>
-                </div>
-              )}
+              {/* Discount hidden — feature not yet finalized */}
               {shipping > 0 && (
                 <div className="flex justify-between py-1 text-sm">
                   <span>Shipping:</span>
