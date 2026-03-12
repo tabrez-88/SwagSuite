@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -15,30 +15,28 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
-} from "@/components/ui/dialog";
-import {
   ChevronDown,
   ChevronUp,
+  ClipboardList,
   Clock,
   Copy,
   CreditCard,
-  DollarSign,
   Eye,
   FileText,
   Loader2,
   MapPin,
   Package,
   Palette,
-  Plus,
   Send,
-  Trash2,
-  Wrench,
 } from "lucide-react";
 import { format } from "date-fns";
 import { useLocation } from "wouter";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { useInlineEdit } from "@/hooks/useInlineEdit";
+import { EditableText, EditableDate, EditableSelect, EditableTextarea } from "@/components/InlineEditable";
+import EditableAddress from "@/components/EditableAddress";
+import ProjectInfoBar from "@/components/ProjectInfoBar";
 import { hasTimelineConflict } from "@/lib/dateUtils";
 import TimelineWarningBanner from "@/components/TimelineWarningBanner";
 import type { useProjectData } from "../hooks/useProjectData";
@@ -131,18 +129,6 @@ export default function SalesOrderSection({ orderId, data, lockStatus }: SalesOr
     },
   });
 
-  const updateFieldMutation = useMutation({
-    mutationFn: async (fields: Record<string, any>) => {
-      await apiRequest("PATCH", `/api/orders/${orderId}`, fields);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/orders/${orderId}`] });
-    },
-    onError: () => {
-      toast({ title: "Failed to update field", variant: "destructive" });
-    },
-  });
-
   const duplicateOrderMutation = useMutation({
     mutationFn: async () => {
       const res = await apiRequest("POST", `/api/orders/${orderId}/duplicate`);
@@ -189,29 +175,37 @@ export default function SalesOrderSection({ orderId, data, lockStatus }: SalesOr
     await handleGenerateSO();
   };
 
+  const handleGetApprovalLink = async (doc: any) => {
+    const existingApproval = quoteApprovals.find((a: any) => a.status === "pending");
+    if (existingApproval) {
+      const approvalUrl = `${window.location.origin}/client-approval/${existingApproval.approvalToken}`;
+      navigator.clipboard.writeText(approvalUrl);
+      toast({ title: "Approval Link Copied", description: "The existing approval link has been copied to clipboard." });
+      return;
+    }
+    try {
+      const result = await createQuoteApproval({
+        clientEmail: primaryContact?.email || "",
+        clientName: primaryContact ? `${primaryContact.firstName} ${primaryContact.lastName}` : companyName,
+        documentId: doc.id,
+        pdfPath: doc.fileUrl,
+        quoteTotal: (order as any)?.total,
+      });
+      const approvalUrl = `${window.location.origin}/client-approval/${result.approvalToken}`;
+      navigator.clipboard.writeText(approvalUrl);
+      toast({ title: "Approval Link Generated", description: "Link copied to clipboard." });
+    } catch {
+      toast({ title: "Error", description: "Failed to generate approval link", variant: "destructive" });
+    }
+  };
+
   if (!order) return null;
 
   const currentStatus = (order as any)?.salesOrderStatus || "new";
   const statusInfo = salesOrderStatuses.find((s) => s.value === currentStatus) || salesOrderStatuses[0];
 
-  // Parse addresses
-  const billingAddr = (() => {
-    try {
-      return (order as any)?.billingAddress ? JSON.parse((order as any).billingAddress) : null;
-    } catch {
-      return null;
-    }
-  })();
-
-  const shippingAddr = (() => {
-    try {
-      return (order as any)?.shippingAddress ? JSON.parse((order as any).shippingAddress) : null;
-    } catch {
-      return null;
-    }
-  })();
-
   const isLocked = lockStatus?.isLocked ?? false;
+  const { updateField, isPending: isFieldPending } = useInlineEdit({ orderId, isLocked });
   const timelineConflicts = hasTimelineConflict(order);
 
   return (
@@ -219,7 +213,9 @@ export default function SalesOrderSection({ orderId, data, lockStatus }: SalesOr
       {lockStatus && <LockBanner lockStatus={lockStatus} sectionName="Sales Order" sectionKey="salesOrder" orderId={orderId} />}
       <TimelineWarningBanner conflicts={timelineConflicts} />
 
-      {/* Sales Order Header - CommonSKU style */}
+      <ProjectInfoBar companyName={companyName} primaryContact={primaryContact} />
+
+      {/* Sales Order Header */}
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div className="flex items-center gap-6 flex-wrap">
           {/* Status */}
@@ -247,15 +243,10 @@ export default function SalesOrderSection({ orderId, data, lockStatus }: SalesOr
             </Select>
           </div>
 
-          {/* Sales Order Date */}
+          {/* Sales Order Date (read-only) */}
           <div>
             <label className="text-xs font-medium text-gray-500 block mb-1">Sales Order Date</label>
-            <Input
-              type="date"
-              defaultValue={order.createdAt ? format(new Date(order.createdAt), "yyyy-MM-dd") : ""}
-              className="w-[160px] h-9"
-              disabled={isLocked}
-            />
+            <span className="text-sm font-medium">{order.createdAt ? format(new Date(order.createdAt), "MMM d, yyyy") : "—"}</span>
           </div>
         </div>
 
@@ -293,185 +284,198 @@ export default function SalesOrderSection({ orderId, data, lockStatus }: SalesOr
         </div>
       </div>
 
-      {/* Collapsible Order Info Section */}
+      {/* Collapsible Order Info Section — inline editable */}
       {!isInfoCollapsed && (
-        <Card>
-          <CardContent className="pt-6 space-y-5">
-            {/* Introduction */}
-            {order.notes && (
+        <>
+          {/* Order Details Card */}
+          <Card>
+            <CardHeader className="py-3">
+              <CardTitle className="text-sm flex items-center gap-2">
+                <ClipboardList className="w-4 h-4" />
+                Order Details
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Introduction / Notes */}
               <div>
-                <label className="text-sm font-medium text-gray-700 block mb-1.5">Introduction</label>
-                <p className="text-sm text-gray-600 whitespace-pre-wrap bg-gray-50 rounded-md p-3">{order.notes}</p>
-              </div>
-            )}
-
-            {/* Main info grid - matching CommonSKU layout */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {/* Billing Address */}
-              <div>
-                <h4 className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-1">
-                  <CreditCard className="w-4 h-4" />
-                  Billing Address
-                </h4>
-                {billingAddr ? (
-                  <div className="text-sm text-gray-600 space-y-0.5">
-                    {billingAddr.contactName && <p className="font-medium">{billingAddr.contactName}</p>}
-                    <p>{companyName}</p>
-                    {billingAddr.street && <p>{billingAddr.street}</p>}
-                    <p>
-                      {[billingAddr.city, billingAddr.state, billingAddr.zipCode]
-                        .filter(Boolean)
-                        .join(", ")}
-                    </p>
-                    {billingAddr.email && (
-                      <p className="text-blue-600">{billingAddr.email}</p>
-                    )}
-                  </div>
-                ) : (
-                  <p className="text-sm text-gray-400">Not set</p>
-                )}
+                <p className="text-xs font-medium text-gray-500 mb-1">Introduction</p>
+                <EditableTextarea
+                  value={order.notes || ""}
+                  field="notes"
+                  onSave={updateField}
+                  placeholder="Order introduction / notes..."
+                  emptyText="No introduction"
+                  rows={2}
+                  isLocked={isLocked}
+                  isPending={isFieldPending}
+                />
               </div>
 
-              {/* Main Shipping Address */}
-              <div>
-                <h4 className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-1">
-                  <MapPin className="w-4 h-4" />
-                  Main Shipping Address
-                </h4>
-                {shippingAddr ? (
-                  <div className="text-sm text-gray-600 space-y-0.5">
-                    {shippingAddr.contactName && <p className="font-medium">{shippingAddr.contactName}</p>}
-                    <p>{companyName}</p>
-                    {(shippingAddr.street || shippingAddr.address) && (
-                      <p>{shippingAddr.street || shippingAddr.address}</p>
-                    )}
-                    <p>
-                      {[shippingAddr.city, shippingAddr.state, shippingAddr.zipCode]
-                        .filter(Boolean)
-                        .join(", ")}
-                    </p>
-                    {shippingAddr.email && (
-                      <p className="text-blue-600">{shippingAddr.email}</p>
-                    )}
-                  </div>
-                ) : (
-                  <p className="text-sm text-gray-400">Not set</p>
-                )}
-              </div>
-
-              {/* Terms, Dates, Currency, Margin, Customer PO */}
-              <div className="space-y-3">
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-xs font-medium text-gray-500 block mb-1">Terms</label>
-                    <Select defaultValue={(order as any)?.paymentTerms || "net_30"} disabled={isLocked}>
-                      <SelectTrigger className="h-8 text-sm">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="net_30">Net 30</SelectItem>
-                        <SelectItem value="net_15">Net 15</SelectItem>
-                        <SelectItem value="net_60">Net 60</SelectItem>
-                        <SelectItem value="credit_card">Credit Card</SelectItem>
-                        <SelectItem value="due_on_receipt">Due on Receipt</SelectItem>
-                        <SelectItem value="prepaid">Prepaid</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <label className="text-xs font-medium text-gray-500 block mb-1">Currency</label>
-                    <Select defaultValue="USD" disabled={isLocked}>
-                      <SelectTrigger className="h-8 text-sm">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="USD">USD</SelectItem>
-                        <SelectItem value="CAD">CAD</SelectItem>
-                        <SelectItem value="EUR">EUR</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="text-xs font-medium text-gray-500 block mb-1">In Hands Date</label>
-                  <Input
-                    type="date"
-                    defaultValue={order.inHandsDate ? format(new Date(order.inHandsDate), "yyyy-MM-dd") : ""}
-                    className="h-8 text-sm"
-                    disabled={isLocked}
-                    onBlur={(e) => {
-                      const newVal = e.target.value || null;
-                      const oldVal = order.inHandsDate ? format(new Date(order.inHandsDate), "yyyy-MM-dd") : "";
-                      if (newVal !== oldVal) updateFieldMutation.mutate({ inHandsDate: newVal });
-                    }}
+              {/* Terms, Dates, Firm */}
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-x-8 gap-y-3">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-muted-foreground">Payment Terms</span>
+                  <EditableSelect
+                    value={(order as any)?.paymentTerms || "net_30"}
+                    field="paymentTerms"
+                    onSave={updateField}
+                    options={[
+                      { value: "net_30", label: "Net 30" },
+                      { value: "net_15", label: "Net 15" },
+                      { value: "net_60", label: "Net 60" },
+                      { value: "credit_card", label: "Credit Card" },
+                      { value: "due_on_receipt", label: "Due on Receipt" },
+                      { value: "prepaid", label: "Prepaid" },
+                    ]}
+                    isLocked={isLocked}
+                    isPending={isFieldPending}
                   />
                 </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-xs font-medium text-gray-500 block mb-1">Supplier In-Hands</label>
-                    <Input
-                      type="date"
-                      defaultValue={(order as any)?.supplierInHandsDate ? format(new Date((order as any).supplierInHandsDate), "yyyy-MM-dd") : ""}
-                      className="h-8 text-sm"
-                      disabled={isLocked}
-                      onBlur={(e) => {
-                        const newVal = e.target.value || null;
-                        const oldVal = (order as any)?.supplierInHandsDate ? format(new Date((order as any).supplierInHandsDate), "yyyy-MM-dd") : "";
-                        if (newVal !== oldVal) updateFieldMutation.mutate({ supplierInHandsDate: newVal });
-                      }}
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs font-medium text-gray-500 block mb-1">Event Date</label>
-                    <Input
-                      type="date"
-                      defaultValue={(order as any)?.eventDate ? format(new Date((order as any).eventDate), "yyyy-MM-dd") : ""}
-                      className="h-8 text-sm"
-                      disabled={isLocked}
-                      onBlur={(e) => {
-                        const newVal = e.target.value || null;
-                        const oldVal = (order as any)?.eventDate ? format(new Date((order as any).eventDate), "yyyy-MM-dd") : "";
-                        if (newVal !== oldVal) updateFieldMutation.mutate({ eventDate: newVal });
-                      }}
-                    />
-                  </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-muted-foreground">Customer PO</span>
+                  <EditableText
+                    value={(order as any)?.customerPo || ""}
+                    field="customerPo"
+                    onSave={updateField}
+                    placeholder="PO #"
+                    emptyText="Not set"
+                    isLocked={isLocked}
+                    isPending={isFieldPending}
+                  />
                 </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-xs font-medium text-gray-500 block mb-1">Default Margin</label>
-                    <Input
-                      defaultValue={Number((order as any)?.margin || 0).toFixed(1)}
-                      className="h-8 text-sm"
-                      placeholder="%"
-                      disabled={isLocked}
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs font-medium text-gray-500 block mb-1">Customer PO</label>
-                    <Input
-                      defaultValue={(order as any)?.customerPo || ""}
-                      className="h-8 text-sm"
-                      placeholder="PO #"
-                      disabled={isLocked}
-                    />
-                  </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-muted-foreground">Default Margin</span>
+                  <EditableText
+                    value={String((order as any)?.margin || "")}
+                    field="margin"
+                    onSave={updateField}
+                    type="number"
+                    suffix="%"
+                    placeholder="0"
+                    emptyText="Not set"
+                    isLocked={isLocked}
+                    isPending={isFieldPending}
+                  />
                 </div>
-
-                <div className="flex items-center gap-4">
-                  {(order as any)?.isFirm && (
-                    <Badge variant="outline" className="text-xs">Firm Order</Badge>
-                  )}
-                  {(order as any)?.isRush && (
-                    <Badge variant="destructive" className="text-xs">Rush Order</Badge>
-                  )}
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-muted-foreground">Discount</span>
+                  <EditableText
+                    value={(order as any)?.orderDiscount || ""}
+                    field="orderDiscount"
+                    onSave={updateField}
+                    type="number"
+                    suffix="%"
+                    placeholder="0"
+                    emptyText="None"
+                    isLocked={isLocked}
+                    isPending={isFieldPending}
+                  />
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-muted-foreground">In-Hands Date</span>
+                  <EditableDate
+                    value={order.inHandsDate}
+                    field="inHandsDate"
+                    onSave={updateField}
+                    isLocked={isLocked}
+                    isPending={isFieldPending}
+                  />
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-muted-foreground">Event Date</span>
+                  <EditableDate
+                    value={order.eventDate}
+                    field="eventDate"
+                    onSave={updateField}
+                    isLocked={isLocked}
+                    isPending={isFieldPending}
+                  />
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-muted-foreground">Supplier In-Hands</span>
+                  <EditableDate
+                    value={(order as any)?.supplierInHandsDate}
+                    field="supplierInHandsDate"
+                    onSave={updateField}
+                    isLocked={isLocked}
+                    isPending={isFieldPending}
+                  />
                 </div>
               </div>
-            </div>
-          </CardContent>
-        </Card>
+
+              {/* Firm / Rush toggles */}
+              <div className="flex items-center gap-6">
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="isFirmSO"
+                    checked={(order as any)?.isFirm || false}
+                    onCheckedChange={(checked) => updateField({ isFirm: !!checked })}
+                    disabled={isLocked}
+                  />
+                  <Label htmlFor="isFirmSO" className="text-sm font-normal cursor-pointer">Firm Order</Label>
+                </div>
+                {(order as any)?.isRush && (
+                  <Badge variant="destructive" className="text-xs">Rush Order</Badge>
+                )}
+              </div>
+
+              {/* Supplier Notes & Additional Info */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
+                <div>
+                  <p className="text-xs font-medium text-gray-500 mb-1">Supplier Notes</p>
+                  <EditableTextarea
+                    value={(order as any)?.supplierNotes || ""}
+                    field="supplierNotes"
+                    onSave={updateField}
+                    placeholder="Notes visible to suppliers on POs..."
+                    emptyText="No supplier notes"
+                    rows={2}
+                    isLocked={isLocked}
+                    isPending={isFieldPending}
+                  />
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-gray-500 mb-1">Additional Information</p>
+                  <EditableTextarea
+                    value={(order as any)?.additionalInformation || ""}
+                    field="additionalInformation"
+                    onSave={updateField}
+                    placeholder="Other relevant details..."
+                    emptyText="No additional info"
+                    rows={2}
+                    isLocked={isLocked}
+                    isPending={isFieldPending}
+                  />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Addresses — inline editable */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <EditableAddress
+              title="Billing Address"
+              addressJson={(order as any)?.billingAddress}
+              field="billingAddress"
+              onSave={updateField}
+              isLocked={isLocked}
+              isPending={isFieldPending}
+              icon={<CreditCard className="w-4 h-4" />}
+              primaryContact={primaryContact}
+            />
+            <EditableAddress
+              title="Shipping Address"
+              addressJson={(order as any)?.shippingAddress}
+              field="shippingAddress"
+              onSave={updateField}
+              isLocked={isLocked}
+              isPending={isFieldPending}
+              icon={<MapPin className="w-4 h-4" />}
+              primaryContact={primaryContact}
+              billingAddressJson={(order as any)?.billingAddress}
+            />
+          </div>
+        </>
       )}
 
       {/* Sales Order Document Section */}
@@ -532,6 +536,7 @@ export default function SalesOrderSection({ orderId, data, lockStatus }: SalesOr
                   onPreview={() => setPreviewDocument(doc)}
                   onDelete={() => deleteDocument(doc.id)}
                   onRegenerate={isLocked ? undefined : () => handleRegenerateSO(doc.id)}
+                  onGetApprovalLink={isLocked ? undefined : () => handleGetApprovalLink(doc)}
                   isDeleting={isDeleting || isLocked}
                   isRegenerating={isGenerating}
                 />
@@ -548,13 +553,6 @@ export default function SalesOrderSection({ orderId, data, lockStatus }: SalesOr
             <Package className="w-4 h-4" />
             Products
           </TabsTrigger>
-          <TabsTrigger value="services" className="gap-1">
-            <Wrench className="w-4 h-4" />
-            Services
-            {data.serviceCharges.length > 0 && (
-              <Badge variant="secondary" className="ml-1 h-5 text-[10px]">{data.serviceCharges.length}</Badge>
-            )}
-          </TabsTrigger>
           <TabsTrigger value="artwork" className="gap-1">
             <Palette className="w-4 h-4" />
             Artwork
@@ -564,11 +562,6 @@ export default function SalesOrderSection({ orderId, data, lockStatus }: SalesOr
         {/* Products Tab */}
         <TabsContent value="products" className="mt-4">
           <ProductsSection orderId={orderId} data={data} isLocked={isLocked} />
-        </TabsContent>
-
-        {/* Services Tab */}
-        <TabsContent value="services" className="mt-4">
-          <ServiceChargesTab orderId={orderId} data={data} isLocked={isLocked} />
         </TabsContent>
 
         {/* Artwork & Proofing Tab */}
@@ -618,345 +611,6 @@ export default function SalesOrderSection({ orderId, data, lockStatus }: SalesOr
           createQuoteApproval={createQuoteApproval}
         />
       )}
-    </div>
-  );
-}
-
-// ── Service Charges Sub-component (CommonSKU-style order-level services) ──────
-
-const SERVICE_CHARGE_TYPES = [
-  { value: "freight", label: "Freight" },
-  { value: "fulfillment", label: "Fulfillment" },
-  { value: "shipping", label: "Shipping" },
-  { value: "rush_fee", label: "Rush Fee" },
-  { value: "other", label: "Other Service" },
-  { value: "custom", label: "Custom Service" },
-];
-
-function ServiceChargesTab({ orderId, data, isLocked }: { orderId: string; data: ReturnType<typeof useProjectData>; isLocked: boolean }) {
-  const { serviceCharges, suppliers } = data;
-  const queryClient = useQueryClient();
-  const { toast } = useToast();
-  const [showAddDialog, setShowAddDialog] = useState(false);
-  const [editingCharge, setEditingCharge] = useState<any>(null);
-
-  // Form state
-  const [formType, setFormType] = useState("freight");
-  const [formDesc, setFormDesc] = useState("");
-  const [formQty, setFormQty] = useState("1");
-  const [formCost, setFormCost] = useState("0");
-  const [formPrice, setFormPrice] = useState("0");
-  const [formTaxable, setFormTaxable] = useState(false);
-  const [formMargin, setFormMargin] = useState(false);
-  const [formDisplay, setFormDisplay] = useState(true);
-  const [formVendor, setFormVendor] = useState("");
-  const [formNotes, setFormNotes] = useState("");
-
-  const resetForm = () => {
-    setFormType("freight"); setFormDesc(""); setFormQty("1");
-    setFormCost("0"); setFormPrice("0"); setFormTaxable(false);
-    setFormMargin(false); setFormDisplay(true); setFormVendor(""); setFormNotes("");
-  };
-
-  const openAdd = () => { resetForm(); setEditingCharge(null); setShowAddDialog(true); };
-
-  const openEdit = (charge: any) => {
-    setFormType(charge.chargeType || "other");
-    setFormDesc(charge.description || "");
-    setFormQty(String(charge.quantity || 1));
-    setFormCost(String(charge.unitCost || "0"));
-    setFormPrice(String(charge.unitPrice || "0"));
-    setFormTaxable(!!charge.taxable);
-    setFormMargin(!!charge.includeInMargin);
-    setFormDisplay(charge.displayToClient !== false);
-    setFormVendor(charge.vendorId || "");
-    setFormNotes(charge.notes || "");
-    setEditingCharge(charge);
-    setShowAddDialog(true);
-  };
-
-  const createMutation = useMutation({
-    mutationFn: async (body: any) => {
-      const res = await fetch(`/api/orders/${orderId}/service-charges`, {
-        method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
-        body: JSON.stringify(body),
-      });
-      if (!res.ok) throw new Error("Failed");
-      return res.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/orders/${orderId}/service-charges`] });
-      toast({ title: "Service charge added" });
-      setShowAddDialog(false);
-    },
-    onError: () => toast({ title: "Failed to add service charge", variant: "destructive" }),
-  });
-
-  const updateMutation = useMutation({
-    mutationFn: async ({ id, body }: { id: string; body: any }) => {
-      const res = await fetch(`/api/orders/${orderId}/service-charges/${id}`, {
-        method: "PATCH", headers: { "Content-Type": "application/json" }, credentials: "include",
-        body: JSON.stringify(body),
-      });
-      if (!res.ok) throw new Error("Failed");
-      return res.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/orders/${orderId}/service-charges`] });
-      toast({ title: "Service charge updated" });
-      setShowAddDialog(false);
-    },
-    onError: () => toast({ title: "Failed to update service charge", variant: "destructive" }),
-  });
-
-  const deleteMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const res = await fetch(`/api/orders/${orderId}/service-charges/${id}`, {
-        method: "DELETE", credentials: "include",
-      });
-      if (!res.ok) throw new Error("Failed");
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/orders/${orderId}/service-charges`] });
-      toast({ title: "Service charge removed" });
-    },
-    onError: () => toast({ title: "Failed to delete service charge", variant: "destructive" }),
-  });
-
-  const handleSave = () => {
-    const body = {
-      chargeType: formType,
-      description: formDesc || SERVICE_CHARGE_TYPES.find(t => t.value === formType)?.label || formType,
-      quantity: parseInt(formQty) || 1,
-      unitCost: formCost || "0",
-      unitPrice: formPrice || "0",
-      taxable: formTaxable,
-      includeInMargin: formMargin,
-      displayToClient: formDisplay,
-      vendorId: formVendor || null,
-      notes: formNotes || null,
-    };
-    if (editingCharge) {
-      updateMutation.mutate({ id: editingCharge.id, body });
-    } else {
-      createMutation.mutate(body);
-    }
-  };
-
-  const totalCost = serviceCharges.reduce((sum: number, c: any) => sum + (c.quantity || 1) * parseFloat(c.unitCost || "0"), 0);
-  const totalPrice = serviceCharges.reduce((sum: number, c: any) => sum + (c.quantity || 1) * parseFloat(c.unitPrice || "0"), 0);
-  const totalMargin = totalPrice - totalCost;
-
-  return (
-    <div className="space-y-4">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <h3 className="text-sm font-semibold">Service Charges</h3>
-          <Badge variant="secondary" className="text-[10px]">
-            {serviceCharges.length} charge{serviceCharges.length !== 1 ? "s" : ""}
-          </Badge>
-        </div>
-        {!isLocked && (
-          <Button variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={openAdd}>
-            <Plus className="w-3 h-3" /> Add Service
-          </Button>
-        )}
-      </div>
-
-      {/* Charges list */}
-      {serviceCharges.length === 0 ? (
-        <Card>
-          <CardContent className="py-10 text-center">
-            <Wrench className="w-10 h-10 text-gray-300 mx-auto mb-3" />
-            <p className="text-gray-500 text-sm mb-1">No service charges</p>
-            <p className="text-gray-400 text-xs">Add freight, fulfillment, rush fees, or other service charges</p>
-          </CardContent>
-        </Card>
-      ) : (
-        <>
-          <div className="border rounded-lg overflow-hidden">
-            <table className="w-full text-sm">
-              <thead className="bg-gray-50 border-b">
-                <tr>
-                  <th className="text-left p-3 font-medium text-xs">Type</th>
-                  <th className="text-left p-3 font-medium text-xs">Description</th>
-                  <th className="text-center p-3 font-medium text-xs">Qty</th>
-                  <th className="text-right p-3 font-medium text-xs">Cost</th>
-                  <th className="text-right p-3 font-medium text-xs">Price</th>
-                  <th className="text-right p-3 font-medium text-xs">Total</th>
-                  <th className="p-3 w-16"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {serviceCharges.map((charge: any) => {
-                  const typeInfo = SERVICE_CHARGE_TYPES.find(t => t.value === charge.chargeType);
-                  const qty = charge.quantity || 1;
-                  const cost = parseFloat(charge.unitCost || "0");
-                  const price = parseFloat(charge.unitPrice || "0");
-                  const lineTotal = qty * price;
-
-                  return (
-                    <tr key={charge.id} className="border-b last:border-0 hover:bg-gray-50">
-                      <td className="p-3">
-                        <Badge variant="outline" className="text-[10px]">
-                          {typeInfo?.label || charge.chargeType}
-                        </Badge>
-                      </td>
-                      <td className="p-3 text-xs">
-                        <span className="font-medium">{charge.description}</span>
-                        {!charge.displayToClient && (
-                          <Badge variant="outline" className="ml-1.5 text-[9px] text-gray-400">Hidden</Badge>
-                        )}
-                        {charge.taxable && (
-                          <Badge variant="outline" className="ml-1.5 text-[9px] text-gray-400">Taxable</Badge>
-                        )}
-                      </td>
-                      <td className="p-3 text-xs text-center">{qty}</td>
-                      <td className="p-3 text-xs text-right text-gray-500">${cost.toFixed(2)}</td>
-                      <td className="p-3 text-xs text-right">${price.toFixed(2)}</td>
-                      <td className="p-3 text-xs text-right font-medium">${lineTotal.toFixed(2)}</td>
-                      <td className="p-3">
-                        {!isLocked && (
-                          <div className="flex gap-1 justify-end">
-                            <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => openEdit(charge)}>
-                              <FileText className="w-3 h-3" />
-                            </Button>
-                            <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-red-500 hover:text-red-700"
-                              onClick={() => deleteMutation.mutate(charge.id)} disabled={deleteMutation.isPending}>
-                              <Trash2 className="w-3 h-3" />
-                            </Button>
-                          </div>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Totals */}
-          <Card className="bg-gray-50">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between text-sm">
-                <div className="flex gap-6">
-                  <div>
-                    <span className="text-xs text-gray-500">Total Cost</span>
-                    <p className="font-medium text-gray-600">${totalCost.toFixed(2)}</p>
-                  </div>
-                  <div>
-                    <span className="text-xs text-gray-500">Total Price</span>
-                    <p className="font-semibold">${totalPrice.toFixed(2)}</p>
-                  </div>
-                  <div>
-                    <span className="text-xs text-gray-500">Margin</span>
-                    <p className={`font-medium ${totalMargin >= 0 ? "text-green-600" : "text-red-600"}`}>
-                      ${totalMargin.toFixed(2)}
-                      {totalPrice > 0 && (
-                        <span className="text-[10px] text-gray-400 ml-1">
-                          ({((totalMargin / totalPrice) * 100).toFixed(0)}%)
-                        </span>
-                      )}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </>
-      )}
-
-      {/* Add/Edit Dialog */}
-      <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <DollarSign className="w-5 h-5" />
-              {editingCharge ? "Edit Service Charge" : "Add Service Charge"}
-            </DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-xs font-medium text-gray-500 block mb-1">Type</label>
-                <Select value={formType} onValueChange={(val) => {
-                  setFormType(val);
-                  if (!formDesc) setFormDesc(SERVICE_CHARGE_TYPES.find(t => t.value === val)?.label || "");
-                }}>
-                  <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {SERVICE_CHARGE_TYPES.map(t => (
-                      <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <label className="text-xs font-medium text-gray-500 block mb-1">Description</label>
-                <Input value={formDesc} onChange={(e) => setFormDesc(e.target.value)} placeholder="e.g., Freight to client" className="h-9" />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-3 gap-3">
-              <div>
-                <label className="text-xs font-medium text-gray-500 block mb-1">Quantity</label>
-                <Input type="number" value={formQty} onChange={(e) => setFormQty(e.target.value)} className="h-9" min="1" />
-              </div>
-              <div>
-                <label className="text-xs font-medium text-gray-500 block mb-1">Unit Cost (our cost)</label>
-                <Input type="number" step="0.01" value={formCost} onChange={(e) => setFormCost(e.target.value)} className="h-9" />
-              </div>
-              <div>
-                <label className="text-xs font-medium text-gray-500 block mb-1">Unit Price (client)</label>
-                <Input type="number" step="0.01" value={formPrice} onChange={(e) => setFormPrice(e.target.value)} className="h-9" />
-              </div>
-            </div>
-
-            {suppliers && suppliers.length > 0 && (
-              <div>
-                <label className="text-xs font-medium text-gray-500 block mb-1">Vendor (optional)</label>
-                <Select value={formVendor} onValueChange={setFormVendor}>
-                  <SelectTrigger className="h-9"><SelectValue placeholder="No vendor" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="">None</SelectItem>
-                    {suppliers.map((s: any) => (
-                      <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-
-            <div>
-              <label className="text-xs font-medium text-gray-500 block mb-1">Notes</label>
-              <Textarea value={formNotes} onChange={(e) => setFormNotes(e.target.value)} className="min-h-[60px] resize-none text-sm" placeholder="Internal notes..." />
-            </div>
-
-            <div className="flex flex-wrap gap-4">
-              <label className="flex items-center gap-2 text-xs">
-                <Checkbox checked={formDisplay} onCheckedChange={(v) => setFormDisplay(!!v)} />
-                Show to client
-              </label>
-              <label className="flex items-center gap-2 text-xs">
-                <Checkbox checked={formTaxable} onCheckedChange={(v) => setFormTaxable(!!v)} />
-                Taxable
-              </label>
-              <label className="flex items-center gap-2 text-xs">
-                <Checkbox checked={formMargin} onCheckedChange={(v) => setFormMargin(!!v)} />
-                Include in margin calc
-              </label>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowAddDialog(false)}>Cancel</Button>
-            <Button onClick={handleSave} disabled={createMutation.isPending || updateMutation.isPending}>
-              {(createMutation.isPending || updateMutation.isPending) && <Loader2 className="w-4 h-4 animate-spin mr-1" />}
-              {editingCharge ? "Update" : "Add"} Charge
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

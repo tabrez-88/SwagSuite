@@ -14,9 +14,7 @@ interface SalesOrderTemplateProps {
 const SalesOrderTemplate = forwardRef<HTMLDivElement, SalesOrderTemplateProps>(
   ({ order, orderItems, companyName, primaryContact, allArtworkItems = {}, serviceCharges = [] }, ref) => {
     const subtotal = orderItems.reduce((sum: number, item: any) => {
-      const unitPrice = parseFloat(item.unitPrice) || 0;
-      const quantity = item.quantity || 0;
-      return sum + unitPrice * quantity;
+      return sum + (parseFloat(item.totalPrice) || 0);
     }, 0);
     const shipping = parseFloat(order?.shippingCost) || parseFloat(order?.shipping) || 0;
     const tax = parseFloat(order?.tax) || 0;
@@ -24,7 +22,11 @@ const SalesOrderTemplate = forwardRef<HTMLDivElement, SalesOrderTemplateProps>(
     const serviceChargesTotal = clientServiceCharges.reduce((sum: number, c: any) => {
       return sum + (c.quantity || 1) * parseFloat(c.unitPrice || "0");
     }, 0);
-    const total = subtotal + shipping + tax + serviceChargesTotal;
+    const grossSubtotal = subtotal + serviceChargesTotal;
+    const discountPercent = parseFloat(order?.orderDiscount || "0");
+    const discountAmount = discountPercent > 0 ? grossSubtotal * (discountPercent / 100) : 0;
+    const discountedSubtotal = grossSubtotal - discountAmount;
+    const total = discountedSubtotal + shipping + tax;
 
     const billingAddr = (() => {
       try {
@@ -82,7 +84,7 @@ const SalesOrderTemplate = forwardRef<HTMLDivElement, SalesOrderTemplateProps>(
           {/* Addresses */}
           <div className="grid grid-cols-2 gap-8 mb-6">
             <div>
-              <h3 className="text-sm font-bold text-gray-800 mb-2">BILL TO:</h3>
+              <h3 className="text-sm font-bold text-gray-800 mb-2">BILLING ADDRESS:</h3>
               <div className="text-sm text-gray-700">
                 <p className="font-semibold">{companyName || "N/A"}</p>
                 {billingAddr?.contactName && <p>{billingAddr.contactName}</p>}
@@ -96,17 +98,22 @@ const SalesOrderTemplate = forwardRef<HTMLDivElement, SalesOrderTemplateProps>(
                 {(billingAddr?.email || primaryContact?.email) && (
                   <p>{billingAddr?.email || primaryContact?.email}</p>
                 )}
+                {(billingAddr?.phone || primaryContact?.phone) && (
+                  <p>{billingAddr?.phone || primaryContact?.phone}</p>
+                )}
               </div>
             </div>
             <div>
-              <h3 className="text-sm font-bold text-gray-800 mb-2">SHIP TO:</h3>
+              <h3 className="text-sm font-bold text-gray-800 mb-2">SHIPPING ADDRESS:</h3>
               <div className="text-sm text-gray-700">
                 {shippingAddr ? (
                   <>
-                    {shippingAddr.contactName && <p className="font-semibold">{shippingAddr.contactName}</p>}
-                    <p>{companyName}</p>
+                    <p className="font-semibold">{companyName}</p>
+                    {shippingAddr.contactName && <p>{shippingAddr.contactName}</p>}
                     {(shippingAddr.street || shippingAddr.address) && <p>{shippingAddr.street || shippingAddr.address}</p>}
                     <p>{[shippingAddr.city, shippingAddr.state, shippingAddr.zipCode].filter(Boolean).join(", ")}</p>
+                    {shippingAddr.email && <p>{shippingAddr.email}</p>}
+                    {shippingAddr.phone && <p>{shippingAddr.phone}</p>}
                   </>
                 ) : (
                   <p className="text-gray-400">Not specified</p>
@@ -128,7 +135,7 @@ const SalesOrderTemplate = forwardRef<HTMLDivElement, SalesOrderTemplateProps>(
             {orderItems.map((item: any) => {
               const unitPrice = parseFloat(item.unitPrice) || 0;
               const quantity = item.quantity || 0;
-              const itemTotal = unitPrice * quantity;
+              const itemTotal = parseFloat(item.totalPrice) || (unitPrice * quantity);
               const itemArtworks = allArtworkItems[item.id] || [];
 
               return (
@@ -306,6 +313,12 @@ const SalesOrderTemplate = forwardRef<HTMLDivElement, SalesOrderTemplateProps>(
                 <div className="flex justify-between py-1 text-sm">
                   <span>Services & Fees:</span>
                   <span>${serviceChargesTotal.toFixed(2)}</span>
+                </div>
+              )}
+              {discountAmount > 0 && (
+                <div className="flex justify-between py-1 text-sm text-red-600">
+                  <span>Discount ({discountPercent}%):</span>
+                  <span>-${discountAmount.toFixed(2)}</span>
                 </div>
               )}
               {shipping > 0 && (

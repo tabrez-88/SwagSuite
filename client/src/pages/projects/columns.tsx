@@ -49,7 +49,12 @@ export const columns: ColumnDef<OrderWithRelations>[] = [
       <DataTableColumnHeader column={column} title="Order #" />
     ),
     cell: ({ row }) => (
-      <div className="font-medium">{row.getValue("orderNumber")}</div>
+      <div>
+        <div className="font-medium">{row.getValue("orderNumber")}</div>
+        {row.original.projectName && (
+          <div className="text-xs text-muted-foreground truncate max-w-[160px]">{row.original.projectName}</div>
+        )}
+      </div>
     ),
   },
   {
@@ -87,6 +92,23 @@ export const columns: ColumnDef<OrderWithRelations>[] = [
         currency: "USD",
       }).format(amount);
       return <div className="font-semibold">{formatted}</div>;
+    },
+  },
+  {
+    accessorKey: "budget",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Budget" />
+    ),
+    cell: ({ row }) => {
+      const budget = row.getValue("budget");
+      if (!budget || Number(budget) === 0) return <span className="text-muted-foreground">-</span>;
+      const formatted = new Intl.NumberFormat("en-US", {
+        style: "currency",
+        currency: "USD",
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0,
+      }).format(Number(budget));
+      return <div className="font-medium">{formatted}</div>;
     },
   },
   {

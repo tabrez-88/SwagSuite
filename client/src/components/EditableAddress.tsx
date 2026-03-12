@@ -1,0 +1,331 @@
+import { useState, useEffect } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { AddressAutocomplete } from "@/components/ui/address-autocomplete";
+import { Checkbox } from "@/components/ui/checkbox";
+import { MapPin, Pencil, Check, X, Loader2, UserCheck } from "lucide-react";
+
+function normalizeCountryCode(country: string): string {
+  if (!country) return "US";
+  const c = country.trim().toUpperCase();
+  if (c === "US" || c === "CA" || c === "MX") return c;
+  const mapping: Record<string, string> = {
+    USA: "US", "U.S.": "US", "U.S.A.": "US", "UNITED STATES": "US", "UNITED STATES OF AMERICA": "US",
+    CANADA: "CA", CAN: "CA", MEXICO: "MX", MEX: "MX", "MÉXICO": "MX",
+  };
+  return mapping[c] || "US";
+}
+
+export interface AddressData {
+  contactName?: string;
+  email?: string;
+  street?: string;
+  address?: string;
+  city?: string;
+  state?: string;
+  zipCode?: string;
+  country?: string;
+  phone?: string;
+}
+
+interface EditableAddressProps {
+  title: string;
+  addressJson: string | null | undefined;
+  field: "billingAddress" | "shippingAddress";
+  onSave: (fields: Record<string, any>) => void;
+  isLocked?: boolean;
+  isPending?: boolean;
+  icon?: React.ReactNode;
+  /** Primary contact — used for "Fill from Contact" and auto-fill when empty */
+  primaryContact?: {
+    firstName?: string;
+    lastName?: string;
+    email?: string;
+    phone?: string;
+    billingAddress?: string | null;
+    shippingAddress?: string | null;
+  } | null;
+  /** Billing address JSON — when provided on a shipping card, enables "Same as Billing" */
+  billingAddressJson?: string | null;
+}
+
+function parseAddress(json: string | null | undefined): AddressData {
+  if (!json) return {};
+  try {
+    return JSON.parse(json);
+  } catch {
+    return { street: json };
+  }
+}
+
+export default function EditableAddress({
+  title,
+  addressJson,
+  field,
+  onSave,
+  isLocked = false,
+  isPending = false,
+  icon,
+  primaryContact,
+  billingAddressJson,
+}: EditableAddressProps) {
+  const [editing, setEditing] = useState(false);
+  const [sameAsBilling, setSameAsBilling] = useState(false);
+  const addr = parseAddress(addressJson);
+
+  const [formData, setFormData] = useState({
+    contactName: "",
+    email: "",
+    street: "",
+    city: "",
+    state: "",
+    zipCode: "",
+    country: "US",
+    phone: "",
+  });
+
+  // Build contact fill data from contact record + their stored address
+  const buildContactFill = () => {
+    const contactAddrJson = field === "billingAddress"
+      ? primaryContact?.billingAddress
+      : primaryContact?.shippingAddress;
+    const contactAddr = parseAddress(contactAddrJson);
+    const contactFullName = primaryContact
+      ? [primaryContact.firstName, primaryContact.lastName].filter(Boolean).join(" ")
+      : "";
+
+    return {
+      contactName: contactAddr.contactName || contactFullName,
+      email: contactAddr.email || primaryContact?.email || "",
+      street: contactAddr.street || contactAddr.address || "",
+      city: contactAddr.city || "",
+      state: contactAddr.state || "",
+      zipCode: contactAddr.zipCode || "",
+      country: normalizeCountryCode(contactAddr.country || "US"),
+      phone: contactAddr.phone || primaryContact?.phone || "",
+    };
+  };
+
+  useEffect(() => {
+    if (editing) {
+      const hasExistingData = addr.street || addr.address || addr.city || addr.contactName || addr.email;
+      if (hasExistingData) {
+        // Existing address — load it
+        setFormData({
+          contactName: addr.contactName || "",
+          email: addr.email || "",
+          street: addr.street || addr.address || "",
+          city: addr.city || "",
+          state: addr.state || "",
+          zipCode: addr.zipCode || "",
+          country: normalizeCountryCode(addr.country || "US"),
+          phone: addr.phone || "",
+        });
+      } else if (primaryContact) {
+        // No address yet — auto-fill from contact
+        setFormData(buildContactFill());
+      } else {
+        setFormData({
+          contactName: "",
+          email: "",
+          street: "",
+          city: "",
+          state: "",
+          zipCode: "",
+          country: "US",
+          phone: "",
+        });
+      }
+      setSameAsBilling(false);
+    }
+  }, [editing]);
+
+  const handleFieldChange = (f: string, value: string) => {
+    setFormData((prev) => ({ ...prev, [f]: value }));
+  };
+
+  const handleSave = () => {
+    const hasData = formData.street || formData.city || formData.contactName || formData.email || formData.phone;
+    if (hasData) {
+      onSave({
+        [field]: JSON.stringify({
+          street: formData.street,
+          city: formData.city,
+          state: formData.state,
+          zipCode: formData.zipCode,
+          country: formData.country,
+          phone: formData.phone,
+          contactName: formData.contactName,
+          email: formData.email,
+        }),
+      });
+    } else {
+      onSave({ [field]: null });
+    }
+    setEditing(false);
+  };
+
+  const handleCancel = () => {
+    setEditing(false);
+  };
+
+  const displayStreet = addr.street || addr.address || "";
+  const displayLine2 = [addr.city, addr.state, addr.zipCode].filter(Boolean).join(", ");
+  const hasAddress = displayStreet || displayLine2;
+
+  return (
+    <Card>
+      <CardHeader className="py-3">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-sm flex items-center gap-2">
+            {icon || <MapPin className="w-4 h-4" />}
+            {title}
+          </CardTitle>
+          {!isLocked && !editing && (
+            <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-foreground" onClick={() => setEditing(true)}>
+              <Pencil className="w-3 h-3" />
+            </Button>
+          )}
+        </div>
+      </CardHeader>
+      <CardContent>
+        {editing ? (
+          <div className="space-y-3">
+            {/* Quick-fill options */}
+            <div className="flex flex-wrap gap-2">
+              {field === "shippingAddress" && billingAddressJson && (
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <Checkbox
+                    checked={sameAsBilling}
+                    onCheckedChange={(checked) => {
+                      const isChecked = !!checked;
+                      setSameAsBilling(isChecked);
+                      if (isChecked) {
+                        const billingAddr = parseAddress(billingAddressJson);
+                        setFormData({
+                          contactName: billingAddr.contactName || "",
+                          email: billingAddr.email || "",
+                          street: billingAddr.street || billingAddr.address || "",
+                          city: billingAddr.city || "",
+                          state: billingAddr.state || "",
+                          zipCode: billingAddr.zipCode || "",
+                          country: normalizeCountryCode(billingAddr.country || "US"),
+                          phone: billingAddr.phone || "",
+                        });
+                      }
+                    }}
+                  />
+                  <span className="text-xs text-muted-foreground">Same as Billing Address</span>
+                </label>
+              )}
+              {primaryContact && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 text-xs gap-1.5"
+                  onClick={() => {
+                    setFormData(buildContactFill());
+                    setSameAsBilling(false);
+                  }}
+                >
+                  <UserCheck className="w-3 h-3" />
+                  Fill from Contact
+                </Button>
+              )}
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs">Contact Name</Label>
+                <Input value={formData.contactName} onChange={(e) => handleFieldChange("contactName", e.target.value)} placeholder="Attn: Name" className="h-8 text-sm" />
+              </div>
+              <div>
+                <Label className="text-xs">Email</Label>
+                <Input value={formData.email} onChange={(e) => handleFieldChange("email", e.target.value)} placeholder="email@example.com" className="h-8 text-sm" />
+              </div>
+            </div>
+            <div>
+              <Label className="text-xs">Street</Label>
+              <AddressAutocomplete
+                value={formData.street}
+                onChange={(val) => handleFieldChange("street", val)}
+                onAddressSelect={(a) => {
+                  handleFieldChange("city", a.city);
+                  handleFieldChange("state", a.state);
+                  handleFieldChange("zipCode", a.zipCode);
+                  handleFieldChange("country", normalizeCountryCode(a.country));
+                }}
+                placeholder="123 Main St"
+              />
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              <div>
+                <Label className="text-xs">City</Label>
+                <Input value={formData.city} onChange={(e) => handleFieldChange("city", e.target.value)} className="h-8 text-sm" />
+              </div>
+              <div>
+                <Label className="text-xs">State</Label>
+                <Input value={formData.state} onChange={(e) => handleFieldChange("state", e.target.value)} className="h-8 text-sm" />
+              </div>
+              <div>
+                <Label className="text-xs">ZIP</Label>
+                <Input value={formData.zipCode} onChange={(e) => handleFieldChange("zipCode", e.target.value)} className="h-8 text-sm" />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs">Country</Label>
+                <Select value={formData.country} onValueChange={(v) => handleFieldChange("country", v)}>
+                  <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="US">United States</SelectItem>
+                    <SelectItem value="CA">Canada</SelectItem>
+                    <SelectItem value="MX">Mexico</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-xs">Phone</Label>
+                <Input value={formData.phone} onChange={(e) => handleFieldChange("phone", e.target.value)} placeholder="(555) 123-4567" className="h-8 text-sm" />
+              </div>
+            </div>
+            <div className="flex gap-1.5 justify-end pt-1">
+              <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={handleCancel}>
+                <X className="w-3 h-3 mr-1" />Cancel
+              </Button>
+              <Button size="sm" className="h-7 text-xs" onClick={handleSave} disabled={isPending}>
+                {isPending ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Check className="w-3 h-3 mr-1" />}
+                Save
+              </Button>
+            </div>
+          </div>
+        ) : hasAddress ? (
+          <div className="text-sm">
+            {displayStreet && <p>{displayStreet}</p>}
+            {displayLine2 && <p>{displayLine2}</p>}
+            {addr.contactName && <p className="text-gray-500 mt-1">Attn: {addr.contactName}</p>}
+            {addr.email && <p className="text-gray-500">{addr.email}</p>}
+            {addr.phone && <p className="text-gray-500">{addr.phone}</p>}
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground italic">
+            No address set
+            {!isLocked && (
+              <Button variant="link" size="sm" className="text-xs h-auto p-0 ml-2" onClick={() => setEditing(true)}>
+                Add
+              </Button>
+            )}
+          </p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}

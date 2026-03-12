@@ -105,7 +105,7 @@ export default function PurchaseOrdersSection({ orderId, data, isLocked }: Purch
 
   // Proofing states
   const [uploadProofArt, setUploadProofArt] = useState<any>(null);
-  const [sendProofArt, setSendProofArt] = useState<any>(null);
+  const [sendProofArts, setSendProofArts] = useState<any[]>([]); // batch: all proofs for a vendor
   const [clientEmail, setClientEmail] = useState("");
   const [clientName, setClientName] = useState("");
   const [clientMessage, setClientMessage] = useState("");
@@ -183,6 +183,15 @@ export default function PurchaseOrdersSection({ orderId, data, isLocked }: Purch
   const hasShippingAddress = !!(order as any)?.shippingAddress ||
     !!((order as any)?.shippingCity && (order as any)?.shippingState);
 
+  // Check if all vendor items have shipping details configured
+  const getVendorShippingReady = (vendorId: string): { ready: boolean; configured: number; total: number } => {
+    const items = orderItems.filter((i: any) => i.supplierId === vendorId);
+    const configured = items.filter((i: any) => i.shippingDestination).length;
+    return { ready: configured === items.length && items.length > 0, configured, total: items.length };
+  };
+
+  const allShippingConfigured = orderItems.length > 0 && orderItems.every((i: any) => i.shippingDestination);
+
   // Get vendor artworks for proofing
   const getVendorArtworks = (vendorId: string) => {
     const vendorItems = orderItems.filter((i: any) => i.supplierId === vendorId);
@@ -206,6 +215,15 @@ export default function PurchaseOrdersSection({ orderId, data, isLocked }: Purch
   const handleGeneratePO = async (vendorId: string, vendorNameStr: string) => {
     if (!hasShippingAddress) {
       toast({ title: "Missing shipping address", description: "Please set a shipping address before generating POs.", variant: "destructive" });
+      return;
+    }
+    const vendorShipping = getVendorShippingReady(vendorId);
+    if (!vendorShipping.ready) {
+      toast({
+        title: "Incomplete shipping details",
+        description: `${vendorShipping.configured}/${vendorShipping.total} products have shipping details. Configure all in the Shipping tab first.`,
+        variant: "destructive",
+      });
       return;
     }
     const ref = poRefs.current[vendorId];
@@ -333,32 +351,50 @@ export default function PurchaseOrdersSection({ orderId, data, isLocked }: Purch
     onError: () => toast({ title: "Failed to update artwork", variant: "destructive" }),
   });
 
-  // Send proof to client
-  const sendClientProofMutation = useMutation({
-    mutationFn: async ({ art, email, name, message }: { art: any; email: string; name: string; message: string }) => {
-      const approvalRes = await apiRequest("POST", `/api/orders/${orderId}/generate-approval`, {
-        orderItemId: art.orderItemId, artworkFileId: null, clientEmail: email, clientName: name,
-      });
-      const approval = await approvalRes.json();
-      const approvalUrl = `${window.location.origin}/approval/${approval.approvalToken}`;
-      const emailBodyFull = `${message}\n\n---\nView & Approve Artwork Proof: ${approvalUrl}`;
+  // Send batch proofs to client (one email with all approval links for a vendor)
+  const sendBatchProofMutation = useMutation({
+    mutationFn: async ({ artworks, email, name, message }: { artworks: any[]; email: string; name: string; message: string }) => {
+      // Generate approval tokens for each artwork
+      const approvalLinks: { art: any; url: string }[] = [];
+      for (const art of artworks) {
+        const approvalRes = await apiRequest("POST", `/api/orders/${orderId}/generate-approval`, {
+          orderItemId: art.orderItemId, artworkItemId: art.id, clientEmail: email, clientName: name,
+        });
+        const approval = await approvalRes.json();
+        const approvalUrl = `${window.location.origin}/approval/${approval.approvalToken}`;
+        approvalLinks.push({ art, url: approvalUrl });
+      }
+
+      // Build combined email body with all approval links
+      const linksList = approvalLinks.map((link, idx) => {
+        const art = link.art;
+        return `${idx + 1}. ${art.productName} — ${art.location || art.artworkType || "Artwork"}\n   Review & Approve: ${link.url}`;
+      }).join("\n\n");
+
+      const emailBodyFull = `${message}\n\n---\nArtwork Proofs for Approval:\n\n${linksList}`;
+
       await apiRequest("POST", `/api/orders/${orderId}/communications`, {
         communicationType: "client_email", direction: "sent",
         recipientEmail: email, recipientName: name,
-        subject: `Artwork Proof for Approval - Order #${(order as any)?.orderNumber || ""}`,
+        subject: `Artwork Proofs for Approval - Order #${(order as any)?.orderNumber || ""} (${artworks.length} item${artworks.length > 1 ? "s" : ""})`,
         body: emailBodyFull,
-        metadata: { type: "proof_approval", artworkId: art.id, approvalUrl },
+        metadata: { type: "proof_approval_batch", artworkIds: artworks.map(a => a.id), approvalLinks: approvalLinks.map(l => l.url) },
       });
+
+      return approvalLinks;
     },
-    onSuccess: (_data, vars) => {
-      updateArtworkMutation.mutate({
-        artworkId: vars.art.id, orderItemId: vars.art.orderItemId,
-        updates: { name: vars.art.name, status: "pending_approval" },
-      });
-      toast({ title: "Proof sent to client!", description: `Approval link sent to ${vars.email}` });
-      setSendProofArt(null);
+    onSuccess: (approvalLinks, vars) => {
+      // Update all artwork statuses to pending_approval
+      for (const link of approvalLinks) {
+        updateArtworkMutation.mutate({
+          artworkId: link.art.id, orderItemId: link.art.orderItemId,
+          updates: { name: link.art.name, status: "pending_approval" },
+        });
+      }
+      toast({ title: "Proofs sent to client!", description: `${approvalLinks.length} approval link${approvalLinks.length > 1 ? "s" : ""} sent to ${vars.email}` });
+      setSendProofArts([]);
     },
-    onError: () => toast({ title: "Failed to send proof", variant: "destructive" }),
+    onError: () => toast({ title: "Failed to send proofs", variant: "destructive" }),
   });
 
   // Helper: open email PO dialog
@@ -370,14 +406,23 @@ export default function PurchaseOrdersSection({ orderId, data, isLocked }: Purch
     setEmailPOVendor({ doc, vendor });
   };
 
-  // Helper: open send proof to client
-  const openSendProof = (art: any) => {
+  // Helper: open batch send proofs to client for a vendor
+  const openSendAllProofs = (vendorId: string) => {
+    const vendorArts = getVendorArtworks(vendorId).filter(
+      (a: any) => a.proofRequired !== false && a.proofFilePath && ["proof_received", "change_requested"].includes(a.status)
+    );
+    if (vendorArts.length === 0) {
+      toast({ title: "No proofs ready to send", description: "Upload vendor proofs first.", variant: "destructive" });
+      return;
+    }
     const pc = (data as any).primaryContact;
     const cn = (data as any).companyName || "";
     setClientEmail(pc?.email || "");
     setClientName(pc ? `${pc.firstName} ${pc.lastName}` : cn);
-    setClientMessage(`Hi ${pc?.firstName || "there"},\n\nWe've received the artwork proof for your order. Please review and let us know if you'd like to approve or request changes.\n\nProduct: ${art.productName}\nDecoration: ${art.location || "N/A"}\n\nBest regards,\n${cn}`);
-    setSendProofArt(art);
+
+    const artList = vendorArts.map((a: any) => `  - ${a.productName} (${a.location || a.artworkType || "Artwork"})`).join("\n");
+    setClientMessage(`Hi ${pc?.firstName || "there"},\n\nWe've received artwork proofs for your order. Please review each proof below and let us know if you'd like to approve or request changes.\n\nProofs included:\n${artList}\n\nBest regards,\n${cn}`);
+    setSendProofArts(vendorArts);
   };
 
   // Copy PO text
@@ -418,11 +463,17 @@ export default function PurchaseOrdersSection({ orderId, data, isLocked }: Purch
         </div>
       </div>
 
-      {/* Shipping Address Warning */}
+      {/* Shipping Warnings */}
       {!hasShippingAddress && orderItems.length > 0 && (
         <div className="flex items-center gap-2 rounded-lg border border-orange-200 bg-orange-50 px-4 py-3 text-sm text-orange-800">
           <AlertTriangle className="h-4 w-4 flex-shrink-0" />
           <span>No shipping address set. POs require a ship-to address — set it in the Sales Order section.</span>
+        </div>
+      )}
+      {hasShippingAddress && !allShippingConfigured && orderItems.length > 0 && (
+        <div className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          <AlertTriangle className="h-4 w-4 flex-shrink-0" />
+          <span>Not all products have shipping details configured. Complete shipping details in the Shipping tab before generating POs.</span>
         </div>
       )}
 
@@ -500,16 +551,16 @@ export default function PurchaseOrdersSection({ orderId, data, isLocked }: Purch
                                 <Mail className="w-3 h-3" /> Email to Vendor
                               </Button>
                             )}
-                            {/* Send for Vendor Confirmation */}
-                            {(poStage === "submitted") && (
+                            {/* Confirm PO */}
+                            {(poStage === "submitted") && vendorDoc && (
                               <Button variant="outline" size="sm" className="h-7 text-xs gap-1 border-green-200 text-green-700 hover:bg-green-50"
-                                onClick={() => sendForConfirmationMutation.mutate({
-                                  doc: vendorDoc,
-                                  vendor: po.vendor,
+                                onClick={() => updateDocMetaMutation.mutate({
+                                  docId: vendorDoc.id,
+                                  updates: { metadata: { ...vendorDoc.metadata, poStage: "confirmed" } },
                                 })}
-                                disabled={isLocked || sendForConfirmationMutation.isPending}>
-                                {sendForConfirmationMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <ExternalLink className="w-3 h-3" />}
-                                Send for Confirmation
+                                disabled={isLocked || updateDocMetaMutation.isPending}>
+                                {updateDocMetaMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle className="w-3 h-3" />}
+                                Mark Confirmed
                               </Button>
                             )}
                             {/* More Actions Dropdown */}
@@ -653,109 +704,149 @@ export default function PurchaseOrdersSection({ orderId, data, isLocked }: Purch
                     </div>
 
                     {/* Proofing Section (per vendor PO) */}
-                    {vendorDoc && vendorArtworks.length > 0 && (
+                    {vendorArtworks.length > 0 && (
                       <div className="border-t p-4">
-                        <h4 className="text-sm font-semibold flex items-center gap-2 mb-3">
-                          <Palette className="w-4 h-4 text-gray-400" />
-                          Proofs
-                        </h4>
-                        <div className="space-y-2">
+                        <div className="flex items-center justify-between mb-3">
+                          <h4 className="text-sm font-semibold flex items-center gap-2">
+                            <Palette className="w-4 h-4 text-purple-500" />
+                            Artwork Proofs
+                            <Badge variant="secondary" className="text-[10px]">
+                              {vendorArtworks.filter((a: any) => a.proofRequired !== false && ["approved", "proofing_complete"].includes(a.status)).length}/{vendorArtworks.filter((a: any) => a.proofRequired !== false).length} approved
+                            </Badge>
+                          </h4>
+                          {/* Send All Proofs to Client — batch button */}
+                          {!isLocked && vendorArtworks.some((a: any) => a.proofRequired !== false && a.proofFilePath && ["proof_received", "change_requested"].includes(a.status)) && (
+                            <Button variant="default" size="sm" className="h-7 text-xs gap-1"
+                              onClick={() => openSendAllProofs(po.vendor.id)}>
+                              <Send className="w-3 h-3" /> Send All Proofs to Client
+                            </Button>
+                          )}
+                        </div>
+                        <div className="space-y-3">
                           {vendorArtworks.map((art: any) => {
-                            const proofRequired = art.proofRequired !== false; // default true
+                            const proofRequired = art.proofRequired !== false;
                             const si = PROOF_STATUSES[art.status] || PROOF_STATUSES.pending;
-                            const canUpload = proofRequired && ["awaiting_proof", "change_requested"].includes(art.status);
-                            const canSendClient = proofRequired && ["proof_received", "change_requested"].includes(art.status);
+                            const canRequestProof = proofRequired && ["pending", "change_requested"].includes(art.status || "pending");
+                            const canUpload = proofRequired && ["pending", "awaiting_proof", "change_requested"].includes(art.status || "pending");
                             const canMarkComplete = proofRequired && art.status === "approved";
 
                             return (
-                              <div key={art.id} className={`flex items-center gap-3 p-2 rounded-lg border ${proofRequired ? "bg-gray-50" : "bg-gray-50/50 opacity-60"}`}>
-                                <div className="w-10 h-10 flex-shrink-0 bg-white rounded border overflow-hidden flex items-center justify-center cursor-pointer"
-                                  onClick={() => { const url = art.fileUrl || art.filePath; if (url) setPreviewFile({ url, name: art.name || "Artwork" }); }}>
-                                  {art.fileUrl || art.filePath ? (
-                                    <img src={art.fileUrl || art.filePath} alt="" className="w-full h-full object-contain p-0.5" />
+                              <div key={art.id} className={`rounded-lg border ${proofRequired ? "" : "opacity-50"}`}>
+                                {/* Artwork Header Row */}
+                                <div className="flex items-center gap-3 p-3">
+                                  {/* Original Artwork Thumbnail */}
+                                  <div className="w-12 h-12 flex-shrink-0 bg-white rounded border overflow-hidden flex items-center justify-center cursor-pointer"
+                                    onClick={() => { const url = art.fileUrl || art.filePath; if (url) setPreviewFile({ url, name: art.name || "Artwork" }); }}>
+                                    {art.fileUrl || art.filePath ? (
+                                      <img src={art.fileUrl || art.filePath} alt="" className="w-full h-full object-contain p-0.5" />
+                                    ) : (
+                                      <Palette className="w-5 h-5 text-gray-300" />
+                                    )}
+                                  </div>
+
+                                  {/* Info */}
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-medium truncate">{art.name || art.fileName}</p>
+                                    <p className="text-xs text-gray-500">
+                                      {art.productName}
+                                      {art.location && <span className="ml-1 text-gray-400">· {art.location}</span>}
+                                      {art.artworkType && <span className="ml-1 text-gray-400">· {art.artworkType}</span>}
+                                    </p>
+                                  </div>
+
+                                  {/* Proof Required toggle */}
+                                  <div className="flex items-center gap-1.5" title={proofRequired ? "Proof required" : "No proof needed"}>
+                                    <ShieldCheck className={`w-3.5 h-3.5 ${proofRequired ? "text-blue-500" : "text-gray-300"}`} />
+                                    <Switch
+                                      checked={proofRequired}
+                                      onCheckedChange={(checked) => {
+                                        updateArtworkMutation.mutate({
+                                          artworkId: art.id, orderItemId: art.orderItemId,
+                                          updates: { name: art.name, proofRequired: checked },
+                                        });
+                                      }}
+                                      className="h-4 w-7"
+                                      disabled={isLocked}
+                                    />
+                                  </div>
+
+                                  {/* Status Badge */}
+                                  {proofRequired ? (
+                                    <Badge className={`text-[10px] ${si.color}`}>{si.label}</Badge>
                                   ) : (
-                                    <Palette className="w-4 h-4 text-gray-300" />
+                                    <Badge variant="outline" className="text-[10px] text-gray-400">No Proof</Badge>
                                   )}
                                 </div>
-                                <div className="flex-1 min-w-0">
-                                  <p className="text-xs font-medium truncate">{art.name || art.fileName}</p>
-                                  <p className="text-[10px] text-gray-400">{art.productName} {art.location ? `· ${art.location}` : ""}</p>
-                                </div>
 
-                                {/* Proof Required toggle */}
-                                <div className="flex items-center gap-1.5" title={proofRequired ? "Proof required" : "No proof needed"}>
-                                  <ShieldCheck className={`w-3 h-3 ${proofRequired ? "text-blue-500" : "text-gray-300"}`} />
-                                  <Switch
-                                    checked={proofRequired}
-                                    onCheckedChange={(checked) => {
-                                      updateArtworkMutation.mutate({
-                                        artworkId: art.id, orderItemId: art.orderItemId,
-                                        updates: { name: art.name, proofRequired: checked },
-                                      });
-                                    }}
-                                    className="h-4 w-7"
-                                    disabled={isLocked}
-                                  />
-                                </div>
-
-                                {proofRequired && (
-                                  <Badge variant="outline" className={`text-[10px] ${si.color}`}>{si.label}</Badge>
-                                )}
-                                {!proofRequired && (
-                                  <Badge variant="outline" className="text-[10px] bg-gray-50 text-gray-400">No Proof</Badge>
-                                )}
-
-                                {/* Proof actions */}
-                                {proofRequired && (
-                                  <DropdownMenu>
-                                    <DropdownMenuTrigger asChild>
-                                      <Button variant="ghost" size="sm" className="h-7 w-7 p-0">
-                                        <MoreHorizontal className="w-3 h-3" />
+                                {/* Vendor Proof Preview (when uploaded) */}
+                                {proofRequired && art.proofFilePath && (
+                                  <div className="px-3 pb-2">
+                                    <div className="flex items-center gap-3 p-2 bg-blue-50 rounded-md border border-blue-100">
+                                      <div className="w-10 h-10 flex-shrink-0 bg-white rounded border overflow-hidden cursor-pointer"
+                                        onClick={() => setPreviewFile({ url: art.proofFilePath, name: art.proofFileName || "Vendor Proof" })}>
+                                        <img src={art.proofFilePath} alt="Proof" className="w-full h-full object-contain p-0.5" />
+                                      </div>
+                                      <div className="flex-1 min-w-0">
+                                        <p className="text-xs font-medium text-blue-700">Vendor Proof</p>
+                                        <p className="text-[10px] text-blue-500 truncate">{art.proofFileName || "proof-file"}</p>
+                                      </div>
+                                      <Button variant="ghost" size="sm" className="h-7 text-xs text-blue-600 hover:text-blue-800"
+                                        onClick={() => setPreviewFile({ url: art.proofFilePath, name: art.proofFileName || "Vendor Proof" })}>
+                                        <Eye className="w-3 h-3 mr-1" /> View
                                       </Button>
-                                    </DropdownMenuTrigger>
-                                    <DropdownMenuContent align="end">
-                                      {["pending", "change_requested"].includes(art.status || "pending") && (
-                                        <DropdownMenuItem onClick={() => {
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* Action Buttons (visible, not hidden in dropdown) */}
+                                {proofRequired && !isLocked && (
+                                  <div className="flex items-center gap-2 px-3 pb-3 flex-wrap">
+                                    {/* Request Proof from Vendor */}
+                                    {canRequestProof && (
+                                      <Button variant="outline" size="sm" className="h-7 text-xs gap-1"
+                                        onClick={() => {
                                           updateArtworkMutation.mutate({
                                             artworkId: art.id, orderItemId: art.orderItemId,
                                             updates: { name: art.name, status: "awaiting_proof" },
                                           });
                                           toast({ title: "Status set to Awaiting Proof" });
                                         }}>
-                                          <Mail className="w-4 h-4 mr-2" /> Mark Awaiting Proof
-                                        </DropdownMenuItem>
-                                      )}
-                                      {canUpload && (
-                                        <DropdownMenuItem onClick={() => setUploadProofArt(art)}>
-                                          <Upload className="w-4 h-4 mr-2" /> Upload Vendor Proof
-                                        </DropdownMenuItem>
-                                      )}
-                                      {canSendClient && (
-                                        <DropdownMenuItem onClick={() => openSendProof(art)}>
-                                          <Send className="w-4 h-4 mr-2" /> Send Proof to Client
-                                        </DropdownMenuItem>
-                                      )}
-                                      {canMarkComplete && (
-                                        <DropdownMenuItem onClick={() => {
+                                        <Mail className="w-3 h-3" /> Request Proof
+                                      </Button>
+                                    )}
+
+                                    {/* Upload Vendor Proof */}
+                                    {canUpload && (
+                                      <Button variant="outline" size="sm" className="h-7 text-xs gap-1 border-blue-200 text-blue-700 hover:bg-blue-50"
+                                        onClick={() => setUploadProofArt(art)}>
+                                        <Upload className="w-3 h-3" /> Upload Proof
+                                      </Button>
+                                    )}
+
+                                    {/* Per-artwork send removed — use vendor-level "Send All Proofs" batch button */}
+
+                                    {/* Mark Proofing Complete */}
+                                    {canMarkComplete && (
+                                      <Button variant="outline" size="sm" className="h-7 text-xs gap-1 border-green-200 text-green-700 hover:bg-green-50"
+                                        onClick={() => {
                                           updateArtworkMutation.mutate({
                                             artworkId: art.id, orderItemId: art.orderItemId,
                                             updates: { name: art.name, status: "proofing_complete" },
                                           });
                                           toast({ title: "Proofing marked as complete" });
                                         }}>
-                                          <CheckCircle className="w-4 h-4 mr-2" /> Mark Proofing Complete
-                                        </DropdownMenuItem>
-                                      )}
-                                      {art.proofFilePath && (
-                                        <>
-                                          <DropdownMenuSeparator />
-                                          <DropdownMenuItem onClick={() => setPreviewFile({ url: art.proofFilePath, name: art.proofFileName || "Vendor Proof" })}>
-                                            <Eye className="w-4 h-4 mr-2" /> View Vendor Proof
-                                          </DropdownMenuItem>
-                                        </>
-                                      )}
-                                    </DropdownMenuContent>
-                                  </DropdownMenu>
+                                        <CheckCircle className="w-3 h-3" /> Complete
+                                      </Button>
+                                    )}
+
+                                    {/* Re-upload (when proof exists but needs change) */}
+                                    {art.status === "change_requested" && art.proofFilePath && (
+                                      <Button variant="outline" size="sm" className="h-7 text-xs gap-1 border-orange-200 text-orange-700 hover:bg-orange-50"
+                                        onClick={() => setUploadProofArt(art)}>
+                                        <Upload className="w-3 h-3" /> Re-upload Proof
+                                      </Button>
+                                    )}
+                                  </div>
                                 )}
                               </div>
                             );
@@ -947,29 +1038,41 @@ export default function PurchaseOrdersSection({ orderId, data, isLocked }: Purch
         title="Upload Vendor Proof"
       />
 
-      {/* ── Send Proof to Client Dialog ── */}
-      <Dialog open={!!sendProofArt} onOpenChange={(open) => !open && setSendProofArt(null)}>
-        <DialogContent className="max-w-lg">
+      {/* ── Send Batch Proofs to Client Dialog ── */}
+      <Dialog open={sendProofArts.length > 0} onOpenChange={(open) => !open && setSendProofArts([])}>
+        <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Send className="w-5 h-5" /> Send Proof to Client
+              <Send className="w-5 h-5" /> Send Proofs to Client
             </DialogTitle>
             <DialogDescription>
-              Send the artwork proof to your client for approval.
+              Send {sendProofArts.length} artwork proof{sendProofArts.length > 1 ? "s" : ""} to your client for approval. One email will be sent with all approval links.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
-            {sendProofArt?.proofFilePath && (
-              <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg border">
-                <div className="w-14 h-14 flex-shrink-0 bg-white rounded border overflow-hidden">
-                  <img src={sendProofArt.proofFilePath} alt="Proof" className="w-full h-full object-contain p-0.5" />
+            {/* Proof thumbnails list */}
+            <div className="space-y-2 max-h-[200px] overflow-y-auto">
+              {sendProofArts.map((art: any) => (
+                <div key={art.id} className="flex items-center gap-3 p-2 bg-gray-50 rounded-lg border">
+                  <div className="w-10 h-10 flex-shrink-0 bg-white rounded border overflow-hidden">
+                    {art.proofFilePath ? (
+                      <img src={art.proofFilePath} alt="Proof" className="w-full h-full object-contain p-0.5" />
+                    ) : (
+                      <Palette className="w-4 h-4 text-gray-300 m-auto mt-2" />
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate">{art.productName}</p>
+                    <p className="text-[10px] text-gray-500 truncate">
+                      {art.location || art.artworkType || "Artwork"} · {art.proofFileName || "proof"}
+                    </p>
+                  </div>
+                  <Badge className={`text-[10px] ${PROOF_STATUSES[art.status]?.color || ""}`}>
+                    {PROOF_STATUSES[art.status]?.label || art.status}
+                  </Badge>
                 </div>
-                <div>
-                  <p className="text-sm font-medium">Vendor Proof</p>
-                  <p className="text-xs text-gray-500">{sendProofArt.proofFileName || "proof-file"}</p>
-                </div>
-              </div>
-            )}
+              ))}
+            </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="text-xs font-medium text-gray-500 block mb-1">Client Email</label>
@@ -983,17 +1086,19 @@ export default function PurchaseOrdersSection({ orderId, data, isLocked }: Purch
             <div>
               <label className="text-xs font-medium text-gray-500 block mb-1">Message</label>
               <Textarea value={clientMessage} onChange={(e) => setClientMessage(e.target.value)} className="min-h-[120px] resize-none text-sm" />
-              <p className="text-xs text-gray-400 mt-1">An approval link will be automatically included.</p>
+              <p className="text-xs text-gray-400 mt-1">
+                {sendProofArts.length} approval link{sendProofArts.length > 1 ? "s" : ""} will be automatically included in the email.
+              </p>
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setSendProofArt(null)}>Cancel</Button>
+            <Button variant="outline" onClick={() => setSendProofArts([])}>Cancel</Button>
             <Button onClick={() => {
-              if (!sendProofArt || !clientEmail.trim()) return;
-              sendClientProofMutation.mutate({ art: sendProofArt, email: clientEmail, name: clientName, message: clientMessage });
-            }} disabled={sendClientProofMutation.isPending || !clientEmail.trim()} className="gap-1">
-              {sendClientProofMutation.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
-              Send Proof
+              if (sendProofArts.length === 0 || !clientEmail.trim()) return;
+              sendBatchProofMutation.mutate({ artworks: sendProofArts, email: clientEmail, name: clientName, message: clientMessage });
+            }} disabled={sendBatchProofMutation.isPending || !clientEmail.trim()} className="gap-1">
+              {sendBatchProofMutation.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
+              Send {sendProofArts.length} Proof{sendProofArts.length > 1 ? "s" : ""}
             </Button>
           </DialogFooter>
         </DialogContent>

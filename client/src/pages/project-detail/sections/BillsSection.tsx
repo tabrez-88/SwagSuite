@@ -15,6 +15,7 @@ import { FileText, Building2, Plus, Loader2, Link2 } from "lucide-react";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
+import ProjectInfoBar from "@/components/ProjectInfoBar";
 import type { ProjectData } from "@/types/project-types";
 
 interface BillsSectionProps {
@@ -30,7 +31,7 @@ const billStatusColors: Record<string, string> = {
 };
 
 export default function BillsSection({ orderId, data }: BillsSectionProps) {
-  const { vendorInvoices, orderVendors } = data;
+  const { vendorInvoices, orderVendors, companyName, primaryContact } = data;
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -99,6 +100,8 @@ export default function BillsSection({ orderId, data }: BillsSectionProps) {
 
   return (
     <div className="space-y-6">
+      <ProjectInfoBar companyName={companyName} primaryContact={primaryContact} />
+
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-lg font-semibold flex items-center gap-2">

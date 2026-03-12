@@ -189,8 +189,11 @@ export function KanbanBoard({ data, onViewOrder, onViewProject }: KanbanBoardPro
                       <div className="flex items-start justify-between gap-1">
                         <div className="min-w-0 flex-1">
                           <p className="text-xs font-bold text-gray-900 truncate">
-                            {order.orderNumber}
+                            {order.projectName || order.orderNumber}
                           </p>
+                          {order.projectName && (
+                            <p className="text-[10px] text-gray-400 truncate">{order.orderNumber}</p>
+                          )}
                           <div className="flex items-center gap-1.5 mt-0.5">
                             <UserAvatar name={order.companyName || "?"} size="xs" />
                             <p className="text-xs text-gray-600 truncate">{order.companyName}</p>
@@ -199,12 +202,19 @@ export function KanbanBoard({ data, onViewOrder, onViewProject }: KanbanBoardPro
                         <GripVertical className="w-3.5 h-3.5 text-gray-300 flex-shrink-0 mt-0.5" />
                       </div>
 
-                      {/* Sub-status badge */}
-                      <span
-                        className={`text-[10px] ${determined.currentSubStatus.color} inline-block px-1.5 py-0.5 rounded-full font-medium`}
-                      >
-                        {determined.currentSubStatus.label}
-                      </span>
+                      {/* Sub-status badge & budget */}
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span
+                          className={`text-[10px] ${determined.currentSubStatus.color} inline-block px-1.5 py-0.5 rounded-full font-medium`}
+                        >
+                          {determined.currentSubStatus.label}
+                        </span>
+                        {order.budget && Number(order.budget) > 0 && (
+                          <span className="text-[10px] bg-emerald-50 text-emerald-700 inline-block px-1.5 py-0.5 rounded-full font-medium">
+                            Budget: {new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 0 }).format(Number(order.budget))}
+                          </span>
+                        )}
+                      </div>
 
                       {/* Footer */}
                       <div className="flex items-center justify-between text-[11px] text-gray-500 pt-1 border-t border-gray-100">

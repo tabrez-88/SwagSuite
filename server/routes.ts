@@ -2590,6 +2590,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         await updateCompanyYtdSpending(oldOrder.companyId);
       }
 
+      // Recalculate totals when pricing-related fields change
+      const pricingFields = ['orderDiscount', 'taxRate', 'shippingAddress', 'billingAddress'];
+      const hasPricingChange = pricingFields.some(f => req.body[f] !== undefined);
+      if (hasPricingChange || items) {
+        try {
+          const recalculated = await recalculateOrderTotals(order.id);
+          return res.json(recalculated);
+        } catch (recalcErr) {
+          console.warn("Recalculation after PATCH failed:", recalcErr);
+        }
+      }
+
       res.json(order);
     } catch (error) {
       console.error("Error updating order:", error instanceof Error ? error.message : String(error));
@@ -2757,70 +2769,140 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Recalculate order total from items
-  app.post('/api/orders/:id/recalculate-total', isAuthenticated, async (req, res) => {
-    try {
-      const { db } = await import("./db");
-      const { orderServiceCharges, orderAdditionalCharges, orderShipments } = await import("@shared/schema");
-      const { eq } = await import("drizzle-orm");
+  // Shared helper: recalculate order totals (items + charges + discount + tax + shipping)
+  async function recalculateOrderTotals(orderId: string) {
+    const { db } = await import("./db");
+    const { orderServiceCharges, orderAdditionalCharges, orderShipments, companies } = await import("@shared/schema");
+    const { eq } = await import("drizzle-orm");
+    const { getTaxJarCredentials } = await import("./taxjarService");
 
-      const allItems = await storage.getOrderItems(req.params.id);
-      const itemsSubtotal = allItems.reduce((sum, item) => sum + parseFloat(item.totalPrice), 0);
+    const allItems = await storage.getOrderItems(orderId);
+    const itemsSubtotal = allItems.reduce((sum, item) => sum + parseFloat(item.totalPrice), 0);
 
-      // Sum per-item additional charges (client-visible)
-      let additionalChargesTotal = 0;
-      for (const item of allItems) {
-        const charges = await db.select().from(orderAdditionalCharges).where(eq(orderAdditionalCharges.orderItemId, item.id));
-        additionalChargesTotal += charges
-          .filter((c: any) => c.displayToClient)
-          .reduce((sum: number, c: any) => sum + parseFloat(c.amount || "0"), 0);
-      }
-
-      // Sum order-level service charges (client-visible)
-      const serviceCharges = await db.select().from(orderServiceCharges).where(eq(orderServiceCharges.orderId, req.params.id));
-      const serviceChargesTotal = serviceCharges
+    // Sum per-item additional charges (client-visible)
+    let additionalChargesTotal = 0;
+    for (const item of allItems) {
+      const charges = await db.select().from(orderAdditionalCharges).where(eq(orderAdditionalCharges.orderItemId, item.id));
+      additionalChargesTotal += charges
         .filter((c: any) => c.displayToClient)
-        .reduce((sum: number, c: any) => {
-          const qty = c.quantity || 1;
-          const price = parseFloat(c.unitPrice || "0");
-          return sum + qty * price;
-        }, 0);
+        .reduce((sum: number, c: any) => sum + parseFloat(c.amount || "0"), 0);
+    }
 
-      // Sum shipping costs from shipments
-      const shipments = await db.select().from(orderShipments).where(eq(orderShipments.orderId, req.params.id));
-      const shippingTotal = shipments.reduce((sum: number, s: any) => sum + parseFloat(s.shippingCost || "0"), 0);
+    // Sum order-level service charges (client-visible)
+    const serviceCharges = await db.select().from(orderServiceCharges).where(eq(orderServiceCharges.orderId, orderId));
+    const serviceChargesTotal = serviceCharges
+      .filter((c: any) => c.displayToClient)
+      .reduce((sum: number, c: any) => {
+        const qty = c.quantity || 1;
+        const price = parseFloat(c.unitPrice || "0");
+        return sum + qty * price;
+      }, 0);
 
-      const subtotal = itemsSubtotal + additionalChargesTotal + serviceChargesTotal;
-      const existingOrder = await storage.getOrder(req.params.id);
-      const tax = parseFloat((existingOrder as any)?.tax || "0");
-      const total = subtotal + shippingTotal + tax;
+    // Sum shipping costs from shipments
+    const shipments = await db.select().from(orderShipments).where(eq(orderShipments.orderId, orderId));
+    const shippingTotal = shipments.reduce((sum: number, s: any) => sum + parseFloat(s.shippingCost || "0"), 0);
 
-      console.log(`Recalculation for order ${req.params.id}:`, {
-        itemsSubtotal: itemsSubtotal.toFixed(2),
-        additionalCharges: additionalChargesTotal.toFixed(2),
-        serviceCharges: serviceChargesTotal.toFixed(2),
-        shipping: shippingTotal.toFixed(2),
-        tax: tax.toFixed(2),
-        total: total.toFixed(2),
-      });
+    const subtotal = itemsSubtotal + additionalChargesTotal + serviceChargesTotal;
+    const existingOrder = await storage.getOrder(orderId);
 
-      const updatedOrder = await storage.updateOrder(req.params.id, {
-        subtotal: subtotal.toFixed(2),
-        shipping: shippingTotal.toFixed(2),
-        total: total.toFixed(2),
-      });
+    // Apply discount
+    const discountPercent = parseFloat((existingOrder as any)?.orderDiscount || "0");
+    const discountAmount = discountPercent > 0 ? subtotal * (discountPercent / 100) : 0;
+    const discountedSubtotal = subtotal - discountAmount;
 
-      // Update YTD spending after total change
-      if (updatedOrder.companyId) {
-        await updateCompanyYtdSpending(updatedOrder.companyId);
-      }
-      const orderItems = await storage.getOrderItems(updatedOrder.id);
-      const supplierIds = Array.from(new Set(orderItems.map(item => item.supplierId).filter(Boolean)));
-      for (const supplierId of supplierIds) {
-        if (supplierId) {
-          await updateSupplierYtdSpending(supplierId as string);
+    // Calculate tax: try TaxJar first, fallback to manual taxRate
+    let tax = 0;
+    let taxSource = "none";
+    const isTaxExempt = await (async () => {
+      if (!existingOrder?.companyId) return false;
+      const [company] = await db.select().from(companies).where(eq(companies.id, existingOrder.companyId));
+      return company?.taxExempt || false;
+    })();
+
+    if (!isTaxExempt && discountedSubtotal > 0) {
+      // Try TaxJar API
+      const taxService = await getTaxJarCredentials();
+      if (taxService) {
+        try {
+          const shippingAddr = (() => {
+            try { return existingOrder?.shippingAddress ? JSON.parse(existingOrder.shippingAddress) : null; }
+            catch { return null; }
+          })();
+          if (shippingAddr?.state && shippingAddr?.zipCode) {
+            const taxResult = await taxService.calculateTax({
+              from_country: "US",
+              from_state: "NY",
+              from_zip: "10001",
+              to_country: shippingAddr.country || "US",
+              to_state: shippingAddr.state,
+              to_zip: shippingAddr.zipCode,
+              to_city: shippingAddr.city || "",
+              to_street: shippingAddr.street || shippingAddr.address || "",
+              amount: discountedSubtotal,
+              shipping: shippingTotal,
+              line_items: allItems.map((item: any) => ({
+                id: item.id,
+                quantity: item.quantity,
+                unit_price: parseFloat(item.unitPrice) || 0,
+                discount: discountPercent > 0 ? (parseFloat(item.unitPrice) || 0) * item.quantity * (discountPercent / 100) : 0,
+              })),
+            });
+            tax = taxResult.amount_to_collect;
+            taxSource = "taxjar";
+          }
+        } catch (err) {
+          console.warn(`TaxJar calculation failed for order ${orderId}, falling back to manual rate:`, err);
         }
       }
+      // Fallback to manual tax rate if TaxJar didn't calculate
+      if (taxSource === "none") {
+        const manualTaxRate = parseFloat((existingOrder as any)?.taxRate || "0");
+        if (manualTaxRate > 0) {
+          tax = discountedSubtotal * (manualTaxRate / 100);
+          taxSource = "manual";
+        }
+      }
+    }
 
+    const total = discountedSubtotal + shippingTotal + tax;
+
+    console.log(`Recalculation for order ${orderId}:`, {
+      itemsSubtotal: itemsSubtotal.toFixed(2),
+      additionalCharges: additionalChargesTotal.toFixed(2),
+      serviceCharges: serviceChargesTotal.toFixed(2),
+      subtotal: subtotal.toFixed(2),
+      discount: discountAmount > 0 ? `-${discountAmount.toFixed(2)} (${discountPercent}%)` : "none",
+      tax: `${tax.toFixed(2)} (${taxSource})`,
+      shipping: shippingTotal.toFixed(2),
+      total: total.toFixed(2),
+    });
+
+    const updatedOrder = await storage.updateOrder(orderId, {
+      subtotal: subtotal.toFixed(2),
+      shipping: shippingTotal.toFixed(2),
+      tax: tax.toFixed(2),
+      total: total.toFixed(2),
+      taxCalculatedAt: taxSource !== "none" ? new Date() : undefined,
+    } as any);
+
+    // Update YTD spending
+    if (updatedOrder.companyId) {
+      await updateCompanyYtdSpending(updatedOrder.companyId);
+    }
+    const items = await storage.getOrderItems(updatedOrder.id);
+    const supplierIds = Array.from(new Set(items.map(item => item.supplierId).filter(Boolean)));
+    for (const supplierId of supplierIds) {
+      if (supplierId) {
+        await updateSupplierYtdSpending(supplierId as string);
+      }
+    }
+
+    return updatedOrder;
+  }
+
+  app.post('/api/orders/:id/recalculate-total', isAuthenticated, async (req, res) => {
+    try {
+      const updatedOrder = await recalculateOrderTotals(req.params.id);
       res.json(updatedOrder);
     } catch (error) {
       console.error("Error recalculating order total:", error);
@@ -2874,36 +2956,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const item = await storage.createOrderItem(validatedData);
 
-      // Recalculate order totals after adding item
-      const allItems = await storage.getOrderItems(req.params.orderId);
-      const subtotal = allItems.reduce((sum, item) => {
-        return sum + parseFloat(item.totalPrice);
-      }, 0);
-
-      console.log(`Recalculating order ${req.params.orderId} total:`, {
-        itemCount: allItems.length,
-        subtotal: subtotal.toFixed(2),
-      });
-
-      // Update order with new totals
-      const updatedOrder = await storage.updateOrder(req.params.orderId, {
-        subtotal: subtotal.toFixed(2),
-        total: subtotal.toFixed(2), // Can add tax/shipping calculation here later
-      });
-
-      console.log('Order updated:', updatedOrder);
-
-      // Update YTD spending after item added
-      if (updatedOrder.companyId) {
-        await updateCompanyYtdSpending(updatedOrder.companyId);
-      }
-      const orderItems2 = await storage.getOrderItems(updatedOrder.id);
-      const supplierIds2 = Array.from(new Set(orderItems2.map(item => item.supplierId).filter(Boolean)));
-      for (const supplierId of supplierIds2) {
-        if (supplierId) {
-          await updateSupplierYtdSpending(supplierId as string);
-        }
-      }
+      // Recalculate order totals (includes discount, tax, shipping)
+      await recalculateOrderTotals(req.params.orderId);
 
       res.status(201).json(item);
     } catch (error) {
@@ -2931,29 +2985,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Now safe to delete the order item
       await storage.deleteOrderItem(req.params.itemId);
 
-      // Recalculate order totals after deleting item
-      const allItems = await storage.getOrderItems(req.params.orderId);
-      const subtotal = allItems.reduce((sum, item) => {
-        return sum + parseFloat(item.totalPrice);
-      }, 0);
-
-      // Update order with new totals
-      const updatedOrder = await storage.updateOrder(req.params.orderId, {
-        subtotal: subtotal.toFixed(2),
-        total: subtotal.toFixed(2), // Can add tax/shipping calculation here later
-      });
-
-      // Update YTD spending after item deleted
-      if (updatedOrder.companyId) {
-        await updateCompanyYtdSpending(updatedOrder.companyId);
-      }
-      const orderItems3 = await storage.getOrderItems(updatedOrder.id);
-      const supplierIds3 = Array.from(new Set(orderItems3.map(item => item.supplierId).filter(Boolean)));
-      for (const supplierId of supplierIds3) {
-        if (supplierId) {
-          await updateSupplierYtdSpending(supplierId as string);
-        }
-      }
+      // Recalculate order totals (includes discount, tax, shipping)
+      await recalculateOrderTotals(req.params.orderId);
 
       res.json({ message: "Order item deleted successfully" });
     } catch (error) {
@@ -3130,6 +3163,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const updatedItem = await storage.updateOrderItem(req.params.itemId, req.body);
+
+      // Recalculate order totals if pricing fields changed
+      const pricingFields = ['quantity', 'unitPrice', 'totalPrice', 'cost', 'decorationCost', 'charges'];
+      if (pricingFields.some(f => req.body[f] !== undefined)) {
+        await recalculateOrderTotals(req.params.orderId);
+      }
+
       res.json(updatedItem);
     } catch (error) {
       console.error("Error updating order item:", error);
@@ -3147,6 +3187,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: "Failed to fetch order item lines" });
     }
   });
+
+  // Helper: recalculate parent item totalPrice/quantity from its lines
+  async function recalculateItemFromLines(orderItemId: string) {
+    const lines = await storage.getOrderItemLines(orderItemId);
+    if (lines.length === 0) return;
+    const totalQty = lines.reduce((sum, l) => sum + (l.quantity || 0), 0);
+    const totalPrice = lines.reduce((sum, l) => {
+      const qty = l.quantity || 0;
+      const price = parseFloat(l.unitPrice || "0");
+      return sum + qty * price;
+    }, 0);
+    await storage.updateOrderItem(orderItemId, {
+      quantity: totalQty,
+      totalPrice: totalPrice.toFixed(2),
+    } as any);
+    // Also recalculate order totals
+    const { db } = await import("./db");
+    const { orderItems } = await import("@shared/schema");
+    const { eq } = await import("drizzle-orm");
+    const [item] = await db.select({ orderId: orderItems.orderId }).from(orderItems).where(eq(orderItems.id, orderItemId));
+    if (item?.orderId) {
+      await recalculateOrderTotals(item.orderId);
+    }
+  }
 
   // Helper: check lock by orderItemId (looks up the item to find its orderId)
   async function checkLockByOrderItemId(orderItemId: string, res: any): Promise<boolean> {
@@ -3171,6 +3235,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         orderItemId: req.params.orderItemId,
       });
       const line = await storage.createOrderItemLine(validatedData);
+      await recalculateItemFromLines(req.params.orderItemId);
       res.status(201).json(line);
     } catch (error) {
       console.error("Error creating order item line:", error);
@@ -3182,6 +3247,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       if (await checkLockByOrderItemId(req.params.orderItemId, res)) return;
       const line = await storage.updateOrderItemLine(req.params.lineId, req.body);
+      await recalculateItemFromLines(req.params.orderItemId);
       res.json(line);
     } catch (error) {
       console.error("Error updating order item line:", error);
@@ -3193,6 +3259,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       if (await checkLockByOrderItemId(req.params.orderItemId, res)) return;
       await storage.deleteOrderItemLine(req.params.lineId);
+      await recalculateItemFromLines(req.params.orderItemId);
       res.status(204).send();
     } catch (error) {
       console.error("Error deleting order item line:", error);
@@ -3367,6 +3434,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const { projectActivities } = await import("@shared/project-schema");
         await db.insert(projectActivities).values({
           orderId,
+          userId: 'system',
           activityType: 'system_action',
           content: `Sales Order auto-transitioned to "Shipped" — shipment marked as "${shipmentStatus}"`,
           metadata: {
@@ -3374,7 +3442,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
             previousStatus: currentOrder.salesOrderStatus,
             newStatus: 'shipped',
           },
-        });
+          isSystemGenerated: true,
+        } as any);
         console.log(`[Shipment→SO Auto] Order ${orderId}: SO → shipped`);
       }
     } catch (err) {
@@ -6201,8 +6270,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           o.csr_user_id as "csrUserId",
           c.name as "companyName",
           c.id as "companyId",
-          u_assigned.full_name as "assignedUserName",
-          u_csr.full_name as "csrUserName"
+          COALESCE(u_assigned.first_name || ' ' || u_assigned.last_name, u_assigned.username) as "assignedUserName",
+          COALESCE(u_csr.first_name || ' ' || u_csr.last_name, u_csr.username) as "csrUserName"
         FROM generated_documents gd
         INNER JOIN orders o ON gd.order_id = o.id
         LEFT JOIN companies c ON o.company_id = c.id
@@ -6327,9 +6396,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           o.notes as order_notes, o.supplier_notes,
           c.name as company_name, c.id as company_id,
           s.name as supplier_name, s.email as supplier_email, s.phone as supplier_phone,
-          s.contact_name as supplier_contact,
-          u_assigned.full_name as assigned_user_name,
-          u_csr.full_name as csr_user_name
+          s.contact_person as supplier_contact,
+          COALESCE(u_assigned.first_name || ' ' || u_assigned.last_name, u_assigned.username) as assigned_user_name,
+          COALESCE(u_csr.first_name || ' ' || u_csr.last_name, u_csr.username) as csr_user_name
         FROM generated_documents gd
         INNER JOIN orders o ON gd.order_id = o.id
         LEFT JOIN companies c ON o.company_id = c.id
@@ -6375,7 +6444,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Get activity log for this order
       const activitiesResult = await database.execute(sql.raw(`
-        SELECT pa.*, u.full_name as user_name
+        SELECT pa.*, COALESCE(u.first_name || ' ' || u.last_name, u.username) as user_name
         FROM project_activities pa
         LEFT JOIN users u ON pa.user_id = u.id
         WHERE pa.order_id = '${doc.order_id}'
@@ -8212,6 +8281,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
 
+  // ===== General Send Email (no order context) =====
+  app.post("/api/send-email", isAuthenticated, async (req: any, res) => {
+    try {
+      const { fromEmail, fromName, recipientEmail, recipientName, subject, body, cc, bcc, companyName } = req.body;
+
+      if (!recipientEmail || !subject || !body) {
+        return res.status(400).json({ error: "recipientEmail, subject, and body are required" });
+      }
+
+      const userId = req.user?.claims?.sub || req.user?.id;
+      const { emailService } = await import('./emailService');
+
+      await emailService.sendClientEmail({
+        userId,
+        from: fromEmail,
+        fromName: fromName,
+        to: recipientEmail,
+        toName: recipientName,
+        cc,
+        bcc,
+        subject,
+        body,
+        companyName,
+      });
+
+      res.json({ success: true, message: "Email sent successfully" });
+    } catch (error: any) {
+      console.error("Error sending email:", error);
+      res.status(500).json({ error: error.message || "Failed to send email" });
+    }
+  });
+
   app.post("/api/settings/test-email", isAuthenticated, async (req, res) => {
     try {
       const { to } = req.body;
@@ -8760,6 +8861,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           orderId: artworkApprovals.orderId,
           orderItemId: artworkApprovals.orderItemId,
           artworkFileId: artworkApprovals.artworkFileId,
+          artworkItemId: artworkApprovals.artworkItemId,
           approvalToken: artworkApprovals.approvalToken,
           status: artworkApprovals.status,
           approvedAt: artworkApprovals.approvedAt,
@@ -8789,9 +8891,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Approval not found" });
       }
 
-      // Fetch artwork items for this order item (decoration details)
+      // Fetch artwork items — specific one if artworkItemId set, else all for orderItem
       let artworkDetails: any[] = [];
-      if (approval.orderItemId) {
+      if (approval.artworkItemId) {
+        artworkDetails = await db
+          .select()
+          .from(artworkItems)
+          .where(eq(artworkItems.id, approval.artworkItemId));
+      } else if (approval.orderItemId) {
         artworkDetails = await db
           .select()
           .from(artworkItems)
@@ -8825,6 +8932,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         id: approval.id,
         orderId: approval.orderId,
         orderItemId: approval.orderItemId,
+        artworkFileId: approval.artworkFileId,
         approvalToken: approval.approvalToken,
         status: approval.status,
         artworkUrl: approval.pdfPath,
@@ -8917,15 +9025,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .where(eq(artworkApprovals.id, approval.id))
         .returning();
 
-      // Auto-update artworkItems proof status to "approved"
+      // Auto-update specific artworkItem proof status to "approved"
       if (approval.orderItemId) {
         try {
           const { artworkItems } = await import("@shared/schema");
-          // Update all artwork items for this order item that are in pending_approval status
-          await db
-            .update(artworkItems)
-            .set({ status: "approved", updatedAt: new Date() })
-            .where(eq(artworkItems.orderItemId, approval.orderItemId));
+          const { and } = await import("drizzle-orm");
+          if (approval.artworkItemId) {
+            // Update only the specific artwork item
+            await db
+              .update(artworkItems)
+              .set({ status: "approved", updatedAt: new Date() })
+              .where(and(
+                eq(artworkItems.id, approval.artworkItemId),
+                eq(artworkItems.status, "pending_approval")
+              ));
+          } else {
+            // Legacy fallback: no specific artwork ID, update all pending_approval for this orderItem
+            await db
+              .update(artworkItems)
+              .set({ status: "approved", updatedAt: new Date() })
+              .where(and(
+                eq(artworkItems.orderItemId, approval.orderItemId),
+                eq(artworkItems.status, "pending_approval")
+              ));
+          }
         } catch (artErr) {
           console.error('Error auto-updating artwork status:', artErr);
         }
@@ -9067,14 +9190,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .where(eq(artworkApprovals.id, approval.id))
         .returning();
 
-      // Auto-update artworkItems proof status to "change_requested"
+      // Auto-update specific artworkItem proof status to "change_requested"
       if (approval.orderItemId) {
         try {
           const { artworkItems } = await import("@shared/schema");
-          await db
-            .update(artworkItems)
-            .set({ status: "change_requested", updatedAt: new Date() })
-            .where(eq(artworkItems.orderItemId, approval.orderItemId));
+          const { and } = await import("drizzle-orm");
+          if (approval.artworkItemId) {
+            // Update only the specific artwork item
+            await db
+              .update(artworkItems)
+              .set({ status: "change_requested", updatedAt: new Date() })
+              .where(and(
+                eq(artworkItems.id, approval.artworkItemId),
+                eq(artworkItems.status, "pending_approval")
+              ));
+          } else {
+            // Legacy fallback: update all pending_approval for this orderItem
+            await db
+              .update(artworkItems)
+              .set({ status: "change_requested", updatedAt: new Date() })
+              .where(and(
+                eq(artworkItems.orderItemId, approval.orderItemId),
+                eq(artworkItems.status, "pending_approval")
+              ));
+          }
         } catch (artErr) {
           console.error('Error auto-updating artwork status:', artErr);
         }
@@ -9162,7 +9301,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/orders/:orderId/generate-approval", isAuthenticated, async (req, res) => {
     try {
       const { orderId } = req.params;
-      const { orderItemId, artworkFileId, clientEmail, clientName } = req.body;
+      const { orderItemId, artworkFileId, artworkItemId, clientEmail, clientName } = req.body;
 
       if (!clientEmail) {
         return res.status(400).json({ message: "Client email is required" });
@@ -9196,7 +9335,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         conditions.push(eq(artworkApprovals.orderItemId, orderItemId));
       }
 
-      if (artworkFileId) {
+      if (artworkItemId) {
+        conditions.push(eq(artworkApprovals.artworkItemId, artworkItemId));
+      } else if (artworkFileId) {
         conditions.push(eq(artworkApprovals.artworkFileId, artworkFileId));
       }
 
@@ -9220,6 +9361,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           orderId,
           orderItemId: orderItemId || null,
           artworkFileId: artworkFileId || null,
+          artworkItemId: artworkItemId || null,
           approvalToken: token,
           status: "pending",
           clientEmail,
@@ -9261,6 +9403,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           orderId: artworkApprovals.orderId,
           orderItemId: artworkApprovals.orderItemId,
           artworkFileId: artworkApprovals.artworkFileId,
+          artworkItemId: artworkApprovals.artworkItemId,
           approvalToken: artworkApprovals.approvalToken,
           status: artworkApprovals.status,
           clientEmail: artworkApprovals.clientEmail,
@@ -9641,6 +9784,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               const { projectActivities } = await import("@shared/project-schema");
               await db.insert(projectActivities).values({
                 orderId,
+                userId: 'system',
                 activityType: 'system_action',
                 content: `PO #${poDoc.documentNumber || documentId} auto-transitioned to "Billed" — vendor bill #${invoiceNumber} recorded`,
                 metadata: {
@@ -9648,7 +9792,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
                   documentId,
                   invoiceNumber,
                 },
-              });
+                isSystemGenerated: true,
+              } as any);
 
               console.log(`[Bill→PO Auto] PO ${documentId} → billed (bill #${invoiceNumber})`);
             }
@@ -9704,7 +9849,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const [updated] = await db
         .update(quoteApprovals)
         .set(updateData)
-        .where(eq(quoteApprovals.id, Number(approvalId)))
+        .where(eq(quoteApprovals.id, String(approvalId)))
         .returning();
 
       res.json(updated);
@@ -11563,6 +11708,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 const { projectActivities } = await import("@shared/project-schema");
                 await db.insert(projectActivities).values({
                   orderId: updated.orderId,
+                  userId: 'system',
                   activityType: 'system_action',
                   content: `Sales Order auto-transitioned to "${newSOStatus === 'ready_to_invoice' ? 'Ready to Invoice' : 'Shipped'}" — all POs reached ${allStages[0]} stage`,
                   metadata: {
@@ -11570,7 +11716,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
                     previousStatus: currentSO,
                     newStatus: newSOStatus,
                   },
-                });
+                  isSystemGenerated: true,
+                } as any);
 
                 console.log(`[PO→SO Auto] Order ${updated.orderId}: SO status ${currentSO} → ${newSOStatus} (all ${allPOs.length} POs at ${metadata.poStage}+)`);
               }

@@ -259,7 +259,12 @@ export const orders = pgTable("orders", {
   nextActionNotes: text("next_action_notes"),
   customerPo: varchar("customer_po"),
   paymentTerms: varchar("payment_terms").default("Net 30"),
+  currency: varchar("currency").default("USD"),
+  taxRate: decimal("tax_rate", { precision: 5, scale: 2 }).default("0"),
+  quoteIntroduction: text("quote_introduction"),
   orderDiscount: decimal("order_discount", { precision: 12, scale: 2 }).default("0"),
+  projectName: varchar("project_name"),
+  budget: decimal("budget", { precision: 12, scale: 2 }),
   notes: text("notes"),
   customerNotes: text("customer_notes"), // visible to customer
   internalNotes: text("internal_notes"), // internal only
@@ -379,6 +384,7 @@ export const artworkApprovals = pgTable("artwork_approvals", {
   orderId: varchar("order_id").references(() => orders.id).notNull(),
   orderItemId: varchar("order_item_id").references(() => orderItems.id),
   artworkFileId: varchar("artwork_file_id").references(() => artworkFiles.id),
+  artworkItemId: varchar("artwork_item_id").references(() => artworkItems.id),
   approvalToken: varchar("approval_token", { length: 255 }).notNull().unique(),
   status: varchar("status", { length: 50 }).notNull().default("pending"), // pending, approved, declined
   clientEmail: varchar("client_email", { length: 255 }),

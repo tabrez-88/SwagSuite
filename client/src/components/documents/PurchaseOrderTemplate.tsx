@@ -12,6 +12,12 @@ interface PurchaseOrderTemplateProps {
 
 const PurchaseOrderTemplate = forwardRef<HTMLDivElement, PurchaseOrderTemplateProps>(
   ({ order, vendor, vendorItems, poNumber, artworkItems = [] }, ref) => {
+    const shippingAddr = (() => {
+      try {
+        return order?.shippingAddress ? JSON.parse(order.shippingAddress) : null;
+      } catch { return null; }
+    })();
+
     const totalCost = vendorItems.reduce((sum: number, item: any) => {
       const cost = parseFloat(item.cost) || parseFloat(item.unitPrice) || 0;
       const quantity = item.quantity || 0;
@@ -57,16 +63,16 @@ const PurchaseOrderTemplate = forwardRef<HTMLDivElement, PurchaseOrderTemplatePr
             </div>
           </div>
 
-          {/* Ship To */}
-          {order?.shippingAddress && (
+          {/* Shipping Address */}
+          {shippingAddr && (
             <div className="mb-6">
-              <h3 className="text-sm font-bold text-gray-800 mb-2">SHIP TO:</h3>
+              <h3 className="text-sm font-bold text-gray-800 mb-2">SHIPPING ADDRESS:</h3>
               <div className="text-sm text-gray-700">
-                {order.shippingContactName && <p className="font-semibold">{order.shippingContactName}</p>}
-                {order.shippingCompanyName && <p>{order.shippingCompanyName}</p>}
-                <p>{order.shippingAddress}</p>
-                {order.shippingAddress2 && <p>{order.shippingAddress2}</p>}
-                <p>{order.shippingCity}, {order.shippingState} {order.shippingZip}</p>
+                {shippingAddr.contactName && <p className="font-semibold">{shippingAddr.contactName}</p>}
+                {(shippingAddr.street || shippingAddr.address) && <p>{shippingAddr.street || shippingAddr.address}</p>}
+                <p>{[shippingAddr.city, shippingAddr.state, shippingAddr.zipCode].filter(Boolean).join(", ")}</p>
+                {shippingAddr.email && <p>{shippingAddr.email}</p>}
+                {shippingAddr.phone && <p>{shippingAddr.phone}</p>}
               </div>
             </div>
           )}

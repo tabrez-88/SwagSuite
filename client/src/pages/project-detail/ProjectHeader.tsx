@@ -10,14 +10,12 @@ interface ProjectHeaderProps {
   order: Order;
   isRushOrder: boolean;
   businessStage?: DeterminedStage;
-  onEditOrder: () => void;
 }
 
 export default function ProjectHeader({
   order,
   isRushOrder,
   businessStage,
-  onEditOrder,
 }: ProjectHeaderProps) {
   const [, setLocation] = useLocation();
 
@@ -25,7 +23,12 @@ export default function ProjectHeader({
     <div className="bg-white border-b px-6 py-4">
       <div className="flex flex-wrap items-center gap-3">
         <FileText className="w-6 h-6" />
-        <h2 className="text-lg font-semibold">Project #{order.orderNumber}</h2>
+        <h2 className="text-lg font-semibold">
+          {order.projectName || `Project #${order.orderNumber}`}
+        </h2>
+        {order.projectName && (
+          <span className="text-sm text-muted-foreground">#{order.orderNumber}</span>
+        )}
         {businessStage && (
           <StageBadge stage={businessStage} size="sm" />
         )}
@@ -36,17 +39,10 @@ export default function ProjectHeader({
           </Badge>
         )}
         <Button
-          variant="default"
-          size="sm"
-          onClick={onEditOrder}
-          className="ml-auto"
-        >
-          Edit Project
-        </Button>
-        <Button
           variant="ghost"
           size="sm"
           onClick={() => setLocation("/projects")}
+          className="ml-auto"
         >
           <X className="w-4 h-4" />
           Close

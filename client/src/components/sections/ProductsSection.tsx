@@ -1002,11 +1002,10 @@ export default function ProductsSection({ orderId, data, isLocked }: ProductsSec
                                 <div className="flex items-center gap-1">
                                   <Badge
                                     variant="outline"
-                                    className={`text-[9px] ${
-                                      art.status === "approved" ? "border-green-300 text-green-700" :
-                                      art.status === "rejected" ? "border-red-300 text-red-700" :
-                                      "border-yellow-300 text-yellow-700"
-                                    }`}
+                                    className={`text-[9px] ${art.status === "approved" ? "border-green-300 text-green-700" :
+                                        art.status === "rejected" ? "border-red-300 text-red-700" :
+                                          "border-yellow-300 text-yellow-700"
+                                      }`}
                                   >
                                     {art.status}
                                   </Badge>
@@ -1070,8 +1069,8 @@ export default function ProductsSection({ orderId, data, isLocked }: ProductsSec
                   </div>
                 </div>
                 <div className="text-right">
-                  <span className="text-xs text-gray-500">Subtotal</span>
-                  <p className="text-xl font-bold text-blue-600">${(orderTotals.subtotal + orderTotals.totalCharges).toFixed(2)}</p>
+                  <span className="text-xs text-gray-500">Revenue</span>
+                  <p className="text-sm font-semibold text-gray-600">${(orderTotals.subtotal + orderTotals.totalCharges).toFixed(2)}</p>
                 </div>
               </div>
             </CardContent>
@@ -1429,50 +1428,6 @@ export default function ProductsSection({ orderId, data, isLocked }: ProductsSec
                 />
               </div>
 
-              {/* Per-product Shipping Config */}
-              <div className="border rounded-lg p-3 bg-gray-50/50">
-                <p className="text-xs font-semibold text-gray-600 mb-2">Shipping Config</p>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <Label className="text-xs">Destination</Label>
-                    <select
-                      className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm"
-                      value={editItemData.shippingDestination || ""}
-                      onChange={(e: any) => setEditItemData((d: any) => ({ ...d, shippingDestination: e.target.value || null }))}
-                    >
-                      <option value="">Default (Client)</option>
-                      <option value="client">Client</option>
-                      <option value="decorator">Decorator</option>
-                      <option value="other_supplier">Other Supplier</option>
-                      <option value="fulfillment">Fulfillment Warehouse</option>
-                    </select>
-                  </div>
-                  <div>
-                    <Label className="text-xs">Account Type</Label>
-                    <select
-                      className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm"
-                      value={editItemData.shippingAccountType || ""}
-                      onChange={(e: any) => setEditItemData((d: any) => ({ ...d, shippingAccountType: e.target.value || null }))}
-                    >
-                      <option value="">Default</option>
-                      <option value="ours">Our Account</option>
-                      <option value="client">Client's Account</option>
-                      <option value="supplier">Supplier's Account</option>
-                      <option value="other">Other</option>
-                    </select>
-                  </div>
-                </div>
-                <div className="mt-2">
-                  <Label className="text-xs">Shipping Notes</Label>
-                  <Textarea
-                    value={editItemData.shippingNotes || ""}
-                    onChange={(e: any) => setEditItemData((d: any) => ({ ...d, shippingNotes: e.target.value }))}
-                    placeholder="Special shipping instructions for this product..."
-                    rows={2}
-                    className="text-xs"
-                  />
-                </div>
-              </div>
             </div>
           )}
           <DialogFooter>

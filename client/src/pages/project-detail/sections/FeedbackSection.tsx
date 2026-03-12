@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import type { useProjectData } from "../hooks/useProjectData";
+import ProjectInfoBar from "@/components/ProjectInfoBar";
 
 interface FeedbackSectionProps {
   orderId: string;
@@ -21,7 +22,7 @@ interface FeedbackSectionProps {
 }
 
 export default function FeedbackSection({ orderId, data }: FeedbackSectionProps) {
-  const { portalTokens, approvals, quoteApprovals } = data;
+  const { portalTokens, approvals, quoteApprovals, companyName, primaryContact } = data;
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -51,6 +52,8 @@ export default function FeedbackSection({ orderId, data }: FeedbackSectionProps)
 
   return (
     <div className="space-y-6">
+      <ProjectInfoBar companyName={companyName} primaryContact={primaryContact} />
+
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-lg font-semibold flex items-center gap-2">

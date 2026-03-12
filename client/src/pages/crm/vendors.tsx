@@ -45,6 +45,7 @@ import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import { AddressAutocomplete } from "@/components/ui/address-autocomplete";
 import { UserAvatar } from "@/components/UserAvatar";
 import { useToast } from "@/hooks/use-toast";
 import { isUnauthorizedError } from "@/lib/authUtils";
@@ -726,7 +727,11 @@ export default function Vendors() {
                     <FormItem>
                       <FormLabel>Address</FormLabel>
                       <FormControl>
-                        <Textarea placeholder="Enter vendor address" rows={2} {...field} />
+                        <AddressAutocomplete
+                          value={field.value || ""}
+                          onChange={field.onChange}
+                          placeholder="Enter vendor address"
+                        />
                       </FormControl>
                     </FormItem>
                   )}
@@ -2434,7 +2439,11 @@ export default function Vendors() {
                     <FormItem>
                       <FormLabel>Address</FormLabel>
                       <FormControl>
-                        <Textarea placeholder="Full address" {...field} />
+                        <AddressAutocomplete
+                          value={field.value || ""}
+                          onChange={field.onChange}
+                          placeholder="Full address"
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>

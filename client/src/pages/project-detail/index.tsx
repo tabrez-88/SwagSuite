@@ -1,10 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef } from "react";
 import { useLocation, useParams } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import ProjectHeader from "./ProjectHeader";
 import ProjectNestedSidebar from "./ProjectNestedSidebar";
 import { useProjectData } from "./hooks/useProjectData";
-import OrderModal from "@/components/modals/OrderModal";
 import { useLockStatus } from "@/hooks/useLockStatus";
 
 // Sections
@@ -24,9 +23,8 @@ export default function ProjectDetailPage() {
   const params = useParams();
   const orderId = params.orderId || params[0];
   const [location, setLocation] = useLocation();
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const queryClient = useQueryClient();
 
+  const queryClient = useQueryClient();
   const data = useProjectData(orderId);
   const lockStatus = useLockStatus(data);
 
@@ -56,6 +54,20 @@ export default function ProjectDetailPage() {
     }
   }, [orderId, location, setLocation]);
 
+  // Auto-recalculate totals once when order loads (ensures DB totals are in sync)
+  const hasRecalculated = useRef(false);
+  useEffect(() => {
+    if (data.order && orderId && !hasRecalculated.current) {
+      hasRecalculated.current = true;
+      fetch(`/api/orders/${orderId}/recalculate-total`, {
+        method: "POST",
+        credentials: "include",
+      }).then(res => {
+        if (res.ok) queryClient.invalidateQueries({ queryKey: [`/api/orders/${orderId}`] });
+      }).catch(() => {});
+    }
+  }, [data.order, orderId, queryClient]);
+
   if (data.orderLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -77,10 +89,13 @@ export default function ProjectDetailPage() {
     );
   }
 
+  // Determine if overview fields should be locked (invoice is paid)
+  const overviewLocked = lockStatus.invoice.isLocked;
+
   const renderSection = () => {
     switch (activeSection) {
       case "overview":
-        return <OverviewSection orderId={orderId!} data={data} />;
+        return <OverviewSection orderId={orderId!} data={data} isLocked={overviewLocked} />;
       case "presentation":
         return <PresentationSection orderId={orderId!} data={data} />;
       case "presentation/preview":
@@ -104,7 +119,7 @@ export default function ProjectDetailPage() {
       case "feedback":
         return <FeedbackSection orderId={orderId!} data={data} />;
       default:
-        return <OverviewSection orderId={orderId!} data={data} />;
+        return <OverviewSection orderId={orderId!} data={data} isLocked={overviewLocked} />;
     }
   };
 
@@ -123,7 +138,6 @@ export default function ProjectDetailPage() {
         order={data.order}
         isRushOrder={data.isRushOrder}
         businessStage={data.businessStage}
-        onEditOrder={() => setIsEditModalOpen(true)}
       />
 
       <div className="flex flex-1 overflow-hidden">
@@ -131,29 +145,13 @@ export default function ProjectDetailPage() {
           orderId={orderId!}
           orderItemsCount={data.orderItems.length}
           currentStage={data.businessStage?.stage.id}
-          salesOrderStatus={data.order?.salesOrderStatus}
+          salesOrderStatus={data.order?.salesOrderStatus ?? undefined}
         />
 
         <div className="flex-1 overflow-y-auto p-6 bg-gray-50">
           {renderSection()}
         </div>
       </div>
-
-      <OrderModal
-        open={isEditModalOpen}
-        onOpenChange={(open) => {
-          setIsEditModalOpen(open);
-          if (!open) {
-            queryClient.invalidateQueries({
-              queryKey: [`/api/orders/${orderId}/items`],
-            });
-            queryClient.invalidateQueries({
-              queryKey: [`/api/orders/${orderId}`],
-            });
-          }
-        }}
-        order={data.order}
-      />
     </div>
   );
 }

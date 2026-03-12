@@ -31,6 +31,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import NewProjectWizard from "@/components/modals/NewProjectWizard";
+import SendEmailDialog from "@/components/modals/SendEmailDialog";
 import { ContactsManager } from "@/components/ContactsManager";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
@@ -148,6 +149,7 @@ export default function CompanyDetail() {
   const [activeTab, setActiveTab] = useState("overview");
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isEmailDialogOpen, setIsEmailDialogOpen] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -177,6 +179,16 @@ export default function CompanyDetail() {
 
   const { data: company, isLoading, error } = useQuery<Company>({
     queryKey: ["/api/companies", companyId],
+    enabled: !!companyId,
+  });
+
+  const { data: companyContacts = [] } = useQuery<any[]>({
+    queryKey: ["/api/contacts", { companyId }],
+    queryFn: async () => {
+      const res = await fetch(`/api/contacts?companyId=${companyId}`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch contacts");
+      return res.json();
+    },
     enabled: !!companyId,
   });
 
@@ -280,15 +292,16 @@ export default function CompanyDetail() {
 
   // Quick Action Handlers
   const handleSendEmail = () => {
-    if (company?.email) {
-      window.location.href = `mailto:${company.email}?subject=Follow up with ${company.name}`;
-    } else {
+    const contactsWithEmail = companyContacts.filter((c: any) => c.email);
+    if (contactsWithEmail.length === 0) {
       toast({
-        title: "No Email Available",
-        description: "This company doesn't have an email address on file.",
+        title: "No Contacts with Email",
+        description: "This company has no contacts with an email address.",
         variant: "destructive",
       });
+      return;
     }
+    setIsEmailDialogOpen(true);
   };
 
   const handleCreateQuote = () => {
@@ -674,7 +687,7 @@ export default function CompanyDetail() {
                 size="sm" 
                 className="w-full justify-start"
                 onClick={handleSendEmail}
-                disabled={!company.email}
+                disabled={companyContacts.filter((c: any) => c.email).length === 0}
               >
                 <Mail className="h-4 w-4 mr-2" />
                 Send Email
@@ -686,7 +699,7 @@ export default function CompanyDetail() {
                 onClick={handleCreateQuote}
               >
                 <DollarSign className="h-4 w-4 mr-2" />
-                Create Order
+                Create New Project
               </Button>
             </CardContent>
           </Card>
@@ -698,6 +711,15 @@ export default function CompanyDetail() {
         open={isOrderModalOpen}
         onOpenChange={setIsOrderModalOpen}
         initialCompanyId={company.id}
+      />
+
+      {/* Send Email Dialog */}
+      <SendEmailDialog
+        open={isEmailDialogOpen}
+        onOpenChange={setIsEmailDialogOpen}
+        contacts={companyContacts}
+        companyName={company.name}
+        defaultSubject={`Follow up with ${company.name}`}
       />
 
       {/* Edit Company Modal */}

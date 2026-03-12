@@ -1,0 +1,2 @@
+ALTER TABLE orders ADD COLUMN project_name VARCHAR;
+ALTER TABLE orders ADD COLUMN budget NUMERIC(12, 2);

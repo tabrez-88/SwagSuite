@@ -14,6 +14,7 @@ import { format } from "date-fns";
 import type { useProjectData } from "../hooks/useProjectData";
 import type { SectionLockStatus } from "@/hooks/useLockStatus";
 import LockBanner from "@/components/LockBanner";
+import ProjectInfoBar from "@/components/ProjectInfoBar";
 
 interface InvoiceSectionProps {
   orderId: string;
@@ -29,7 +30,7 @@ const invoiceStatusColors: Record<string, string> = {
 };
 
 export default function InvoiceSection({ orderId, data, lockStatus }: InvoiceSectionProps) {
-  const { order, invoice, invoiceLoading } = data;
+  const { order, invoice, invoiceLoading, companyName, primaryContact } = data;
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -60,6 +61,8 @@ export default function InvoiceSection({ orderId, data, lockStatus }: InvoiceSec
   return (
     <div className="space-y-6">
       {lockStatus && <LockBanner lockStatus={lockStatus} sectionName="Invoice" sectionKey="invoice" orderId={orderId} />}
+
+      <ProjectInfoBar companyName={companyName} primaryContact={primaryContact} />
 
       <div className="flex items-center justify-between">
         <div>

@@ -3,6 +3,8 @@ import { useLocation } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -13,16 +15,19 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
+import { useInlineEdit } from "@/hooks/useInlineEdit";
+import { EditableText, EditableDate, EditableTextarea } from "@/components/InlineEditable";
+import EditableAddress from "@/components/EditableAddress";
+import ProjectInfoBar from "@/components/ProjectInfoBar";
 import {
   ArrowRight,
-  Calculator,
   CheckCircle,
   Clock,
+  ClipboardList,
   Eye,
   FileText,
   Loader2,
-  Package,
-  Plus,
+  MapPin,
   Send,
   XCircle,
 } from "lucide-react";
@@ -37,6 +42,7 @@ import GeneratedDocumentCard from "@/components/documents/GeneratedDocumentCard"
 import { DocumentEditor } from "@/components/DocumentEditor";
 import SendQuoteDialog from "@/components/modals/SendQuoteDialog";
 import ProductsSection from "@/components/sections/ProductsSection";
+import { Separator } from "@/components/ui/separator";
 
 const quoteStatuses = [
   { value: "draft", label: "Draft", color: "bg-gray-100 text-gray-800" },
@@ -74,7 +80,6 @@ export default function QuoteSection({ orderId, data, lockStatus }: QuoteSection
   const { order, orderItems, quoteApprovals, companyName, primaryContact, allProducts, allArtworkItems } = data;
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [, setLocation] = useLocation();
   const [showConversionDialog, setShowConversionDialog] = useState(false);
   const [previewDocument, setPreviewDocument] = useState<any>(null);
   const [showSendDialog, setShowSendDialog] = useState(false);
@@ -178,45 +183,233 @@ export default function QuoteSection({ orderId, data, lockStatus }: QuoteSection
 
   const totalItems = orderItems.length;
   const totalQty = orderItems.reduce((sum: number, item: any) => sum + (item.quantity || 0), 0);
+  // Use order.subtotal from DB (calculated server-side by recalculateOrderTotals)
   const subtotal = Number(order.subtotal || 0);
-  const total = Number(order.total || 0);
+  // Discount hidden for now — kept in schema but not applied to UI calculations
+  const tax = Number(order.tax || 0);
+  const shipping = Number(order.shipping || 0);
+  const total = subtotal + tax + shipping;
 
   const isLocked = lockStatus?.isLocked ?? false;
+  const { updateField, isPending: isFieldPending } = useInlineEdit({ orderId, isLocked });
 
   return (
     <div className="space-y-6">
       {lockStatus && <LockBanner lockStatus={lockStatus} sectionName="Quote" sectionKey="quote" orderId={orderId} />}
 
+      <ProjectInfoBar companyName={companyName} primaryContact={primaryContact} />
+
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-lg font-semibold flex items-center gap-2">
-            <Calculator className="w-5 h-5" />
-            Quote
-          </h2>
-          <p className="text-sm text-gray-500">
-            Quote details for {companyName}
-          </p>
-        </div>
-        <Select value={currentStatus} onValueChange={(val) => updateStatusMutation.mutate(val)} disabled={isLocked}>
-          <SelectTrigger className="w-[180px] h-9">
-            <SelectValue>
-              <span className="flex items-center gap-2">
-                <span className={`inline-block w-2 h-2 rounded-full ${statusInfo.color.split(" ")[0]}`} />
-                {statusInfo.label}
-              </span>
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            {quoteStatuses.map((s) => (
-              <SelectItem key={s.value} value={s.value}>
+          <label className="text-xs font-medium text-gray-500 block mb-1">Status</label>
+          <Select value={currentStatus} onValueChange={(val) => updateStatusMutation.mutate(val)} disabled={isLocked}>
+            <SelectTrigger className="w-[180px] h-9">
+              <SelectValue>
                 <span className="flex items-center gap-2">
-                  <span className={`inline-block w-2 h-2 rounded-full ${s.color.split(" ")[0]}`} />
-                  {s.label}
+                  <span className={`inline-block w-2 h-2 rounded-full ${statusInfo.color.split(" ")[0]}`} />
+                  {statusInfo.label}
                 </span>
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              {quoteStatuses.map((s) => (
+                <SelectItem key={s.value} value={s.value}>
+                  <span className="flex items-center gap-2">
+                    <span className={`inline-block w-2 h-2 rounded-full ${s.color.split(" ")[0]}`} />
+                    {s.label}
+                  </span>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+      </div>
+
+      {/* Quote Details — inline editable fields */}
+      <Card>
+        <CardHeader className="py-3">
+          <CardTitle className="text-sm flex items-center gap-2">
+            <ClipboardList className="w-4 h-4" />
+            Quote Details
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="grid grid-cols-2 gap-x-8 gap-y-2">
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-muted-foreground">Quote Date</span>
+              <span className="text-sm font-medium">
+                {(order as any)?.createdAt
+                  ? format(new Date((order as any).createdAt), "MMM d, yyyy")
+                  : "—"}
+              </span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-muted-foreground">In-Hands Date</span>
+              <EditableDate
+                value={(order as any)?.inHandsDate}
+                field="inHandsDate"
+                onSave={updateField}
+                isLocked={isLocked}
+                isPending={isFieldPending}
+              />
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-muted-foreground">Supplier In-Hands</span>
+              <EditableDate
+                value={(order as any)?.supplierInHandsDate}
+                field="supplierInHandsDate"
+                onSave={updateField}
+                isLocked={isLocked}
+                isPending={isFieldPending}
+              />
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-muted-foreground">Customer PO</span>
+              <EditableText
+                value={(order as any)?.customerPo || ""}
+                field="customerPo"
+                onSave={updateField}
+                placeholder="Enter PO #"
+                emptyText="Not set"
+                isLocked={isLocked}
+                isPending={isFieldPending}
+              />
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-muted-foreground">Payment Terms</span>
+              <EditableText
+                value={(order as any)?.paymentTerms || ""}
+                field="paymentTerms"
+                onSave={updateField}
+                placeholder="e.g. Net 30"
+                emptyText="Net 30"
+                isLocked={isLocked}
+                isPending={isFieldPending}
+              />
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-muted-foreground">Currency</span>
+              <EditableText
+                value={(order as any)?.currency || "USD"}
+                field="currency"
+                onSave={updateField}
+                placeholder="USD"
+                emptyText="USD"
+                isLocked={isLocked}
+                isPending={isFieldPending}
+              />
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-muted-foreground">Default Tax</span>
+              <EditableText
+                value={(order as any)?.taxRate || ""}
+                field="taxRate"
+                onSave={updateField}
+                type="number"
+                suffix="%"
+                placeholder="0"
+                emptyText="0%"
+                isLocked={isLocked}
+                isPending={isFieldPending}
+              />
+            </div>
+            {/* Discount field hidden — schema retained, feature not yet finalized
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-muted-foreground">Discount</span>
+              <EditableText
+                value={(order as any)?.orderDiscount || ""}
+                field="orderDiscount"
+                onSave={updateField}
+                type="number"
+                suffix="%"
+                placeholder="0"
+                emptyText="None"
+                isLocked={isLocked}
+                isPending={isFieldPending}
+              />
+            </div>
+            */}
+            {/* <div className="flex items-center gap-3 col-span-2">
+              <Checkbox
+                id="isFirm"
+                checked={(order as any)?.isFirm || false}
+                onCheckedChange={(checked) => updateField({ isFirm: !!checked })}
+                disabled={isLocked}
+              />
+              <Label htmlFor="isFirm" className="text-sm font-normal cursor-pointer">
+                Firm In-Hands Date (cannot be adjusted)
+              </Label>
+            </div> */}
+          </div>
+          <Separator className="my-2" />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+            <div className="col-span-2">
+              <p className="text-xs font-medium text-gray-500 mb-1">Introduction</p>
+              <EditableTextarea
+                value={(order as any)?.quoteIntroduction || ""}
+                field="quoteIntroduction"
+                onSave={updateField}
+                placeholder="Introduction message for the quote (visible to client)..."
+                emptyText="No introduction"
+                rows={3}
+                isLocked={isLocked}
+                isPending={isFieldPending}
+              />
+            </div>
+            <div>
+              <p className="text-xs font-medium text-gray-500 mb-1">Supplier Notes</p>
+              <EditableTextarea
+                value={(order as any)?.supplierNotes || ""}
+                field="supplierNotes"
+                onSave={updateField}
+                placeholder="Notes visible to suppliers on POs..."
+                emptyText="No supplier notes"
+                rows={2}
+                isLocked={isLocked}
+                isPending={isFieldPending}
+              />
+            </div>
+            <div>
+              <p className="text-xs font-medium text-gray-500 mb-1">Additional Information</p>
+              <EditableTextarea
+                value={(order as any)?.additionalInformation || ""}
+                field="additionalInformation"
+                onSave={updateField}
+                placeholder="Other relevant details..."
+                emptyText="No additional info"
+                rows={2}
+                isLocked={isLocked}
+                isPending={isFieldPending}
+              />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Addresses */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <EditableAddress
+          title="Billing Address"
+          addressJson={(order as any)?.billingAddress}
+          field="billingAddress"
+          onSave={updateField}
+          isLocked={isLocked}
+          isPending={isFieldPending}
+          icon={<MapPin className="w-4 h-4" />}
+          primaryContact={primaryContact}
+        />
+        <EditableAddress
+          title="Shipping Address"
+          addressJson={(order as any)?.shippingAddress}
+          field="shippingAddress"
+          onSave={updateField}
+          isLocked={isLocked}
+          isPending={isFieldPending}
+          icon={<MapPin className="w-4 h-4" />}
+          primaryContact={primaryContact}
+          billingAddressJson={(order as any)?.billingAddress}
+        />
       </div>
 
       {/* Stage Conversion Banner */}
@@ -299,36 +492,46 @@ export default function QuoteSection({ orderId, data, lockStatus }: QuoteSection
         </CardContent>
       </Card>
 
-      {/* Estimate Summary */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="p-4 text-center">
-            <p className="text-xs text-gray-500">Items</p>
-            <p className="text-2xl font-bold">{totalItems}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4 text-center">
-            <p className="text-xs text-gray-500">Total Qty</p>
-            <p className="text-2xl font-bold">{totalQty.toLocaleString()}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4 text-center">
-            <p className="text-xs text-gray-500">Subtotal</p>
-            <p className="text-2xl font-bold">${subtotal.toLocaleString()}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4 text-center">
-            <p className="text-xs text-gray-500">Total</p>
-            <p className="text-2xl font-bold text-green-600">${total.toLocaleString()}</p>
-          </CardContent>
-        </Card>
-      </div>
-
       {/* Quote Products */}
       <ProductsSection orderId={orderId} data={data} isLocked={isLocked} />
+
+      {/* Pricing Breakdown */}
+      <Card>
+        <CardContent className="p-0">
+          <div className="flex justify-end">
+            <div className="w-full max-w-sm">
+              <div className="flex justify-between py-2.5 px-5 text-sm">
+                <span className="text-muted-foreground">Subtotal ({totalItems} item, {totalQty.toLocaleString()} qty)</span>
+                <span className="font-medium">${subtotal.toFixed(2)}</span>
+              </div>
+              {/* Discount line hidden — feature not yet finalized
+              {discountAmount > 0 && (
+                <div className="flex justify-between py-2.5 px-5 text-sm bg-red-50">
+                  <span className="text-red-600">Discount ({discountPercent}%)</span>
+                  <span className="font-medium text-red-600">-${discountAmount.toFixed(2)}</span>
+                </div>
+              )}
+              */}
+              {Number(order.shipping || 0) > 0 && (
+                <div className="flex justify-between py-2.5 px-5 text-sm">
+                  <span className="text-muted-foreground">Shipping</span>
+                  <span className="font-medium">${Number(order.shipping).toFixed(2)}</span>
+                </div>
+              )}
+              {tax > 0 && (
+                <div className="flex justify-between py-2.5 px-5 text-sm">
+                  <span className="text-muted-foreground">Tax</span>
+                  <span className="font-medium">${tax.toFixed(2)}</span>
+                </div>
+              )}
+              <div className="flex justify-between py-3 px-5 border-t-2 border-gray-200 bg-gray-50">
+                <span className="text-base font-semibold">Total</span>
+                <span className="text-base font-bold text-green-600">${total.toFixed(2)}</span>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Quote Approval Status */}
       <Card>

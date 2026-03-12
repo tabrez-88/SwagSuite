@@ -14,23 +14,22 @@ import {
   CommandList,
 } from "@/components/ui/command";
 import { UserAvatar } from "@/components/UserAvatar";
-import { useProductionStages } from "@/hooks/useProductionStages";
+// import { useProductionStages } from "@/hooks/useProductionStages";
 import { useToast } from "@/hooks/use-toast";
-import { apiRequest } from "@/lib/queryClient";
+import { useInlineEdit } from "@/hooks/useInlineEdit";
+import { EditableText, EditableDate, EditableTextarea } from "@/components/InlineEditable";
 import {
   Building2,
   Calendar,
   Check,
-  Factory,
   FileText,
   Hash,
   Mail,
-  MapPin,
   Package,
   Pencil,
   Store,
+  StickyNote,
   TrendingUp,
-  User,
   UserX,
   Users,
 } from "lucide-react";
@@ -41,34 +40,34 @@ import type { useProjectData } from "../hooks/useProjectData";
 import ActivitiesSection from "@/components/sections/ActivitiesSection";
 import EmailSection from "@/components/sections/EmailSection";
 import VendorSection from "@/components/sections/VendorSection";
-import FilesSection from "@/components/sections/FilesSection";
-import DocumentsSection from "@/components/sections/DocumentsSection";
 
 interface OverviewSectionProps {
   orderId: string;
   data: ReturnType<typeof useProjectData>;
+  isLocked?: boolean;
 }
 
-export default function OverviewSection({ orderId, data }: OverviewSectionProps) {
+export default function OverviewSection({ orderId, data, isLocked = false }: OverviewSectionProps) {
   const {
     order,
     orderItems,
     companyName,
     primaryContact,
-    companyData,
     assignedUser,
     csrUser,
     teamMembers,
-    invoice,
   } = data;
 
-  const { stages: productionStages } = useProductionStages();
+  // const { stages: productionStages } = useProductionStages();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [openPopover, setOpenPopover] = useState<"salesRep" | "csr" | null>(null);
 
+  const { updateField, isPending } = useInlineEdit({ orderId, isLocked });
+
   const reassignMutation = useMutation({
     mutationFn: async ({ field, userId }: { field: "assignedUserId" | "csrUserId"; userId: string | null }) => {
+      const { apiRequest } = await import("@/lib/queryClient");
       const res = await apiRequest("PATCH", `/api/orders/${orderId}`, { [field]: userId });
       return res.json();
     },
@@ -85,16 +84,13 @@ export default function OverviewSection({ orderId, data }: OverviewSectionProps)
 
   if (!order) return null;
 
-  const shippingAddr = (() => {
-    try {
-      return (order as any)?.shippingAddress ? JSON.parse((order as any).shippingAddress) : null;
-    } catch {
-      return null;
-    }
-  })();
-
   const completedStages = (order as any)?.stagesCompleted || [];
   const currentStage = (order as any)?.currentStage;
+
+  const renderDateBadge = (dateValue: string) => {
+    const ds = getDateStatus(dateValue);
+    return ds ? <Badge className={`text-[10px] px-1.5 py-0 leading-4 ${ds.color}`}>{ds.label}</Badge> : null;
+  };
 
   const TeamMemberPicker = ({
     role,
@@ -124,11 +120,13 @@ export default function OverviewSection({ orderId, data }: OverviewSectionProps)
           ) : (
             <span className="text-sm text-muted-foreground italic">Unassigned</span>
           )}
-          <PopoverTrigger asChild>
-            <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-foreground">
-              <Pencil className="w-3 h-3" />
-            </Button>
-          </PopoverTrigger>
+          {!isLocked && (
+            <PopoverTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-foreground">
+                <Pencil className="w-3 h-3" />
+              </Button>
+            </PopoverTrigger>
+          )}
         </div>
         <PopoverContent className="p-0 w-60" align="end">
           <Command>
@@ -175,10 +173,10 @@ export default function OverviewSection({ orderId, data }: OverviewSectionProps)
     <div className="space-y-6">
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
 
-        {/* Internal Notes & Activities - directly on the page like CommonSKU */}
+        {/* Internal Notes & Activities */}
         <ActivitiesSection orderId={orderId} data={data} />
 
-        {/* Tabs for Communication, Files, and Project Details */}
+        {/* Tabs */}
         <Tabs defaultValue="summary" className="w-full">
           <TabsList className="flex-wrap">
             <TabsTrigger value="summary">
@@ -192,10 +190,6 @@ export default function OverviewSection({ orderId, data }: OverviewSectionProps)
             <TabsTrigger value="vendor-email">
               <Store className="w-4 h-4 mr-1" />
               Vendor Communication
-            </TabsTrigger>
-            <TabsTrigger value="files">
-              <Package className="w-4 h-4 mr-1" />
-              Files & Documents
             </TabsTrigger>
           </TabsList>
 
@@ -247,14 +241,53 @@ export default function OverviewSection({ orderId, data }: OverviewSectionProps)
                     <div className="flex justify-between items-center">
                       <span className="text-sm text-muted-foreground flex items-center gap-1.5">
                         <Hash className="w-3.5 h-3.5" />
-                        Project
+                        Order #
                       </span>
                       <span className="text-sm font-mono font-medium">{order.orderNumber}</span>
                     </div>
-                    {(order as any)?.customerPo && (
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-muted-foreground">Project Name</span>
+                      <EditableText
+                        value={order.projectName || ""}
+                        field="projectName"
+                        onSave={updateField}
+                        placeholder="Add project name"
+                        isLocked={isLocked}
+                        isPending={isPending}
+                        className="font-medium"
+                      />
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-muted-foreground">Budget</span>
+                      <EditableText
+                        value={order.budget || ""}
+                        field="budget"
+                        onSave={updateField}
+                        type="number"
+                        prefix="$"
+                        placeholder="0.00"
+                        emptyText="Not set"
+                        isLocked={isLocked}
+                        isPending={isPending}
+                        className="font-medium text-emerald-700"
+                      />
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-muted-foreground">Customer PO</span>
+                      <EditableText
+                        value={(order as any)?.customerPo || ""}
+                        field="customerPo"
+                        onSave={updateField}
+                        placeholder="Add PO #"
+                        isLocked={isLocked}
+                        isPending={isPending}
+                        className="font-medium"
+                      />
+                    </div>
+                    {order.orderType === "rush_order" && (
                       <div className="flex justify-between items-center">
-                        <span className="text-sm text-muted-foreground">Customer PO</span>
-                        <span className="text-sm font-medium">{(order as any).customerPo}</span>
+                        <span className="text-sm text-muted-foreground">Order Type</span>
+                        <Badge variant="destructive" className="text-xs">Rush Order</Badge>
                       </div>
                     )}
                     {order.createdAt && (
@@ -269,31 +302,30 @@ export default function OverviewSection({ orderId, data }: OverviewSectionProps)
                   <div className="border-t pt-3 pb-3">
                     <div className="flex items-start gap-3">
                       <Calendar className="w-5 h-5 text-purple-600 mt-0.5 shrink-0" />
-                      <div className="flex-1 space-y-1">
+                      <div className="flex-1 space-y-2">
                         <div className="flex justify-between items-center">
-                          <span className="text-sm text-muted-foreground">In Hands Date</span>
-                          <span className="text-sm font-medium flex items-center gap-1.5">
-                            {order.inHandsDate
-                              ? format(new Date(order.inHandsDate), "MMM d, yyyy")
-                              : "Not set"}
-                            {order.inHandsDate && (() => {
-                              const ds = getDateStatus(order.inHandsDate);
-                              return ds ? <Badge className={`text-[10px] px-1.5 py-0 leading-4 ${ds.color}`}>{ds.label}</Badge> : null;
-                            })()}
-                          </span>
+                          <span className="text-sm text-muted-foreground">In-Hands Date</span>
+                          <EditableDate
+                            value={order.inHandsDate}
+                            field="inHandsDate"
+                            onSave={updateField}
+                            isLocked={isLocked}
+                            isPending={isPending}
+                            renderExtra={renderDateBadge}
+                            className="font-medium"
+                          />
                         </div>
-                        {order.eventDate && (
-                          <div className="flex justify-between items-center">
-                            <span className="text-sm text-muted-foreground">Event Date</span>
-                            <span className="text-sm flex items-center gap-1.5">
-                              {format(new Date(order.eventDate), "MMM d, yyyy")}
-                              {(() => {
-                                const ds = getDateStatus(order.eventDate);
-                                return ds ? <Badge className={`text-[10px] px-1.5 py-0 leading-4 ${ds.color}`}>{ds.label}</Badge> : null;
-                              })()}
-                            </span>
-                          </div>
-                        )}
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm text-muted-foreground">Event Date</span>
+                          <EditableDate
+                            value={order.eventDate}
+                            field="eventDate"
+                            onSave={updateField}
+                            isLocked={isLocked}
+                            isPending={isPending}
+                            renderExtra={renderDateBadge}
+                          />
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -310,29 +342,6 @@ export default function OverviewSection({ orderId, data }: OverviewSectionProps)
                 </CardContent>
               </Card>
 
-              {/* Shipping Address */}
-              {shippingAddr && (
-                <Card>
-                  <CardHeader className="py-3">
-                    <CardTitle className="text-sm flex items-center gap-2">
-                      <MapPin className="w-4 h-4" />
-                      Shipping Address
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-sm">{shippingAddr.street || shippingAddr.address}</p>
-                    <p className="text-sm">
-                      {[shippingAddr.city, shippingAddr.state, shippingAddr.zipCode]
-                        .filter(Boolean)
-                        .join(", ")}
-                    </p>
-                    {shippingAddr.contactName && (
-                      <p className="text-sm text-gray-500 mt-1">Attn: {shippingAddr.contactName}</p>
-                    )}
-                  </CardContent>
-                </Card>
-              )}
-
               {/* Items Count */}
               <Card>
                 <CardContent className="p-4">
@@ -348,7 +357,8 @@ export default function OverviewSection({ orderId, data }: OverviewSectionProps)
                   </div>
                 </CardContent>
               </Card>
-              {/* Financial Breakdown */}
+
+              {/* Financial Summary */}
               <Card>
                 <CardHeader className="py-3">
                   <CardTitle className="text-sm flex items-center gap-2">
@@ -385,38 +395,58 @@ export default function OverviewSection({ orderId, data }: OverviewSectionProps)
                   </div>
                 </CardContent>
               </Card>
-              {/* Notes */}
-              {((order as any)?.notes || (order as any)?.customerNotes || (order as any)?.internalNotes) && (
-                <Card>
-                  <CardHeader className="py-3">
-                    <CardTitle className="text-sm">Notes</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    {(order as any)?.notes && (
-                      <div>
-                        <p className="text-xs font-medium text-gray-500 mb-1">General Notes</p>
-                        <p className="text-sm whitespace-pre-wrap">{(order as any).notes}</p>
-                      </div>
-                    )}
-                    {(order as any)?.customerNotes && (
-                      <div>
-                        <p className="text-xs font-medium text-gray-500 mb-1">Customer Notes</p>
-                        <p className="text-sm whitespace-pre-wrap">{(order as any).customerNotes}</p>
-                      </div>
-                    )}
-                    {(order as any)?.internalNotes && (
-                      <div>
-                        <p className="text-xs font-medium text-gray-500 mb-1">Internal Notes</p>
-                        <p className="text-sm whitespace-pre-wrap">{(order as any).internalNotes}</p>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              )}
+
+              {/* Notes — always visible, editable */}
+              <Card className="md:col-span-2">
+                <CardHeader className="py-3">
+                  <CardTitle className="text-sm flex items-center gap-2">
+                    <StickyNote className="w-4 h-4" />
+                    Notes
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div>
+                    <p className="text-xs font-medium text-gray-500 mb-1">General Notes</p>
+                    <EditableTextarea
+                      value={(order as any)?.notes || ""}
+                      field="notes"
+                      onSave={updateField}
+                      placeholder="Add general notes..."
+                      emptyText="No notes"
+                      isLocked={isLocked}
+                      isPending={isPending}
+                    />
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium text-gray-500 mb-1">Customer Notes</p>
+                    <EditableTextarea
+                      value={(order as any)?.customerNotes || ""}
+                      field="customerNotes"
+                      onSave={updateField}
+                      placeholder="Add customer-visible notes..."
+                      emptyText="No customer notes"
+                      isLocked={isLocked}
+                      isPending={isPending}
+                    />
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium text-gray-500 mb-1">Internal Notes</p>
+                    <EditableTextarea
+                      value={(order as any)?.internalNotes || ""}
+                      field="internalNotes"
+                      onSave={updateField}
+                      placeholder="Add internal notes..."
+                      emptyText="No internal notes"
+                      isLocked={isLocked}
+                      isPending={isPending}
+                    />
+                  </div>
+                </CardContent>
+              </Card>
             </div>
 
             {/* Production Stages */}
-            {productionStages && productionStages.length > 0 && (
+            {/* {productionStages && productionStages.length > 0 && (
               <Card>
                 <CardHeader className="py-3">
                   <CardTitle className="text-sm flex items-center gap-2">
@@ -450,8 +480,7 @@ export default function OverviewSection({ orderId, data }: OverviewSectionProps)
                   </div>
                 </CardContent>
               </Card>
-            )}
-
+            )} */}
 
           </TabsContent>
 
@@ -465,13 +494,8 @@ export default function OverviewSection({ orderId, data }: OverviewSectionProps)
             <VendorSection orderId={orderId} data={data} />
           </TabsContent>
 
-          {/* Files & Documents Tab */}
-          <TabsContent value="files" className="mt-4 space-y-6">
-            <FilesSection orderId={orderId} data={data} />
-            <DocumentsSection orderId={orderId} data={data} />
-          </TabsContent>
         </Tabs>
-      </div >
-    </div >
+      </div>
+    </div>
   );
 }

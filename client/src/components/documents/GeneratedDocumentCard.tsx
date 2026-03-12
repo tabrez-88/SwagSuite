@@ -141,8 +141,8 @@ export default function GeneratedDocumentCard({
               Regenerate
             </Button>
           )}
-          {/* Approval link for quotes */}
-          {doc.documentType === "quote" && onGetApprovalLink && (
+          {/* Approval link for quotes and sales orders */}
+          {(doc.documentType === "quote" || doc.documentType === "sales_order") && onGetApprovalLink && (
             <Button
               variant="outline"
               size="sm"

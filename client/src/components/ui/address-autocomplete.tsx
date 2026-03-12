@@ -26,7 +26,7 @@ export interface ParsedAddress {
 interface AddressAutocompleteProps {
   value: string;
   onChange: (value: string) => void;
-  onAddressSelect: (address: ParsedAddress) => void;
+  onAddressSelect?: (address: ParsedAddress) => void;
   placeholder?: string;
   disabled?: boolean;
   className?: string;
@@ -101,7 +101,7 @@ export function AddressAutocomplete({
     (suggestion: AddressSuggestion) => {
       skipNextSearch.current = true;
       onChange(suggestion.streetAddress);
-      onAddressSelect({
+      onAddressSelect?.({
         street: suggestion.streetAddress,
         city: suggestion.city,
         state: suggestion.stateCode || suggestion.state,

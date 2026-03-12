@@ -33,7 +33,6 @@ import {
   ArrowRight,
   MapPin,
   Package,
-  Paintbrush,
   Palette,
   Plus,
   Send,
@@ -387,7 +386,7 @@ export default function PresentationSection({ orderId, data }: PresentationSecti
           <TabsList>
             <TabsTrigger value="products" className="gap-1"><Package className="w-4 h-4" />Products</TabsTrigger>
             <TabsTrigger value="artwork" className="gap-1"><Palette className="w-4 h-4" />Artwork</TabsTrigger>
-            <TabsTrigger value="design" className="gap-1"><Paintbrush className="w-4 h-4" />Design</TabsTrigger>
+            {/* Design tab hidden - not yet functional */}
           </TabsList>
           <div className="flex border rounded-md overflow-hidden">
             <Button variant={viewMode === "detailed" ? "default" : "ghost"} size="sm" className="rounded-none px-3 h-8" onClick={() => setViewMode("detailed")}>Detailed</Button>

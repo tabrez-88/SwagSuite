@@ -1032,6 +1032,10 @@ export class DatabaseStorage implements IStorage {
         personalComment: orderItems.personalComment,
         privateNotes: orderItems.privateNotes,
         notes: orderItems.notes,
+        shippingDestination: orderItems.shippingDestination,
+        shippingAccountType: orderItems.shippingAccountType,
+        shippingMethodOverride: orderItems.shippingMethodOverride,
+        shippingNotes: orderItems.shippingNotes,
         createdAt: orderItems.createdAt,
         // Join product info
         productName: products.name,

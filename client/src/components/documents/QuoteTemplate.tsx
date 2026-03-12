@@ -13,17 +13,31 @@ interface QuoteTemplateProps {
 
 const QuoteTemplate = forwardRef<HTMLDivElement, QuoteTemplateProps>(
   ({ order, orderItems, companyName, primaryContact, allArtworkItems = {}, serviceCharges = [] }, ref) => {
+    const billingAddr = (() => {
+      try {
+        return order?.billingAddress ? JSON.parse(order.billingAddress) : null;
+      } catch { return null; }
+    })();
+    const shippingAddr = (() => {
+      try {
+        return order?.shippingAddress ? JSON.parse(order.shippingAddress) : null;
+      } catch { return null; }
+    })();
+
     const subtotal = orderItems.reduce((sum: number, item: any) => {
-      const unitPrice = parseFloat(item.unitPrice) || 0;
-      const quantity = item.quantity || 0;
-      return sum + unitPrice * quantity;
+      return sum + (parseFloat(item.totalPrice) || 0);
     }, 0);
     const shipping = parseFloat(order?.shippingCost) || parseFloat(order?.shipping) || 0;
     const clientServiceCharges = serviceCharges.filter((c: any) => c.displayToClient !== false);
     const serviceChargesTotal = clientServiceCharges.reduce((sum: number, c: any) => {
       return sum + (c.quantity || 1) * parseFloat(c.unitPrice || "0");
     }, 0);
-    const total = subtotal + shipping + serviceChargesTotal;
+    const grossSubtotal = subtotal + serviceChargesTotal;
+    const discountPercent = parseFloat(order?.orderDiscount || "0");
+    const discountAmount = discountPercent > 0 ? grossSubtotal * (discountPercent / 100) : 0;
+    const discountedSubtotal = grossSubtotal - discountAmount;
+    const tax = parseFloat(order?.tax) || 0;
+    const total = discountedSubtotal + shipping + tax;
 
     return (
       <div ref={ref} style={{ position: "absolute", left: "-9999px", top: 0, visibility: "hidden" }}>
@@ -49,39 +63,53 @@ const QuoteTemplate = forwardRef<HTMLDivElement, QuoteTemplateProps>(
             </div>
           </div>
 
-          {/* Bill To */}
-          <div className="mb-6">
-            <h3 className="text-sm font-bold text-gray-800 mb-2">BILL TO:</h3>
-            <div className="text-sm text-gray-700">
-              <p className="font-semibold">{companyName || "N/A"}</p>
-              {primaryContact && (
-                <p>{primaryContact.firstName} {primaryContact.lastName}</p>
-              )}
-              {primaryContact?.email && <p>{primaryContact.email}</p>}
-              {primaryContact?.phone && <p>{primaryContact.phone}</p>}
-            </div>
-          </div>
-
-          {/* Ship To */}
-          {order?.shippingAddress && (
-            <div className="mb-6">
-              <h3 className="text-sm font-bold text-gray-800 mb-2">SHIP TO:</h3>
+          {/* Addresses */}
+          <div className="grid grid-cols-2 gap-8 mb-6">
+            <div>
+              <h3 className="text-sm font-bold text-gray-800 mb-2">BILLING ADDRESS:</h3>
               <div className="text-sm text-gray-700">
-                {order.shippingContactName && <p className="font-semibold">{order.shippingContactName}</p>}
-                {order.shippingCompanyName && <p>{order.shippingCompanyName}</p>}
-                <p>{order.shippingAddress}</p>
-                {order.shippingAddress2 && <p>{order.shippingAddress2}</p>}
-                <p>{order.shippingCity}, {order.shippingState} {order.shippingZip}</p>
+                <p className="font-semibold">{companyName || "N/A"}</p>
+                {billingAddr?.contactName && <p>{billingAddr.contactName}</p>}
+                {!billingAddr?.contactName && primaryContact && (
+                  <p>{primaryContact.firstName} {primaryContact.lastName}</p>
+                )}
+                {billingAddr?.street && <p>{billingAddr.street}</p>}
+                {billingAddr && (
+                  <p>{[billingAddr.city, billingAddr.state, billingAddr.zipCode].filter(Boolean).join(", ")}</p>
+                )}
+                {(billingAddr?.email || primaryContact?.email) && (
+                  <p>{billingAddr?.email || primaryContact?.email}</p>
+                )}
+                {(billingAddr?.phone || primaryContact?.phone) && (
+                  <p>{billingAddr?.phone || primaryContact?.phone}</p>
+                )}
               </div>
             </div>
-          )}
+            <div>
+              <h3 className="text-sm font-bold text-gray-800 mb-2">SHIPPING ADDRESS:</h3>
+              <div className="text-sm text-gray-700">
+                {shippingAddr ? (
+                  <>
+                    <p className="font-semibold">{companyName}</p>
+                    {shippingAddr.contactName && <p>{shippingAddr.contactName}</p>}
+                    {(shippingAddr.street || shippingAddr.address) && <p>{shippingAddr.street || shippingAddr.address}</p>}
+                    <p>{[shippingAddr.city, shippingAddr.state, shippingAddr.zipCode].filter(Boolean).join(", ")}</p>
+                    {shippingAddr.email && <p>{shippingAddr.email}</p>}
+                    {shippingAddr.phone && <p>{shippingAddr.phone}</p>}
+                  </>
+                ) : (
+                  <p className="text-gray-400">Not specified</p>
+                )}
+              </div>
+            </div>
+          </div>
 
           {/* Items */}
           <div className="mb-6">
             {orderItems.map((item: any) => {
               const unitPrice = parseFloat(item.unitPrice) || 0;
               const quantity = item.quantity || 0;
-              const itemTotal = unitPrice * quantity;
+              const itemTotal = parseFloat(item.totalPrice) || (unitPrice * quantity);
               const itemArtworks = allArtworkItems[item.id] || [];
 
               return (
@@ -261,10 +289,22 @@ const QuoteTemplate = forwardRef<HTMLDivElement, QuoteTemplateProps>(
                   <span>${serviceChargesTotal.toFixed(2)}</span>
                 </div>
               )}
+              {discountAmount > 0 && (
+                <div className="flex justify-between py-1 text-sm text-red-600">
+                  <span>Discount ({discountPercent}%):</span>
+                  <span>-${discountAmount.toFixed(2)}</span>
+                </div>
+              )}
               {shipping > 0 && (
                 <div className="flex justify-between py-1 text-sm">
                   <span>Shipping:</span>
                   <span>${shipping.toFixed(2)}</span>
+                </div>
+              )}
+              {tax > 0 && (
+                <div className="flex justify-between py-1 text-sm">
+                  <span>Tax:</span>
+                  <span>${tax.toFixed(2)}</span>
                 </div>
               )}
               <div className="flex justify-between py-2 text-lg font-bold border-t-2 border-gray-300 mt-2">

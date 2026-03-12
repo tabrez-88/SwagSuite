@@ -31,7 +31,7 @@ import {
 } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
 import { AddressAutocomplete } from "@/components/ui/address-autocomplete";
-import { ArrowLeft, ArrowRight, Check, ChevronsUpDown, Loader2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, ChevronsUpDown, DollarSign, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
@@ -78,12 +78,21 @@ export default function NewProjectWizard({ open, onOpenChange, initialCompanyId 
   const [companyId, setCompanyId] = useState("");
   const [projectName, setProjectName] = useState("");
   const [startingStage, setStartingStage] = useState<StartingStage>("presentation");
+  const [budget, setBudget] = useState("");
   const [openCustomerCombo, setOpenCustomerCombo] = useState(false);
 
   // Step 2 fields
   const [contactId, setContactId] = useState("");
   const [inHandsDate, setInHandsDate] = useState("");
   const [eventDate, setEventDate] = useState("");
+
+  // Inline contact creation
+  const [showNewContactForm, setShowNewContactForm] = useState(false);
+  const [newContactFirstName, setNewContactFirstName] = useState("");
+  const [newContactLastName, setNewContactLastName] = useState("");
+  const [newContactEmail, setNewContactEmail] = useState("");
+  const [newContactPhone, setNewContactPhone] = useState("");
+  const [newContactTitle, setNewContactTitle] = useState("");
 
   // Address fields (quote & sales_order)
   const [billingStreet, setBillingStreet] = useState("");
@@ -120,10 +129,17 @@ export default function NewProjectWizard({ open, onOpenChange, initialCompanyId 
       setCompanyId(initialCompanyId || "");
       setProjectName("");
       setStartingStage("presentation");
+      setBudget("");
       setOpenCustomerCombo(false);
       setContactId("");
       setInHandsDate("");
       setEventDate("");
+      setShowNewContactForm(false);
+      setNewContactFirstName("");
+      setNewContactLastName("");
+      setNewContactEmail("");
+      setNewContactPhone("");
+      setNewContactTitle("");
       setBillingStreet("");
       setBillingCity("");
       setBillingState("");
@@ -232,16 +248,38 @@ export default function NewProjectWizard({ open, onOpenChange, initialCompanyId 
     },
   });
 
+  const createContactMutation = useMutation({
+    mutationFn: async (payload: any) => {
+      const res = await apiRequest("POST", "/api/contacts", payload);
+      return res.json();
+    },
+    onSuccess: (newContact) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/contacts"] });
+      setContactId(newContact.id);
+      setShowNewContactForm(false);
+      setNewContactFirstName("");
+      setNewContactLastName("");
+      setNewContactEmail("");
+      setNewContactPhone("");
+      setNewContactTitle("");
+      toast({ title: "Contact created", description: `${newContact.firstName} ${newContact.lastName} has been added.` });
+    },
+    onError: () => {
+      toast({ title: "Failed to create contact", variant: "destructive" });
+    },
+  });
+
   const handleSubmit = () => {
     const payload: any = {
       companyId,
-      notes: projectName || undefined,
+      projectName: projectName || undefined,
       contactId: contactId || undefined,
       stageData: { startingStage },
     };
 
     if (inHandsDate) payload.inHandsDate = new Date(inHandsDate);
     if (eventDate) payload.eventDate = new Date(eventDate);
+    if (budget) payload.budget = budget;
 
     if (startingStage === "sales_order") {
       payload.orderType = "sales_order";
@@ -391,6 +429,25 @@ export default function NewProjectWizard({ open, onOpenChange, initialCompanyId 
               </div>
             </div>
 
+            {/* Budget (Presentation stage) */}
+            {startingStage === "presentation" && (
+              <div>
+                <Label>Budget</Label>
+                <div className="relative mt-1">
+                  <DollarSign className="absolute left-3 top-2.5 w-4 h-4 text-muted-foreground" />
+                  <Input
+                    type="number"
+                    value={budget}
+                    onChange={(e) => setBudget(e.target.value)}
+                    placeholder="Enter budget amount"
+                    className="pl-8"
+                    min="0"
+                    step="0.01"
+                  />
+                </div>
+              </div>
+            )}
+
             {/* Continue */}
             <div className="flex justify-end pt-2">
               <Button onClick={() => setStep(2)} disabled={!companyId} className="gap-1.5">
@@ -405,20 +462,81 @@ export default function NewProjectWizard({ open, onOpenChange, initialCompanyId 
           <div className="space-y-5">
             {/* Contact */}
             <div>
-              <Label>Client Contact</Label>
-              <Select value={contactId} onValueChange={setContactId} disabled={!companyId}>
-                <SelectTrigger className="mt-1">
-                  <SelectValue placeholder="Select contact..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {companyContacts.map((contact: any) => (
-                    <SelectItem key={contact.id} value={contact.id}>
-                      {contact.firstName} {contact.lastName}
-                      {contact.isPrimary && " (Primary)"}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label>Client Contact *</Label>
+              {!showNewContactForm ? (
+                <>
+                  <Select value={contactId} onValueChange={setContactId} disabled={!companyId}>
+                    <SelectTrigger className="mt-1">
+                      <SelectValue placeholder="Select contact..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {companyContacts.map((contact: any) => (
+                        <SelectItem key={contact.id} value={contact.id}>
+                          {contact.firstName} {contact.lastName}
+                          {contact.isPrimary && " (Primary)"}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {companyId && (
+                    <Button
+                      type="button"
+                      variant="link"
+                      size="sm"
+                      className="mt-1 text-blue-600 p-0 h-auto text-xs"
+                      onClick={() => setShowNewContactForm(true)}
+                    >
+                      + Create New Contact
+                    </Button>
+                  )}
+                </>
+              ) : (
+                <div className="space-y-3 border rounded-lg p-3 bg-gray-50 mt-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium">New Contact</span>
+                    <Button variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={() => setShowNewContactForm(false)}>Cancel</Button>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label className="text-xs">First Name *</Label>
+                      <Input value={newContactFirstName} onChange={(e) => setNewContactFirstName(e.target.value)} placeholder="First name" />
+                    </div>
+                    <div>
+                      <Label className="text-xs">Last Name *</Label>
+                      <Input value={newContactLastName} onChange={(e) => setNewContactLastName(e.target.value)} placeholder="Last name" />
+                    </div>
+                  </div>
+                  <div>
+                    <Label className="text-xs">Email</Label>
+                    <Input type="email" value={newContactEmail} onChange={(e) => setNewContactEmail(e.target.value)} placeholder="email@example.com" />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label className="text-xs">Phone</Label>
+                      <Input value={newContactPhone} onChange={(e) => setNewContactPhone(e.target.value)} placeholder="Phone number" />
+                    </div>
+                    <div>
+                      <Label className="text-xs">Title</Label>
+                      <Input value={newContactTitle} onChange={(e) => setNewContactTitle(e.target.value)} placeholder="Job title" />
+                    </div>
+                  </div>
+                  <Button
+                    size="sm"
+                    disabled={!newContactFirstName.trim() || !newContactLastName.trim() || createContactMutation.isPending}
+                    onClick={() => createContactMutation.mutate({
+                      companyId,
+                      firstName: newContactFirstName.trim(),
+                      lastName: newContactLastName.trim(),
+                      email: newContactEmail || undefined,
+                      phone: newContactPhone || undefined,
+                      title: newContactTitle || undefined,
+                    })}
+                  >
+                    {createContactMutation.isPending && <Loader2 className="w-4 h-4 animate-spin mr-1" />}
+                    Save Contact
+                  </Button>
+                </div>
+              )}
             </div>
 
             {/* Dates */}
@@ -565,7 +683,7 @@ export default function NewProjectWizard({ open, onOpenChange, initialCompanyId 
               </Button>
               <Button
                 onClick={handleSubmit}
-                disabled={createMutation.isPending}
+                disabled={createMutation.isPending || !contactId}
                 className="gap-1.5"
               >
                 {createMutation.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
