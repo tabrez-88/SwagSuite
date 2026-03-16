@@ -53,6 +53,7 @@ import type { ProjectData } from "@/types/project-types";
 import type { OrderItemLine, OrderAdditionalCharge } from "@shared/schema";
 import { IMPRINT_LOCATIONS, IMPRINT_METHODS } from "@/lib/imprintOptions";
 import FilePickerDialog from "@/components/modals/FilePickerDialog";
+import { useMarginSettings, marginColorClass, marginBgClass, isBelowMinimum, calcMarginPercent, applyMargin } from "@/hooks/useMarginSettings";
 
 interface ProductsSectionProps {
   orderId: string;
@@ -61,6 +62,7 @@ interface ProductsSectionProps {
 }
 
 export default function ProductsSection({ orderId, data, isLocked }: ProductsSectionProps) {
+  const marginSettings = useMarginSettings();
   // Detect context: project vs order
   const [currentLocation] = useLocation();
   const isProjectContext = currentLocation.startsWith(`/project/`);
@@ -94,6 +96,10 @@ export default function ProductsSection({ orderId, data, isLocked }: ProductsSec
   // Add charge dialog state
   const [addChargeForItem, setAddChargeForItem] = useState<string | null>(null);
   const [newCharge, setNewCharge] = useState({ description: "", chargeType: "flat", amount: 0, isVendorCharge: false, displayToClient: true });
+
+  // Margin warning state
+  const [marginWarningAction, setMarginWarningAction] = useState<(() => void) | null>(null);
+  const [marginWarningValue, setMarginWarningValue] = useState<number>(0);
 
   // Artwork upload state
   const [pickingArtworkForItem, setPickingArtworkForItem] = useState<string | null>(null);
@@ -300,8 +306,8 @@ export default function ProductsSection({ orderId, data, isLocked }: ProductsSec
 
   const calcMargin = (cost: number, price: number) => price > 0 ? ((price - cost) / price) * 100 : 0;
 
-  const marginColor = (m: number) => m >= 30 ? "text-green-600" : m >= 15 ? "text-yellow-600" : "text-red-600";
-  const marginBg = (m: number) => m >= 30 ? "bg-green-50" : m >= 15 ? "bg-yellow-50" : "bg-red-50";
+  const marginColor = (m: number) => marginColorClass(m, marginSettings);
+  const marginBg = (m: number) => marginBgClass(m, marginSettings);
 
   // Calculate item-level totals using lines if available
   const getItemTotals = (item: any) => {
@@ -409,6 +415,10 @@ export default function ProductsSection({ orderId, data, isLocked }: ProductsSec
     setEditDialogLines(prev => prev.map(l => l.id === id ? { ...l, [field]: value } : l));
   };
 
+  const updateEditDialogLineMulti = (id: string, updates: Record<string, any>) => {
+    setEditDialogLines(prev => prev.map(l => l.id === id ? { ...l, ...updates } : l));
+  };
+
   const removeEditDialogLine = (id: string) => {
     setEditDialogLines(prev => prev.filter(l => l.id !== id));
   };
@@ -424,6 +434,16 @@ export default function ProductsSection({ orderId, data, isLocked }: ProductsSec
   );
   const editDialogMargin = editDialogTotals.revenue > 0
     ? ((editDialogTotals.revenue - editDialogTotals.cost) / editDialogTotals.revenue * 100) : 0;
+
+  const handleSaveEditItem = () => {
+    if (!editingItem) return;
+    if (isBelowMinimum(editDialogMargin, marginSettings)) {
+      setMarginWarningValue(editDialogMargin);
+      setMarginWarningAction(() => () => saveEditItem());
+      return;
+    }
+    saveEditItem();
+  };
 
   const saveEditItem = async () => {
     if (!editingItem) return;
@@ -507,6 +527,18 @@ export default function ProductsSection({ orderId, data, isLocked }: ProductsSec
       color: line.color,
       size: line.size,
     });
+  };
+
+  const handleSaveEditLine = (line: OrderItemLine) => {
+    const price = parseFloat(editLineData.unitPrice as string || "0");
+    const cost = parseFloat(editLineData.cost as string || "0");
+    const m = calcMargin(cost, price);
+    if (isBelowMinimum(m, marginSettings)) {
+      setMarginWarningValue(m);
+      setMarginWarningAction(() => () => saveEditLine(line));
+      return;
+    }
+    saveEditLine(line);
   };
 
   const saveEditLine = (line: OrderItemLine) => {
@@ -645,6 +677,9 @@ export default function ProductsSection({ orderId, data, isLocked }: ProductsSec
                             <p className="text-[10px] text-gray-400 uppercase">Margin</p>
                             <p className={`font-semibold ${marginColor(totals.margin)}`}>
                               {totals.margin.toFixed(1)}%
+                              {isBelowMinimum(totals.margin, marginSettings) && (
+                                <span title={`Below minimum margin (${marginSettings.minimumMargin}%)`}><AlertTriangle className="inline w-3 h-3 text-red-500 ml-0.5" /></span>
+                              )}
                             </p>
                           </div>
 
@@ -820,11 +855,14 @@ export default function ProductsSection({ orderId, data, isLocked }: ProductsSec
                                       </td>
                                       <td className="p-1.5 text-right">
                                         <span className={`text-xs font-medium ${marginColor(eMargin)}`}>{eMargin.toFixed(1)}%</span>
+                                        {isBelowMinimum(eMargin, marginSettings) && (
+                                          <AlertTriangle className="inline w-3 h-3 text-red-500 ml-0.5" />
+                                        )}
                                       </td>
                                       <td className="p-1.5 text-right text-xs font-medium">${(eQty * ePrice).toFixed(2)}</td>
                                       <td className="p-1.5">
                                         <div className="flex gap-0.5">
-                                          <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => saveEditLine(line)} disabled={updateLineMutation.isPending}>
+                                          <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => handleSaveEditLine(line)} disabled={updateLineMutation.isPending}>
                                             {updateLineMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3 text-green-600" />}
                                           </Button>
                                           <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => setEditingLine(null)}>
@@ -845,6 +883,9 @@ export default function ProductsSection({ orderId, data, isLocked }: ProductsSec
                                     <td className="p-2.5 text-right text-xs font-medium">${price.toFixed(2)}</td>
                                     <td className="p-2.5 text-right">
                                       <span className={`text-xs font-medium ${marginColor(m)}`}>{m.toFixed(1)}%</span>
+                                      {isBelowMinimum(m, marginSettings) && (
+                                        <span title={`Below minimum margin (${marginSettings.minimumMargin}%)`}><AlertTriangle className="inline w-3 h-3 text-red-500 ml-0.5" /></span>
+                                      )}
                                     </td>
                                     <td className="p-2.5 text-right text-xs font-medium">${lineTotal.toFixed(2)}</td>
                                     <td className="p-1.5">
@@ -1065,6 +1106,9 @@ export default function ProductsSection({ orderId, data, isLocked }: ProductsSec
                     <p className={`font-bold flex items-center gap-1 ${marginColor(orderMargin)}`}>
                       <TrendingUp className="w-3.5 h-3.5" />
                       {orderMargin.toFixed(1)}%
+                      {isBelowMinimum(orderMargin, marginSettings) && (
+                        <AlertTriangle className="w-3.5 h-3.5 text-red-500" />
+                      )}
                     </p>
                   </div>
                 </div>
@@ -1073,6 +1117,12 @@ export default function ProductsSection({ orderId, data, isLocked }: ProductsSec
                   <p className="text-sm font-semibold text-gray-600">${(orderTotals.subtotal + orderTotals.totalCharges).toFixed(2)}</p>
                 </div>
               </div>
+              {isBelowMinimum(orderMargin, marginSettings) && (
+                <div className="mt-2 pt-2 border-t border-red-200 flex items-center gap-2 text-xs text-red-600">
+                  <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
+                  <span>Overall order margin is below the company minimum of {marginSettings.minimumMargin}%</span>
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>
@@ -1327,7 +1377,19 @@ export default function ProductsSection({ orderId, data, isLocked }: ProductsSec
                                 step="0.01"
                                 min={0}
                                 value={line.cost}
-                                onChange={(e) => updateEditDialogLine(line.id, "cost", parseFloat(e.target.value) || 0)}
+                                onChange={(e) => {
+                                  const newCost = parseFloat(e.target.value) || 0;
+                                  // Auto-update price to preserve margin when cost changes
+                                  if (newCost > 0 && line.unitPrice > 0) {
+                                    const currentMargin = calcMarginPercent(line.cost, line.unitPrice);
+                                    if (currentMargin > 0 && currentMargin < 100) {
+                                      const { price } = applyMargin(newCost, 0, currentMargin);
+                                      updateEditDialogLineMulti(line.id, { cost: newCost, unitPrice: price });
+                                      return;
+                                    }
+                                  }
+                                  updateEditDialogLine(line.id, "cost", newCost);
+                                }}
                               />
                             </td>
                             <td className="p-2">
@@ -1343,7 +1405,7 @@ export default function ProductsSection({ orderId, data, isLocked }: ProductsSec
                             <td className="p-2">
                               <div className="relative">
                                 <Input
-                                  className="h-8 text-xs text-right pr-5"
+                                  className={`h-8 text-xs text-right pr-5 ${isBelowMinimum(lineMargin, marginSettings) ? "border-red-300 text-red-600" : ""}`}
                                   type="number"
                                   step="0.1"
                                   min={0}
@@ -1351,10 +1413,8 @@ export default function ProductsSection({ orderId, data, isLocked }: ProductsSec
                                   value={parseFloat(lineMargin.toFixed(1))}
                                   onChange={(e) => {
                                     const targetMargin = parseFloat(e.target.value) || 0;
-                                    const cost = line.cost || 0;
-                                    // unitPrice = cost / (1 - margin/100)
-                                    const newPrice = targetMargin >= 100 ? cost * 100 : cost / (1 - targetMargin / 100);
-                                    updateEditDialogLine(line.id, "unitPrice", parseFloat(newPrice.toFixed(4)));
+                                    const result = applyMargin(line.cost, line.unitPrice, targetMargin);
+                                    updateEditDialogLineMulti(line.id, { cost: result.cost, unitPrice: result.price });
                                   }}
                                 />
                                 <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-400">%</span>
@@ -1417,6 +1477,17 @@ export default function ProductsSection({ orderId, data, isLocked }: ProductsSec
                 <span className="font-bold text-blue-600 text-base">${editDialogTotals.revenue.toFixed(2)}</span>
               </div>
 
+              {/* Minimum Margin Warning */}
+              {isBelowMinimum(editDialogMargin, marginSettings) && (
+                <div className="rounded-lg border border-red-200 bg-red-50 p-3 flex items-center gap-2 text-sm text-red-700">
+                  <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+                  <span>
+                    Margin ({editDialogMargin.toFixed(1)}%) is below the company minimum of {marginSettings.minimumMargin}%.
+                    Saving will require confirmation.
+                  </span>
+                </div>
+              )}
+
               {/* Notes */}
               <div>
                 <Label>Notes</Label>
@@ -1433,7 +1504,7 @@ export default function ProductsSection({ orderId, data, isLocked }: ProductsSec
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditingItem(null)}>Cancel</Button>
             <Button
-              onClick={saveEditItem}
+              onClick={handleSaveEditItem}
               disabled={updateOrderItemMutation.isPending || updateLineMutation.isPending || addLineMutation.isPending}
             >
               {(updateOrderItemMutation.isPending || updateLineMutation.isPending || addLineMutation.isPending) ? (
@@ -1563,6 +1634,44 @@ export default function ProductsSection({ orderId, data, isLocked }: ProductsSec
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* ═══ MARGIN WARNING CONFIRMATION DIALOG ═══ */}
+      <AlertDialog open={!!marginWarningAction} onOpenChange={(open) => { if (!open) { setMarginWarningAction(null); setMarginWarningValue(0); } }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-red-600">
+              <AlertTriangle className="w-5 h-5" />
+              Below Minimum Margin
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div>
+                <p>
+                  The margin for this product is <strong className="text-red-600">{marginWarningValue.toFixed(1)}%</strong>, which is below
+                  the company minimum of <strong>{marginSettings.minimumMargin}%</strong>.
+                </p>
+                <p className="mt-2 text-orange-600 font-medium">
+                  Are you sure you want to save with this margin? This may require manager approval.
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => { setMarginWarningAction(null); setMarginWarningValue(0); }}>
+              Go Back & Adjust
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (marginWarningAction) marginWarningAction();
+                setMarginWarningAction(null);
+                setMarginWarningValue(0);
+              }}
+              className="bg-orange-600 hover:bg-orange-700"
+            >
+              Save Anyway
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

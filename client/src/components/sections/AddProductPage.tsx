@@ -28,6 +28,7 @@ import {
 } from "lucide-react";
 import type { ProjectData } from "@/types/project-types";
 import { IMPRINT_LOCATIONS, IMPRINT_METHODS } from "@/lib/imprintOptions";
+import { useMarginSettings, marginColorClass, isBelowMinimum, calcMarginPercent, applyMargin } from "@/hooks/useMarginSettings";
 
 interface AddProductPageProps {
   orderId: string;
@@ -75,6 +76,7 @@ function getSsImageUrl(product: any): string | undefined {
 }
 
 export default function AddProductPage({ orderId, data }: AddProductPageProps) {
+  const marginSettings = useMarginSettings();
   const [currentLocation, setLocation] = useLocation();
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -105,6 +107,10 @@ export default function AddProductPage({ orderId, data }: AddProductPageProps) {
   const [productNotes, setProductNotes] = useState("");
   const [imprintLocation, setImprintLocation] = useState("");
   const [imprintMethod, setImprintMethod] = useState("");
+
+  // Margin warning state
+  const [marginWarningAction, setMarginWarningAction] = useState<(() => void) | null>(null);
+  const [marginWarningValue, setMarginWarningValue] = useState<number>(0);
 
   // Vendor "Do Not Order" approval dialog state
   const [vendorBlockDialog, setVendorBlockDialog] = useState<{
@@ -400,6 +406,12 @@ export default function AddProductPage({ orderId, data }: AddProductPageProps) {
   const updateConfigLine = (id: string, field: keyof ConfigLine, value: any) => {
     setConfigLines(prev => prev.map(line =>
       line.id === id ? { ...line, [field]: value } : line
+    ));
+  };
+
+  const updateConfigLineMulti = (id: string, updates: Partial<ConfigLine>) => {
+    setConfigLines(prev => prev.map(line =>
+      line.id === id ? { ...line, ...updates } : line
     ));
   };
 
@@ -1036,7 +1048,20 @@ export default function AddProductPage({ orderId, data }: AddProductPageProps) {
                     step="0.01"
                     min={0}
                     value={manualForm.unitCost}
-                    onChange={(e) => setManualForm(f => ({ ...f, unitCost: parseFloat(e.target.value) || 0 }))}
+                    onChange={(e) => {
+                      const newCost = parseFloat(e.target.value) || 0;
+                      setManualForm(f => {
+                        // Auto-update price to preserve margin when cost changes
+                        if (newCost > 0 && f.unitPrice > 0) {
+                          const currentMargin = calcMarginPercent(f.unitCost, f.unitPrice);
+                          if (currentMargin > 0 && currentMargin < 100) {
+                            const { price } = applyMargin(newCost, 0, currentMargin);
+                            return { ...f, unitCost: newCost, unitPrice: price };
+                          }
+                        }
+                        return { ...f, unitCost: newCost };
+                      });
+                    }}
                   />
                 </div>
                 <div>
@@ -1057,19 +1082,19 @@ export default function AddProductPage({ orderId, data }: AddProductPageProps) {
                       step="0.1"
                       min={0}
                       max={99.9}
-                      value={manualForm.unitPrice > 0
-                        ? parseFloat(((manualForm.unitPrice - manualForm.unitCost) / manualForm.unitPrice * 100).toFixed(1))
-                        : 0}
+                      className={`pr-7 ${isBelowMinimum(calcMarginPercent(manualForm.unitCost, manualForm.unitPrice), marginSettings) ? "border-red-300 text-red-600" : ""}`}
+                      value={parseFloat(calcMarginPercent(manualForm.unitCost, manualForm.unitPrice).toFixed(1))}
                       onChange={(e) => {
                         const targetMargin = parseFloat(e.target.value) || 0;
-                        const cost = manualForm.unitCost || 0;
-                        const newPrice = targetMargin >= 100 ? cost * 100 : cost / (1 - targetMargin / 100);
-                        setManualForm(f => ({ ...f, unitPrice: parseFloat(newPrice.toFixed(4)) }));
+                        const result = applyMargin(manualForm.unitCost, manualForm.unitPrice, targetMargin);
+                        setManualForm(f => ({ ...f, unitCost: result.cost, unitPrice: result.price }));
                       }}
-                      className="pr-7"
                     />
                     <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">%</span>
                   </div>
+                  {manualForm.unitCost === 0 && manualForm.unitPrice === 0 && (
+                    <p className="text-[10px] text-gray-400 mt-1">Enter cost or price first to use margin</p>
+                  )}
                 </div>
                 <div>
                   <Label>Color</Label>
@@ -1130,14 +1155,20 @@ export default function AddProductPage({ orderId, data }: AddProductPageProps) {
                       <span className="text-gray-500">Total:</span>{" "}
                       <span className="font-semibold">${(manualForm.quantity * manualForm.unitPrice).toFixed(2)}</span>
                     </div>
-                    {manualForm.unitCost > 0 && (
-                      <div>
-                        <span className="text-gray-500">Margin:</span>{" "}
-                        <span className="font-semibold">
-                          {(((manualForm.unitPrice - manualForm.unitCost) / manualForm.unitPrice) * 100).toFixed(1)}%
-                        </span>
-                      </div>
-                    )}
+                    {manualForm.unitCost > 0 && (() => {
+                      const m = ((manualForm.unitPrice - manualForm.unitCost) / manualForm.unitPrice) * 100;
+                      return (
+                        <div>
+                          <span className="text-gray-500">Margin:</span>{" "}
+                          <span className={`font-semibold ${marginColorClass(m, marginSettings)}`}>
+                            {m.toFixed(1)}%
+                          </span>
+                          {isBelowMinimum(m, marginSettings) && (
+                            <span className="ml-2 text-red-500 text-xs">Below min ({marginSettings.minimumMargin}%)</span>
+                          )}
+                        </div>
+                      );
+                    })()}
                     {manualForm.unitCost > 0 && (
                       <div>
                         <span className="text-gray-500">Profit:</span>{" "}
@@ -1157,7 +1188,17 @@ export default function AddProductPage({ orderId, data }: AddProductPageProps) {
                     Cancel
                   </Button>
                   <Button
-                    onClick={() => addManualProductMutation.mutate()}
+                    onClick={() => {
+                      if (manualForm.unitCost > 0) {
+                        const m = ((manualForm.unitPrice - manualForm.unitCost) / manualForm.unitPrice) * 100;
+                        if (isBelowMinimum(m, marginSettings)) {
+                          setMarginWarningValue(m);
+                          setMarginWarningAction(() => () => addManualProductMutation.mutate());
+                          return;
+                        }
+                      }
+                      addManualProductMutation.mutate();
+                    }}
                     disabled={!manualForm.productName || manualForm.unitPrice <= 0 || addManualProductMutation.isPending}
                   >
                     {addManualProductMutation.isPending ? (
@@ -1291,11 +1332,9 @@ export default function AddProductPage({ orderId, data }: AddProductPageProps) {
                     <tbody>
                       {configLines.map((line) => {
                         const lineTotal = line.quantity * line.unitPrice;
-                        const lineMargin = line.unitPrice > 0
-                          ? ((line.unitPrice - line.unitCost) / line.unitPrice * 100)
-                          : 0;
+                        const lineMargin = calcMarginPercent(line.unitCost, line.unitPrice);
                         return (
-                          <tr key={line.id} className="border-b last:border-0">
+                          <tr key={line.id} className={`border-b last:border-0 ${isBelowMinimum(lineMargin, marginSettings) ? "bg-red-50/30" : ""}`}>
                             <td className="p-2">
                               <>
                                 <Input
@@ -1348,7 +1387,19 @@ export default function AddProductPage({ orderId, data }: AddProductPageProps) {
                                 step="0.01"
                                 min={0}
                                 value={line.unitCost}
-                                onChange={(e) => updateConfigLine(line.id, "unitCost", parseFloat(e.target.value) || 0)}
+                                onChange={(e) => {
+                                  const newCost = parseFloat(e.target.value) || 0;
+                                  // Auto-update price to preserve margin when cost changes
+                                  if (newCost > 0 && line.unitPrice > 0) {
+                                    const currentMargin = calcMarginPercent(line.unitCost, line.unitPrice);
+                                    if (currentMargin > 0 && currentMargin < 100) {
+                                      const { price } = applyMargin(newCost, 0, currentMargin);
+                                      updateConfigLineMulti(line.id, { unitCost: newCost, unitPrice: price });
+                                      return;
+                                    }
+                                  }
+                                  updateConfigLine(line.id, "unitCost", newCost);
+                                }}
                               />
                             </td>
                             <td className="p-2">
@@ -1364,7 +1415,7 @@ export default function AddProductPage({ orderId, data }: AddProductPageProps) {
                             <td className="p-2">
                               <div className="relative">
                                 <Input
-                                  className="h-8 text-xs text-right pr-5"
+                                  className={`h-8 text-xs text-right pr-5 ${isBelowMinimum(lineMargin, marginSettings) ? "border-red-300 text-red-600" : ""}`}
                                   type="number"
                                   step="0.1"
                                   min={0}
@@ -1372,16 +1423,15 @@ export default function AddProductPage({ orderId, data }: AddProductPageProps) {
                                   value={parseFloat(lineMargin.toFixed(1))}
                                   onChange={(e) => {
                                     const targetMargin = parseFloat(e.target.value) || 0;
-                                    const cost = line.unitCost || 0;
-                                    const newPrice = targetMargin >= 100 ? cost * 100 : cost / (1 - targetMargin / 100);
-                                    updateConfigLine(line.id, "unitPrice", parseFloat(newPrice.toFixed(4)));
+                                    const result = applyMargin(line.unitCost, line.unitPrice, targetMargin);
+                                    updateConfigLineMulti(line.id, { unitCost: result.cost, unitPrice: result.price });
                                   }}
                                 />
                                 <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-400">%</span>
                               </div>
                             </td>
                             <td className="p-2 text-right">
-                              <span className="text-xs font-medium">${lineTotal.toFixed(2)}</span>
+                              <span className={`text-xs font-medium ${marginColorClass(lineMargin, marginSettings)}`}>${lineTotal.toFixed(2)}</span>
                             </td>
                             <td className="p-2">
                               {configLines.length > 1 && (
@@ -1406,7 +1456,7 @@ export default function AddProductPage({ orderId, data }: AddProductPageProps) {
                         <td className="p-3 text-right text-sm text-gray-500">${configTotalCost.toFixed(2)}</td>
                         <td className="p-3"></td>
                         <td className="p-3 text-right">
-                          <span className={`text-sm font-semibold ${configMargin >= 30 ? "text-green-600" : configMargin >= 15 ? "text-yellow-600" : "text-red-600"}`}>
+                          <span className={`text-sm font-semibold ${marginColorClass(configMargin, marginSettings)}`}>
                             {configMargin.toFixed(1)}%
                           </span>
                         </td>
@@ -1417,6 +1467,17 @@ export default function AddProductPage({ orderId, data }: AddProductPageProps) {
                   </table>
                 </div>
               </div>
+
+              {/* Minimum Margin Warning */}
+              {isBelowMinimum(configMargin, marginSettings) && (
+                <div className="rounded-lg border border-red-200 bg-red-50 p-3 flex items-center gap-2 text-sm text-red-700">
+                  <ShieldAlert className="w-4 h-4 flex-shrink-0" />
+                  <span>
+                    Margin ({configMargin.toFixed(1)}%) is below the company minimum of {marginSettings.minimumMargin}%.
+                    Adding this product will require confirmation.
+                  </span>
+                </div>
+              )}
 
               {/* Notes */}
               <div>
@@ -1438,13 +1499,19 @@ export default function AddProductPage({ orderId, data }: AddProductPageProps) {
             <Button
               onClick={() => {
                 if (!selectedProduct) return;
-                addProductMutation.mutate({
+                const doAdd = () => addProductMutation.mutate({
                   product: selectedProduct,
                   lines: configLines,
                   notes: productNotes,
                   imprintLocation,
                   imprintMethod,
                 });
+                if (isBelowMinimum(configMargin, marginSettings)) {
+                  setMarginWarningValue(configMargin);
+                  setMarginWarningAction(() => doAdd);
+                  return;
+                }
+                doAdd();
               }}
               disabled={addProductMutation.isPending || configLines.length === 0 || configTotalQty === 0}
             >
@@ -1510,6 +1577,44 @@ export default function AddProductPage({ orderId, data }: AddProductPageProps) {
             >
               {vendorApprovalMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
               Request Approval
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* ═══ MARGIN WARNING CONFIRMATION DIALOG ═══ */}
+      <AlertDialog open={!!marginWarningAction} onOpenChange={(open) => { if (!open) { setMarginWarningAction(null); setMarginWarningValue(0); } }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-red-600">
+              <ShieldAlert className="w-5 h-5" />
+              Below Minimum Margin
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div>
+                <p>
+                  The margin for this product is <strong className="text-red-600">{marginWarningValue.toFixed(1)}%</strong>, which is below
+                  the company minimum of <strong>{marginSettings.minimumMargin}%</strong>.
+                </p>
+                <p className="mt-2 text-orange-600 font-medium">
+                  Are you sure you want to add this product with a below-minimum margin?
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => { setMarginWarningAction(null); setMarginWarningValue(0); }}>
+              Go Back & Adjust
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (marginWarningAction) marginWarningAction();
+                setMarginWarningAction(null);
+                setMarginWarningValue(0);
+              }}
+              className="bg-orange-600 hover:bg-orange-700"
+            >
+              Add Anyway
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

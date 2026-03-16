@@ -3199,6 +3199,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ message: "Sales Order is locked. Unlock it first to make changes." });
       }
 
+      // Minimum margin check on pricing updates
+      if (req.body.unitPrice !== undefined && req.body.cost !== undefined) {
+        const price = parseFloat(req.body.unitPrice);
+        const cost = parseFloat(req.body.cost);
+        if (price > 0) {
+          const margin = ((price - cost) / price) * 100;
+          const settings = await storage.getCompanySettings();
+          const minMargin = parseFloat(settings?.minimumMargin || "15");
+          if (margin > 0 && margin < minMargin) {
+            // Include warning in response but allow save (client handles confirmation)
+            const updatedItem = await storage.updateOrderItem(req.params.itemId, req.body);
+            const pricingFields = ['quantity', 'unitPrice', 'totalPrice', 'cost', 'decorationCost', 'charges'];
+            if (pricingFields.some(f => req.body[f] !== undefined)) {
+              await recalculateOrderTotals(req.params.orderId);
+            }
+            return res.json({ ...updatedItem, _marginWarning: { margin: margin.toFixed(1), minimumMargin: minMargin } });
+          }
+        }
+      }
+
       const updatedItem = await storage.updateOrderItem(req.params.itemId, req.body);
 
       // Recalculate order totals if pricing fields changed
@@ -3283,6 +3303,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch('/api/order-items/:orderItemId/lines/:lineId', isAuthenticated, async (req, res) => {
     try {
       if (await checkLockByOrderItemId(req.params.orderItemId, res)) return;
+
+      // Minimum margin check on line pricing updates
+      if (req.body.unitPrice !== undefined && req.body.cost !== undefined) {
+        const price = parseFloat(req.body.unitPrice);
+        const cost = parseFloat(req.body.cost);
+        if (price > 0) {
+          const margin = ((price - cost) / price) * 100;
+          const settings = await storage.getCompanySettings();
+          const minMargin = parseFloat(settings?.minimumMargin || "15");
+          if (margin > 0 && margin < minMargin) {
+            const line = await storage.updateOrderItemLine(req.params.lineId, req.body);
+            await recalculateItemFromLines(req.params.orderItemId);
+            return res.json({ ...line, _marginWarning: { margin: margin.toFixed(1), minimumMargin: minMargin } });
+          }
+        }
+      }
+
       const line = await storage.updateOrderItemLine(req.params.lineId, req.body);
       await recalculateItemFromLines(req.params.orderItemId);
       res.json(line);
