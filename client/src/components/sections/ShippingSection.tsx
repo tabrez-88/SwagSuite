@@ -394,25 +394,33 @@ export default function ShippingSection({ orderId, data, isLocked }: ShippingSec
       {/* Key Dates Context */}
       {(order?.inHandsDate || (order as any)?.supplierInHandsDate || (order as any)?.eventDate) && (
         <Card className="bg-blue-50 border-blue-200">
-          <CardContent className="py-3 flex items-center gap-6 text-sm flex-wrap">
-            {order?.inHandsDate && (
-              <div>
-                <span className="text-blue-600 text-xs font-medium">Customer In-Hands</span>
-                <p className="font-semibold">{fmtDate(order.inHandsDate)}</p>
-              </div>
-            )}
-            {(order as any)?.supplierInHandsDate && (
-              <div>
-                <span className="text-blue-600 text-xs font-medium">Supplier In-Hands</span>
-                <p className="font-semibold">{fmtDate((order as any).supplierInHandsDate)}</p>
-              </div>
-            )}
-            {(order as any)?.eventDate && (
-              <div>
-                <span className="text-blue-600 text-xs font-medium">Event Date</span>
-                <p className="font-semibold">{fmtDate((order as any).eventDate)}</p>
-              </div>
-            )}
+          <CardContent className="py-3">
+            <dl className="flex items-center gap-6 text-sm flex-wrap">
+              {order?.inHandsDate && (
+                <div>
+                  <dt className="text-blue-600 text-xs font-medium">Customer In-Hands</dt>
+                  <dd className="font-semibold">
+                    <time dateTime={new Date(order.inHandsDate).toISOString().slice(0, 10)}>{fmtDate(order.inHandsDate)}</time>
+                  </dd>
+                </div>
+              )}
+              {(order as any)?.supplierInHandsDate && (
+                <div>
+                  <dt className="text-blue-600 text-xs font-medium">Supplier In-Hands</dt>
+                  <dd className="font-semibold">
+                    <time dateTime={new Date((order as any).supplierInHandsDate).toISOString().slice(0, 10)}>{fmtDate((order as any).supplierInHandsDate)}</time>
+                  </dd>
+                </div>
+              )}
+              {(order as any)?.eventDate && (
+                <div>
+                  <dt className="text-blue-600 text-xs font-medium">Event Date</dt>
+                  <dd className="font-semibold">
+                    <time dateTime={new Date((order as any).eventDate).toISOString().slice(0, 10)}>{fmtDate((order as any).eventDate)}</time>
+                  </dd>
+                </div>
+              )}
+            </dl>
           </CardContent>
         </Card>
       )}
@@ -467,120 +475,113 @@ export default function ShippingSection({ orderId, data, isLocked }: ShippingSec
           {orderItems.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-6">No products in this order yet.</p>
           ) : (
-            <div className="border rounded-lg overflow-hidden">
-              {/* Table Header */}
-              <div className="grid grid-cols-[32px_1fr_140px_140px_140px_1fr] gap-0 bg-gray-50 border-b text-xs font-medium text-gray-500 px-3 py-2">
-                <div className="flex items-center">
-                  <Checkbox
-                    checked={selectedItems.size === filteredItems.length && filteredItems.length > 0}
-                    onCheckedChange={toggleSelectAll}
-                    disabled={isLocked}
-                  />
-                </div>
-                <div>Product</div>
-                <div>Ship To</div>
-                <div>Account Type</div>
-                <div>Method</div>
-                <div>Notes</div>
-              </div>
+            <table className="w-full border rounded-lg overflow-hidden text-sm">
+              <thead>
+                <tr className="bg-gray-50 border-b text-xs font-medium text-gray-500">
+                  <th className="w-8 px-3 py-2 text-left">
+                    <Checkbox
+                      checked={selectedItems.size === filteredItems.length && filteredItems.length > 0}
+                      onCheckedChange={toggleSelectAll}
+                      disabled={isLocked}
+                    />
+                  </th>
+                  <th className="px-3 py-2 text-left">Product</th>
+                  <th className="w-[140px] px-3 py-2 text-left">Ship To</th>
+                  <th className="w-[140px] px-3 py-2 text-left">Account Type</th>
+                  <th className="w-[140px] px-3 py-2 text-left">Method</th>
+                  <th className="px-3 py-2 text-left">Notes</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredItems.map((item: any) => {
+                  const isSelected = selectedItems.has(item.id);
+                  const dest = getItemField(item, "shippingDestination");
+                  const isConfigured = !!dest;
+                  return (
+                    <tr
+                      key={item.id}
+                      className={`border-b last:border-b-0 ${!isConfigured ? "bg-amber-50/50" : ""}`}
+                    >
+                      <td className="px-3 py-2.5 align-middle">
+                        <Checkbox
+                          checked={isSelected}
+                          onCheckedChange={() => toggleItem(item.id)}
+                          disabled={isLocked}
+                        />
+                      </td>
 
-              {/* Table Rows */}
-              {filteredItems.map((item: any) => {
-                const isSelected = selectedItems.has(item.id);
-                const dest = getItemField(item, "shippingDestination");
-                const isConfigured = !!dest;
-                return (
-                  <div
-                    key={item.id}
-                    className={`grid grid-cols-[32px_1fr_140px_140px_140px_1fr] gap-0 border-b last:border-b-0 px-3 py-2.5 items-center text-sm ${
-                      !isConfigured ? "bg-amber-50/50" : ""
-                    }`}
-                  >
-                    {/* Checkbox */}
-                    <div className="flex items-center">
-                      <Checkbox
-                        checked={isSelected}
-                        onCheckedChange={() => toggleItem(item.id)}
-                        disabled={isLocked}
-                      />
-                    </div>
+                      <td className="px-3 py-2.5 align-middle">
+                        <p className="font-medium text-sm truncate">{item.productName || "Unnamed Product"}</p>
+                        <p className="text-xs text-muted-foreground truncate">
+                          {getSupplierName(item.supplierId)}
+                          {item.productSku && <span className="ml-2 text-gray-400">SKU: {item.productSku}</span>}
+                        </p>
+                      </td>
 
-                    {/* Product Info */}
-                    <div className="min-w-0 pr-3">
-                      <p className="font-medium text-sm truncate">{item.productName || "Unnamed Product"}</p>
-                      <p className="text-xs text-muted-foreground truncate">
-                        {getSupplierName(item.supplierId)}
-                        {item.productSku && <span className="ml-2 text-gray-400">SKU: {item.productSku}</span>}
-                      </p>
-                    </div>
+                      <td className="px-3 py-2.5 align-middle">
+                        <select
+                          className="w-full h-7 text-xs border rounded px-1.5 bg-white disabled:opacity-50 cursor-pointer"
+                          value={dest}
+                          disabled={isLocked}
+                          onChange={(e) => handleItemShippingChange(item.id, "shippingDestination", e.target.value)}
+                        >
+                          <option value="">Select...</option>
+                          {SHIP_TO_OPTIONS.map(o => (
+                            <option key={o.value} value={o.value}>{o.label}</option>
+                          ))}
+                        </select>
+                      </td>
 
-                    {/* Ship To */}
-                    <div>
-                      <select
-                        className="w-full h-7 text-xs border rounded px-1.5 bg-white disabled:opacity-50 cursor-pointer"
-                        value={dest}
-                        disabled={isLocked}
-                        onChange={(e) => handleItemShippingChange(item.id, "shippingDestination", e.target.value)}
-                      >
-                        <option value="">Select...</option>
-                        {SHIP_TO_OPTIONS.map(o => (
-                          <option key={o.value} value={o.value}>{o.label}</option>
-                        ))}
-                      </select>
-                    </div>
+                      <td className="px-3 py-2.5 align-middle">
+                        <select
+                          className="w-full h-7 text-xs border rounded px-1.5 bg-white disabled:opacity-50 cursor-pointer"
+                          value={getItemField(item, "shippingAccountType")}
+                          disabled={isLocked}
+                          onChange={(e) => handleItemShippingChange(item.id, "shippingAccountType", e.target.value)}
+                        >
+                          <option value="">Select...</option>
+                          {ACCOUNT_TYPE_OPTIONS.map(o => (
+                            <option key={o.value} value={o.value}>{o.label}</option>
+                          ))}
+                        </select>
+                      </td>
 
-                    {/* Account Type */}
-                    <div>
-                      <select
-                        className="w-full h-7 text-xs border rounded px-1.5 bg-white disabled:opacity-50 cursor-pointer"
-                        value={getItemField(item, "shippingAccountType")}
-                        disabled={isLocked}
-                        onChange={(e) => handleItemShippingChange(item.id, "shippingAccountType", e.target.value)}
-                      >
-                        <option value="">Select...</option>
-                        {ACCOUNT_TYPE_OPTIONS.map(o => (
-                          <option key={o.value} value={o.value}>{o.label}</option>
-                        ))}
-                      </select>
-                    </div>
+                      <td className="px-3 py-2.5 align-middle">
+                        <input
+                          className="w-full h-7 text-xs border rounded px-1.5 bg-white disabled:opacity-50"
+                          placeholder="e.g., Ground"
+                          defaultValue={item.shippingMethodOverride || ""}
+                          key={`method-${item.id}-${item.shippingMethodOverride || ""}`}
+                          disabled={isLocked}
+                          onBlur={(e) => {
+                            if (e.target.value !== (item.shippingMethodOverride || "")) {
+                              handleItemShippingChange(item.id, "shippingMethodOverride", e.target.value);
+                            }
+                          }}
+                          onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
+                        />
+                      </td>
 
-                    {/* Method */}
-                    <div>
-                      <input
-                        className="w-full h-7 text-xs border rounded px-1.5 bg-white disabled:opacity-50"
-                        placeholder="e.g., Ground"
-                        defaultValue={item.shippingMethodOverride || ""}
-                        key={`method-${item.id}-${item.shippingMethodOverride || ""}`}
-                        disabled={isLocked}
-                        onBlur={(e) => {
-                          if (e.target.value !== (item.shippingMethodOverride || "")) {
-                            handleItemShippingChange(item.id, "shippingMethodOverride", e.target.value);
-                          }
-                        }}
-                        onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
-                      />
-                    </div>
-
-                    {/* Notes */}
-                    <div>
-                      <input
-                        className="w-full h-7 text-xs border rounded px-1.5 bg-white disabled:opacity-50"
-                        placeholder="Shipping notes..."
-                        defaultValue={item.shippingNotes || ""}
-                        key={`notes-${item.id}-${item.shippingNotes || ""}`}
-                        disabled={isLocked}
-                        onBlur={(e) => {
-                          if (e.target.value !== (item.shippingNotes || "")) {
-                            handleItemShippingChange(item.id, "shippingNotes", e.target.value);
-                          }
-                        }}
-                        onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
-                      />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+                      <td className="px-3 py-2.5 align-middle">
+                        <input
+                          className="w-full h-7 text-xs border rounded px-1.5 bg-white disabled:opacity-50"
+                          placeholder="Shipping notes..."
+                          defaultValue={item.shippingNotes || ""}
+                          key={`notes-${item.id}-${item.shippingNotes || ""}`}
+                          disabled={isLocked}
+                          onBlur={(e) => {
+                            if (e.target.value !== (item.shippingNotes || "")) {
+                              handleItemShippingChange(item.id, "shippingNotes", e.target.value);
+                            }
+                          }}
+                          onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
+                        />
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           )}
 
           {/* Incomplete warning */}
@@ -604,14 +605,16 @@ export default function ShippingSection({ orderId, data, isLocked }: ShippingSec
               <MapPin className="w-4 h-4 text-gray-400" /> Ship-To Address (Order Default)
             </CardTitle>
           </CardHeader>
-          <CardContent className="text-sm space-y-0.5">
-            {parsedAddress.contactName && <p className="font-medium">{parsedAddress.contactName}</p>}
-            {parsedAddress.company && <p className="text-gray-600">{parsedAddress.company}</p>}
-            {parsedAddress.street && <p>{parsedAddress.street}</p>}
-            {(parsedAddress.city || parsedAddress.state || parsedAddress.zipCode) && (
-              <p>{[parsedAddress.city, parsedAddress.state, parsedAddress.zipCode].filter(Boolean).join(", ")}</p>
-            )}
-            {parsedAddress.phone && <p className="text-gray-500">{parsedAddress.phone}</p>}
+          <CardContent className="text-sm">
+            <address className="not-italic space-y-0.5">
+              {parsedAddress.contactName && <p className="font-medium">{parsedAddress.contactName}</p>}
+              {parsedAddress.company && <p className="text-gray-600">{parsedAddress.company}</p>}
+              {parsedAddress.street && <p>{parsedAddress.street}</p>}
+              {(parsedAddress.city || parsedAddress.state || parsedAddress.zipCode) && (
+                <p>{[parsedAddress.city, parsedAddress.state, parsedAddress.zipCode].filter(Boolean).join(", ")}</p>
+              )}
+              {parsedAddress.phone && <p className="text-gray-500">{parsedAddress.phone}</p>}
+            </address>
           </CardContent>
         </Card>
       )}
@@ -733,22 +736,22 @@ export default function ShippingSection({ orderId, data, isLocked }: ShippingSec
                 {/* Summary */}
                 <Card className="bg-blue-50/60">
                   <CardContent className="p-4">
-                    <div className="flex items-center justify-between text-sm">
+                    <dl className="flex items-center justify-between text-sm">
                       <div className="flex items-center gap-5">
                         <div>
-                          <span className="text-gray-500 text-xs">Shipments</span>
-                          <p className="font-semibold">{shipments.length}</p>
+                          <dt className="text-gray-500 text-xs">Shipments</dt>
+                          <dd className="font-semibold">{shipments.length}</dd>
                         </div>
                         <div>
-                          <span className="text-gray-500 text-xs">Delivered</span>
-                          <p className="font-semibold text-green-600">{deliveredCount} / {shipments.length}</p>
+                          <dt className="text-gray-500 text-xs">Delivered</dt>
+                          <dd className="font-semibold text-green-600">{deliveredCount} / {shipments.length}</dd>
                         </div>
                       </div>
                       <div className="text-right">
-                        <span className="text-xs text-gray-500">Total Shipping</span>
-                        <p className="text-lg font-bold text-blue-600">${totalShippingCost.toFixed(2)}</p>
+                        <dt className="text-xs text-gray-500">Total Shipping</dt>
+                        <dd className="text-lg font-bold text-blue-600">${totalShippingCost.toFixed(2)}</dd>
                       </div>
-                    </div>
+                    </dl>
                   </CardContent>
                 </Card>
               </>
