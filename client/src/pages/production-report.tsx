@@ -61,6 +61,7 @@ import {
 } from "@/lib/poStages";
 import ProductionAlerts from "@/components/dashboard/ProductionAlerts";
 import PODetailPanel from "@/components/production/PODetailPanel";
+import { UserAvatar } from "@/components/UserAvatar";
 
 interface POReportRow {
   documentId: string;
@@ -473,6 +474,7 @@ export default function ProductionReport() {
                       <span className="flex items-center">Vendor <SortIcon column="vendor_name" /></span>
                     </TableHead>
                     <TableHead className="text-xs">Company</TableHead>
+                    <TableHead className="text-xs">Assigned</TableHead>
                     <TableHead className="text-xs">Stage</TableHead>
                     <TableHead className="text-xs">Status</TableHead>
                     <TableHead className="text-xs">Proof</TableHead>
@@ -530,6 +532,23 @@ export default function ProductionReport() {
                         {/* Company */}
                         <TableCell className="text-sm max-w-[150px] truncate">
                           {row.companyName || "—"}
+                        </TableCell>
+
+                        {/* Assigned */}
+                        <TableCell>
+                          {row.assignedUserName ? (
+                            <div className="flex items-center gap-1.5">
+                              <UserAvatar
+                                name={row.assignedUserName}
+                                size="xs"
+                              />
+                              <span className="text-xs truncate max-w-[80px]">
+                                {row.assignedUserName.split(" ")[0]}
+                              </span>
+                            </div>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">—</span>
+                          )}
                         </TableCell>
 
                         {/* Stage */}

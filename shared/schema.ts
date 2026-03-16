@@ -126,6 +126,37 @@ export const contacts = pgTable("contacts", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+// CRM Leads
+export const leads = pgTable("leads", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  firstName: varchar("first_name").notNull(),
+  lastName: varchar("last_name").notNull(),
+  email: varchar("email"),
+  phone: varchar("phone"),
+  company: varchar("company"),
+  title: varchar("title"),
+  source: varchar("source").notNull().default("website"),
+  status: varchar("status").notNull().default("new"),
+  score: integer("score"),
+  estimatedValue: decimal("estimated_value", { precision: 12, scale: 2 }),
+  notes: text("notes"),
+  lastContactDate: timestamp("last_contact_date"),
+  nextFollowUpDate: timestamp("next_follow_up_date"),
+  convertedToContactId: varchar("converted_to_contact_id"),
+  convertedToCompanyId: varchar("converted_to_company_id"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertLeadSchema = createInsertSchema(leads).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type Lead = typeof leads.$inferSelect;
+export type InsertLead = z.infer<typeof insertLeadSchema>;
+
 // Dedicated clients table for CRM
 export const clients = pgTable("clients", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -520,6 +551,7 @@ export const invoices = pgTable("invoices", {
   stripePaymentIntentId: varchar("stripe_payment_intent_id"),
   stripeInvoiceId: varchar("stripe_invoice_id"),
   stripeInvoiceUrl: text("stripe_invoice_url"),
+  stripeInvoicePdfUrl: text("stripe_invoice_pdf_url"),
   paymentMethod: varchar("payment_method"), // stripe, manual_card, check, wire, credit
   paymentReference: varchar("payment_reference"), // Check #, Wire #, etc.
   paidAt: timestamp("paid_at"),
@@ -1097,6 +1129,42 @@ export const insertSystemBrandingSchema = createInsertSchema(systemBranding).omi
   createdAt: true,
   updatedAt: true,
 });
+
+// Company Settings (feature toggles, general settings, margin settings)
+export const companySettings = pgTable("company_settings", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  // Feature toggles (JSONB object: { feature_id: boolean })
+  featureToggles: jsonb("feature_toggles").default({}),
+  // General settings
+  timezone: varchar("timezone").default("America/New_York"),
+  currency: varchar("currency").default("USD"),
+  dateFormat: varchar("date_format").default("MM/DD/YYYY"),
+  // Margin settings
+  defaultMargin: decimal("default_margin", { precision: 5, scale: 2 }).default("30"),
+  minimumMargin: decimal("minimum_margin", { precision: 5, scale: 2 }).default("15"),
+  maxOrderValue: decimal("max_order_value", { precision: 12, scale: 2 }).default("50000"),
+  requireApprovalOver: decimal("require_approval_over", { precision: 12, scale: 2 }).default("5000"),
+  // Metadata
+  updatedBy: varchar("updated_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const companySettingsRelations = relations(companySettings, ({ one }) => ({
+  updatedByUser: one(users, {
+    fields: [companySettings.updatedBy],
+    references: [users.id],
+  }),
+}));
+
+export const insertCompanySettingsSchema = createInsertSchema(companySettings).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type CompanySettings = typeof companySettings.$inferSelect;
+export type InsertCompanySettings = z.infer<typeof insertCompanySettingsSchema>;
 
 // KPI Tracking
 export const kpiMetrics = pgTable("kpi_metrics", {

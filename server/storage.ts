@@ -160,6 +160,13 @@ export interface IStorage {
   updateContact(id: string, contact: Partial<InsertContact>): Promise<Contact>;
   deleteContact(id: string): Promise<void>;
 
+  // Lead operations
+  getLeads(): Promise<any[]>;
+  getLead(id: string): Promise<any | undefined>;
+  createLead(lead: any): Promise<any>;
+  updateLead(id: string, lead: any): Promise<any>;
+  deleteLead(id: string): Promise<void>;
+
   // Client operations
   getClients(): Promise<Client[]>;
   getClient(id: string): Promise<Client | undefined>;
@@ -243,6 +250,10 @@ export interface IStorage {
   getIntegrationSettings(): Promise<IntegrationSettings | undefined>;
   upsertIntegrationSettings(settings: Partial<InsertIntegrationSettings>, userId?: string): Promise<IntegrationSettings>;
   updateIntegrationSettings(settings: Partial<InsertIntegrationSettings>): Promise<IntegrationSettings>;
+
+  // Company Settings operations
+  getCompanySettings(): Promise<any | undefined>;
+  upsertCompanySettings(settings: any, userId?: string): Promise<any>;
 
   // User Email Settings operations
   getUserEmailSettings(userId: string): Promise<UserEmailSettings | undefined>;
@@ -637,6 +648,39 @@ export class DatabaseStorage implements IStorage {
 
     // Finally delete the contact
     await db.delete(contacts).where(eq(contacts.id, id));
+  }
+
+  // Lead operations
+  async getLeads(): Promise<any[]> {
+    const { leads } = await import("@shared/schema");
+    return await db.select().from(leads).orderBy(desc(leads.createdAt));
+  }
+
+  async getLead(id: string): Promise<any | undefined> {
+    const { leads } = await import("@shared/schema");
+    const [lead] = await db.select().from(leads).where(eq(leads.id, id)).limit(1);
+    return lead;
+  }
+
+  async createLead(lead: any): Promise<any> {
+    const { leads } = await import("@shared/schema");
+    const [created] = await db.insert(leads).values(lead).returning();
+    return created;
+  }
+
+  async updateLead(id: string, lead: any): Promise<any> {
+    const { leads } = await import("@shared/schema");
+    const [updated] = await db
+      .update(leads)
+      .set({ ...lead, updatedAt: new Date() })
+      .where(eq(leads.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteLead(id: string): Promise<void> {
+    const { leads } = await import("@shared/schema");
+    await db.delete(leads).where(eq(leads.id, id));
   }
 
   // Client operations
@@ -2508,6 +2552,39 @@ export class DatabaseStorage implements IStorage {
     return newTemplate;
   }
 
+  // Company Settings operations
+  async getCompanySettings(): Promise<any | undefined> {
+    const { companySettings } = await import("@shared/schema");
+    const [settings] = await db.select().from(companySettings).limit(1);
+    return settings;
+  }
+
+  async upsertCompanySettings(settings: any, userId?: string): Promise<any> {
+    const { companySettings } = await import("@shared/schema");
+    const existing = await this.getCompanySettings();
+
+    const settingsData = {
+      ...settings,
+      updatedBy: userId,
+      updatedAt: new Date(),
+    };
+
+    if (existing) {
+      const [updated] = await db
+        .update(companySettings)
+        .set(settingsData)
+        .where(eq(companySettings.id, existing.id))
+        .returning();
+      return updated;
+    } else {
+      const [created] = await db
+        .insert(companySettings)
+        .values(settingsData as any)
+        .returning();
+      return created;
+    }
+  }
+
   // Integration Settings operations
   async getIntegrationSettings(): Promise<IntegrationSettings | undefined> {
     const [settings] = await db.select().from(integrationSettings).limit(1);
@@ -3078,9 +3155,16 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateOrderShipment(id: string, shipment: Partial<InsertOrderShipment>): Promise<OrderShipment> {
+    // Convert date strings to Date objects for timestamp columns
+    const data: any = { ...shipment, updatedAt: new Date() };
+    for (const key of ['shipDate', 'estimatedDelivery', 'actualDelivery']) {
+      if (data[key] !== undefined && data[key] !== null && !(data[key] instanceof Date)) {
+        data[key] = new Date(data[key]);
+      }
+    }
     const [updated] = await db
       .update(orderShipments)
-      .set({ ...shipment, updatedAt: new Date() })
+      .set(data)
       .where(eq(orderShipments.id, id))
       .returning();
     return updated;
@@ -3194,12 +3278,26 @@ export class DatabaseStorage implements IStorage {
     if (filters?.search) conditions.push(ilike(mediaLibrary.originalName, `%${filters.search}%`));
     if (filters?.uploadedBy) conditions.push(eq(mediaLibrary.uploadedBy, filters.uploadedBy));
 
-    const query = db.select().from(mediaLibrary);
-    const withWhere = conditions.length > 0 ? query.where(and(...conditions)) : query;
-    return withWhere
-      .orderBy(desc(mediaLibrary.createdAt))
+    // Deduplicate by cloudinaryUrl — show each unique file only once (most recent)
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+    const baseQuery = db
+      .selectDistinctOn([mediaLibrary.cloudinaryUrl])
+      .from(mediaLibrary);
+
+    const withWhere = whereClause ? baseQuery.where(whereClause) : baseQuery;
+
+    // DISTINCT ON requires cloudinaryUrl as first ORDER BY, then createdAt for picking newest
+    const deduped = withWhere
+      .orderBy(mediaLibrary.cloudinaryUrl, desc(mediaLibrary.createdAt));
+
+    // Wrap as subquery so we can re-sort by createdAt and apply limit/offset
+    const results = await db.select().from(deduped.as("deduped"))
+      .orderBy(sql`created_at DESC`)
       .limit(filters?.limit || 50)
       .offset(filters?.offset || 0);
+
+    return results as MediaLibraryItem[];
   }
 
   async getMediaLibraryItem(id: string): Promise<MediaLibraryItem | undefined> {
@@ -3240,9 +3338,12 @@ export class DatabaseStorage implements IStorage {
     if (filters?.category) conditions.push(eq(mediaLibrary.category, filters.category));
     if (filters?.search) conditions.push(ilike(mediaLibrary.originalName, `%${filters.search}%`));
 
-    const query = db.select({ count: sql<number>`count(*)` }).from(mediaLibrary);
-    const withWhere = conditions.length > 0 ? query.where(and(...conditions)) : query;
-    const [result] = await withWhere;
+    // Count unique files by cloudinaryUrl (deduplicated)
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+    const query = whereClause
+      ? db.select({ count: sql<number>`count(DISTINCT ${mediaLibrary.cloudinaryUrl})` }).from(mediaLibrary).where(whereClause)
+      : db.select({ count: sql<number>`count(DISTINCT ${mediaLibrary.cloudinaryUrl})` }).from(mediaLibrary);
+    const [result] = await query;
     return Number(result.count);
   }
 }

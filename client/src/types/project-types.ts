@@ -6,6 +6,7 @@ export interface TeamMember {
   firstName: string;
   lastName: string;
   email: string;
+  profileImageUrl?: string;
 }
 
 export interface ProjectActivity {

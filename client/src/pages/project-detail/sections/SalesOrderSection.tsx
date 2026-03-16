@@ -579,6 +579,7 @@ export default function SalesOrderSection({ orderId, data, lockStatus }: SalesOr
         primaryContact={primaryContact}
         allArtworkItems={allArtworkItems}
         serviceCharges={data.serviceCharges}
+        assignedUser={data.assignedUser}
       />
 
       {/* Document Editor Modal */}

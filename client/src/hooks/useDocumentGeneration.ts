@@ -25,7 +25,7 @@ export function buildItemsHash(items: any[], type: "quote" | "po" | "sales_order
 
 interface GenerateDocumentParams {
   elementRef: HTMLDivElement | null;
-  documentType: "quote" | "purchase_order" | "sales_order";
+  documentType: "quote" | "purchase_order" | "sales_order" | "invoice";
   documentNumber: string;
   vendorId?: string;
   vendorName?: string;
@@ -52,6 +52,7 @@ export function useDocumentGeneration(orderId: string) {
   const quoteDocuments = documents.filter((d: any) => d.documentType === "quote");
   const soDocuments = documents.filter((d: any) => d.documentType === "sales_order");
   const poDocuments = documents.filter((d: any) => d.documentType === "purchase_order");
+  const invoiceDocuments = documents.filter((d: any) => d.documentType === "invoice");
 
   // Generate PDF and upload
   const generateDocumentMutation = useMutation({
@@ -218,6 +219,7 @@ export function useDocumentGeneration(orderId: string) {
     quoteDocuments,
     soDocuments,
     poDocuments,
+    invoiceDocuments,
     quoteApprovals,
     isGenerating,
     generateDocument,

@@ -9,10 +9,11 @@ interface QuoteTemplateProps {
   primaryContact: any;
   allArtworkItems?: Record<string, any[]>;
   serviceCharges?: any[];
+  assignedUser?: { firstName?: string; lastName?: string; email?: string; profileImageUrl?: string } | null;
 }
 
 const QuoteTemplate = forwardRef<HTMLDivElement, QuoteTemplateProps>(
-  ({ order, orderItems, companyName, primaryContact, allArtworkItems = {}, serviceCharges = [] }, ref) => {
+  ({ order, orderItems, companyName, primaryContact, allArtworkItems = {}, serviceCharges = [], assignedUser }, ref) => {
     const billingAddr = (() => {
       try {
         return order?.billingAddress ? JSON.parse(order.billingAddress) : null;
@@ -101,6 +102,28 @@ const QuoteTemplate = forwardRef<HTMLDivElement, QuoteTemplateProps>(
               </div>
             </div>
           </div>
+
+          {/* Sales Rep */}
+          {assignedUser && (
+            <div className="flex items-center gap-2 mb-4">
+              {assignedUser.profileImageUrl && (
+                <img
+                  src={proxyImg(assignedUser.profileImageUrl)}
+                  alt=""
+                  style={{ width: "32px", height: "32px", borderRadius: "50%", objectFit: "cover" }}
+                />
+              )}
+              <div>
+                <p className="text-xs font-bold text-gray-800">Your Sales Rep</p>
+                <p className="text-xs text-gray-700">
+                  {[assignedUser.firstName, assignedUser.lastName].filter(Boolean).join(" ")}
+                </p>
+                {assignedUser.email && (
+                  <p className="text-[10px] text-gray-500">{assignedUser.email}</p>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Items */}
           <div className="mb-6">

@@ -1,7 +1,7 @@
 import { db } from './db';
-import { orders, invoices } from '@shared/schema';
+import { orders, invoices, quoteApprovals, artworkApprovals } from '@shared/schema';
 import { notifications, projectActivities } from '@shared/project-schema';
-import { and, isNotNull, sql, eq, lt } from 'drizzle-orm';
+import { and, isNotNull, isNull, sql, eq, lt, or } from 'drizzle-orm';
 import { storage } from './storage';
 import { format } from 'date-fns';
 
@@ -151,9 +151,10 @@ class NotificationScheduler {
         console.log(`🔔 Daily notifications: ${ordersWithActions.length} orders, ${notificationsSent} in-app, ${emailsSent} emails`);
       }
 
-      // Also process overdue invoices and expired presentations
+      // Also process overdue invoices, expired presentations, and follow-up reminders
       await this.processOverdueInvoices();
       await this.processExpiredPresentations();
+      await this.processFollowUpReminders();
     } catch (error) {
       console.error('❌ Error processing daily notifications:', error);
     } finally {
@@ -254,6 +255,212 @@ class NotificationScheduler {
       }
     } catch (error) {
       console.error('❌ Error processing expired presentations:', error);
+    }
+  }
+  /**
+   * Send follow-up reminders for pending approvals (quotes, sales orders, proofs)
+   * that haven't been responded to after a configurable number of days.
+   * Only sends one reminder per approval to avoid spamming.
+   */
+  async processFollowUpReminders() {
+    const FOLLOW_UP_AFTER_DAYS = 3; // Send reminder after 3 days of no response
+
+    try {
+      const cutoffDate = new Date();
+      cutoffDate.setDate(cutoffDate.getDate() - FOLLOW_UP_AFTER_DAYS);
+
+      // 1. Pending quote/SO approvals older than X days with no reminder sent yet
+      const pendingQuoteApprovals = await db
+        .select()
+        .from(quoteApprovals)
+        .where(
+          and(
+            eq(quoteApprovals.status, 'pending'),
+            isNotNull(quoteApprovals.clientEmail),
+            lt(quoteApprovals.createdAt, cutoffDate),
+            isNull(quoteApprovals.reminderSentAt)
+          )
+        );
+
+      let quoteReminders = 0;
+      for (const approval of pendingQuoteApprovals) {
+        try {
+          const order = await storage.getOrder(approval.orderId);
+          if (!order) continue;
+
+          const company = order.companyId ? await storage.getCompany(order.companyId) : null;
+          const companyName = company?.name || 'your company';
+
+          // Determine if this is a quote or SO approval
+          const isSOApproval = (order as any).salesOrderStatus === 'pending_client_approval';
+          const docType = isSOApproval ? 'Sales Order' : 'Quote';
+          const approvalUrl = `${process.env.APP_URL || 'https://app.swagsuite.com'}/client-approval/${approval.approvalToken}`;
+
+          const clientFirstName = approval.clientName?.split(' ')[0] || 'there';
+
+          const { emailService } = await import('./emailService');
+          await emailService.sendEmail({
+            to: approval.clientEmail!,
+            subject: `Reminder: ${docType} #${order.orderNumber} Awaiting Your Approval`,
+            html: `
+              <!DOCTYPE html>
+              <html>
+              <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+              <body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f3f4f6;">
+                <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff;">
+                  <div style="background-color: #7c3aed; padding: 30px; text-align: center;">
+                    <h1 style="color: #ffffff; margin: 0; font-size: 24px;">Friendly Reminder</h1>
+                  </div>
+                  <div style="padding: 30px;">
+                    <p style="color: #374151; line-height: 1.6; font-size: 14px;">
+                      Hi ${clientFirstName},
+                    </p>
+                    <p style="color: #374151; line-height: 1.6; font-size: 14px;">
+                      Just a friendly follow-up regarding the ${docType.toLowerCase()} we sent for your project with <strong>${companyName}</strong>.
+                      We wanted to make sure you had a chance to review it.
+                    </p>
+                    <div style="background-color: #f3f4f6; padding: 15px; border-radius: 8px; margin: 20px 0;">
+                      <p style="margin: 5px 0;"><strong>${docType}:</strong> #${order.orderNumber}</p>
+                      ${approval.quoteTotal ? `<p style="margin: 5px 0;"><strong>Total:</strong> $${Number(approval.quoteTotal).toLocaleString()}</p>` : ''}
+                      <p style="margin: 5px 0;"><strong>Sent:</strong> ${approval.createdAt ? format(new Date(approval.createdAt), "MMMM d, yyyy") : 'N/A'}</p>
+                    </div>
+                    <div style="text-align: center; margin: 25px 0;">
+                      <a href="${approvalUrl}" style="display: inline-block; background-color: #7c3aed; color: #ffffff; padding: 12px 30px; border-radius: 6px; text-decoration: none; font-weight: 600;">
+                        Review ${docType}
+                      </a>
+                    </div>
+                    <p style="color: #374151; line-height: 1.6; font-size: 14px;">
+                      If you have any questions or need changes, please don't hesitate to reach out. We're happy to help!
+                    </p>
+                    <p style="color: #374151; line-height: 1.6; font-size: 14px;">
+                      Best regards,<br>The SwagSuite Team
+                    </p>
+                  </div>
+                  <div style="background-color: #f9fafb; padding: 20px; text-align: center; border-top: 1px solid #e5e7eb;">
+                    <p style="color: #6b7280; font-size: 12px; margin: 0;">Sent from SwagSuite</p>
+                  </div>
+                </div>
+              </body>
+              </html>
+            `,
+          });
+
+          // Mark reminder as sent
+          await db.update(quoteApprovals)
+            .set({ reminderSentAt: new Date() })
+            .where(eq(quoteApprovals.id, approval.id));
+
+          // Log activity
+          if (order.assignedUserId) {
+            await db.insert(projectActivities).values({
+              orderId: order.id,
+              userId: order.assignedUserId,
+              activityType: 'system_action',
+              content: `Follow-up reminder sent to ${approval.clientEmail} for ${docType.toLowerCase()} approval`,
+              metadata: { action: 'follow_up_reminder', approvalType: docType.toLowerCase(), approvalId: approval.id },
+              isSystemGenerated: true,
+            });
+          }
+
+          quoteReminders++;
+        } catch (e) {
+          console.error(`Failed to send follow-up for approval ${approval.id}:`, e);
+        }
+      }
+
+      // 2. Pending artwork/proof approvals older than X days with no reminder sent
+      const pendingProofApprovals = await db
+        .select()
+        .from(artworkApprovals)
+        .where(
+          and(
+            eq(artworkApprovals.status, 'pending'),
+            isNotNull(artworkApprovals.clientEmail),
+            lt(artworkApprovals.createdAt, cutoffDate),
+            isNull(artworkApprovals.reminderSentAt)
+          )
+        );
+
+      let proofReminders = 0;
+      for (const approval of pendingProofApprovals) {
+        try {
+          const order = await storage.getOrder(approval.orderId);
+          if (!order) continue;
+
+          const clientFirstName = approval.clientName?.split(' ')[0] || 'there';
+          const approvalUrl = `${process.env.APP_URL || 'https://app.swagsuite.com'}/approval/${approval.approvalToken}`;
+
+          const { emailService } = await import('./emailService');
+          await emailService.sendEmail({
+            to: approval.clientEmail!,
+            subject: `Reminder: Artwork Proof for Order #${order.orderNumber} Awaiting Approval`,
+            html: `
+              <!DOCTYPE html>
+              <html>
+              <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+              <body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f3f4f6;">
+                <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff;">
+                  <div style="background-color: #7c3aed; padding: 30px; text-align: center;">
+                    <h1 style="color: #ffffff; margin: 0; font-size: 24px;">Proof Approval Reminder</h1>
+                  </div>
+                  <div style="padding: 30px;">
+                    <p style="color: #374151; line-height: 1.6; font-size: 14px;">
+                      Hi ${clientFirstName},
+                    </p>
+                    <p style="color: #374151; line-height: 1.6; font-size: 14px;">
+                      We're following up on the artwork proof we sent for your order <strong>#${order.orderNumber}</strong>.
+                      Your approval is needed so we can move forward with production.
+                    </p>
+                    <div style="text-align: center; margin: 25px 0;">
+                      <a href="${approvalUrl}" style="display: inline-block; background-color: #7c3aed; color: #ffffff; padding: 12px 30px; border-radius: 6px; text-decoration: none; font-weight: 600;">
+                        Review Proof
+                      </a>
+                    </div>
+                    <p style="color: #374151; line-height: 1.6; font-size: 14px;">
+                      If you need any changes or have questions, just let us know — we're here to help!
+                    </p>
+                    <p style="color: #374151; line-height: 1.6; font-size: 14px;">
+                      Best regards,<br>The SwagSuite Team
+                    </p>
+                  </div>
+                  <div style="background-color: #f9fafb; padding: 20px; text-align: center; border-top: 1px solid #e5e7eb;">
+                    <p style="color: #6b7280; font-size: 12px; margin: 0;">Sent from SwagSuite</p>
+                  </div>
+                </div>
+              </body>
+              </html>
+            `,
+          });
+
+          // Mark reminder as sent
+          await db.update(artworkApprovals)
+            .set({ reminderSentAt: new Date() })
+            .where(eq(artworkApprovals.id, approval.id));
+
+          // Log activity
+          if (order.assignedUserId) {
+            await db.insert(projectActivities).values({
+              orderId: order.id,
+              userId: order.assignedUserId,
+              activityType: 'system_action',
+              content: `Proof follow-up reminder sent to ${approval.clientEmail}`,
+              metadata: { action: 'follow_up_reminder', approvalType: 'proof', approvalId: approval.id },
+              isSystemGenerated: true,
+            });
+          }
+
+          proofReminders++;
+        } catch (e) {
+          console.error(`Failed to send proof follow-up for approval ${approval.id}:`, e);
+        }
+      }
+
+      const totalReminders = quoteReminders + proofReminders;
+      if (totalReminders > 0) {
+        console.log(`📨 Follow-up reminders: ${quoteReminders} quote/SO, ${proofReminders} proof approval(s)`);
+      }
+    } catch (error) {
+      console.error('❌ Error processing follow-up reminders:', error);
     }
   }
 }

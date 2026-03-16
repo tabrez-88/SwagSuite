@@ -9,10 +9,11 @@ interface SalesOrderTemplateProps {
   primaryContact: any;
   allArtworkItems?: Record<string, any[]>;
   serviceCharges?: any[];
+  assignedUser?: { firstName?: string; lastName?: string; email?: string; profileImageUrl?: string } | null;
 }
 
 const SalesOrderTemplate = forwardRef<HTMLDivElement, SalesOrderTemplateProps>(
-  ({ order, orderItems, companyName, primaryContact, allArtworkItems = {}, serviceCharges = [] }, ref) => {
+  ({ order, orderItems, companyName, primaryContact, allArtworkItems = {}, serviceCharges = [], assignedUser }, ref) => {
     const subtotal = orderItems.reduce((sum: number, item: any) => {
       return sum + (parseFloat(item.totalPrice) || 0);
     }, 0);
@@ -120,13 +121,37 @@ const SalesOrderTemplate = forwardRef<HTMLDivElement, SalesOrderTemplateProps>(
             </div>
           </div>
 
-          {/* Payment Terms */}
-          {order?.paymentTerms && (
-            <div className="mb-4 text-sm">
-              <span className="font-bold text-gray-800">Payment Terms: </span>
-              <span className="text-gray-700">{order.paymentTerms.replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase())}</span>
+          {/* Payment Terms & Sales Rep */}
+          <div className="flex justify-between items-start mb-4">
+            <div>
+              {order?.paymentTerms && (
+                <div className="text-sm">
+                  <span className="font-bold text-gray-800">Payment Terms: </span>
+                  <span className="text-gray-700">{order.paymentTerms.replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase())}</span>
+                </div>
+              )}
             </div>
-          )}
+            {assignedUser && (
+              <div className="flex items-center gap-2">
+                {assignedUser.profileImageUrl && (
+                  <img
+                    src={proxyImg(assignedUser.profileImageUrl)}
+                    alt=""
+                    style={{ width: "32px", height: "32px", borderRadius: "50%", objectFit: "cover" }}
+                  />
+                )}
+                <div className="text-right">
+                  <p className="text-xs font-bold text-gray-800">Your Sales Rep</p>
+                  <p className="text-xs text-gray-700">
+                    {[assignedUser.firstName, assignedUser.lastName].filter(Boolean).join(" ")}
+                  </p>
+                  {assignedUser.email && (
+                    <p className="text-[10px] text-gray-500">{assignedUser.email}</p>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
 
           {/* Items */}
           <div className="mb-6">

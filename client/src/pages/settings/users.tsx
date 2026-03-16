@@ -36,12 +36,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { isUnauthorizedError } from "@/lib/authUtils";
-import { Shield, Users, Crown, User as UserIcon, UserPlus, Mail, Copy } from "lucide-react";
+import { Shield, Users, Crown, User as UserIcon, UserPlus, Mail, Copy, Camera } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import FilePickerDialog from "@/components/modals/FilePickerDialog";
+import { UserAvatar } from "@/components/UserAvatar";
 
 interface User {
   id: string;
@@ -95,6 +96,7 @@ export default function UsersPage() {
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState("user");
   const [invitationUrl, setInvitationUrl] = useState("");
+  const [showAvatarPicker, setShowAvatarPicker] = useState(false);
 
   const { data: users = [], isLoading } = useQuery<User[]>({
     queryKey: ["/api/users"],
@@ -197,8 +199,34 @@ export default function UsersPage() {
     updateRoleMutation.mutate({ userId, role: newRole });
   };
 
-  const getInitials = (firstName?: string, lastName?: string) => {
-    return `${firstName?.[0] || ""}${lastName?.[0] || ""}`.toUpperCase() || "U";
+  const updateProfileImageMutation = useMutation({
+    mutationFn: async (profileImageUrl: string) => {
+      const response = await apiRequest("PATCH", "/api/users/profile-image", { profileImageUrl });
+      return response.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Profile Updated",
+        description: "Your profile photo has been updated",
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/users"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/users/team"] });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update profile photo",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleAvatarSelected = (files: any[]) => {
+    if (files.length > 0 && files[0].cloudinaryUrl) {
+      updateProfileImageMutation.mutate(files[0].cloudinaryUrl);
+    }
+    setShowAvatarPicker(false);
   };
 
   const getRoleConfig = (role: string) => {
@@ -331,6 +359,58 @@ export default function UsersPage() {
         )}
       </div>
 
+      {/* My Profile */}
+      {currentUser && (
+        <Card className="mb-6">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <UserIcon className="h-5 w-5" />
+              My Profile
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center gap-6">
+              <div className="relative group">
+                <UserAvatar user={currentUser} size="xl" />
+                <button
+                  onClick={() => setShowAvatarPicker(true)}
+                  className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                >
+                  <Camera className="h-5 w-5 text-white" />
+                </button>
+              </div>
+              <div className="flex-1">
+                <h3 className="text-lg font-semibold">
+                  {currentUser.firstName} {currentUser.lastName}
+                </h3>
+                <p className="text-sm text-muted-foreground">{currentUser.email}</p>
+                <p className="text-sm text-muted-foreground capitalize mt-1">
+                  Role: {currentUser.role}
+                </p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="mt-3"
+                  onClick={() => setShowAvatarPicker(true)}
+                >
+                  <Camera className="h-4 w-4 mr-2" />
+                  {currentUser.profileImageUrl ? "Change Photo" : "Add Photo"}
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      <FilePickerDialog
+        open={showAvatarPicker}
+        onClose={() => setShowAvatarPicker(false)}
+        onSelect={handleAvatarSelected}
+        maxFiles={1}
+        multiple={false}
+        title="Choose Profile Photo"
+      />
+
       {/* Pending Invitations */}
       {pendingInvitations && pendingInvitations.length > 0 && (
         <Card className="mb-6">
@@ -393,12 +473,7 @@ export default function UsersPage() {
                   <TableRow key={user.id}>
                     <TableCell>
                       <div className="flex items-center gap-3">
-                        <Avatar>
-                          <AvatarImage src={user.profileImageUrl} />
-                          <AvatarFallback>
-                            {getInitials(user.firstName, user.lastName)}
-                          </AvatarFallback>
-                        </Avatar>
+                        <UserAvatar user={user} size="md" />
                         <div>
                           <div className="font-medium">
                             {user.firstName} {user.lastName}

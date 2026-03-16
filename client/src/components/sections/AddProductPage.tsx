@@ -11,10 +11,20 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogCancel,
+  AlertDialogAction,
+} from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import {
   ArrowLeft, Search, Package, PenLine, Loader2, Plus,
-  DollarSign, ShoppingCart, Trash2, ImageIcon, Tag
+  DollarSign, ShoppingCart, Trash2, ImageIcon, Tag, ShieldAlert
 } from "lucide-react";
 import type { ProjectData } from "@/types/project-types";
 import { IMPRINT_LOCATIONS, IMPRINT_METHODS } from "@/lib/imprintOptions";
@@ -32,6 +42,7 @@ interface ProductResult {
   sku?: string;
   description?: string;
   supplierName?: string;
+  supplierId?: string;
   category?: string;
   imageUrl?: string;
   basePrice?: number;
@@ -94,6 +105,15 @@ export default function AddProductPage({ orderId, data }: AddProductPageProps) {
   const [productNotes, setProductNotes] = useState("");
   const [imprintLocation, setImprintLocation] = useState("");
   const [imprintMethod, setImprintMethod] = useState("");
+
+  // Vendor "Do Not Order" approval dialog state
+  const [vendorBlockDialog, setVendorBlockDialog] = useState<{
+    open: boolean;
+    supplierId: string;
+    supplierName: string;
+    reason: string;
+  }>({ open: false, supplierId: "", supplierName: "", reason: "" });
+  const [approvalReason, setApprovalReason] = useState("");
 
   // Catalog: load all products for client-side filtering
   const [catalogFilter, setCatalogFilter] = useState("");
@@ -433,6 +453,14 @@ export default function AddProductPage({ orderId, data }: AddProductPageProps) {
 
       if (!itemRes.ok) {
         const err = await itemRes.json().catch(() => ({}));
+        if (itemRes.status === 403 && err.doNotOrder) {
+          // Throw a special error so onError can show the dialog
+          const e = new Error(err.message || "Vendor is blocked") as any;
+          e.doNotOrder = true;
+          e.supplierId = err.supplierId;
+          e.supplierName = err.supplierName;
+          throw e;
+        }
         throw new Error(err.message || "Failed to create order item");
       }
 
@@ -473,7 +501,45 @@ export default function AddProductPage({ orderId, data }: AddProductPageProps) {
       setLocation(productsPath);
     },
     onError: (err: any) => {
+      if (err.doNotOrder) {
+        setVendorBlockDialog({
+          open: true,
+          supplierId: err.supplierId,
+          supplierName: err.supplierName,
+          reason: err.message,
+        });
+        return;
+      }
       toast({ title: "Failed to add product", description: err.message, variant: "destructive" });
+    },
+  });
+
+  // ── Vendor Approval Request Mutation ──
+  const vendorApprovalMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch("/api/vendor-approvals", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          supplierId: vendorBlockDialog.supplierId,
+          orderId,
+          reason: approvalReason || `Requesting approval to order from ${vendorBlockDialog.supplierName} for this project.`,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || "Failed to submit approval request");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Approval request sent", description: "An admin will be notified to review your request." });
+      setVendorBlockDialog({ open: false, supplierId: "", supplierName: "", reason: "" });
+      setApprovalReason("");
+    },
+    onError: (err: any) => {
+      toast({ title: "Failed to send approval request", description: err.message, variant: "destructive" });
     },
   });
 
@@ -525,6 +591,13 @@ export default function AddProductPage({ orderId, data }: AddProductPageProps) {
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
+        if (res.status === 403 && err.doNotOrder) {
+          const e = new Error(err.message || "Vendor is blocked") as any;
+          e.doNotOrder = true;
+          e.supplierId = err.supplierId;
+          e.supplierName = err.supplierName;
+          throw e;
+        }
         throw new Error(err.message || "Failed to create product");
       }
 
@@ -558,6 +631,15 @@ export default function AddProductPage({ orderId, data }: AddProductPageProps) {
       setLocation(productsPath);
     },
     onError: (err: any) => {
+      if (err.doNotOrder) {
+        setVendorBlockDialog({
+          open: true,
+          supplierId: err.supplierId,
+          supplierName: err.supplierName,
+          reason: err.message,
+        });
+        return;
+      }
       toast({ title: "Failed to add product", description: err.message, variant: "destructive" });
     },
   });
@@ -708,6 +790,7 @@ export default function AddProductPage({ orderId, data }: AddProductPageProps) {
                   sku: p.sku,
                   description: p.description,
                   supplierName: data.suppliers?.find((s: any) => s.id === p.supplierId)?.name || "Unknown",
+                  supplierId: p.supplierId,
                   category: p.category,
                   imageUrl: p.imageUrl,
                   basePrice: p.basePrice ? parseFloat(p.basePrice) : undefined,
@@ -1375,6 +1458,62 @@ export default function AddProductPage({ orderId, data }: AddProductPageProps) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Vendor "Do Not Order" Approval Request Dialog */}
+      <AlertDialog
+        open={vendorBlockDialog.open}
+        onOpenChange={(open) => {
+          if (!open) {
+            setVendorBlockDialog({ open: false, supplierId: "", supplierName: "", reason: "" });
+            setApprovalReason("");
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <ShieldAlert className="w-5 h-5 text-amber-500" />
+              Vendor Not Approved
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3">
+                <p>
+                  <span className="font-semibold">{vendorBlockDialog.supplierName}</span> is currently marked as "Do Not Order."
+                  You cannot add products from this vendor without admin approval.
+                </p>
+                <p>
+                  Would you like to send an approval request to an administrator?
+                </p>
+                <div className="pt-1">
+                  <Label htmlFor="approval-reason" className="text-sm font-medium">Reason (optional)</Label>
+                  <Textarea
+                    id="approval-reason"
+                    placeholder="Explain why you need to order from this vendor..."
+                    value={approvalReason}
+                    onChange={(e) => setApprovalReason(e.target.value)}
+                    className="mt-1"
+                    rows={3}
+                  />
+                </div>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={vendorApprovalMutation.isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                vendorApprovalMutation.mutate();
+              }}
+              disabled={vendorApprovalMutation.isPending}
+              className="bg-amber-600 hover:bg-amber-700"
+            >
+              {vendorApprovalMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              Request Approval
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 

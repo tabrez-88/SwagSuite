@@ -14,7 +14,7 @@ import {
   CommandList,
 } from "@/components/ui/command";
 import { UserAvatar } from "@/components/UserAvatar";
-// import { useProductionStages } from "@/hooks/useProductionStages";
+import { useProductionStages } from "@/hooks/useProductionStages";
 import { useToast } from "@/hooks/use-toast";
 import { useInlineEdit } from "@/hooks/useInlineEdit";
 import { EditableText, EditableDate, EditableTextarea } from "@/components/InlineEditable";
@@ -22,6 +22,7 @@ import {
   Building2,
   Calendar,
   Check,
+  Factory,
   FileText,
   Hash,
   Mail,
@@ -58,7 +59,7 @@ export default function OverviewSection({ orderId, data, isLocked = false }: Ove
     teamMembers,
   } = data;
 
-  // const { stages: productionStages } = useProductionStages();
+  const { stages: productionStages } = useProductionStages();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [openPopover, setOpenPopover] = useState<"salesRep" | "csr" | null>(null);
@@ -445,42 +446,69 @@ export default function OverviewSection({ orderId, data, isLocked = false }: Ove
               </Card>
             </div>
 
-            {/* Production Stages */}
-            {/* {productionStages && productionStages.length > 0 && (
-              <Card>
-                <CardHeader className="py-3">
-                  <CardTitle className="text-sm flex items-center gap-2">
-                    <Factory className="w-4 h-4" />
-                    Production Progress
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex items-center gap-1 py-2 overflow-x-auto">
-                    {productionStages.map((stage: any, index: number) => {
-                      const isCompleted = completedStages.includes(stage.id);
-                      const isCurrent = currentStage === stage.id;
-                      return (
-                        <div key={stage.id} className="flex items-center">
-                          <div
-                            className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap ${isCompleted
-                              ? "bg-green-100 text-green-700"
-                              : isCurrent
-                                ? "bg-blue-100 text-blue-700 ring-2 ring-blue-300"
-                                : "bg-gray-100 text-gray-500"
-                              }`}
-                          >
-                            {stage.name}
+            {/* Production Stages - derived from order status */}
+            {productionStages && productionStages.length > 0 && (() => {
+              // Derive completed stages from order status
+              const completedStages: string[] = [];
+              const soStatus = (order as any)?.salesOrderStatus;
+              const invoiceStatus = (order as any)?.invoice?.status;
+
+              // Sales Order Booked: once SO exists (not draft)
+              if (soStatus && soStatus !== "draft") completedStages.push("sales-booked");
+              // PO Placed: if any POs exist
+              if ((data as any)?.documents?.some?.((d: any) => d.documentType === "purchase_order")) completedStages.push("po-placed");
+              // Confirmation Received: PO confirmed
+              if ((data as any)?.documents?.some?.((d: any) => d.metadata?.poStage === "confirmed" || d.metadata?.poStage === "shipped" || d.metadata?.poStage === "ready_for_billing" || d.metadata?.poStage === "billed" || d.metadata?.poStage === "closed")) completedStages.push("confirmation-received");
+              // Proof Received + Approved
+              if ((data as any)?.artworkItems?.some?.((a: any) => a.proofFilePath)) completedStages.push("proof-received");
+              if ((data as any)?.artworkItems?.some?.((a: any) => a.status === "approved" || a.status === "proofing_complete")) completedStages.push("proof-approved");
+              // Invoice Paid
+              if (invoiceStatus === "paid") completedStages.push("invoice-paid");
+              // Shipped
+              if (soStatus === "shipped" || (data as any)?.shipments?.some?.((s: any) => s.status === "shipped" || s.status === "delivered")) {
+                completedStages.push("shipping-scheduled");
+                completedStages.push("shipped");
+              }
+
+              // Current stage = first stage that's not completed
+              const currentStage = productionStages.find((s: any) => !completedStages.includes(s.id))?.id || "";
+
+              return (
+                <Card>
+                  <CardHeader className="py-3">
+                    <CardTitle className="text-sm flex items-center gap-2">
+                      <Factory className="w-4 h-4" />
+                      Production Progress
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex items-center gap-1 py-2 overflow-x-auto">
+                      {productionStages.map((stage: any, index: number) => {
+                        const isCompleted = completedStages.includes(stage.id);
+                        const isCurrent = currentStage === stage.id;
+                        return (
+                          <div key={stage.id} className="flex items-center">
+                            <div
+                              className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap ${isCompleted
+                                ? "bg-green-100 text-green-700"
+                                : isCurrent
+                                  ? "bg-blue-100 text-blue-700 ring-2 ring-blue-300"
+                                  : "bg-gray-100 text-gray-500"
+                                }`}
+                            >
+                              {stage.name}
+                            </div>
+                            {index < productionStages.length - 1 && (
+                              <div className={`w-4 h-0.5 ${isCompleted ? "bg-green-300" : "bg-gray-200"}`} />
+                            )}
                           </div>
-                          {index < productionStages.length - 1 && (
-                            <div className={`w-4 h-0.5 ${isCompleted ? "bg-green-300" : "bg-gray-200"}`} />
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </CardContent>
-              </Card>
-            )} */}
+                        );
+                      })}
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })()}
 
           </TabsContent>
 

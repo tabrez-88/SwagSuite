@@ -976,6 +976,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
     });
   });
 
+  // Update user profile image URL (from FilePickerDialog / media library)
+  app.patch('/api/users/profile-image', isAuthenticated, async (req, res) => {
+    try {
+      const userId = (req.user as any)?.claims?.sub;
+      if (!userId) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+
+      const { profileImageUrl } = req.body;
+      if (!profileImageUrl || typeof profileImageUrl !== 'string') {
+        return res.status(400).json({ message: "profileImageUrl is required" });
+      }
+
+      const { db } = await import("./db");
+      const { users } = await import("@shared/schema");
+      const { eq } = await import("drizzle-orm");
+
+      const [updatedUser] = await db
+        .update(users)
+        .set({
+          profileImageUrl,
+          updatedAt: new Date()
+        })
+        .where(eq(users.id, userId))
+        .returning();
+
+      if (!updatedUser) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      res.json({
+        message: "Profile image updated successfully",
+        profileImageUrl: updatedUser.profileImageUrl
+      });
+    } catch (error) {
+      console.error("Error updating profile image:", error);
+      res.status(500).json({ message: "Failed to update profile image" });
+    }
+  });
+
   // Dashboard routes
   app.get('/api/dashboard/stats', isAuthenticated, async (req, res) => {
     try {
@@ -2105,40 +2145,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Lead routes
   app.get('/api/leads', isAuthenticated, async (req, res) => {
     try {
-      // Mock leads data - replace with actual database query
-      const mockLeads = [
-        {
-          id: "lead_1",
-          firstName: "John",
-          lastName: "Smith",
-          email: "john.smith@example.com",
-          phone: "(555) 123-4567",
-          company: "ABC Corporation",
-          title: "Marketing Director",
-          source: "Website",
-          status: "new",
-          estimatedValue: 2500,
-          nextFollowUpDate: "2024-02-15",
-          notes: "Interested in promotional products for upcoming campaign",
-          createdAt: new Date().toISOString(),
-        },
-        {
-          id: "lead_2",
-          firstName: "Sarah",
-          lastName: "Johnson",
-          email: "sarah.j@techcorp.com",
-          phone: "(555) 987-6543",
-          company: "TechCorp Inc",
-          title: "Event Coordinator",
-          source: "Referral",
-          status: "contacted",
-          estimatedValue: 5000,
-          nextFollowUpDate: "2024-02-18",
-          notes: "Planning a tech conference, needs branded merchandise",
-          createdAt: new Date().toISOString(),
-        }
-      ];
-      res.json(mockLeads);
+      const allLeads = await storage.getLeads();
+      res.json(allLeads);
     } catch (error) {
       console.error("Error fetching leads:", error);
       res.status(500).json({ message: "Failed to fetch leads" });
@@ -2147,21 +2155,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/leads', isAuthenticated, async (req, res) => {
     try {
-      const leadData = req.body;
-
-      // Validate required fields
-      if (!leadData.firstName || !leadData.lastName) {
-        return res.status(400).json({ message: "First name and last name are required" });
-      }
-
-      // Mock lead creation - replace with actual database insertion
-      const newLead = {
-        id: `lead_${Date.now()}`,
-        ...leadData,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      };
-
+      const { insertLeadSchema } = await import("@shared/schema");
+      const leadData = insertLeadSchema.parse(req.body);
+      const newLead = await storage.createLead(leadData);
       res.status(201).json(newLead);
     } catch (error) {
       console.error("Error creating lead:", error);
@@ -2169,12 +2165,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.patch('/api/leads/:id', isAuthenticated, async (req, res) => {
+    try {
+      const updated = await storage.updateLead(req.params.id, req.body);
+      if (!updated) {
+        return res.status(404).json({ message: "Lead not found" });
+      }
+      res.json(updated);
+    } catch (error) {
+      console.error("Error updating lead:", error);
+      res.status(500).json({ message: "Failed to update lead" });
+    }
+  });
+
   app.delete('/api/leads/:id', isAuthenticated, async (req, res) => {
     try {
-      const { id } = req.params;
-
-      // Mock lead deletion - replace with actual database deletion
-      res.json({ message: "Lead deleted successfully", id });
+      await storage.deleteLead(req.params.id);
+      res.status(204).send();
     } catch (error) {
       console.error("Error deleting lead:", error);
       res.status(500).json({ message: "Failed to delete lead" });
@@ -2947,6 +2954,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (product && product.supplierId) {
           dataToInsert.supplierId = product.supplierId;
           console.log(`Auto-populated supplierId ${product.supplierId} from product ${product.id}`);
+        }
+      }
+
+      // Vendor "Do Not Order" enforcement
+      if (dataToInsert.supplierId) {
+        const supplier = await storage.getSupplier(dataToInsert.supplierId);
+        if (supplier && supplier.doNotOrder) {
+          // Check for an approved vendor approval request for this order
+          const { db } = await import("./db");
+          const { vendorApprovalRequests } = await import("@shared/schema");
+          const { eq, and } = await import("drizzle-orm");
+
+          const [approvedRequest] = await db
+            .select()
+            .from(vendorApprovalRequests)
+            .where(
+              and(
+                eq(vendorApprovalRequests.supplierId, dataToInsert.supplierId),
+                eq(vendorApprovalRequests.orderId, req.params.orderId),
+                eq(vendorApprovalRequests.status, "approved")
+              )
+            )
+            .limit(1);
+
+          if (!approvedRequest) {
+            return res.status(403).json({
+              message: `Vendor "${supplier.name}" is marked as Do Not Order. Request approval from an admin before adding products from this vendor.`,
+              doNotOrder: true,
+              supplierId: supplier.id,
+              supplierName: supplier.name,
+            });
+          }
         }
       }
 
@@ -4070,6 +4109,116 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ message: `${syncType} sync initiated successfully` });
     } catch (error) {
       res.status(500).json({ message: "Failed to start HubSpot sync" });
+    }
+  });
+
+  // Slack bridge endpoints for SlackSidebar + SlackPanel components
+  app.get('/api/slack/sync-messages', isAuthenticated, async (req, res) => {
+    try {
+      if (!process.env.SLACK_BOT_TOKEN?.trim() || !process.env.SLACK_CHANNEL_ID?.trim()) {
+        return res.json({ messages: [] });
+      }
+
+      const { WebClient } = await import("@slack/web-api");
+      const slack = new WebClient(process.env.SLACK_BOT_TOKEN.trim());
+      const channelId = process.env.SLACK_CHANNEL_ID.trim();
+
+      const result = await slack.conversations.history({
+        channel: channelId,
+        limit: 50
+      });
+
+      const messages = (result.messages || []).map((msg: any) => ({
+        id: msg.ts || msg.client_msg_id || `msg_${Date.now()}_${Math.random()}`,
+        channelId: channelId,
+        messageId: msg.ts || '',
+        userId: msg.user || undefined,
+        username: msg.username || msg.user || 'Team Member',
+        content: msg.text || '',
+        attachments: msg.files || [],
+        threadTs: msg.thread_ts || undefined,
+        isReply: !!msg.thread_ts && msg.thread_ts !== msg.ts,
+        replyCount: msg.reply_count || 0,
+        timestamp: msg.ts ? new Date(parseFloat(msg.ts) * 1000).toISOString() : new Date().toISOString(),
+        createdAt: msg.ts ? new Date(parseFloat(msg.ts) * 1000).toISOString() : new Date().toISOString(),
+        botId: msg.bot_id || undefined,
+      }));
+
+      // Filter out thread replies from main list (show only top-level messages)
+      const topLevelMessages = messages.filter((m: any) => !m.isReply);
+
+      res.json({ messages: topLevelMessages });
+    } catch (error) {
+      console.error("Error syncing Slack messages:", error);
+      res.json({ messages: [] });
+    }
+  });
+
+  app.post('/api/slack/send-message', isAuthenticated, async (req, res) => {
+    try {
+      const { content } = req.body;
+
+      if (!content) {
+        return res.status(400).json({ message: "Message content is required" });
+      }
+
+      if (!process.env.SLACK_BOT_TOKEN?.trim() || !process.env.SLACK_CHANNEL_ID?.trim()) {
+        return res.status(400).json({ message: "Slack not configured" });
+      }
+
+      const { WebClient } = await import("@slack/web-api");
+      const slack = new WebClient(process.env.SLACK_BOT_TOKEN.trim());
+
+      const result = await slack.chat.postMessage({
+        channel: process.env.SLACK_CHANNEL_ID.trim(),
+        text: content,
+        username: 'SwagSuite Bot'
+      });
+
+      res.json({
+        success: true,
+        message: "Message sent successfully",
+        messageId: result.ts,
+        timestamp: new Date().toISOString()
+      });
+    } catch (error) {
+      console.error("Error sending Slack message:", error);
+      res.status(500).json({ message: "Failed to send message to Slack" });
+    }
+  });
+
+  app.get('/api/slack/thread/:threadTs', isAuthenticated, async (req, res) => {
+    try {
+      const { threadTs } = req.params;
+
+      if (!process.env.SLACK_BOT_TOKEN?.trim() || !process.env.SLACK_CHANNEL_ID?.trim()) {
+        return res.json({ replies: [] });
+      }
+
+      const { WebClient } = await import("@slack/web-api");
+      const slack = new WebClient(process.env.SLACK_BOT_TOKEN.trim());
+
+      const result = await slack.conversations.replies({
+        channel: process.env.SLACK_CHANNEL_ID.trim(),
+        ts: threadTs,
+      });
+
+      // Skip the first message (it's the parent), return only replies
+      const replies = (result.messages || []).slice(1).map((msg: any) => ({
+        id: msg.ts || `reply_${Date.now()}_${Math.random()}`,
+        messageId: msg.ts || '',
+        userId: msg.user || undefined,
+        username: msg.username || msg.user || 'Team Member',
+        content: msg.text || '',
+        timestamp: msg.ts ? new Date(parseFloat(msg.ts) * 1000).toISOString() : new Date().toISOString(),
+        createdAt: msg.ts ? new Date(parseFloat(msg.ts) * 1000).toISOString() : new Date().toISOString(),
+        botId: msg.bot_id || undefined,
+      }));
+
+      res.json({ replies });
+    } catch (error) {
+      console.error("Error fetching Slack thread:", error);
+      res.json({ replies: [] });
     }
   });
 
@@ -7240,6 +7389,56 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+
+  // Company Settings (feature toggles, general settings, min margin)
+  app.get('/api/admin/settings', isAuthenticated, async (req, res) => {
+    try {
+      const settings = await storage.getCompanySettings();
+      if (!settings) {
+        // Return defaults
+        return res.json({
+          featureToggles: {},
+          timezone: "America/New_York",
+          currency: "USD",
+          dateFormat: "MM/DD/YYYY",
+          defaultMargin: "30",
+          minimumMargin: "15",
+          maxOrderValue: "50000",
+          requireApprovalOver: "5000",
+        });
+      }
+      res.json(settings);
+    } catch (error) {
+      console.error("Error fetching company settings:", error);
+      res.status(500).json({ message: "Failed to fetch settings" });
+    }
+  });
+
+  app.put('/api/admin/settings/features', isAuthenticated, async (req, res) => {
+    try {
+      const userId = req.user?.claims?.sub || req.user?.id;
+      const { featureToggles } = req.body;
+      const settings = await storage.upsertCompanySettings({ featureToggles }, userId);
+      res.json(settings);
+    } catch (error) {
+      console.error("Error updating feature toggles:", error);
+      res.status(500).json({ message: "Failed to update feature toggles" });
+    }
+  });
+
+  app.put('/api/admin/settings/general', isAuthenticated, async (req, res) => {
+    try {
+      const userId = req.user?.claims?.sub || req.user?.id;
+      const { timezone, currency, dateFormat, defaultMargin, minimumMargin, maxOrderValue, requireApprovalOver } = req.body;
+      const settings = await storage.upsertCompanySettings({
+        timezone, currency, dateFormat, defaultMargin, minimumMargin, maxOrderValue, requireApprovalOver,
+      }, userId);
+      res.json(settings);
+    } catch (error) {
+      console.error("Error updating general settings:", error);
+      res.status(500).json({ message: "Failed to update general settings" });
+    }
+  });
 
   // Integration Settings endpoints
   app.get('/api/settings/integrations', isAuthenticated, async (req, res) => {
@@ -11115,6 +11314,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Update Invoice
+  app.patch('/api/orders/:id/invoice', isAuthenticated, async (req, res) => {
+    try {
+      const invoice = await storage.getInvoiceByOrderId(req.params.id);
+      if (!invoice) return res.status(404).json({ message: "Invoice not found" });
+
+      const { status, dueDate, taxAmount, totalAmount, notes } = req.body;
+      const updates: any = {};
+      if (status !== undefined) updates.status = status;
+      if (dueDate !== undefined) updates.dueDate = new Date(dueDate);
+      if (taxAmount !== undefined) updates.taxAmount = taxAmount;
+      if (totalAmount !== undefined) updates.totalAmount = totalAmount;
+      if (notes !== undefined) updates.notes = notes;
+
+      const updated = await storage.updateInvoice(invoice.id, updates);
+      res.json(updated);
+    } catch (error) {
+      console.error("Invoice update error:", error);
+      res.status(500).json({ message: String(error) });
+    }
+  });
+
   // Generate Stripe Hosted Invoice Link
   app.post('/api/invoices/:id/payment-link', isAuthenticated, async (req, res) => {
     try {
@@ -11210,6 +11431,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.log("invoice tax item: ", taxItem);
       }
 
+      // Add Credit Card Processing Fee (3%)
+      const invoiceTotal = Math.round(Number(invoice.totalAmount) * 100); // total in cents
+      const ccFeeAmount = Math.round(invoiceTotal * 0.03);
+      if (ccFeeAmount > 0) {
+        const ccFeeItem = await stripeService.createInvoiceItem({
+          customerId: stripeCustomer.id,
+          invoiceId: stripeInvoice.id,
+          amount: ccFeeAmount,
+          currency: 'usd',
+          description: 'Credit Card Processing Fee (3%)'
+        });
+        console.log("invoice cc fee item: ", ccFeeItem);
+      }
+
       console.log("invoice items created with detailed breakdown");
 
       // 3. Finalize invoice to get hosted URL
@@ -11217,17 +11452,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       console.log("finalized invoice payment-link: ", finalizedInvoice);
 
-      // Update local invoice with Stripe details
+      // Update local invoice with Stripe details (including PDF URL)
       await storage.updateInvoice(invoice.id, {
         stripeInvoiceId: finalizedInvoice.id,
         stripePaymentIntentId: finalizedInvoice.payment_intent,
-        stripeInvoiceUrl: finalizedInvoice.hosted_invoice_url
+        stripeInvoiceUrl: finalizedInvoice.hosted_invoice_url,
+        stripeInvoicePdfUrl: finalizedInvoice.invoice_pdf
       });
 
       res.json({
         paymentLink: finalizedInvoice.hosted_invoice_url,
         stripeInvoiceId: finalizedInvoice.id,
-        stripeInvoiceUrl: finalizedInvoice.hosted_invoice_url
+        stripeInvoiceUrl: finalizedInvoice.hosted_invoice_url,
+        stripeInvoicePdfUrl: finalizedInvoice.invoice_pdf
       });
     } catch (error) {
       console.error("Payment link error:", error);

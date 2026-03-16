@@ -1,0 +1,20 @@
+CREATE TABLE IF NOT EXISTS "leads" (
+  "id" varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+  "first_name" varchar NOT NULL,
+  "last_name" varchar NOT NULL,
+  "email" varchar,
+  "phone" varchar,
+  "company" varchar,
+  "title" varchar,
+  "source" varchar NOT NULL DEFAULT 'website',
+  "status" varchar NOT NULL DEFAULT 'new',
+  "score" integer,
+  "estimated_value" numeric(12,2),
+  "notes" text,
+  "last_contact_date" timestamp,
+  "next_follow_up_date" timestamp,
+  "converted_to_contact_id" varchar,
+  "converted_to_company_id" varchar,
+  "created_at" timestamp DEFAULT now(),
+  "updated_at" timestamp DEFAULT now()
+);

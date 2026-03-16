@@ -22,6 +22,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { apiRequest } from "@/lib/queryClient";
+import { useProductionStages } from "@/hooks/useProductionStages";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertCircle,
@@ -61,6 +62,8 @@ import {
   Zap,
   Database,
   AlertTriangle,
+  Factory,
+  GripVertical,
 } from "lucide-react";
 import {
   AlertDialog,
@@ -74,6 +77,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useState, useEffect } from "react";
 import { MailCredentialsDialog } from "@/components/modals/MailCredentialsDialog";
+import { UserAvatar } from "@/components/UserAvatar";
 
 interface FeatureToggle {
   id: string;
@@ -455,6 +459,17 @@ export default function Settings() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState("features");
+  const {
+    stages: productionStages,
+    isLoading: stagesLoading,
+    createStage,
+    updateStage,
+    deleteStage,
+    reorderStages,
+    resetStages,
+    isCreating: stageCreating,
+    isDeleting: stageDeleting,
+  } = useProductionStages();
 
   // Load admin settings from backend
   const { data: adminSettings, isLoading: settingsLoading } = useQuery({
@@ -512,9 +527,12 @@ export default function Settings() {
       featureId: string;
       enabled: boolean;
     }) => {
+      // Build the full toggles object from current features state
+      const currentToggles: Record<string, boolean> = {};
+      features.forEach(f => { currentToggles[f.id] = f.enabled; });
+      currentToggles[featureId] = enabled;
       return await apiRequest("PUT", "/api/admin/settings/features", {
-        featureId,
-        enabled,
+        featureToggles: currentToggles,
       });
     },
     onSuccess: () => {
@@ -651,6 +669,32 @@ export default function Settings() {
     maxOrderValue: "50000",
     requireApprovalOver: "5000",
   });
+
+  // Initialize features & general settings from server data
+  useEffect(() => {
+    if (adminSettings) {
+      // Apply feature toggles from server
+      const serverToggles = (adminSettings as any).featureToggles || {};
+      if (Object.keys(serverToggles).length > 0) {
+        setFeatures(prev => prev.map(f => ({
+          ...f,
+          enabled: serverToggles[f.id] !== undefined ? serverToggles[f.id] : f.enabled,
+        })));
+      }
+      // Apply general settings from server
+      const s = adminSettings as any;
+      setGeneralSettings(prev => ({
+        ...prev,
+        timezone: s.timezone || prev.timezone,
+        currency: s.currency || prev.currency,
+        dateFormat: s.dateFormat || prev.dateFormat,
+        defaultMargin: s.defaultMargin || prev.defaultMargin,
+        minimumMargin: s.minimumMargin || prev.minimumMargin,
+        maxOrderValue: s.maxOrderValue || prev.maxOrderValue,
+        requireApprovalOver: s.requireApprovalOver || prev.requireApprovalOver,
+      }));
+    }
+  }, [adminSettings]);
 
   // Notification Settings
   const [notifications, setNotifications] = useState({
@@ -1091,10 +1135,21 @@ export default function Settings() {
       }
 
       if (section === "General") {
-        // Save general settings (companyName goes to branding)
+        // Save general settings to companySettings table
+        await apiRequest("PUT", "/api/admin/settings/general", {
+          timezone: generalSettings.timezone,
+          currency: generalSettings.currency,
+          dateFormat: generalSettings.dateFormat,
+          defaultMargin: generalSettings.defaultMargin,
+          minimumMargin: generalSettings.minimumMargin,
+          maxOrderValue: generalSettings.maxOrderValue,
+          requireApprovalOver: generalSettings.requireApprovalOver,
+        });
+        queryClient.invalidateQueries({ queryKey: ["/api/admin/settings"] });
+
+        // Also save companyName to branding
         saveBrandingMutation.mutate({
           companyName: generalSettings.companyName || null,
-          // Keep existing branding values
           primaryColor:
             brandingSettings?.primaryColor || systemConfig.theme.primaryColor,
           secondaryColor:
@@ -1645,6 +1700,10 @@ export default function Settings() {
             <List className="w-4 h-4" />
             Forms
           </TabsTrigger>
+          <TabsTrigger value="production-stages" className="flex items-center gap-2">
+            <Factory className="w-4 h-4" />
+            Production
+          </TabsTrigger>
           <TabsTrigger value="import" className="flex items-center gap-2">
             <Brain className="w-4 h-4" />
             Data Import
@@ -1728,9 +1787,7 @@ export default function Settings() {
                       className="flex items-center justify-between p-4 border rounded-lg"
                     >
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center">
-                          <User className="w-5 h-5 text-primary" />
-                        </div>
+                        <UserAvatar user={userItem} size="md" />
                         <div>
                           <h4 className="font-medium text-sm">
                             {userItem.firstName} {userItem.lastName}
@@ -3556,6 +3613,108 @@ export default function Settings() {
                 <Save className="w-4 h-4 mr-2" />
                 Save Field Configuration
               </Button>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Production Stages Tab */}
+        <TabsContent value="production-stages" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Factory className="w-5 h-5" />
+                Production Stages
+              </CardTitle>
+              <p className="text-sm text-muted-foreground">
+                Customize the production stages that appear on project overview pages.
+                Drag to reorder, or add/remove stages.
+              </p>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {stagesLoading ? (
+                <div className="text-center py-8 text-muted-foreground">Loading stages...</div>
+              ) : (
+                <div className="space-y-2">
+                  {productionStages.map((stage: any, index: number) => (
+                    <div
+                      key={stage.id}
+                      className="flex items-center gap-3 p-3 bg-muted/30 rounded-lg border"
+                    >
+                      <GripVertical className="w-4 h-4 text-muted-foreground" />
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <Badge className={stage.color || "bg-gray-100 text-gray-800"}>
+                            {stage.name}
+                          </Badge>
+                          <span className="text-xs text-muted-foreground">
+                            Step {index + 1}
+                          </span>
+                        </div>
+                        {stage.description && (
+                          <p className="text-xs text-muted-foreground mt-1">{stage.description}</p>
+                        )}
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 w-8 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
+                        onClick={async () => {
+                          try {
+                            await deleteStage(stage.id);
+                            toast({ title: "Stage deleted" });
+                          } catch {
+                            toast({ title: "Failed to delete stage", variant: "destructive" });
+                          }
+                        }}
+                        disabled={stageDeleting}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <Separator />
+
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={async () => {
+                    const name = window.prompt("Enter stage name:");
+                    if (!name) return;
+                    try {
+                      await createStage({
+                        name,
+                        color: "bg-gray-100 text-gray-800",
+                        icon: "Package",
+                      });
+                      toast({ title: "Stage added" });
+                    } catch {
+                      toast({ title: "Failed to add stage", variant: "destructive" });
+                    }
+                  }}
+                  disabled={stageCreating}
+                >
+                  <Plus className="w-4 h-4 mr-1" /> Add Stage
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={async () => {
+                    if (!window.confirm("Reset to default stages? This will remove all custom stages.")) return;
+                    try {
+                      await resetStages();
+                      toast({ title: "Stages reset to defaults" });
+                    } catch {
+                      toast({ title: "Failed to reset stages", variant: "destructive" });
+                    }
+                  }}
+                >
+                  Reset to Defaults
+                </Button>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
