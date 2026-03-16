@@ -6418,6 +6418,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           c.name as "companyName",
           c.id as "companyId",
           COALESCE(u_assigned.first_name || ' ' || u_assigned.last_name, u_assigned.username) as "assignedUserName",
+          u_assigned.profile_image_url as "assignedUserImage",
           COALESCE(u_csr.first_name || ' ' || u_csr.last_name, u_csr.username) as "csrUserName"
         FROM generated_documents gd
         INNER JOIN orders o ON gd.order_id = o.id
@@ -11380,11 +11381,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // 1. Create draft invoice FIRST
       // pending_invoice_items_behavior: 'exclude' ensures we don't pick up random pending items from other failed attempts
+      // Calculate days until due from invoice due date
+      const daysUntilDue = invoice.dueDate
+        ? Math.max(1, Math.ceil((new Date(invoice.dueDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
+        : 30;
+
       const stripeInvoice = await stripeService.createInvoice({
         customerId: stripeCustomer.id,
         collection_method: 'send_invoice',
-        days_until_due: 30,
+        days_until_due: daysUntilDue,
         pending_invoice_items_behavior: 'exclude',
+        payment_method_types: ['card', 'us_bank_account'],
         metadata: {
           invoiceId: invoice.id,
           invoiceNumber: invoice.invoiceNumber,
@@ -11431,7 +11438,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.log("invoice tax item: ", taxItem);
       }
 
-      // Add Credit Card Processing Fee (3%)
+      // Add Credit Card Processing Fee (3%) — only applies if paying by credit card
+      // Note: ACH payments do not incur this fee
       const invoiceTotal = Math.round(Number(invoice.totalAmount) * 100); // total in cents
       const ccFeeAmount = Math.round(invoiceTotal * 0.03);
       if (ccFeeAmount > 0) {
@@ -11440,7 +11448,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           invoiceId: stripeInvoice.id,
           amount: ccFeeAmount,
           currency: 'usd',
-          description: 'Credit Card Processing Fee (3%)'
+          description: 'Credit Card Processing Fee (3%) — waived if paying via ACH/Bank Transfer'
         });
         console.log("invoice cc fee item: ", ccFeeItem);
       }

@@ -19,6 +19,7 @@ import {
   CheckCircle,
   Banknote,
   Clock,
+  CalendarIcon,
 } from "lucide-react";
 import { format, differenceInDays } from "date-fns";
 import type { useProjectData } from "../hooks/useProjectData";
@@ -128,6 +129,20 @@ export default function InvoiceSection({ orderId, data, lockStatus }: InvoiceSec
     },
   });
 
+  // Update due date
+  const updateDueDateMutation = useMutation({
+    mutationFn: async (newDueDate: string) => {
+      await apiRequest("PATCH", `/api/orders/${orderId}/invoice`, { dueDate: newDueDate });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/orders/${orderId}/invoice`] });
+      toast({ title: "Due date updated" });
+    },
+    onError: () => {
+      toast({ title: "Failed to update due date", variant: "destructive" });
+    },
+  });
+
   // Stripe payment link (also generates Stripe invoice PDF)
   const stripePaymentMutation = useMutation({
     mutationFn: async () => {
@@ -220,12 +235,26 @@ export default function InvoiceSection({ orderId, data, lockStatus }: InvoiceSec
                   <p className="font-bold text-lg">${Number(invoice.totalAmount || 0).toLocaleString()}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-gray-500">Due Date</p>
-                  <p className="font-medium">
-                    {invoice.dueDate
-                      ? format(new Date(invoice.dueDate), "MMM d, yyyy")
-                      : "Not set"}
+                  <p className="text-xs text-gray-500 flex items-center gap-1">
+                    <CalendarIcon className="w-3 h-3" />
+                    Due Date
                   </p>
+                  {invoice.status === "paid" ? (
+                    <p className="font-medium">
+                      {invoice.dueDate ? format(new Date(invoice.dueDate), "MMM d, yyyy") : "Not set"}
+                    </p>
+                  ) : (
+                    <Input
+                      type="date"
+                      className="h-8 text-sm w-[150px]"
+                      value={invoice.dueDate ? format(new Date(invoice.dueDate), "yyyy-MM-dd") : ""}
+                      onChange={(e) => {
+                        if (e.target.value) {
+                          updateDueDateMutation.mutate(e.target.value);
+                        }
+                      }}
+                    />
+                  )}
                 </div>
               </div>
 

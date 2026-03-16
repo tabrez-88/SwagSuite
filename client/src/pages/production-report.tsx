@@ -88,6 +88,7 @@ interface POReportRow {
   companyName: string;
   companyId: string;
   assignedUserName: string;
+  assignedUserImage: string | null;
   csrUserName: string;
   // Enriched
   poStage: string;
@@ -540,6 +541,7 @@ export default function ProductionReport() {
                             <div className="flex items-center gap-1.5">
                               <UserAvatar
                                 name={row.assignedUserName}
+                                imageUrl={row.assignedUserImage || undefined}
                                 size="xs"
                               />
                               <span className="text-xs truncate max-w-[80px]">

@@ -32,16 +32,22 @@ export class StripeService {
     let bodyString = '';
     if (body) {
       const params = new URLSearchParams();
-      // Simple flattener for metadata and basic fields
-      Object.entries(body).forEach(([key, value]) => {
-        if (typeof value === 'object' && value !== null) {
-          Object.entries(value).forEach(([subKey, subValue]) => {
-            params.append(`${key}[${subKey}]`, String(subValue));
-          });
-        } else if (value !== undefined) {
-          params.append(key, String(value));
-        }
-      });
+      // Recursive flattener for nested objects and arrays
+      const flatten = (obj: any, prefix = '') => {
+        Object.entries(obj).forEach(([key, value]) => {
+          const fullKey = prefix ? `${prefix}[${key}]` : key;
+          if (Array.isArray(value)) {
+            value.forEach((item) => {
+              params.append(`${fullKey}[]`, String(item));
+            });
+          } else if (typeof value === 'object' && value !== null) {
+            flatten(value, fullKey);
+          } else if (value !== undefined) {
+            params.append(fullKey, String(value));
+          }
+        });
+      };
+      flatten(body);
       bodyString = params.toString();
     }
 
@@ -106,7 +112,7 @@ export class StripeService {
     return await this.request('invoiceitems', 'POST', payload);
   }
 
-  async createInvoice(params: { customerId: string, collection_method: 'send_invoice', days_until_due: number, metadata?: Record<string, string>, pending_invoice_items_behavior?: 'exclude' | 'include' }) {
+  async createInvoice(params: { customerId: string, collection_method: 'send_invoice', days_until_due: number, metadata?: Record<string, string>, pending_invoice_items_behavior?: 'exclude' | 'include', payment_method_types?: string[] }) {
     const payload: any = {
       customer: params.customerId,
       collection_method: params.collection_method,
@@ -115,6 +121,11 @@ export class StripeService {
     };
     if (params.pending_invoice_items_behavior) {
       payload.pending_invoice_items_behavior = params.pending_invoice_items_behavior;
+    }
+    if (params.payment_method_types && params.payment_method_types.length > 0) {
+      payload.payment_settings = {
+        payment_method_types: params.payment_method_types
+      };
     }
     return await this.request('invoices', 'POST', payload);
   }
