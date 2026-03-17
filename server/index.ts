@@ -54,8 +54,9 @@ app.use((req, res, next) => {
   const { storage } = await import("./storage");
   try {
     await storage.seedDefaultProductionStages();
+    await storage.seedDefaultNextActionTypes();
   } catch (e) {
-    console.error("Failed to seed production stages:", e);
+    console.error("Failed to seed production stages/action types:", e);
   }
 
   // Start notification scheduler for daily action reminders

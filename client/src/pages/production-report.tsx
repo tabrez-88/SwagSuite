@@ -49,19 +49,18 @@ import { useLocation } from "wouter";
 import { useAuth } from "@/hooks/useAuth";
 import { getDateStatus } from "@/lib/dateUtils";
 import {
-  PO_STAGES,
-  PO_STAGES_ORDERED,
-  PO_OPEN_STAGES,
   PO_STATUSES,
   PROOF_STATUSES,
   PROOF_ACTIVE_STATUSES,
-  getPOStageBadgeClass,
   getPOStatusBadgeClass,
   getProofStatusBadgeClass,
 } from "@/lib/poStages";
+import { getStageBadgeClass } from "@/lib/productionStages";
 import ProductionAlerts from "@/components/dashboard/ProductionAlerts";
 import PODetailPanel from "@/components/production/PODetailPanel";
 import { UserAvatar } from "@/components/UserAvatar";
+import { useProductionStages } from "@/hooks/useProductionStages";
+import { useNextActionTypes, getActionTypeBadgeClass } from "@/hooks/useNextActionTypes";
 
 interface POReportRow {
   documentId: string;
@@ -79,6 +78,7 @@ interface POReportRow {
   supplierInHandsDate: string;
   eventDate: string;
   nextActionDate: string;
+  nextActionType: string;
   nextActionNotes: string;
   isFirm: boolean;
   isRush: boolean;
@@ -90,6 +90,8 @@ interface POReportRow {
   assignedUserName: string;
   assignedUserImage: string | null;
   csrUserName: string;
+  currentStage: string;
+  stagesCompleted: string[];
   // Enriched
   poStage: string;
   poStatus: string;
@@ -169,9 +171,11 @@ export default function ProductionReport() {
     },
   });
 
-  // Fetch vendors and users for filter dropdowns
+  // Fetch vendors, users, and production stages for filter dropdowns
   const { data: vendors = [] } = useQuery<any[]>({ queryKey: ["/api/suppliers"] });
   const { data: users = [] } = useQuery<any[]>({ queryKey: ["/api/users/team"] });
+  const { stages: productionStages } = useProductionStages();
+  const { actionTypes } = useNextActionTypes();
 
   const rows = reportData?.data || [];
   const pagination = reportData?.pagination || { page: 1, limit: 50, total: 0, totalPages: 0 };
@@ -212,7 +216,8 @@ export default function ProductionReport() {
   const hasActiveFilters =
     searchQuery || filterStage !== "all" || filterStatus !== "all" ||
     filterVendor !== "all" || filterAssignee !== "all" ||
-    filterProofStatus !== "all" || filterDateFrom || filterDateTo || alertFilter;
+    filterProofStatus !== "all" ||
+    filterDateFrom || filterDateTo || alertFilter;
 
   // Quick date presets
   const applyDatePreset = (preset: "overdue" | "thisWeek" | "thisMonth") => {
@@ -329,9 +334,8 @@ export default function ProductionReport() {
               <SelectContent>
                 <SelectItem value="all">All Stages</SelectItem>
                 <SelectItem value="open" className="font-medium text-blue-700">Open POs</SelectItem>
-                <SelectItem value="in_production" className="font-medium text-purple-700">In Production</SelectItem>
-                {PO_STAGES_ORDERED.map((s) => (
-                  <SelectItem key={s.key} value={s.key}>{s.label}</SelectItem>
+                {productionStages.map((s: any) => (
+                  <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -389,6 +393,7 @@ export default function ProductionReport() {
                 ))}
               </SelectContent>
             </Select>
+
           </div>
 
           {/* Date range row */}
@@ -455,39 +460,31 @@ export default function ProductionReport() {
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
-                  <TableRow className="bg-muted/30">
+                  <TableRow className="bg-muted/30 border-b-2">
                     <TableHead
-                      className="cursor-pointer hover:bg-muted/50 text-xs"
+                      className="cursor-pointer hover:bg-muted/50 text-xs py-3 pl-4"
                       onClick={() => handleSort("document_number")}
                     >
-                      <span className="flex items-center">PO# <SortIcon column="document_number" /></span>
+                      <span className="flex items-center">PO / Order <SortIcon column="document_number" /></span>
                     </TableHead>
                     <TableHead
-                      className="cursor-pointer hover:bg-muted/50 text-xs"
-                      onClick={() => handleSort("order_number")}
-                    >
-                      <span className="flex items-center">Order <SortIcon column="order_number" /></span>
-                    </TableHead>
-                    <TableHead
-                      className="cursor-pointer hover:bg-muted/50 text-xs"
+                      className="cursor-pointer hover:bg-muted/50 text-xs py-3"
                       onClick={() => handleSort("vendor_name")}
                     >
-                      <span className="flex items-center">Vendor <SortIcon column="vendor_name" /></span>
+                      <span className="flex items-center">Vendor / Company <SortIcon column="vendor_name" /></span>
                     </TableHead>
-                    <TableHead className="text-xs">Company</TableHead>
-                    <TableHead className="text-xs">Assigned</TableHead>
-                    <TableHead className="text-xs">Stage</TableHead>
-                    <TableHead className="text-xs">Status</TableHead>
-                    <TableHead className="text-xs">Proof</TableHead>
+                    <TableHead className="text-xs py-3">Assigned</TableHead>
+                    <TableHead className="text-xs py-3">Stage / Status</TableHead>
+                    <TableHead className="text-xs py-3">Proof</TableHead>
+                    <TableHead className="text-xs py-3">Next Action</TableHead>
                     <TableHead
-                      className="cursor-pointer hover:bg-muted/50 text-xs"
+                      className="cursor-pointer hover:bg-muted/50 text-xs py-3"
                       onClick={() => handleSort("in_hands_date")}
                     >
                       <span className="flex items-center">In-Hands <SortIcon column="in_hands_date" /></span>
                     </TableHead>
-                    <TableHead className="text-xs">Shipping</TableHead>
-                    <TableHead className="text-xs text-right">Total</TableHead>
-                    <TableHead className="text-xs">Flags</TableHead>
+                    <TableHead className="text-xs py-3">Shipping</TableHead>
+                    <TableHead className="text-xs py-3 text-right pr-4">Total</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -499,76 +496,91 @@ export default function ProductionReport() {
                     return (
                       <TableRow
                         key={row.documentId}
-                        className="cursor-pointer hover:bg-muted/40 transition-colors"
+                        className="cursor-pointer hover:bg-muted/40 transition-colors group"
                         onClick={() => handleRowClick(row)}
                       >
-                        {/* PO Number */}
-                        <TableCell className="font-mono text-sm font-medium">
-                          {row.documentNumber}
+                        {/* PO + Order (stacked) */}
+                        <TableCell className="py-3.5 pl-4">
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono text-sm font-semibold">{row.documentNumber}</span>
+                              {(row.isFirm || row.isRush) && (
+                                <div className="flex gap-1">
+                                  {row.isFirm && (
+                                    <Badge className="bg-blue-100 text-blue-800 border-0 text-[10px] px-1.5 py-0 font-semibold">
+                                      FIRM
+                                    </Badge>
+                                  )}
+                                  {row.isRush && (
+                                    <Badge className="bg-red-100 text-red-800 border-0 text-[10px] px-1.5 py-0 font-semibold">
+                                      RUSH
+                                    </Badge>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <button
+                                  className="text-xs text-muted-foreground hover:text-primary hover:underline"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setLocation(`/project/${row.orderId}`);
+                                  }}
+                                >
+                                  #{row.orderNumber}
+                                </button>
+                              </TooltipTrigger>
+                              <TooltipContent>Open project</TooltipContent>
+                            </Tooltip>
+                          </div>
                         </TableCell>
 
-                        {/* Order Number */}
-                        <TableCell>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <button
-                                className="text-sm text-primary hover:underline"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setLocation(`/project/${row.orderId}`);
-                                }}
-                              >
-                                #{row.orderNumber}
-                              </button>
-                            </TooltipTrigger>
-                            <TooltipContent>Open project</TooltipContent>
-                          </Tooltip>
-                        </TableCell>
-
-                        {/* Vendor */}
-                        <TableCell className="text-sm max-w-[150px] truncate">
-                          {row.vendorName || "—"}
-                        </TableCell>
-
-                        {/* Company */}
-                        <TableCell className="text-sm max-w-[150px] truncate">
-                          {row.companyName || "—"}
+                        {/* Vendor + Company (stacked) */}
+                        <TableCell className="py-3.5">
+                          <div className="space-y-0.5 max-w-[200px]">
+                            <div className="text-sm font-medium truncate">{row.vendorName || "—"}</div>
+                            <div className="text-xs text-muted-foreground truncate">{row.companyName || ""}</div>
+                          </div>
                         </TableCell>
 
                         {/* Assigned */}
-                        <TableCell>
+                        <TableCell className="py-3.5">
                           {row.assignedUserName ? (
-                            <div className="flex items-center gap-1.5">
-                              <UserAvatar
-                                name={row.assignedUserName}
-                                imageUrl={row.assignedUserImage || undefined}
-                                size="xs"
-                              />
-                              <span className="text-xs truncate max-w-[80px]">
-                                {row.assignedUserName.split(" ")[0]}
-                              </span>
-                            </div>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <div className="flex items-center gap-2">
+                                  <UserAvatar
+                                    name={row.assignedUserName}
+                                    imageUrl={row.assignedUserImage || undefined}
+                                    size="sm"
+                                  />
+                                  <span className="text-sm truncate max-w-[80px] hidden lg:inline">
+                                    {row.assignedUserName.split(" ")[0]}
+                                  </span>
+                                </div>
+                              </TooltipTrigger>
+                              <TooltipContent>{row.assignedUserName}</TooltipContent>
+                            </Tooltip>
                           ) : (
                             <span className="text-xs text-muted-foreground">—</span>
                           )}
                         </TableCell>
 
-                        {/* Stage */}
-                        <TableCell>
-                          <Badge className={`text-xs ${getPOStageBadgeClass(row.poStage)}`}>
-                            {PO_STAGES[row.poStage]?.label || row.poStage}
-                          </Badge>
-                        </TableCell>
-
-                        {/* Status */}
-                        <TableCell>
-                          <Badge className={`text-xs ${getPOStatusBadgeClass(row.poStatus)}`}>
-                            {PO_STATUSES[row.poStatus]?.label || row.poStatus}
-                          </Badge>
+                        {/* Stage + Status (stacked) */}
+                        <TableCell className="py-3.5">
+                          <div className="flex flex-col gap-1.5">
+                            <Badge className={`text-xs w-fit ${getStageBadgeClass(productionStages, row.poStage)}`}>
+                              {productionStages.find((s: any) => s.id === row.poStage)?.name || row.poStage}
+                            </Badge>
+                            <Badge className={`text-[10px] w-fit ${getPOStatusBadgeClass(row.poStatus)}`}>
+                              {PO_STATUSES[row.poStatus]?.label || row.poStatus}
+                            </Badge>
+                          </div>
                         </TableCell>
 
                         {/* Proof Status */}
-                        <TableCell>
+                        <TableCell className="py-3.5">
                           {aggProofStatus ? (
                             <Badge className={`text-xs ${getProofStatusBadgeClass(aggProofStatus)}`}>
                               {PROOF_STATUSES[aggProofStatus]?.label || aggProofStatus}
@@ -578,17 +590,50 @@ export default function ProductionReport() {
                           )}
                         </TableCell>
 
+                        {/* Next Action */}
+                        <TableCell className="py-3.5">
+                          {row.nextActionType && row.nextActionType !== "no_action" ? (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <div className="space-y-1">
+                                  <Badge className={`text-xs ${getActionTypeBadgeClass(actionTypes, row.nextActionType)}`}>
+                                    {actionTypes.find(t => t.id === row.nextActionType)?.name || row.nextActionType}
+                                  </Badge>
+                                  {row.nextActionDate && (
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="text-xs text-muted-foreground">
+                                        {format(new Date(row.nextActionDate), "MMM d")}
+                                      </span>
+                                      {(() => {
+                                        const s = getDateStatus(row.nextActionDate);
+                                        return s && s.urgency !== "normal" ? (
+                                          <Badge className={`text-[10px] px-1.5 py-0 ${s.color} border-0`}>{s.label}</Badge>
+                                        ) : null;
+                                      })()}
+                                    </div>
+                                  )}
+                                </div>
+                              </TooltipTrigger>
+                              <TooltipContent className="max-w-[200px]">{row.nextActionNotes || "No notes"}</TooltipContent>
+                            </Tooltip>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">—</span>
+                          )}
+                        </TableCell>
+
                         {/* In-Hands Date */}
-                        <TableCell>
+                        <TableCell className="py-3.5">
                           {row.inHandsDate ? (
-                            <div className="flex items-center gap-1">
-                              <span className="text-xs">
+                            <div className="space-y-1">
+                              <span className="text-sm font-medium">
                                 {format(new Date(row.inHandsDate), "MMM d")}
                               </span>
                               {inHandsStatus && inHandsStatus.urgency !== "normal" && (
-                                <Badge className={`text-[10px] px-1 py-0 ${inHandsStatus.color} border-0`}>
-                                  {inHandsStatus.label}
-                                </Badge>
+                                <div>
+                                  <Badge className={`text-[10px] px-1.5 py-0 ${inHandsStatus.color} border-0`}>
+                                    {inHandsStatus.label}
+                                  </Badge>
+                                </div>
                               )}
                             </div>
                           ) : (
@@ -597,14 +642,16 @@ export default function ProductionReport() {
                         </TableCell>
 
                         {/* Shipping */}
-                        <TableCell>
+                        <TableCell className="py-3.5">
                           {latestShipment ? (
-                            <div className="flex items-center gap-1">
-                              <Truck className="h-3 w-3 text-muted-foreground" />
-                              <span className="text-xs">{latestShipment.status}</span>
+                            <div className="space-y-0.5">
+                              <div className="flex items-center gap-1.5">
+                                <Truck className="h-3.5 w-3.5 text-muted-foreground" />
+                                <span className="text-sm capitalize">{latestShipment.status}</span>
+                              </div>
                               {latestShipment.trackingNumber && (
-                                <span className="text-[10px] font-mono text-muted-foreground">
-                                  {latestShipment.trackingNumber.slice(0, 8)}...
+                                <span className="text-[11px] font-mono text-muted-foreground block">
+                                  {latestShipment.trackingNumber.slice(0, 12)}{latestShipment.trackingNumber.length > 12 ? "..." : ""}
                                 </span>
                               )}
                             </div>
@@ -614,25 +661,12 @@ export default function ProductionReport() {
                         </TableCell>
 
                         {/* Total */}
-                        <TableCell className="text-right text-sm font-medium">
-                          {row.totalCost > 0 ? `$${Number(row.totalCost).toFixed(2)}` : "—"}
+                        <TableCell className="text-right py-3.5 pr-4">
+                          <span className="text-sm font-semibold">
+                            {row.totalCost > 0 ? `$${Number(row.totalCost).toFixed(2)}` : "—"}
+                          </span>
                         </TableCell>
 
-                        {/* Flags */}
-                        <TableCell>
-                          <div className="flex gap-1">
-                            {row.isFirm && (
-                              <Badge className="bg-blue-100 text-blue-800 border-0 text-[10px] px-1 py-0">
-                                FIRM
-                              </Badge>
-                            )}
-                            {row.isRush && (
-                              <Badge className="bg-red-100 text-red-800 border-0 text-[10px] px-1 py-0">
-                                RUSH
-                              </Badge>
-                            )}
-                          </div>
-                        </TableCell>
                       </TableRow>
                     );
                   })}

@@ -289,6 +289,7 @@ export const orders = pgTable("orders", {
   isFirm: boolean("is_firm").default(false),
   isRush: boolean("is_rush").default(false),
   nextActionDate: timestamp("next_action_date"),
+  nextActionType: varchar("next_action_type"),
   nextActionNotes: text("next_action_notes"),
   customerPo: varchar("customer_po"),
   paymentTerms: varchar("payment_terms").default("Net 30"),
@@ -311,8 +312,8 @@ export const orders = pgTable("orders", {
   qbInvoiceId: varchar("qb_invoice_id"), // Map to QuickBooks Invoice
   stripePaymentIntentId: varchar("stripe_payment_intent_id"), // Track Stripe Charge
   taxCalculatedAt: timestamp("tax_calculated_at"), // When TaxJar last ran
-  currentStage: varchar("current_stage").notNull().default("sales-booked"),
-  stagesCompleted: jsonb("stages_completed").notNull().default(sql`'["sales-booked"]'::jsonb`),
+  currentStage: varchar("current_stage").notNull().default("created"),
+  stagesCompleted: jsonb("stages_completed").notNull().default(sql`'["created"]'::jsonb`),
   stageData: jsonb("stage_data").notNull().default(sql`'{}'::jsonb`),
   customNotes: jsonb("custom_notes").notNull().default(sql`'{}'::jsonb`),
   // Per-section status management (CommonSKU-style)
@@ -1730,6 +1731,22 @@ export const productionNotifications = pgTable("production_notifications", {
 
 export type ProductionStage = typeof productionStages.$inferSelect;
 export type InsertProductionStage = typeof productionStages.$inferInsert;
+
+// Next action types table for customizable PO follow-up actions
+export const nextActionTypes = pgTable("next_action_types", {
+  id: varchar("id").primaryKey(),
+  name: varchar("name").notNull(),
+  description: varchar("description"),
+  order: integer("order").notNull(),
+  color: varchar("color").notNull().default("bg-gray-100 text-gray-800"),
+  icon: varchar("icon").notNull().default("ClipboardList"),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export type NextActionType = typeof nextActionTypes.$inferSelect;
+export type InsertNextActionType = typeof nextActionTypes.$inferInsert;
 export type ProductionTracking = typeof productionTracking.$inferSelect;
 export type InsertProductionTracking = typeof productionTracking.$inferInsert;
 export type ProductionNotification = typeof productionNotifications.$inferSelect;

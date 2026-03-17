@@ -32,6 +32,7 @@ import GeneratedDocumentCard from "@/components/documents/GeneratedDocumentCard"
 import { DocumentEditor } from "@/components/DocumentEditor";
 import FilePickerDialog from "@/components/modals/FilePickerDialog";
 import { FilePreviewModal } from "@/components/modals/FilePreviewModal";
+import { useProductionStages } from "@/hooks/useProductionStages";
 
 interface PurchaseOrdersSectionProps {
   orderId: string;
@@ -47,16 +48,7 @@ interface VendorPO {
   totalCost: number;
 }
 
-// CommonSKU PO Stages
-const PO_STAGES: Record<string, { label: string; color: string }> = {
-  created: { label: "Created", color: "bg-gray-100 text-gray-700" },
-  submitted: { label: "Submitted", color: "bg-blue-100 text-blue-800" },
-  confirmed: { label: "Confirmed", color: "bg-green-100 text-green-800" },
-  shipped: { label: "Shipped", color: "bg-indigo-100 text-indigo-800" },
-  ready_for_billing: { label: "Ready for Billing", color: "bg-teal-100 text-teal-800" },
-  billed: { label: "Billed", color: "bg-purple-100 text-purple-800" },
-  closed: { label: "Closed", color: "bg-red-100 text-red-800" },
-};
+// PO_STAGES is now dynamic — loaded from useProductionStages() hook inside the component
 
 // PO Status (urgency)
 const PO_STATUSES: Record<string, { label: string; color: string }> = {
@@ -91,6 +83,16 @@ export default function PurchaseOrdersSection({ orderId, data, isLocked }: Purch
   const { order, orderVendors, orderItems, allItemLines, allItemCharges, allArtworkItems, suppliers } = data;
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { stages: productionStages } = useProductionStages();
+
+  // Build a lookup map from stage ID → { label, color } for PO stage display
+  const PO_STAGES: Record<string, { label: string; color: string }> = useMemo(() => {
+    const map: Record<string, { label: string; color: string }> = {};
+    for (const s of productionStages) {
+      map[s.id] = { label: s.name, color: s.color };
+    }
+    return map;
+  }, [productionStages]);
   const poRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   const [expandedVendors, setExpandedVendors] = useState<Set<string>>(new Set());

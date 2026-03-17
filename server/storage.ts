@@ -104,6 +104,9 @@ import {
   productionStages as productionStagesTable,
   type ProductionStage,
   type InsertProductionStage,
+  nextActionTypes as nextActionTypesTable,
+  type NextActionType,
+  type InsertNextActionType,
   userEmailSettings,
   type UserEmailSettings,
   type InsertUserEmailSettings,
@@ -386,6 +389,15 @@ export interface IStorage {
   deleteProductionStage(id: string): Promise<void>;
   reorderProductionStages(stageIds: string[]): Promise<ProductionStage[]>;
   seedDefaultProductionStages(): Promise<void>;
+
+  // Next Action Types
+  getNextActionTypes(): Promise<NextActionType[]>;
+  getNextActionType(id: string): Promise<NextActionType | undefined>;
+  createNextActionType(type: InsertNextActionType): Promise<NextActionType>;
+  updateNextActionType(id: string, data: Partial<InsertNextActionType>): Promise<NextActionType>;
+  deleteNextActionType(id: string): Promise<void>;
+  reorderNextActionTypes(typeIds: string[]): Promise<NextActionType[]>;
+  seedDefaultNextActionTypes(): Promise<void>;
 
   // Order Item Lines
   getOrderItemLines(orderItemId: string): Promise<OrderItemLine[]>;
@@ -3060,17 +3072,76 @@ export class DatabaseStorage implements IStorage {
     if (existing.length > 0) return; // Already seeded
 
     const defaults: InsertProductionStage[] = [
-      { id: 'sales-booked', name: 'Sales Order Booked', order: 1, color: 'bg-blue-100 text-blue-800', icon: 'ShoppingCart', description: 'Initial order received from sales' },
-      { id: 'po-placed', name: 'Purchase Order Placed', order: 2, color: 'bg-purple-100 text-purple-800', icon: 'FileText', description: 'PO sent to vendor' },
-      { id: 'confirmation-received', name: 'Confirmation Received', order: 3, color: 'bg-indigo-100 text-indigo-800', icon: 'MessageSquare', description: 'Vendor confirmed order' },
-      { id: 'proof-received', name: 'Proof Received', order: 4, color: 'bg-yellow-100 text-yellow-800', icon: 'Eye', description: 'Artwork proof from vendor' },
-      { id: 'proof-approved', name: 'Proof Approved', order: 5, color: 'bg-orange-100 text-orange-800', icon: 'ThumbsUp', description: 'Client approved artwork' },
-      { id: 'invoice-paid', name: 'Invoice Paid', order: 6, color: 'bg-green-100 text-green-800', icon: 'CreditCard', description: 'Payment received' },
-      { id: 'shipping-scheduled', name: 'Shipping Scheduled', order: 7, color: 'bg-cyan-100 text-cyan-800', icon: 'Truck', description: 'Shipment scheduled' },
-      { id: 'shipped', name: 'Shipped', order: 8, color: 'bg-emerald-100 text-emerald-800', icon: 'MapPin', description: 'Order shipped to customer' },
+      { id: 'created', name: 'Created', order: 1, color: 'bg-gray-100 text-gray-700', icon: 'FileText', description: 'PO created, not yet sent to vendor' },
+      { id: 'submitted', name: 'Submitted', order: 2, color: 'bg-blue-100 text-blue-800', icon: 'Send', description: 'PO sent to vendor' },
+      { id: 'confirmed', name: 'Confirmed', order: 3, color: 'bg-green-100 text-green-800', icon: 'CheckCircle', description: 'Vendor confirmed the order' },
+      { id: 'in_production', name: 'In Production', order: 4, color: 'bg-purple-100 text-purple-800', icon: 'Factory', description: 'Vendor is producing the order' },
+      { id: 'shipped', name: 'Shipped', order: 5, color: 'bg-indigo-100 text-indigo-800', icon: 'Truck', description: 'Order shipped from vendor' },
+      { id: 'ready_for_billing', name: 'Ready for Billing', order: 6, color: 'bg-teal-100 text-teal-800', icon: 'Receipt', description: 'Ready to create vendor bill' },
+      { id: 'billed', name: 'Billed', order: 7, color: 'bg-orange-100 text-orange-800', icon: 'CreditCard', description: 'Vendor bill recorded' },
+      { id: 'closed', name: 'Closed', order: 8, color: 'bg-red-100 text-red-800', icon: 'Lock', description: 'PO fully complete' },
     ];
 
     await db.insert(productionStagesTable).values(defaults);
+  }
+
+  // ── Next Action Types ──
+  async getNextActionTypes(): Promise<NextActionType[]> {
+    return await db.select().from(nextActionTypesTable).where(eq(nextActionTypesTable.isActive, true)).orderBy(nextActionTypesTable.order);
+  }
+
+  async getNextActionType(id: string): Promise<NextActionType | undefined> {
+    const [type] = await db.select().from(nextActionTypesTable).where(eq(nextActionTypesTable.id, id));
+    return type;
+  }
+
+  async createNextActionType(type: InsertNextActionType): Promise<NextActionType> {
+    const [created] = await db.insert(nextActionTypesTable).values(type).returning();
+    return created;
+  }
+
+  async updateNextActionType(id: string, data: Partial<InsertNextActionType>): Promise<NextActionType> {
+    const [updated] = await db
+      .update(nextActionTypesTable)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(nextActionTypesTable.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteNextActionType(id: string): Promise<void> {
+    await db.update(nextActionTypesTable)
+      .set({ isActive: false, updatedAt: new Date() })
+      .where(eq(nextActionTypesTable.id, id));
+  }
+
+  async reorderNextActionTypes(typeIds: string[]): Promise<NextActionType[]> {
+    for (let i = 0; i < typeIds.length; i++) {
+      await db
+        .update(nextActionTypesTable)
+        .set({ order: i + 1, updatedAt: new Date() })
+        .where(eq(nextActionTypesTable.id, typeIds[i]));
+    }
+    return this.getNextActionTypes();
+  }
+
+  async seedDefaultNextActionTypes(): Promise<void> {
+    const existing = await db.select().from(nextActionTypesTable).limit(1);
+    if (existing.length > 0) return;
+
+    const defaults: InsertNextActionType[] = [
+      { id: 'no_action', name: 'No Action Required', order: 1, color: 'bg-gray-100 text-gray-700', icon: 'Circle', description: 'No follow-up needed at this time' },
+      { id: 'follow_up_vendor', name: 'Follow Up with Vendor', order: 2, color: 'bg-blue-100 text-blue-800', icon: 'Phone', description: 'Contact vendor for order status update' },
+      { id: 'request_proof', name: 'Request Proof', order: 3, color: 'bg-purple-100 text-purple-800', icon: 'Image', description: 'Request proof from vendor' },
+      { id: 'review_proof', name: 'Review Proof', order: 4, color: 'bg-indigo-100 text-indigo-800', icon: 'Eye', description: 'Review received proof' },
+      { id: 'waiting_approval', name: 'Waiting for Approval', order: 5, color: 'bg-yellow-100 text-yellow-800', icon: 'Clock', description: 'Waiting for client approval' },
+      { id: 'confirm_ship_date', name: 'Confirm Ship Date', order: 6, color: 'bg-cyan-100 text-cyan-800', icon: 'Calendar', description: 'Confirm shipping date with vendor' },
+      { id: 'request_tracking', name: 'Request Tracking', order: 7, color: 'bg-emerald-100 text-emerald-800', icon: 'Truck', description: 'Request tracking number from vendor' },
+      { id: 'check_production', name: 'Check Production Status', order: 8, color: 'bg-orange-100 text-orange-800', icon: 'Factory', description: 'Check on production progress' },
+      { id: 'review_invoice', name: 'Review Invoice', order: 9, color: 'bg-red-100 text-red-800', icon: 'Receipt', description: 'Review vendor invoice/bill' },
+    ];
+
+    await db.insert(nextActionTypesTable).values(defaults);
   }
 
   // Order Item Lines

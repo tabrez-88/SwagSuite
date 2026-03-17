@@ -2723,8 +2723,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         shippingAddress: sourceOrder.shippingAddress,
         billingAddress: sourceOrder.billingAddress,
         shippingMethod: sourceOrder.shippingMethod,
-        currentStage: "sales-booked",
-        stagesCompleted: ["sales-booked"],
+        currentStage: "created",
+        stagesCompleted: ["created"],
         stageData: {},
         customNotes: {},
         presentationStatus: "open",
@@ -6147,7 +6147,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.patch('/api/orders/:id/production', isAuthenticated, async (req, res) => {
     try {
-      const { currentStage, stagesCompleted, stageData, status, trackingNumber, customNotes, nextActionDate, nextActionNotes } = req.body;
+      const { currentStage, stagesCompleted, stageData, status, trackingNumber, customNotes, nextActionDate, nextActionType, nextActionNotes } = req.body;
 
       const updateData: any = {};
       if (currentStage) updateData.currentStage = currentStage;
@@ -6156,8 +6156,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (status) updateData.status = status;
       if (trackingNumber) updateData.trackingNumber = trackingNumber;
       if (customNotes !== undefined) updateData.customNotes = customNotes;
-      // Save next action date/notes to proper columns for notification scheduler
+      // Save next action fields to proper columns for notification scheduler
       if (nextActionDate !== undefined) updateData.nextActionDate = nextActionDate ? new Date(nextActionDate) : null;
+      if (nextActionType !== undefined) updateData.nextActionType = nextActionType || null;
       if (nextActionNotes !== undefined) updateData.nextActionNotes = nextActionNotes || null;
 
       const order = await storage.updateOrder(req.params.id, updateData);
@@ -6294,6 +6295,122 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
 
+  // ── Next Action Types (customizable PO follow-up actions) ──────────
+
+  app.get('/api/production/next-action-types', isAuthenticated, async (req, res) => {
+    try {
+      const types = await storage.getNextActionTypes();
+      res.json(types);
+    } catch (error) {
+      console.error('Error fetching next action types:', error);
+      res.status(500).json({ message: 'Failed to fetch next action types' });
+    }
+  });
+
+  app.post('/api/production/next-action-types', isAuthenticated, async (req, res) => {
+    try {
+      const currentUser = await storage.getUser((req as any).user.claims.sub);
+      if (currentUser?.role !== 'admin' && currentUser?.role !== 'manager') {
+        return res.status(403).json({ message: "Only administrators and managers can create next action types" });
+      }
+
+      const { name, description, color, icon } = req.body;
+      if (!name) {
+        return res.status(400).json({ message: 'Action type name is required' });
+      }
+      const id = name.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+      const existingTypes = await storage.getNextActionTypes();
+      const maxOrder = existingTypes.reduce((max: number, t: any) => Math.max(max, t.order), 0);
+
+      const actionType = await storage.createNextActionType({
+        id,
+        name,
+        description: description || null,
+        color: color || 'bg-gray-100 text-gray-800',
+        icon: icon || 'ClipboardList',
+        order: maxOrder + 1,
+      });
+      res.json(actionType);
+    } catch (error) {
+      console.error('Error creating next action type:', error);
+      res.status(500).json({ message: 'Failed to create next action type' });
+    }
+  });
+
+  app.put('/api/production/next-action-types/:id', isAuthenticated, async (req, res) => {
+    try {
+      const currentUser = await storage.getUser((req as any).user.claims.sub);
+      if (currentUser?.role !== 'admin' && currentUser?.role !== 'manager') {
+        return res.status(403).json({ message: "Only administrators and managers can update next action types" });
+      }
+
+      const { name, description, color, icon } = req.body;
+      const actionType = await storage.updateNextActionType(req.params.id, {
+        ...(name && { name }),
+        ...(description !== undefined && { description }),
+        ...(color && { color }),
+        ...(icon && { icon }),
+      });
+      res.json(actionType);
+    } catch (error) {
+      console.error('Error updating next action type:', error);
+      res.status(500).json({ message: 'Failed to update next action type' });
+    }
+  });
+
+  app.delete('/api/production/next-action-types/:id', isAuthenticated, async (req, res) => {
+    try {
+      const currentUser = await storage.getUser((req as any).user.claims.sub);
+      if (currentUser?.role !== 'admin' && currentUser?.role !== 'manager') {
+        return res.status(403).json({ message: "Only administrators and managers can delete next action types" });
+      }
+
+      await storage.deleteNextActionType(req.params.id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error deleting next action type:', error);
+      res.status(500).json({ message: 'Failed to delete next action type' });
+    }
+  });
+
+  app.post('/api/production/next-action-types/reorder', isAuthenticated, async (req, res) => {
+    try {
+      const currentUser = await storage.getUser((req as any).user.claims.sub);
+      if (currentUser?.role !== 'admin' && currentUser?.role !== 'manager') {
+        return res.status(403).json({ message: "Only administrators and managers can reorder next action types" });
+      }
+
+      const { typeIds } = req.body;
+      if (!Array.isArray(typeIds)) {
+        return res.status(400).json({ message: 'typeIds array is required' });
+      }
+      const types = await storage.reorderNextActionTypes(typeIds);
+      res.json(types);
+    } catch (error) {
+      console.error('Error reordering next action types:', error);
+      res.status(500).json({ message: 'Failed to reorder next action types' });
+    }
+  });
+
+  app.post('/api/production/next-action-types/reset', isAuthenticated, async (req, res) => {
+    try {
+      const currentUser = await storage.getUser((req as any).user.claims.sub);
+      if (currentUser?.role !== 'admin' && currentUser?.role !== 'manager') {
+        return res.status(403).json({ message: "Only administrators and managers can reset next action types" });
+      }
+
+      const { db: database } = await import("./db");
+      const { nextActionTypes } = await import("@shared/schema");
+      await database.delete(nextActionTypes);
+      await storage.seedDefaultNextActionTypes();
+      const types = await storage.getNextActionTypes();
+      res.json(types);
+    } catch (error) {
+      console.error('Error resetting next action types:', error);
+      res.status(500).json({ message: 'Failed to reset next action types' });
+    }
+  });
+
   // ── Production Alerts & PO-centric Report ──────────────────────────
 
   // GET /api/production/alerts — aggregate counts for smart alert tiles
@@ -6406,7 +6523,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const {
         stage, status, vendorId, assigneeId, search,
-        dateFrom, dateTo, dateType, proofStatus,
+        dateFrom, dateTo, dateType, proofStatus, productionStage,
         sortBy = 'created_at', sortOrder = 'desc',
         page = '1', limit = '50'
       } = req.query as Record<string, string>;
@@ -6457,6 +6574,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } else if (alertFilter === 'follow_up') {
         conditions.push(`gd.metadata->>'poStatus' = 'follow_up'`);
       }
+      if (productionStage) {
+        conditions.push(`o.current_stage = '${productionStage}'`);
+      }
       if (proofStatus) {
         // Filter POs that have items with a specific proof status
         conditions.push(`EXISTS (
@@ -6501,17 +6621,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
           o.supplier_in_hands_date as "supplierInHandsDate",
           o.event_date as "eventDate",
           o.next_action_date as "nextActionDate",
+          o.next_action_type as "nextActionType",
           o.next_action_notes as "nextActionNotes",
           o.is_firm as "isFirm",
           o.is_rush as "isRush",
           o.sales_order_status as "salesOrderStatus",
           o.assigned_user_id as "assignedUserId",
           o.csr_user_id as "csrUserId",
+          o.current_stage as "currentStage",
+          o.stages_completed as "stagesCompleted",
           c.name as "companyName",
           c.id as "companyId",
           COALESCE(u_assigned.first_name || ' ' || u_assigned.last_name, u_assigned.username) as "assignedUserName",
           u_assigned.profile_image_url as "assignedUserImage",
-          COALESCE(u_csr.first_name || ' ' || u_csr.last_name, u_csr.username) as "csrUserName"
+          COALESCE(u_csr.first_name || ' ' || u_csr.last_name, u_csr.username) as "csrUserName",
+          COALESCE((
+            SELECT SUM(oil.quantity * oil.cost)
+            FROM order_items oi2
+            INNER JOIN order_item_lines oil ON oil.order_item_id = oi2.id
+            WHERE oi2.order_id = gd.order_id
+            AND (oi2.supplier_id = gd.vendor_id OR gd.vendor_id IS NULL)
+          ), 0) as "poTotalCost"
         FROM generated_documents gd
         INNER JOIN orders o ON gd.order_id = o.id
         LEFT JOIN companies c ON o.company_id = c.id
@@ -6596,7 +6726,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           ...row,
           poStage: metadata.poStage || 'created',
           poStatus: metadata.poStatus || 'ok',
-          totalCost: metadata.totalCost || 0,
+          totalCost: parseFloat(row.poTotalCost) || 0,
           itemCount: metadata.items?.length || 0,
           proofItems: proofData[row.documentId] || [],
           shipments: shipmentData[row.orderId] || [],
@@ -6630,7 +6760,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         SELECT
           gd.*,
           o.order_number, o.in_hands_date, o.supplier_in_hands_date, o.event_date,
-          o.next_action_date, o.next_action_notes, o.is_firm, o.is_rush,
+          o.next_action_date, o.next_action_type, o.next_action_notes, o.is_firm, o.is_rush,
           o.sales_order_status, o.assigned_user_id, o.csr_user_id,
           o.shipping_address, o.billing_address, o.payment_terms,
           o.notes as order_notes, o.supplier_notes,
@@ -8492,16 +8622,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
                   if (allSent && order.currentStage === "po-sent") {
                     // Update order stage to po-placed
-                    const existingStages = JSON.parse(JSON.stringify(order.stagesCompleted || '["sales-booked","quote-approved"]'));
+                    const existingStages = JSON.parse(JSON.stringify(order.stagesCompleted || '["created","submitted"]'));
                     const stages = Array.isArray(existingStages) ? existingStages : JSON.parse(existingStages);
-                    if (!stages.includes("po-placed")) {
-                      stages.push("po-placed");
+                    if (!stages.includes("submitted")) {
+                      stages.push("submitted");
                     }
 
                     await db
                       .update(ordersTable)
                       .set({
-                        currentStage: "po-placed",
+                        currentStage: "submitted",
                         stagesCompleted: JSON.stringify(stages),
                         updatedAt: new Date(),
                       })
@@ -8513,7 +8643,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                       userId: currentUserId,
                       activityType: "status_change",
                       content: `All Purchase Orders sent to vendors. Order moved to PO Placed stage.`,
-                      metadata: { action: "stage_change", oldStage: "po-sent", newStage: "po-placed", totalPOs: allPOs.length },
+                      metadata: { action: "stage_change", oldStage: "po-sent", newStage: "submitted", totalPOs: allPOs.length },
                       isSystemGenerated: true,
                     });
 
@@ -9414,14 +9544,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
             // Auto-advance production stage to proof-approved
             const stagesCompleted = Array.isArray((order as any).stagesCompleted) ? (order as any).stagesCompleted : ['sales-booked'];
-            if (!stagesCompleted.includes('proof-approved')) {
-              const updatedCompleted = Array.from(new Set([...stagesCompleted, 'proof-received', 'proof-approved']));
+            if (!stagesCompleted.includes('in_production')) {
+              const updatedCompleted = Array.from(new Set([...stagesCompleted, 'confirmed', 'in_production']));
               const allStages = await storage.getProductionStages();
-              const proofApprovedStage = allStages.find(s => s.id === 'proof-approved');
+              const proofApprovedStage = allStages.find(s => s.id === 'in_production');
               const nextStage = proofApprovedStage ? allStages.find(s => s.order === proofApprovedStage.order + 1) : null;
 
               await storage.updateOrder(order.id, {
-                currentStage: nextStage ? nextStage.id : 'proof-approved',
+                currentStage: nextStage ? nextStage.id : 'in_production',
                 stagesCompleted: updatedCompleted,
               } as any);
             }
@@ -10348,7 +10478,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               orderType: "sales_order",
               status: "approved",
               currentStage: "po-sent",
-              stagesCompleted: JSON.stringify([...JSON.parse(JSON.stringify(order.stagesCompleted || '["sales-booked"]')), "quote-approved"]),
+              stagesCompleted: JSON.stringify([...JSON.parse(JSON.stringify(order.stagesCompleted || '["created"]')), "submitted"]),
               updatedAt: new Date(),
             })
             .where(eq(orders.id, order.id));
@@ -11229,20 +11359,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
           .where(eq(orders.id, orderId));
       }
 
-      // Auto-advance production stage to 'proof-received' when proof is sent
+      // Auto-advance production stage to 'confirmed' when proof is sent
       try {
         const stagesCompleted = Array.isArray(order.stagesCompleted)
           ? order.stagesCompleted
-          : JSON.parse(JSON.stringify(order.stagesCompleted || '["sales-booked"]'));
+          : JSON.parse(JSON.stringify(order.stagesCompleted || '["created"]'));
         const stagesArr = Array.isArray(stagesCompleted) ? stagesCompleted : JSON.parse(stagesCompleted);
 
-        if (!stagesArr.includes('proof-received')) {
-          const updatedCompleted = Array.from(new Set([...stagesArr, 'proof-received']));
+        if (!stagesArr.includes('confirmed')) {
+          const updatedCompleted = Array.from(new Set([...stagesArr, 'confirmed']));
 
           await db
             .update(orders)
             .set({
-              currentStage: 'proof-received',
+              currentStage: 'confirmed',
               stagesCompleted: updatedCompleted,
               updatedAt: new Date(),
             })

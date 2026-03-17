@@ -446,32 +446,24 @@ export default function OverviewSection({ orderId, data, isLocked = false }: Ove
               </Card>
             </div>
 
-            {/* Production Stages - derived from order status */}
+            {/* Production Stages — derived from PO documents' poStage */}
             {productionStages && productionStages.length > 0 && (() => {
-              // Derive completed stages from order status
-              const completedStages: string[] = [];
-              const soStatus = (order as any)?.salesOrderStatus;
-              const invoiceStatus = (order as any)?.invoice?.status;
+              // Get the highest (furthest) PO stage across all POs for this order
+              const poDocuments = ((data as any)?.documents || []).filter((d: any) => d.documentType === "purchase_order");
+              const stageOrder = new Map(productionStages.map((s: any, i: number) => [s.id, i]));
 
-              // Sales Order Booked: once SO exists (not draft)
-              if (soStatus && soStatus !== "draft") completedStages.push("sales-booked");
-              // PO Placed: if any POs exist
-              if ((data as any)?.documents?.some?.((d: any) => d.documentType === "purchase_order")) completedStages.push("po-placed");
-              // Confirmation Received: PO confirmed
-              if ((data as any)?.documents?.some?.((d: any) => d.metadata?.poStage === "confirmed" || d.metadata?.poStage === "shipped" || d.metadata?.poStage === "ready_for_billing" || d.metadata?.poStage === "billed" || d.metadata?.poStage === "closed")) completedStages.push("confirmation-received");
-              // Proof Received + Approved
-              if ((data as any)?.artworkItems?.some?.((a: any) => a.proofFilePath)) completedStages.push("proof-received");
-              if ((data as any)?.artworkItems?.some?.((a: any) => a.status === "approved" || a.status === "proofing_complete")) completedStages.push("proof-approved");
-              // Invoice Paid
-              if (invoiceStatus === "paid") completedStages.push("invoice-paid");
-              // Shipped
-              if (soStatus === "shipped" || (data as any)?.shipments?.some?.((s: any) => s.status === "shipped" || s.status === "delivered")) {
-                completedStages.push("shipping-scheduled");
-                completedStages.push("shipped");
+              // A stage is "reached" if ANY PO has that stage or a later stage
+              const reachedStages = new Set<string>();
+              for (const po of poDocuments) {
+                const poStage = po.metadata?.poStage || "created";
+                const poStageIdx = stageOrder.get(poStage) ?? -1;
+                for (const [stageId, idx] of stageOrder) {
+                  if (idx <= poStageIdx) reachedStages.add(stageId);
+                }
               }
 
-              // Current stage = first stage that's not completed
-              const currentStage = productionStages.find((s: any) => !completedStages.includes(s.id))?.id || "";
+              const completedCount = reachedStages.size;
+              const currentStageId = productionStages.find((s: any) => !reachedStages.has(s.id))?.id || "";
 
               return (
                 <Card>
@@ -479,32 +471,43 @@ export default function OverviewSection({ orderId, data, isLocked = false }: Ove
                     <CardTitle className="text-sm flex items-center gap-2">
                       <Factory className="w-4 h-4" />
                       Production Progress
+                      {poDocuments.length > 0 && (
+                        <span className="text-xs font-normal text-muted-foreground ml-auto">
+                          {completedCount} / {productionStages.length} stages
+                        </span>
+                      )}
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="flex items-center gap-1 py-2 overflow-x-auto">
-                      {productionStages.map((stage: any, index: number) => {
-                        const isCompleted = completedStages.includes(stage.id);
-                        const isCurrent = currentStage === stage.id;
-                        return (
-                          <div key={stage.id} className="flex items-center">
-                            <div
-                              className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap ${isCompleted
-                                ? "bg-green-100 text-green-700"
-                                : isCurrent
-                                  ? "bg-blue-100 text-blue-700 ring-2 ring-blue-300"
-                                  : "bg-gray-100 text-gray-500"
+                    {poDocuments.length === 0 ? (
+                      <p className="text-xs text-muted-foreground py-2">No purchase orders yet. Production stages will update as POs progress.</p>
+                    ) : (
+                      <div className="flex items-center gap-1 py-2 overflow-x-auto">
+                        {productionStages.map((stage: any, index: number) => {
+                          const isCompleted = reachedStages.has(stage.id);
+                          const isCurrent = currentStageId === stage.id;
+                          return (
+                            <div key={stage.id} className="flex items-center">
+                              <div
+                                className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap flex items-center gap-1 ${
+                                  isCompleted
+                                    ? "bg-green-100 text-green-700"
+                                    : isCurrent
+                                      ? "bg-blue-100 text-blue-700 ring-2 ring-blue-300"
+                                      : "bg-gray-100 text-gray-500"
                                 }`}
-                            >
-                              {stage.name}
+                              >
+                                {isCompleted && <Check className="w-3 h-3" />}
+                                {stage.name}
+                              </div>
+                              {index < productionStages.length - 1 && (
+                                <div className={`w-4 h-0.5 ${isCompleted ? "bg-green-300" : "bg-gray-200"}`} />
+                              )}
                             </div>
-                            {index < productionStages.length - 1 && (
-                              <div className={`w-4 h-0.5 ${isCompleted ? "bg-green-300" : "bg-gray-200"}`} />
-                            )}
-                          </div>
                         );
                       })}
                     </div>
+                    )}
                   </CardContent>
                 </Card>
               );

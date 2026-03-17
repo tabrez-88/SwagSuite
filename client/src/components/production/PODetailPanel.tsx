@@ -35,15 +35,18 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { useLocation } from "wouter";
 import {
-  PO_STAGES,
-  PO_STAGES_ORDERED,
   PO_STATUSES,
   PROOF_STATUSES,
-  getPOStageBadgeClass,
   getPOStatusBadgeClass,
   getProofStatusBadgeClass,
 } from "@/lib/poStages";
+import { useProductionStages } from "@/hooks/useProductionStages";
+import { getStageBadgeClass } from "@/lib/productionStages";
 import { getDateStatus } from "@/lib/dateUtils";
+import { useNextActionTypes, getActionTypeBadgeClass } from "@/hooks/useNextActionTypes";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { FilePreviewModal } from "@/components/modals/FilePreviewModal";
 
 interface PODetailPanelProps {
   documentId: string | null;
@@ -56,6 +59,14 @@ export default function PODetailPanel({ documentId, open, onOpenChange }: PODeta
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState("overview");
+  const [previewFile, setPreviewFile] = useState<{
+    originalName: string;
+    filePath: string;
+    mimeType: string;
+    fileName: string;
+  } | null>(null);
+  const { stages: productionStages } = useProductionStages();
+  const { actionTypes } = useNextActionTypes();
 
   const { data: po, isLoading } = useQuery<any>({
     queryKey: [`/api/production/po-report/${documentId}`],
@@ -86,12 +97,28 @@ export default function PODetailPanel({ documentId, open, onOpenChange }: PODeta
     },
   });
 
+  const updateNextActionMutation = useMutation({
+    mutationFn: async (data: { nextActionType?: string; nextActionDate?: string | null; nextActionNotes?: string }) => {
+      const response = await apiRequest("PATCH", `/api/orders/${po?.order_id}/production`, data);
+      return response.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Next Action Updated" });
+      queryClient.invalidateQueries({ queryKey: [`/api/production/po-report/${documentId}`] });
+      queryClient.invalidateQueries({ queryKey: ["/api/production/po-report"] });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to update next action.", variant: "destructive" });
+    },
+  });
+
   const poStage = po?.poStage || "created";
   const poStatus = po?.poStatus || "ok";
 
-  // Calculate stage progress
-  const currentStageOrder = PO_STAGES[poStage]?.order ?? 1;
-  const totalStages = PO_STAGES_ORDERED.length;
+  // Calculate stage progress from dynamic stages
+  const currentStageIdx = productionStages.findIndex((s: any) => s.id === poStage);
+  const currentStageOrder = currentStageIdx >= 0 ? currentStageIdx + 1 : 1;
+  const totalStages = productionStages.length;
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -110,8 +137,8 @@ export default function PODetailPanel({ documentId, open, onOpenChange }: PODeta
                   PO #{po.document_number}
                 </SheetTitle>
                 <div className="flex gap-2">
-                  <Badge className={getPOStageBadgeClass(poStage)}>
-                    {PO_STAGES[poStage]?.label || poStage}
+                  <Badge className={getStageBadgeClass(productionStages, poStage)}>
+                    {productionStages.find((s: any) => s.id === poStage)?.name || poStage}
                   </Badge>
                   <Badge className={getPOStatusBadgeClass(poStatus)}>
                     {PO_STATUSES[poStatus]?.label || poStatus}
@@ -122,9 +149,9 @@ export default function PODetailPanel({ documentId, open, onOpenChange }: PODeta
               {/* Stage progress bar */}
               <div className="mt-3">
                 <div className="flex items-center gap-1 mb-1">
-                  {PO_STAGES_ORDERED.map((stage, idx) => (
+                  {productionStages.map((stage: any, idx: number) => (
                     <div
-                      key={stage.key}
+                      key={stage.id}
                       className={`h-1.5 flex-1 rounded-full transition-colors ${
                         idx < currentStageOrder
                           ? "bg-primary"
@@ -154,7 +181,12 @@ export default function PODetailPanel({ documentId, open, onOpenChange }: PODeta
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={() => window.open(po.file_url, "_blank")}
+                    onClick={() => setPreviewFile({
+                      originalName: `PO-${po.document_number}.pdf`,
+                      filePath: po.file_url,
+                      mimeType: "application/pdf",
+                      fileName: `PO-${po.document_number}.pdf`,
+                    })}
                   >
                     <FileText className="h-3.5 w-3.5 mr-1" />
                     View PDF
@@ -188,9 +220,9 @@ export default function PODetailPanel({ documentId, open, onOpenChange }: PODeta
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            {PO_STAGES_ORDERED.map((s) => (
-                              <SelectItem key={s.key} value={s.key}>
-                                {s.label}
+                            {productionStages.map((s: any) => (
+                              <SelectItem key={s.id} value={s.id}>
+                                {s.name}
                               </SelectItem>
                             ))}
                           </SelectContent>
@@ -238,15 +270,72 @@ export default function PODetailPanel({ documentId, open, onOpenChange }: PODeta
                       label="Event Date"
                       date={po.event_date}
                     />
-                    <DateRow
-                      icon={<AlertTriangle className="h-3.5 w-3.5" />}
-                      label="Next Action"
-                      date={po.next_action_date}
-                      showUrgency
-                    />
-                    {po.next_action_notes && (
-                      <p className="text-xs text-muted-foreground pl-5 italic">{po.next_action_notes}</p>
-                    )}
+                  </CardContent>
+                </Card>
+
+                {/* Next Action */}
+                <Card>
+                  <CardContent className="p-4 space-y-3">
+                    <h4 className="text-sm font-semibold flex items-center gap-2">
+                      <AlertTriangle className="h-4 w-4" />
+                      Next Action
+                    </h4>
+                    <div>
+                      <label className="text-xs text-muted-foreground mb-1 block">Action Type</label>
+                      <Select
+                        value={po.next_action_type || "no_action"}
+                        onValueChange={(val) => updateNextActionMutation.mutate({ nextActionType: val })}
+                      >
+                        <SelectTrigger className="h-8 text-sm">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {actionTypes.map((t) => (
+                            <SelectItem key={t.id} value={t.id}>
+                              <span className="flex items-center gap-2">
+                                <span className={`inline-block w-2 h-2 rounded-full ${t.color.split(' ')[0]}`} />
+                                {t.name}
+                              </span>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <label className="text-xs text-muted-foreground mb-1 block">Action Date</label>
+                      <Input
+                        type="date"
+                        className="h-8 text-sm"
+                        value={po.next_action_date ? format(new Date(po.next_action_date), "yyyy-MM-dd") : ""}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          updateNextActionMutation.mutate({
+                            nextActionDate: val || null,
+                          });
+                        }}
+                      />
+                      {po.next_action_date && (() => {
+                        const status = getDateStatus(po.next_action_date);
+                        return status && status.urgency !== "normal" ? (
+                          <Badge className={`text-[10px] px-1.5 py-0 mt-1 ${status.color} border-0`}>
+                            {status.label}
+                          </Badge>
+                        ) : null;
+                      })()}
+                    </div>
+                    <div>
+                      <label className="text-xs text-muted-foreground mb-1 block">Notes</label>
+                      <Textarea
+                        className="text-sm min-h-[60px]"
+                        placeholder="Follow-up notes..."
+                        defaultValue={po.next_action_notes || ""}
+                        onBlur={(e) => {
+                          if (e.target.value !== (po.next_action_notes || "")) {
+                            updateNextActionMutation.mutate({ nextActionNotes: e.target.value });
+                          }
+                        }}
+                      />
+                    </div>
                   </CardContent>
                 </Card>
 
@@ -337,7 +426,12 @@ export default function PODetailPanel({ documentId, open, onOpenChange }: PODeta
                             size="sm"
                             variant="link"
                             className="px-0 h-auto text-xs"
-                            onClick={() => window.open(item.proofFilePath, "_blank")}
+                            onClick={() => setPreviewFile({
+                              originalName: item.proofFileName || item.name || "Proof",
+                              filePath: item.proofFilePath,
+                              mimeType: item.proofFilePath?.match(/\.(png|jpg|jpeg|gif|webp)$/i) ? "image/png" : "application/pdf",
+                              fileName: item.proofFileName || "proof",
+                            })}
                           >
                             View Proof File
                           </Button>
@@ -521,6 +615,13 @@ export default function PODetailPanel({ documentId, open, onOpenChange }: PODeta
           </>
         )}
       </SheetContent>
+
+      {/* File Preview Modal */}
+      <FilePreviewModal
+        open={!!previewFile}
+        onClose={() => setPreviewFile(null)}
+        file={previewFile}
+      />
     </Sheet>
   );
 }

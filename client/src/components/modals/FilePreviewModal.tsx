@@ -29,13 +29,14 @@ export function FilePreviewModal({ open, onClose, file }: FilePreviewModalProps)
     }
   };
 
+  const isCloudinaryPdf = file.filePath?.includes('cloudinary.com') && file.mimeType === 'application/pdf';
+
   const getFileUrl = () => {
     if (file.filePath && file.filePath.includes('cloudinary.com')) {
-      // For PDFs from Cloudinary, use proxy to avoid CORS/auth issues
       if (file.mimeType === 'application/pdf') {
-        return `/api/files/cloudinary-proxy?url=${encodeURIComponent(file.filePath)}`;
+        // Use Google Docs Viewer for Cloudinary PDFs (same pattern as client approval page)
+        return `https://docs.google.com/gview?url=${encodeURIComponent(file.filePath)}&embedded=true&t=${Date.now()}`;
       }
-      // Use original Cloudinary URL for images
       return file.filePath;
     }
     return `/api/files/download/${file.fileName}`;
@@ -52,7 +53,7 @@ export function FilePreviewModal({ open, onClose, file }: FilePreviewModalProps)
                 <Download className="w-4 h-4 mr-2" />
                 Download
               </Button>
-              <Button variant="outline" size="sm" onClick={() => window.open(getFileUrl(), "_blank")}>
+              <Button variant="outline" size="sm" onClick={() => window.open(isCloudinaryPdf ? file.filePath : getFileUrl(), "_blank")}>
                 <ExternalLink className="w-4 h-4 mr-2" />
                 Open in New Tab
               </Button>
