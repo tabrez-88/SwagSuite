@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import {
-  AlertTriangle, Building2, CheckCircle, ChevronDown, ChevronRight,
+  AlertTriangle, Building2, Calendar, CheckCircle, ChevronDown, ChevronRight,
   ClipboardList, Copy, Download, ExternalLink, Eye, FileText, Loader2,
   Mail, MoreHorizontal, Package, Palette, Printer, Send, ShieldCheck, Upload,
 } from "lucide-react";
@@ -33,6 +33,8 @@ import { DocumentEditor } from "@/components/DocumentEditor";
 import FilePickerDialog from "@/components/modals/FilePickerDialog";
 import { FilePreviewModal } from "@/components/modals/FilePreviewModal";
 import { useProductionStages } from "@/hooks/useProductionStages";
+import { useInlineEdit } from "@/hooks/useInlineEdit";
+import { EditableDate } from "@/components/InlineEditable";
 
 interface PurchaseOrdersSectionProps {
   orderId: string;
@@ -84,6 +86,7 @@ export default function PurchaseOrdersSection({ orderId, data, isLocked }: Purch
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { stages: productionStages } = useProductionStages();
+  const { updateField, isPending: isFieldPending } = useInlineEdit({ orderId, isLocked });
 
   // Build a lookup map from stage ID → { label, color } for PO stage display
   const PO_STAGES: Record<string, { label: string; color: string }> = useMemo(() => {
@@ -189,6 +192,13 @@ export default function PurchaseOrdersSection({ orderId, data, isLocked }: Purch
   const getDocStage = (doc: any): string => doc?.metadata?.poStage || "created";
   const getDocStatus = (doc: any): string => doc?.metadata?.poStatus || "ok";
 
+  // Get effective Supplier IHD: vendor-specific (from PO doc metadata) → order-level fallback
+  const getVendorIHD = (vendorId: string): string | null => {
+    const doc = getVendorDoc(vendorId);
+    if (doc?.metadata?.supplierIHD) return doc.metadata.supplierIHD;
+    return (order as any)?.supplierInHandsDate || null;
+  };
+
   const hasShippingAddress = !!(order as any)?.shippingAddress ||
     !!((order as any)?.shippingCity && (order as any)?.shippingState);
 
@@ -200,6 +210,8 @@ export default function PurchaseOrdersSection({ orderId, data, isLocked }: Purch
   };
 
   const allShippingConfigured = orderItems.length > 0 && orderItems.every((i: any) => i.shippingDestination);
+
+  const hasSupplierIHD = !!(order as any)?.supplierInHandsDate;
 
   // Get vendor artworks for proofing
   const getVendorArtworks = (vendorId: string) => {
@@ -222,6 +234,10 @@ export default function PurchaseOrdersSection({ orderId, data, isLocked }: Purch
   // ── Mutations ──
 
   const handleGeneratePO = async (vendorId: string, vendorNameStr: string) => {
+    if (!hasSupplierIHD) {
+      toast({ title: "Supplier In-Hands Date required", description: "Please set the default Supplier In-Hands Date above. You can override per vendor after generating.", variant: "destructive" });
+      return;
+    }
     if (!hasShippingAddress) {
       toast({ title: "Missing shipping address", description: "Please set a shipping address before generating POs.", variant: "destructive" });
       return;
@@ -240,7 +256,7 @@ export default function PurchaseOrdersSection({ orderId, data, isLocked }: Purch
     const poNumber = `${(order as any)?.orderNumber || orderId}-${vendorId.substring(0, 4).toUpperCase()}`;
     setGeneratingVendorId(vendorId);
     try {
-      await generateDocument({
+      const newDoc = await generateDocument({
         elementRef: ref,
         documentType: "purchase_order",
         documentNumber: poNumber,
@@ -248,6 +264,15 @@ export default function PurchaseOrdersSection({ orderId, data, isLocked }: Purch
         vendorName: vendorNameStr,
         itemsHash: vendorHashes[vendorId],
       });
+      // Auto-populate vendor IHD from order-level default
+      const orderIHD = (order as any)?.supplierInHandsDate;
+      if (newDoc?.id && orderIHD) {
+        const rawDate = new Date(orderIHD).toISOString().split("T")[0];
+        await updateDocMetaMutation.mutateAsync({
+          docId: newDoc.id,
+          updates: { metadata: { ...newDoc.metadata, supplierIHD: rawDate } },
+        });
+      }
       toast({ title: `PO PDF generated for ${vendorNameStr}` });
     } catch { /* handled */ } finally { setGeneratingVendorId(null); }
   };
@@ -486,6 +511,48 @@ export default function PurchaseOrdersSection({ orderId, data, isLocked }: Purch
         )}
       </div>
 
+      {/* Supplier IHD Date Card */}
+      <Card className="bg-blue-50/60 border-blue-200">
+        <CardContent className="p-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Calendar className="w-5 h-5 text-blue-600" />
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium text-blue-900">Supplier In-Hands Date</span>
+                  <span className="text-red-500 text-xs font-bold">* Required</span>
+                </div>
+                <p className="text-xs text-blue-600">Default date for all vendors — override per PO below</p>
+              </div>
+            </div>
+            <EditableDate
+              value={(order as any)?.supplierInHandsDate}
+              field="supplierInHandsDate"
+              onSave={updateField}
+              emptyText="Click to set date"
+              isLocked={isLocked}
+              isPending={isFieldPending}
+            />
+          </div>
+          {(order as any)?.inHandsDate && (
+            <div className="mt-2 pt-2 border-t border-blue-200 flex items-center gap-4 text-xs text-blue-700">
+              <span>Customer In-Hands: <strong>{new Date((order as any).inHandsDate).toLocaleDateString()}</strong></span>
+              {(order as any)?.eventDate && (
+                <span>Event Date: <strong>{new Date((order as any).eventDate).toLocaleDateString()}</strong></span>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Supplier IHD Warning */}
+      {!hasSupplierIHD && orderItems.length > 0 && (
+        <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+          <AlertTriangle className="h-4 w-4 flex-shrink-0" />
+          <span>Supplier In-Hands Date is required before generating POs. Set the date above.</span>
+        </div>
+      )}
+
       {/* Shipping Warnings */}
       {!hasShippingAddress && orderItems.length > 0 && (
         <div className="flex items-center gap-2 rounded-lg border border-orange-200 bg-orange-50 px-4 py-3 text-sm text-orange-800">
@@ -520,6 +587,8 @@ export default function PurchaseOrdersSection({ orderId, data, isLocked }: Purch
             const stageInfo = poStage ? PO_STAGES[poStage] || PO_STAGES.created : null;
             const statusInfo = poStatus ? PO_STATUSES[poStatus] || PO_STATUSES.ok : null;
             const vendorArtworks = getVendorArtworks(po.vendor.id);
+            const vendorIhdValue = vendorDoc?.metadata?.supplierIHD;
+            const effectiveIhd = vendorIhdValue || (order as any)?.supplierInHandsDate;
 
             return (
               <Card key={po.vendor.id} className="overflow-hidden">
@@ -534,6 +603,17 @@ export default function PurchaseOrdersSection({ orderId, data, isLocked }: Purch
                           <h3 className="font-semibold text-sm">{po.vendor.name}</h3>
                           {stageInfo && <Badge variant="outline" className={`text-[10px] ${stageInfo.color}`}>{stageInfo.label}</Badge>}
                           {statusInfo && poStatus !== "ok" && <Badge variant="outline" className={`text-[10px] ${statusInfo.color}`}>{statusInfo.label}</Badge>}
+                          {effectiveIhd ? (
+                            <Badge variant="outline" className={`text-[10px] ${vendorIhdValue ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-gray-50 text-gray-600 border-gray-200'}`}>
+                              <Calendar className="w-3 h-3 mr-1" />
+                              IHD: {new Date(effectiveIhd).toLocaleDateString()}
+                              {vendorIhdValue && <span className="ml-1 text-[8px]">(custom)</span>}
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="text-[10px] bg-red-50 text-red-600 border-red-200">
+                              No IHD set
+                            </Badge>
+                          )}
                         </div>
                         <div className="flex items-center gap-2 text-xs text-gray-500">
                           {po.vendor.contactPerson && <span>Attn: {po.vendor.contactPerson}</span>}
@@ -561,7 +641,7 @@ export default function PurchaseOrdersSection({ orderId, data, isLocked }: Purch
                         {!vendorDoc ? (
                           <Button variant="default" size="sm" className="h-7 text-xs gap-1"
                             onClick={() => handleGeneratePO(po.vendor.id, po.vendor.name)}
-                            disabled={isVendorGenerating || isGenerating || isLocked}>
+                            disabled={isVendorGenerating || isGenerating || isLocked || !hasSupplierIHD}>
                             {isVendorGenerating ? <Loader2 className="w-3 h-3 animate-spin" /> : <FileText className="w-3 h-3" />}
                             Generate PO
                           </Button>
@@ -878,9 +958,9 @@ export default function PurchaseOrdersSection({ orderId, data, isLocked }: Purch
                       </div>
                     )}
 
-                    {/* PO Stage selector (when doc exists) */}
+                    {/* PO Stage selector + Supplier IHD (when doc exists) */}
                     {vendorDoc && (
-                      <div className="border-t p-4 flex items-center gap-4">
+                      <div className="border-t p-4 flex items-center gap-4 flex-wrap">
                         <div>
                           <label className="text-[10px] font-medium text-gray-500 block mb-1">PO Stage</label>
                           <Select
@@ -931,6 +1011,26 @@ export default function PurchaseOrdersSection({ orderId, data, isLocked }: Purch
                             </SelectContent>
                           </Select>
                         </div>
+                        <div>
+                          <label className="text-[10px] font-medium text-gray-500 block mb-1">
+                            Supplier IHD <span className="text-red-500">*</span>
+                          </label>
+                          <Input
+                            type="date"
+                            value={vendorDoc.metadata?.supplierIHD || ''}
+                            onChange={(e) => updateDocMetaMutation.mutate({
+                              docId: vendorDoc.id,
+                              updates: { metadata: { ...vendorDoc.metadata, supplierIHD: e.target.value } },
+                            })}
+                            className={`h-8 text-xs w-[160px] ${!vendorDoc.metadata?.supplierIHD ? 'border-red-300' : ''}`}
+                            disabled={isLocked}
+                          />
+                        </div>
+                        {(order as any)?.inHandsDate && (
+                          <div className="text-[10px] text-gray-500 ml-auto">
+                            Customer IHD: <strong>{new Date((order as any).inHandsDate).toLocaleDateString()}</strong>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
@@ -952,9 +1052,15 @@ export default function PurchaseOrdersSection({ orderId, data, isLocked }: Purch
                     <span className="text-gray-500 text-xs">Total Qty</span>
                     <p className="font-semibold">{grandTotalQty}</p>
                   </div>
+                  {(order as any)?.supplierInHandsDate && (
+                    <div>
+                      <span className="text-gray-500 text-xs">Supplier IHD</span>
+                      <p className="font-semibold text-blue-700">{new Date((order as any).supplierInHandsDate).toLocaleDateString()}</p>
+                    </div>
+                  )}
                   {(order as any)?.inHandsDate && (
                     <div>
-                      <span className="text-gray-500 text-xs">In-Hands Date</span>
+                      <span className="text-gray-500 text-xs">Customer IHD</span>
                       <p className="font-semibold">{new Date((order as any).inHandsDate).toLocaleDateString()}</p>
                     </div>
                   )}
@@ -981,6 +1087,7 @@ export default function PurchaseOrdersSection({ orderId, data, isLocked }: Purch
             vendorItems={po.items}
             poNumber={poNumber}
             artworkItems={getVendorArtworks(po.vendor.id)}
+            vendorIHD={getVendorDoc(po.vendor.id)?.metadata?.supplierIHD || null}
           />
         );
       })}
@@ -1010,7 +1117,10 @@ export default function PurchaseOrdersSection({ orderId, data, isLocked }: Purch
               to: emailPOVendor?.vendor.email || "",
               toName: emailPOVendor?.vendor.contactPerson || emailPOVendor?.vendor.name || "",
               subject: `Purchase Order #${emailPOVendor?.doc.documentNumber} - ${(order as any)?.orderNumber || ""}`,
-              body: `Hi ${emailPOVendor?.vendor.contactPerson || emailPOVendor?.vendor.name || "there"},\n\nPlease find the attached purchase order for your review and confirmation.\n\nOrder #: ${(order as any)?.orderNumber || ""}\nPO #: ${emailPOVendor?.doc.documentNumber || ""}\n${(order as any)?.supplierInHandsDate ? `In-Hands Date: ${new Date((order as any).supplierInHandsDate).toLocaleDateString()}` : ""}\n\nPlease confirm receipt and acknowledge this order.\n\nThank you.`,
+              body: (() => {
+                const ihd = emailPOVendor?.doc?.metadata?.supplierIHD || (order as any)?.supplierInHandsDate;
+                return `Hi ${emailPOVendor?.vendor.contactPerson || emailPOVendor?.vendor.name || "there"},\n\nPlease find the attached purchase order for your review and confirmation.\n\nOrder #: ${(order as any)?.orderNumber || ""}\nPO #: ${emailPOVendor?.doc.documentNumber || ""}\n${ihd ? `In-Hands Date: ${new Date(ihd).toLocaleDateString()}` : ""}\n\nPlease confirm receipt and acknowledge this order.\n\nThank you.`;
+              })(),
             }}
             showAdvancedFields
             footerHint="The PO PDF and artwork files will be automatically attached."

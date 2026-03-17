@@ -8,10 +8,13 @@ interface PurchaseOrderTemplateProps {
   vendorItems: any[];
   poNumber: string;
   artworkItems?: any[];
+  vendorIHD?: string | null; // Per-vendor Supplier IHD (yyyy-MM-dd), falls back to order.supplierInHandsDate
 }
 
 const PurchaseOrderTemplate = forwardRef<HTMLDivElement, PurchaseOrderTemplateProps>(
-  ({ order, vendor, vendorItems, poNumber, artworkItems = [] }, ref) => {
+  ({ order, vendor, vendorItems, poNumber, artworkItems = [], vendorIHD }, ref) => {
+    // Effective supplier IHD: vendor-specific → order-level fallback
+    const effectiveIHD = vendorIHD || order?.supplierInHandsDate;
     const shippingAddr = (() => {
       try {
         return order?.shippingAddress ? JSON.parse(order.shippingAddress) : null;
@@ -35,15 +38,15 @@ const PurchaseOrderTemplate = forwardRef<HTMLDivElement, PurchaseOrderTemplatePr
               <p className="text-sm text-gray-700">
                 Date: {order?.createdAt ? format(new Date(order.createdAt), "MMMM dd, yyyy") : "N/A"}
               </p>
-              {order?.supplierInHandsDate && (
+              {effectiveIHD && (
                 <p className="text-sm font-bold text-red-600">
-                  Required by: {format(new Date(order.supplierInHandsDate), "MMMM dd, yyyy")}
+                  Required by: {format(new Date(effectiveIHD), "MMMM dd, yyyy")}
                 </p>
               )}
               {order?.isFirm && (
                 <p className="text-sm font-bold text-blue-700">FIRM ORDER — Date cannot be adjusted</p>
               )}
-              {order?.isRush && !order?.supplierInHandsDate && (
+              {order?.isRush && !effectiveIHD && (
                 <p className="text-sm font-bold text-red-600">RUSH ORDER — Please prioritize</p>
               )}
             </div>
@@ -287,9 +290,9 @@ const PurchaseOrderTemplate = forwardRef<HTMLDivElement, PurchaseOrderTemplatePr
           <div className="mb-6 pt-4 border-t">
             <h3 className="text-sm font-bold text-gray-800 mb-2">SPECIAL INSTRUCTIONS:</h3>
             <div className="text-sm text-gray-700 space-y-1">
-              {order?.supplierInHandsDate && (
+              {effectiveIHD && (
                 <p className="font-bold text-red-600">
-                  ⚠️ RUSH ORDER - Must ship by {format(new Date(order.supplierInHandsDate), "MMMM dd, yyyy")}
+                  ⚠️ RUSH ORDER - Must ship by {format(new Date(effectiveIHD), "MMMM dd, yyyy")}
                 </p>
               )}
               {order?.isFirm && (
@@ -297,7 +300,7 @@ const PurchaseOrderTemplate = forwardRef<HTMLDivElement, PurchaseOrderTemplatePr
                   📌 FIRM ORDER — Delivery date is locked and cannot be adjusted.
                 </p>
               )}
-              {order?.isRush && !order?.supplierInHandsDate && (
+              {order?.isRush && !effectiveIHD && (
                 <p className="font-bold text-red-600">
                   ⚡ RUSH ORDER — Please prioritize this order.
                 </p>

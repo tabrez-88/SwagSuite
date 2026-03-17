@@ -58,6 +58,28 @@ function formatAddress(addressData: string | object | null | undefined): string 
   }
 }
 
+// Convert Date/string to yyyy-MM-dd for date inputs
+function toDateInputValue(d: string | Date | null | undefined): string {
+  if (!d) return '';
+  try {
+    const date = new Date(d);
+    if (isNaN(date.getTime())) return '';
+    return format(date, 'yyyy-MM-dd');
+  } catch {
+    return '';
+  }
+}
+
+// Convert yyyy-MM-dd to display format
+function formatDateDisplay(raw: string): string {
+  if (!raw) return '';
+  try {
+    return format(new Date(raw + 'T00:00:00'), 'MMMM dd, yyyy');
+  } catch {
+    return raw;
+  }
+}
+
 interface DocumentEditorProps {
   document: any;
   order: any;
@@ -74,8 +96,11 @@ interface EditableFields {
   documentTitle: string;
   documentNumber: string;
   documentDate: string;
+  documentDateRaw: string; // yyyy-MM-dd for date input
   inHandsDate: string;
+  inHandsDateRaw: string; // yyyy-MM-dd for date input
   eventDate: string;
+  eventDateRaw: string; // yyyy-MM-dd for date input
   supplierNotes: string;
   additionalInformation: string;
 
@@ -175,10 +200,18 @@ export function DocumentEditor({
       documentTitle: isSalesOrder ? 'SALES ORDER' : isPurchaseOrder ? 'PURCHASE ORDER' : 'QUOTE',
       documentNumber: doc.documentNumber || order?.orderNumber || 'N/A',
       documentDate: order?.createdAt ? format(new Date(order.createdAt), 'MMMM dd, yyyy') : format(new Date(), 'MMMM dd, yyyy'),
+      documentDateRaw: toDateInputValue(order?.createdAt || new Date()),
       inHandsDate: isClientFacing
         ? (order?.inHandsDate ? format(new Date(order.inHandsDate), 'MMMM dd, yyyy') : '')
-        : ((order as any)?.supplierInHandsDate ? format(new Date((order as any).supplierInHandsDate), 'MMMM dd, yyyy') : ''),
+        : (() => {
+            const vendorIHD = doc.metadata?.supplierIHD || (order as any)?.supplierInHandsDate;
+            return vendorIHD ? format(new Date(vendorIHD), 'MMMM dd, yyyy') : '';
+          })(),
+      inHandsDateRaw: isClientFacing
+        ? toDateInputValue(order?.inHandsDate)
+        : toDateInputValue(doc.metadata?.supplierIHD || (order as any)?.supplierInHandsDate),
       eventDate: (order as any)?.eventDate ? format(new Date((order as any).eventDate), 'MMMM dd, yyyy') : '',
+      eventDateRaw: toDateInputValue((order as any)?.eventDate),
       supplierNotes: (order as any)?.supplierNotes || '',
       additionalInformation: (order as any)?.additionalInformation || '',
 
@@ -317,10 +350,12 @@ export function DocumentEditor({
       formData.append('vendorName', fields.vendorName || '');
       formData.append('status', 'draft');
       formData.append('metadata', JSON.stringify({
+        ...doc.metadata,
         orderNumber: order?.orderNumber,
         itemCount: fields.items.length,
         generatedAt: new Date().toISOString(),
         editedFields: fields,
+        ...(isPurchaseOrder && fields.inHandsDateRaw ? { supplierIHD: fields.inHandsDateRaw } : {}),
       }));
 
       // Delete old document and create new one
@@ -462,29 +497,43 @@ export function DocumentEditor({
                 </div>
                 <div>
                   <Label className="text-xs">Date</Label>
-                  <Input 
-                    value={fields.documentDate}
-                    onChange={(e) => updateField('documentDate', e.target.value)}
+                  <Input
+                    type="date"
+                    value={fields.documentDateRaw}
+                    onChange={(e) => {
+                      updateField('documentDateRaw', e.target.value);
+                      updateField('documentDate', formatDateDisplay(e.target.value));
+                    }}
                     className="h-8 text-sm"
                   />
                 </div>
                 <div>
-                  <Label className="text-xs">{isClientFacing ? 'In-Hands Date' : 'Supplier IHD (Required by)'}</Label>
+                  <Label className="text-xs">
+                    {isClientFacing ? 'In-Hands Date' : 'Supplier IHD (Required by)'}
+                    {isPurchaseOrder && <span className="text-red-500 ml-1">*</span>}
+                  </Label>
                   <Input
-                    value={fields.inHandsDate}
-                    onChange={(e) => updateField('inHandsDate', e.target.value)}
-                    className="h-8 text-sm"
-                    placeholder="Optional"
+                    type="date"
+                    value={fields.inHandsDateRaw}
+                    onChange={(e) => {
+                      updateField('inHandsDateRaw', e.target.value);
+                      updateField('inHandsDate', formatDateDisplay(e.target.value));
+                    }}
+                    className={`h-8 text-sm ${isPurchaseOrder && !fields.inHandsDateRaw ? 'border-red-300 focus:ring-red-500' : ''}`}
+                    required={isPurchaseOrder}
                   />
                 </div>
                 {isClientFacing && (
                   <div>
                     <Label className="text-xs">Event Date</Label>
                     <Input
-                      value={fields.eventDate}
-                      onChange={(e) => updateField('eventDate', e.target.value)}
+                      type="date"
+                      value={fields.eventDateRaw}
+                      onChange={(e) => {
+                        updateField('eventDateRaw', e.target.value);
+                        updateField('eventDate', formatDateDisplay(e.target.value));
+                      }}
                       className="h-8 text-sm"
-                      placeholder="Optional"
                     />
                   </div>
                 )}
@@ -1002,7 +1051,13 @@ export function DocumentEditor({
             <Download className="w-4 h-4 mr-2" />
             Download PDF
           </Button>
-          <Button onClick={() => saveMutation.mutate()} disabled={isSaving}>
+          <Button onClick={() => {
+            if (isPurchaseOrder && !fields.inHandsDateRaw) {
+              toast({ title: "Supplier IHD Required", description: "Please set the Supplier In-Hands Date before saving.", variant: "destructive" });
+              return;
+            }
+            saveMutation.mutate();
+          }} disabled={isSaving}>
             {isSaving ? (
               <>
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
