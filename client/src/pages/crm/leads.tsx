@@ -35,6 +35,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { isUnauthorizedError } from "@/lib/authUtils";
+import { LEAD_SOURCES } from "@/lib/leadSources";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
   DropdownMenu,
@@ -106,18 +107,6 @@ const leadFormSchema = z.object({
 });
 
 type LeadFormData = z.infer<typeof leadFormSchema>;
-
-const LEAD_SOURCES = [
-  "Website",
-  "Referral",
-  "Cold Call",
-  "Email Campaign",
-  "Trade Show",
-  "Social Media",
-  "Google Ads",
-  "Partner",
-  "Other"
-];
 
 const LEAD_STATUSES = [
   "new",

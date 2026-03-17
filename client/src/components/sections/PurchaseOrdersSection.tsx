@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback, useRef } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -20,6 +20,8 @@ import {
   ClipboardList, Copy, Download, ExternalLink, Eye, FileText, Loader2,
   Mail, MoreHorizontal, Package, Palette, Printer, Send, ShieldCheck, Upload,
 } from "lucide-react";
+import EmailComposer from "@/components/email/EmailComposer";
+import type { EmailContact, EmailFormData } from "@/components/email/types";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import type { ProjectData } from "@/types/project-types";
@@ -98,18 +100,23 @@ export default function PurchaseOrdersSection({ orderId, data, isLocked }: Purch
 
   // Email PO to vendor
   const [emailPOVendor, setEmailPOVendor] = useState<{ doc: any; vendor: any } | null>(null);
-  const [vendorEmail, setVendorEmail] = useState("");
-  const [vendorName, setVendorName] = useState("");
-  const [emailSubject, setEmailSubject] = useState("");
-  const [emailBody, setEmailBody] = useState("");
 
   // Proofing states
   const [uploadProofArt, setUploadProofArt] = useState<any>(null);
-  const [sendProofArts, setSendProofArts] = useState<any[]>([]); // batch: all proofs for a vendor
-  const [clientEmail, setClientEmail] = useState("");
-  const [clientName, setClientName] = useState("");
-  const [clientMessage, setClientMessage] = useState("");
+  const [sendProofArts, setSendProofArts] = useState<any[]>([]);
   const [previewFile, setPreviewFile] = useState<{ url: string; name: string } | null>(null);
+
+  // Fetch vendor contacts for PO email dialog
+  const { data: poVendorContacts = [] } = useQuery<any[]>({
+    queryKey: [`/api/contacts`, { supplierId: emailPOVendor?.vendor?.id }],
+    queryFn: async () => {
+      if (!emailPOVendor?.vendor?.id) return [];
+      const response = await fetch(`/api/contacts?supplierId=${emailPOVendor.vendor.id}`, { credentials: "include" });
+      if (!response.ok) return [];
+      return response.json();
+    },
+    enabled: !!emailPOVendor?.vendor?.id,
+  });
 
   const {
     poDocuments,
@@ -287,25 +294,25 @@ export default function PurchaseOrdersSection({ orderId, data, isLocked }: Purch
 
   // Send PO email to vendor
   const sendPOEmailMutation = useMutation({
-    mutationFn: async ({ doc, email, name, subject, body }: { doc: any; email: string; name: string; subject: string; body: string }) => {
-      // Send email via communications
+    mutationFn: async ({ doc, formData }: { doc: any; formData: EmailFormData & { adHocEmails: string[] } }) => {
       const emailBodyFull = doc.fileUrl
-        ? `${body}\n\n---\nView Purchase Order PDF: ${doc.fileUrl}`
-        : body;
+        ? `${formData.body}\n\n---\nView Purchase Order PDF: ${doc.fileUrl}`
+        : formData.body;
 
       await apiRequest("POST", `/api/orders/${orderId}/communications`, {
         communicationType: "vendor_email",
         direction: "sent",
-        recipientEmail: email,
-        recipientName: name,
-        subject,
+        recipientEmail: formData.to,
+        recipientName: formData.toName,
+        subject: formData.subject,
         body: emailBodyFull,
+        cc: formData.cc || undefined,
+        bcc: formData.bcc || undefined,
         metadata: { type: "purchase_order", documentId: doc.id, vendorId: doc.vendorId },
         autoAttachArtworkForVendor: doc.vendorId,
         autoAttachDocumentFile: doc.fileUrl ? { fileUrl: doc.fileUrl, fileName: doc.fileName || `PO-${doc.documentNumber}.pdf` } : undefined,
       });
 
-      // Update PO stage to "submitted" and mark sentAt
       await updateDocMetaMutation.mutateAsync({
         docId: doc.id,
         updates: {
@@ -315,8 +322,8 @@ export default function PurchaseOrdersSection({ orderId, data, isLocked }: Purch
         },
       });
     },
-    onSuccess: (_data, vars) => {
-      toast({ title: "PO sent to vendor!", description: `Email sent to ${vars.email}` });
+    onSuccess: () => {
+      toast({ title: "PO sent to vendor!", description: "Email sent successfully." });
       setEmailPOVendor(null);
     },
     onError: () => toast({ title: "Failed to send PO", variant: "destructive" }),
@@ -353,45 +360,44 @@ export default function PurchaseOrdersSection({ orderId, data, isLocked }: Purch
 
   // Send batch proofs to client (one email with all approval links for a vendor)
   const sendBatchProofMutation = useMutation({
-    mutationFn: async ({ artworks, email, name, message }: { artworks: any[]; email: string; name: string; message: string }) => {
-      // Generate approval tokens for each artwork
+    mutationFn: async ({ artworks, formData }: { artworks: any[]; formData: EmailFormData & { adHocEmails: string[] } }) => {
       const approvalLinks: { art: any; url: string }[] = [];
       for (const art of artworks) {
         const approvalRes = await apiRequest("POST", `/api/orders/${orderId}/generate-approval`, {
-          orderItemId: art.orderItemId, artworkItemId: art.id, clientEmail: email, clientName: name,
+          orderItemId: art.orderItemId, artworkItemId: art.id, clientEmail: formData.to, clientName: formData.toName,
         });
         const approval = await approvalRes.json();
         const approvalUrl = `${window.location.origin}/approval/${approval.approvalToken}`;
         approvalLinks.push({ art, url: approvalUrl });
       }
 
-      // Build combined email body with all approval links
       const linksList = approvalLinks.map((link, idx) => {
         const art = link.art;
         return `${idx + 1}. ${art.productName} — ${art.location || art.artworkType || "Artwork"}\n   Review & Approve: ${link.url}`;
       }).join("\n\n");
 
-      const emailBodyFull = `${message}\n\n---\nArtwork Proofs for Approval:\n\n${linksList}`;
+      const emailBodyFull = `${formData.body}\n\n---\nArtwork Proofs for Approval:\n\n${linksList}`;
 
       await apiRequest("POST", `/api/orders/${orderId}/communications`, {
         communicationType: "client_email", direction: "sent",
-        recipientEmail: email, recipientName: name,
+        recipientEmail: formData.to, recipientName: formData.toName,
         subject: `Artwork Proofs for Approval - Order #${(order as any)?.orderNumber || ""} (${artworks.length} item${artworks.length > 1 ? "s" : ""})`,
         body: emailBodyFull,
+        cc: formData.cc || undefined,
+        bcc: formData.bcc || undefined,
         metadata: { type: "proof_approval_batch", artworkIds: artworks.map(a => a.id), approvalLinks: approvalLinks.map(l => l.url) },
       });
 
       return approvalLinks;
     },
-    onSuccess: (approvalLinks, vars) => {
-      // Update all artwork statuses to pending_approval
+    onSuccess: (approvalLinks) => {
       for (const link of approvalLinks) {
         updateArtworkMutation.mutate({
           artworkId: link.art.id, orderItemId: link.art.orderItemId,
           updates: { name: link.art.name, status: "pending_approval" },
         });
       }
-      toast({ title: "Proofs sent to client!", description: `${approvalLinks.length} approval link${approvalLinks.length > 1 ? "s" : ""} sent to ${vars.email}` });
+      toast({ title: "Proofs sent to client!", description: `${approvalLinks.length} approval link${approvalLinks.length > 1 ? "s" : ""} sent.` });
       setSendProofArts([]);
     },
     onError: () => toast({ title: "Failed to send proofs", variant: "destructive" }),
@@ -399,30 +405,39 @@ export default function PurchaseOrdersSection({ orderId, data, isLocked }: Purch
 
   // Helper: open email PO dialog
   const openEmailPO = (doc: any, vendor: any) => {
-    setVendorEmail(vendor.email || "");
-    setVendorName(vendor.contactPerson || vendor.name || "");
-    setEmailSubject(`Purchase Order #${doc.documentNumber} - ${(order as any)?.orderNumber || ""}`);
-    setEmailBody(`Hi ${vendor.contactPerson || vendor.name || "there"},\n\nPlease find the attached purchase order for your review and confirmation.\n\nOrder #: ${(order as any)?.orderNumber || ""}\nPO #: ${doc.documentNumber}\n${(order as any)?.supplierInHandsDate ? `In-Hands Date: ${new Date((order as any).supplierInHandsDate).toLocaleDateString()}` : ""}\n\nPlease confirm receipt and acknowledge this order.\n\nThank you.`);
     setEmailPOVendor({ doc, vendor });
   };
 
-  // Helper: open batch send proofs to client for a vendor
+  // Collect all sendable proofs across ALL vendors
+  const getAllSendableProofs = () => {
+    const allProofs: any[] = [];
+    for (const po of vendorPOs) {
+      const vendorArts = getVendorArtworks(po.vendor.id).filter(
+        (a: any) => a.proofRequired !== false && a.proofFilePath && ["proof_received", "change_requested"].includes(a.status)
+      );
+      allProofs.push(...vendorArts);
+    }
+    return allProofs;
+  };
+
+  // Helper: open batch send proofs to client — works for single vendor or all vendors
+  const openSendProofsDialog = (artworks: any[]) => {
+    if (artworks.length === 0) {
+      toast({ title: "No proofs ready to send", description: "Upload vendor proofs first.", variant: "destructive" });
+      return;
+    }
+    setSendProofArts(artworks);
+  };
+
   const openSendAllProofs = (vendorId: string) => {
     const vendorArts = getVendorArtworks(vendorId).filter(
       (a: any) => a.proofRequired !== false && a.proofFilePath && ["proof_received", "change_requested"].includes(a.status)
     );
-    if (vendorArts.length === 0) {
-      toast({ title: "No proofs ready to send", description: "Upload vendor proofs first.", variant: "destructive" });
-      return;
-    }
-    const pc = (data as any).primaryContact;
-    const cn = (data as any).companyName || "";
-    setClientEmail(pc?.email || "");
-    setClientName(pc ? `${pc.firstName} ${pc.lastName}` : cn);
+    openSendProofsDialog(vendorArts);
+  };
 
-    const artList = vendorArts.map((a: any) => `  - ${a.productName} (${a.location || a.artworkType || "Artwork"})`).join("\n");
-    setClientMessage(`Hi ${pc?.firstName || "there"},\n\nWe've received artwork proofs for your order. Please review each proof below and let us know if you'd like to approve or request changes.\n\nProofs included:\n${artList}\n\nBest regards,\n${cn}`);
-    setSendProofArts(vendorArts);
+  const openSendAllVendorProofs = () => {
+    openSendProofsDialog(getAllSendableProofs());
   };
 
   // Copy PO text
@@ -461,6 +476,12 @@ export default function PurchaseOrdersSection({ orderId, data, isLocked }: Purch
             {vendorPOs.length} vendor{vendorPOs.length !== 1 ? "s" : ""}
           </Badge>
         </div>
+        {!isLocked && getAllSendableProofs().length > 0 && (
+          <Button variant="default" size="sm" className="gap-1.5" onClick={openSendAllVendorProofs}>
+            <Send className="w-4 h-4" />
+            Send All Proofs to Client ({getAllSendableProofs().length})
+          </Button>
+        )}
       </div>
 
       {/* Shipping Warnings */}
@@ -964,7 +985,7 @@ export default function PurchaseOrdersSection({ orderId, data, isLocked }: Purch
 
       {/* ── Email PO to Vendor Dialog ── */}
       <Dialog open={!!emailPOVendor} onOpenChange={(open) => !open && setEmailPOVendor(null)}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Mail className="w-5 h-5" /> Email PO to Vendor
@@ -973,44 +994,33 @@ export default function PurchaseOrdersSection({ orderId, data, isLocked }: Purch
               Send PO #{emailPOVendor?.doc.documentNumber} to {emailPOVendor?.vendor.name}. The PO PDF link will be included.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-xs font-medium text-gray-500 block mb-1">Vendor Email</label>
-                <Input value={vendorEmail} onChange={(e) => setVendorEmail(e.target.value)} placeholder="vendor@example.com" />
-              </div>
-              <div>
-                <label className="text-xs font-medium text-gray-500 block mb-1">Contact Name</label>
-                <Input value={vendorName} onChange={(e) => setVendorName(e.target.value)} />
-              </div>
-            </div>
-            <div>
-              <label className="text-xs font-medium text-gray-500 block mb-1">Subject</label>
-              <Input value={emailSubject} onChange={(e) => setEmailSubject(e.target.value)} />
-            </div>
-            <div>
-              <label className="text-xs font-medium text-gray-500 block mb-1">Message</label>
-              <Textarea value={emailBody} onChange={(e) => setEmailBody(e.target.value)} className="min-h-[140px] resize-none text-sm" />
-              <p className="text-xs text-gray-400 mt-1">The PO PDF and artwork files will be automatically attached.</p>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setEmailPOVendor(null)}>Cancel</Button>
-            <Button
-              onClick={() => {
-                if (!emailPOVendor || !vendorEmail.trim()) return;
-                sendPOEmailMutation.mutate({
-                  doc: emailPOVendor.doc, email: vendorEmail, name: vendorName,
-                  subject: emailSubject, body: emailBody,
-                });
-              }}
-              disabled={sendPOEmailMutation.isPending || !vendorEmail.trim()}
-              className="gap-1"
-            >
-              {sendPOEmailMutation.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
-              Send PO
-            </Button>
-          </DialogFooter>
+          <EmailComposer
+            contacts={poVendorContacts.length > 0 ? poVendorContacts.map((c: any) => ({
+              id: String(c.id),
+              firstName: c.firstName || "",
+              lastName: c.lastName || "",
+              email: c.email,
+              isPrimary: c.isPrimary,
+              title: c.title,
+              receiveOrderEmails: c.receiveOrderEmails,
+            } as EmailContact)) : undefined}
+            defaults={{
+              to: emailPOVendor?.vendor.email || "",
+              toName: emailPOVendor?.vendor.contactPerson || emailPOVendor?.vendor.name || "",
+              subject: `Purchase Order #${emailPOVendor?.doc.documentNumber} - ${(order as any)?.orderNumber || ""}`,
+              body: `Hi ${emailPOVendor?.vendor.contactPerson || emailPOVendor?.vendor.name || "there"},\n\nPlease find the attached purchase order for your review and confirmation.\n\nOrder #: ${(order as any)?.orderNumber || ""}\nPO #: ${emailPOVendor?.doc.documentNumber || ""}\n${(order as any)?.supplierInHandsDate ? `In-Hands Date: ${new Date((order as any).supplierInHandsDate).toLocaleDateString()}` : ""}\n\nPlease confirm receipt and acknowledge this order.\n\nThank you.`,
+            }}
+            showAdvancedFields
+            footerHint="The PO PDF and artwork files will be automatically attached."
+            onSend={(formData) => {
+              if (!emailPOVendor) return;
+              sendPOEmailMutation.mutate({ doc: emailPOVendor.doc, formData });
+            }}
+            isSending={sendPOEmailMutation.isPending}
+            sendLabel="Send PO"
+            onCancel={() => setEmailPOVendor(null)}
+            resetTrigger={emailPOVendor}
+          />
         </DialogContent>
       </Dialog>
 
@@ -1040,7 +1050,7 @@ export default function PurchaseOrdersSection({ orderId, data, isLocked }: Purch
 
       {/* ── Send Batch Proofs to Client Dialog ── */}
       <Dialog open={sendProofArts.length > 0} onOpenChange={(open) => !open && setSendProofArts([])}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Send className="w-5 h-5" /> Send Proofs to Client
@@ -1049,58 +1059,69 @@ export default function PurchaseOrdersSection({ orderId, data, isLocked }: Purch
               Send {sendProofArts.length} artwork proof{sendProofArts.length > 1 ? "s" : ""} to your client for approval. One email will be sent with all approval links.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-2">
-            {/* Proof thumbnails list */}
-            <div className="space-y-2 max-h-[200px] overflow-y-auto">
-              {sendProofArts.map((art: any) => (
-                <div key={art.id} className="flex items-center gap-3 p-2 bg-gray-50 rounded-lg border">
-                  <div className="w-10 h-10 flex-shrink-0 bg-white rounded border overflow-hidden">
-                    {art.proofFilePath ? (
-                      <img src={art.proofFilePath} alt="Proof" className="w-full h-full object-contain p-0.5" />
-                    ) : (
-                      <Palette className="w-4 h-4 text-gray-300 m-auto mt-2" />
-                    )}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">{art.productName}</p>
-                    <p className="text-[10px] text-gray-500 truncate">
-                      {art.location || art.artworkType || "Artwork"} · {art.proofFileName || "proof"}
-                    </p>
-                  </div>
-                  <Badge className={`text-[10px] ${PROOF_STATUSES[art.status]?.color || ""}`}>
-                    {PROOF_STATUSES[art.status]?.label || art.status}
-                  </Badge>
-                </div>
-              ))}
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-xs font-medium text-gray-500 block mb-1">Client Email</label>
-                <Input value={clientEmail} onChange={(e) => setClientEmail(e.target.value)} />
+          <EmailComposer
+            contacts={data.contacts?.length > 0 ? data.contacts.map((c: any) => ({
+              id: String(c.id),
+              firstName: c.firstName || "",
+              lastName: c.lastName || "",
+              email: c.email,
+              isPrimary: c.isPrimary,
+              title: c.title,
+              receiveOrderEmails: c.receiveOrderEmails,
+            } as EmailContact)) : undefined}
+            defaults={{
+              to: data.primaryContact?.email || "",
+              toName: data.primaryContact ? `${data.primaryContact.firstName} ${data.primaryContact.lastName}` : data.companyName || "",
+              body: (() => {
+                const pc = data.primaryContact;
+                const cn = data.companyName || "";
+                const artList = sendProofArts.map((a: any) => `  - ${a.productName} (${a.location || a.artworkType || "Artwork"})`).join("\n");
+                return `Hi ${pc?.firstName || "there"},\n\nWe've received artwork proofs for your order. Please review each proof below and let us know if you'd like to approve or request changes.\n\nProofs included:\n${artList}\n\nBest regards,\n${cn}`;
+              })(),
+            }}
+            showAdvancedFields
+            beforeBody={
+              <div className="space-y-2 max-h-[200px] overflow-y-auto">
+                {sendProofArts.map((art: any) => {
+                  const vName = (() => {
+                    const item = orderItems.find((i: any) => i.id === art.orderItemId);
+                    if (!item?.supplierId) return null;
+                    const s = suppliers.find((v: any) => v.id === item.supplierId);
+                    return s?.name || s?.companyName || null;
+                  })();
+                  return (
+                    <div key={art.id} className="flex items-center gap-3 p-2 bg-gray-50 rounded-lg border">
+                      <div className="w-10 h-10 flex-shrink-0 bg-white rounded border overflow-hidden">
+                        {art.proofFilePath ? (
+                          <img src={art.proofFilePath} alt="Proof" className="w-full h-full object-contain p-0.5" />
+                        ) : (
+                          <Palette className="w-4 h-4 text-gray-300 m-auto mt-2" />
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">{art.productName}</p>
+                        <p className="text-[10px] text-gray-500 truncate">
+                          {vName && <span className="text-blue-600">{vName}</span>}
+                          {vName && " · "}{art.location || art.artworkType || "Artwork"} · {art.proofFileName || "proof"}
+                        </p>
+                      </div>
+                      <Badge className={`text-[10px] ${PROOF_STATUSES[art.status]?.color || ""}`}>
+                        {PROOF_STATUSES[art.status]?.label || art.status}
+                      </Badge>
+                    </div>
+                  );
+                })}
               </div>
-              <div>
-                <label className="text-xs font-medium text-gray-500 block mb-1">Client Name</label>
-                <Input value={clientName} onChange={(e) => setClientName(e.target.value)} />
-              </div>
-            </div>
-            <div>
-              <label className="text-xs font-medium text-gray-500 block mb-1">Message</label>
-              <Textarea value={clientMessage} onChange={(e) => setClientMessage(e.target.value)} className="min-h-[120px] resize-none text-sm" />
-              <p className="text-xs text-gray-400 mt-1">
-                {sendProofArts.length} approval link{sendProofArts.length > 1 ? "s" : ""} will be automatically included in the email.
-              </p>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setSendProofArts([])}>Cancel</Button>
-            <Button onClick={() => {
-              if (sendProofArts.length === 0 || !clientEmail.trim()) return;
-              sendBatchProofMutation.mutate({ artworks: sendProofArts, email: clientEmail, name: clientName, message: clientMessage });
-            }} disabled={sendBatchProofMutation.isPending || !clientEmail.trim()} className="gap-1">
-              {sendBatchProofMutation.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
-              Send {sendProofArts.length} Proof{sendProofArts.length > 1 ? "s" : ""}
-            </Button>
-          </DialogFooter>
+            }
+            footerHint={`${sendProofArts.length} approval link${sendProofArts.length > 1 ? "s" : ""} will be automatically included in the email.`}
+            onSend={(formData) => {
+              sendBatchProofMutation.mutate({ artworks: sendProofArts, formData });
+            }}
+            isSending={sendBatchProofMutation.isPending}
+            sendLabel={`Send ${sendProofArts.length} Proof${sendProofArts.length > 1 ? "s" : ""}`}
+            onCancel={() => setSendProofArts([])}
+            resetTrigger={sendProofArts.length > 0 ? sendProofArts : null}
+          />
         </DialogContent>
       </Dialog>
 

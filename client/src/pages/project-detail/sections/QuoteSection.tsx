@@ -77,7 +77,7 @@ interface QuoteSectionProps {
 }
 
 export default function QuoteSection({ orderId, data, lockStatus }: QuoteSectionProps) {
-  const { order, orderItems, quoteApprovals, companyName, primaryContact, allProducts, allArtworkItems } = data;
+  const { order, orderItems, quoteApprovals, companyName, primaryContact, contacts, allProducts, allArtworkItems } = data;
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [showConversionDialog, setShowConversionDialog] = useState(false);
@@ -636,6 +636,7 @@ export default function QuoteSection({ orderId, data, lockStatus }: QuoteSection
             quoteTotal={Number(order.total || 0)}
             quoteApprovals={quoteApprovals}
             createQuoteApproval={createQuoteApproval}
+            contacts={(contacts || []).map((c: any) => ({ id: String(c.id), firstName: c.firstName || "", lastName: c.lastName || "", email: c.email, isPrimary: c.isPrimary, title: c.title, receiveOrderEmails: c.receiveOrderEmails }))}
           />
         )
       }

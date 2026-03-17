@@ -618,6 +618,7 @@ export default function PresentationSection({ orderId, data }: PresentationSecti
             : companyName}
           companyName={companyName}
           orderNumber={order.orderNumber || ""}
+          contacts={(contacts || []).map((c: any) => ({ id: String(c.id), firstName: c.firstName || "", lastName: c.lastName || "", email: c.email, isPrimary: c.isPrimary, title: c.title, receiveOrderEmails: c.receiveOrderEmails }))}
         />
       )}
 

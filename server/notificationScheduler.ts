@@ -155,6 +155,7 @@ class NotificationScheduler {
       await this.processOverdueInvoices();
       await this.processExpiredPresentations();
       await this.processFollowUpReminders();
+      await this.processInvoiceReminders();
     } catch (error) {
       console.error('❌ Error processing daily notifications:', error);
     } finally {
@@ -461,6 +462,146 @@ class NotificationScheduler {
       }
     } catch (error) {
       console.error('❌ Error processing follow-up reminders:', error);
+    }
+  }
+
+  /**
+   * Send recurring payment reminders for unpaid invoices that have reminder scheduling enabled.
+   * Checks invoices where reminderEnabled=true, status is pending/sent/overdue,
+   * and nextReminderDate has passed. Sends email, advances next reminder date, and logs activity.
+   */
+  async processInvoiceReminders() {
+    try {
+      const now = new Date();
+
+      const dueInvoices = await db
+        .select()
+        .from(invoices)
+        .where(
+          and(
+            eq(invoices.reminderEnabled, true),
+            sql`${invoices.status} IN ('pending', 'sent', 'overdue')`,
+            isNotNull(invoices.nextReminderDate),
+            lt(invoices.nextReminderDate, now)
+          )
+        );
+
+      if (dueInvoices.length === 0) return;
+
+      let count = 0;
+      for (const invoice of dueInvoices) {
+        try {
+          if (!invoice.orderId) continue;
+
+          const order = await storage.getOrder(invoice.orderId);
+          if (!order) continue;
+
+          // Find the client contact email from the order
+          let recipientEmail: string | null = null;
+          let recipientName = '';
+
+          if (order.contactId) {
+            const contact = await storage.getContact(order.contactId);
+            if (contact?.email) {
+              recipientEmail = contact.email;
+              recipientName = `${contact.firstName || ''} ${contact.lastName || ''}`.trim();
+            }
+          }
+
+          if (!recipientEmail) continue;
+
+          const clientFirstName = recipientName.split(' ')[0] || 'there';
+          const company = order.companyId ? await storage.getCompany(order.companyId) : null;
+          const companyName = company?.name || 'SwagSuite';
+          const dueDateStr = invoice.dueDate
+            ? format(new Date(invoice.dueDate), 'MMMM d, yyyy')
+            : 'N/A';
+          const totalStr = invoice.totalAmount
+            ? `$${Number(invoice.totalAmount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+            : '';
+
+          const { emailService } = await import('./emailService');
+          await emailService.sendEmail({
+            to: recipientEmail,
+            subject: `Payment Reminder: Invoice #${invoice.invoiceNumber} — ${totalStr} due`,
+            html: `
+              <!DOCTYPE html>
+              <html>
+              <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+              <body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f3f4f6;">
+                <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff;">
+                  <div style="background-color: #dc2626; padding: 30px; text-align: center;">
+                    <h1 style="color: #ffffff; margin: 0; font-size: 24px;">Payment Reminder</h1>
+                  </div>
+                  <div style="padding: 30px;">
+                    <p style="color: #374151; line-height: 1.6; font-size: 14px;">
+                      Hi ${clientFirstName},
+                    </p>
+                    <p style="color: #374151; line-height: 1.6; font-size: 14px;">
+                      This is a friendly reminder that payment is still outstanding for the following invoice:
+                    </p>
+                    <div style="background-color: #fef2f2; padding: 15px; border-radius: 8px; margin: 20px 0; border: 1px solid #fecaca;">
+                      <p style="margin: 5px 0;"><strong>Invoice:</strong> #${invoice.invoiceNumber}</p>
+                      ${totalStr ? `<p style="margin: 5px 0;"><strong>Amount:</strong> ${totalStr}</p>` : ''}
+                      <p style="margin: 5px 0;"><strong>Due Date:</strong> ${dueDateStr}</p>
+                      <p style="margin: 5px 0;"><strong>Status:</strong> ${invoice.status === 'overdue' ? 'Overdue' : 'Unpaid'}</p>
+                    </div>
+                    <p style="color: #374151; line-height: 1.6; font-size: 14px;">
+                      Please arrange payment at your earliest convenience. If you've already sent payment, please disregard this notice.
+                    </p>
+                    <p style="color: #374151; line-height: 1.6; font-size: 14px;">
+                      If you have any questions regarding this invoice, please don't hesitate to reach out.
+                    </p>
+                    <p style="color: #374151; line-height: 1.6; font-size: 14px;">
+                      Best regards,<br>${companyName}
+                    </p>
+                  </div>
+                  <div style="background-color: #f9fafb; padding: 20px; text-align: center; border-top: 1px solid #e5e7eb;">
+                    <p style="color: #6b7280; font-size: 12px; margin: 0;">Sent from SwagSuite</p>
+                  </div>
+                </div>
+              </body>
+              </html>
+            `,
+          });
+
+          // Advance nextReminderDate by frequency and update lastReminderSentAt
+          const frequencyDays = invoice.reminderFrequencyDays || 7;
+          const nextDate = new Date(now.getTime() + frequencyDays * 24 * 60 * 60 * 1000);
+
+          await storage.updateInvoice(invoice.id, {
+            lastReminderSentAt: now,
+            nextReminderDate: nextDate,
+          });
+
+          // Log activity
+          if (order.assignedUserId) {
+            await db.insert(projectActivities).values({
+              orderId: invoice.orderId,
+              userId: order.assignedUserId,
+              activityType: 'system_action',
+              content: `Payment reminder sent to ${recipientEmail} for Invoice #${invoice.invoiceNumber}`,
+              metadata: {
+                action: 'invoice_reminder_sent',
+                invoiceId: invoice.id,
+                invoiceNumber: invoice.invoiceNumber,
+                recipientEmail,
+              },
+              isSystemGenerated: true,
+            });
+          }
+
+          count++;
+        } catch (e) {
+          console.error(`Failed to send invoice reminder for invoice ${invoice.id}:`, e);
+        }
+      }
+
+      if (count > 0) {
+        console.log(`💰 Invoice reminders: ${count} payment reminder(s) sent`);
+      }
+    } catch (error) {
+      console.error('❌ Error processing invoice reminders:', error);
     }
   }
 }

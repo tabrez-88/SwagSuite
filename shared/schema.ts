@@ -104,6 +104,7 @@ export const companies = pgTable("companies", {
   // Additional addresses for multiple locations
   shippingAddresses: jsonb("shipping_addresses"),
   billingAddress: jsonb("billing_address"),
+  customFields: jsonb("custom_fields"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -120,6 +121,7 @@ export const contacts = pgTable("contacts", {
   title: varchar("title"),
   isPrimary: boolean("is_primary").default(false),
   receiveOrderEmails: boolean("receive_order_emails").default(true), // Whether this contact receives order communication emails
+  leadSource: varchar("lead_source"),
   billingAddress: text("billing_address"),
   shippingAddress: text("shipping_address"),
   createdAt: timestamp("created_at").defaultNow(),
@@ -554,6 +556,12 @@ export const invoices = pgTable("invoices", {
   stripeInvoicePdfUrl: text("stripe_invoice_pdf_url"),
   paymentMethod: varchar("payment_method"), // stripe, manual_card, check, wire, credit
   paymentReference: varchar("payment_reference"), // Check #, Wire #, etc.
+  notes: text("notes"),
+  sentAt: timestamp("sent_at"),
+  reminderEnabled: boolean("reminder_enabled").notNull().default(false),
+  reminderFrequencyDays: integer("reminder_frequency_days"),
+  nextReminderDate: timestamp("next_reminder_date"),
+  lastReminderSentAt: timestamp("last_reminder_sent_at"),
   paidAt: timestamp("paid_at"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),

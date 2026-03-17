@@ -18,6 +18,7 @@ import {
   Truck,
   FileText,
   Briefcase,
+  Target,
 } from "lucide-react";
 
 interface Contact {
@@ -29,6 +30,7 @@ interface Contact {
   email?: string;
   phone?: string;
   title?: string;
+  leadSource?: string;
   isPrimary?: boolean;
   billingAddress?: string;
   shippingAddress?: string;
@@ -172,6 +174,12 @@ export default function ContactDetail() {
                 <div className="flex items-center gap-2">
                   <Briefcase className="w-4 h-4 text-gray-500" />
                   <span className="text-sm">{contact.title}</span>
+                </div>
+              )}
+              {contact.leadSource && (
+                <div className="flex items-center gap-2">
+                  <Target className="w-4 h-4 text-gray-500" />
+                  <span className="text-sm">{contact.leadSource}</span>
                 </div>
               )}
             </CardContent>

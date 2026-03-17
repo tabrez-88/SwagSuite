@@ -1,18 +1,13 @@
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
 import { UserAvatar } from "@/components/UserAvatar";
-import { RichTextEditor } from "@/components/RichTextEditor";
 import { useToast } from "@/hooks/use-toast";
-import { useAuth } from "@/hooks/useAuth";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { Mail, Send, Clock, Eye, Edit } from "lucide-react";
+import { Mail, Clock } from "lucide-react";
 import type { ProjectData } from "@/types/project-types";
+import EmailComposer, { type EmailComposerRef } from "@/components/email/EmailComposer";
+import type { EmailContact, EmailFormData } from "@/components/email/types";
 
 function stripHtml(html: string): string {
   const doc = new DOMParser().parseFromString(html, "text/html");
@@ -26,53 +21,37 @@ interface EmailSectionProps {
 
 export default function EmailSection({ orderId, data }: EmailSectionProps) {
   const { order, primaryContact, clientCommunications, contacts } = data;
-  const { user: currentUser } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const composerRef = useRef<EmailComposerRef>(null);
 
-  const [emailTo, setEmailTo] = useState("");
-  const [emailToName, setEmailToName] = useState("");
-  const [emailFrom, setEmailFrom] = useState("");
-  const [emailFromName, setEmailFromName] = useState("");
-  const [emailSubject, setEmailSubject] = useState("");
-  const [emailBody, setEmailBody] = useState("");
-  const [emailCc, setEmailCc] = useState("");
-  const [emailBcc, setEmailBcc] = useState("");
-  const [previewMode, setPreviewMode] = useState<"compose" | "preview">("compose");
-
-  // Auto-fill from/to
-  useEffect(() => {
-    if (currentUser && !emailFrom) {
-      setEmailFrom((currentUser as any).email || "");
-      setEmailFromName(
-        `${(currentUser as any).firstName || ""} ${(currentUser as any).lastName || ""}`.trim(),
-      );
-    }
-  }, [currentUser, emailFrom]);
-
-  useEffect(() => {
-    if (primaryContact && !emailTo) {
-      setEmailTo(primaryContact.email || "");
-      setEmailToName(`${primaryContact.firstName} ${primaryContact.lastName}`);
-    }
-  }, [primaryContact, emailTo]);
+  const clientContacts: EmailContact[] = (contacts || []).map((c: any) => ({
+    id: String(c.id),
+    firstName: c.firstName || "",
+    lastName: c.lastName || "",
+    email: c.email,
+    isPrimary: c.isPrimary,
+    title: c.title,
+    receiveOrderEmails: c.receiveOrderEmails,
+  }));
 
   const sendEmailMutation = useMutation({
-    mutationFn: async (emailData: any) => {
+    mutationFn: async (formData: EmailFormData & { adHocEmails: string[] }) => {
       const response = await fetch(`/api/orders/${order?.id}/communications`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({
           communicationType: "client_email",
           direction: "sent",
-          fromEmail: emailData.fromEmail,
-          fromName: emailData.fromName,
-          recipientEmail: emailData.recipientEmail,
-          recipientName: emailData.recipientName,
-          subject: emailData.subject,
-          body: emailData.body,
-          cc: emailData.cc,
-          bcc: emailData.bcc,
+          fromEmail: formData.from,
+          fromName: formData.fromName,
+          recipientEmail: formData.to,
+          recipientName: formData.toName,
+          subject: formData.subject,
+          body: formData.body,
+          cc: formData.cc || undefined,
+          bcc: formData.bcc || undefined,
         }),
       });
       if (!response.ok) {
@@ -86,30 +65,15 @@ export default function EmailSection({ orderId, data }: EmailSectionProps) {
         queryKey: [`/api/orders/${orderId}/communications`, { type: "client_email" }],
       });
       toast({ title: "Email sent", description: "Client email has been sent successfully." });
-      setEmailSubject("");
-      setEmailBody("");
+      composerRef.current?.reset({
+        to: primaryContact?.email || "",
+        toName: primaryContact ? `${primaryContact.firstName} ${primaryContact.lastName}` : "",
+      });
     },
     onError: (error: Error) => {
       toast({ title: "Error", description: error.message, variant: "destructive" });
     },
   });
-
-  const handleSend = () => {
-    if (!emailTo || !emailSubject || !emailBody) {
-      toast({ title: "Missing fields", description: "Please fill in all required fields.", variant: "destructive" });
-      return;
-    }
-    sendEmailMutation.mutate({
-      fromEmail: emailFrom,
-      fromName: emailFromName,
-      recipientEmail: emailTo,
-      recipientName: emailToName,
-      subject: emailSubject,
-      body: emailBody,
-      cc: emailCc,
-      bcc: emailBcc,
-    });
-  };
 
   return (
     <div className="space-y-6">
@@ -121,88 +85,23 @@ export default function EmailSection({ orderId, data }: EmailSectionProps) {
       {/* Compose Email */}
       <Card>
         <CardHeader className="pb-3">
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-base">Compose Email</CardTitle>
-            <div className="flex gap-1">
-              <Button
-                variant={previewMode === "compose" ? "default" : "ghost"}
-                size="sm"
-                onClick={() => setPreviewMode("compose")}
-              >
-                <Edit className="w-3 h-3 mr-1" />
-                Compose
-              </Button>
-              <Button
-                variant={previewMode === "preview" ? "default" : "ghost"}
-                size="sm"
-                onClick={() => setPreviewMode("preview")}
-              >
-                <Eye className="w-3 h-3 mr-1" />
-                Preview
-              </Button>
-            </div>
-          </div>
+          <CardTitle className="text-base">Compose Email</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
-          {previewMode === "compose" ? (
-            <>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label>To</Label>
-                  <Input value={emailTo} onChange={(e) => setEmailTo(e.target.value)} placeholder="recipient@example.com" />
-                </div>
-                <div>
-                  <Label>To Name</Label>
-                  <Input value={emailToName} onChange={(e) => setEmailToName(e.target.value)} placeholder="Recipient name" />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label>From</Label>
-                  <Input value={emailFrom} onChange={(e) => setEmailFrom(e.target.value)} />
-                </div>
-                <div>
-                  <Label>From Name</Label>
-                  <Input value={emailFromName} onChange={(e) => setEmailFromName(e.target.value)} />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label>CC</Label>
-                  <Input value={emailCc} onChange={(e) => setEmailCc(e.target.value)} placeholder="Optional" />
-                </div>
-                <div>
-                  <Label>BCC</Label>
-                  <Input value={emailBcc} onChange={(e) => setEmailBcc(e.target.value)} placeholder="Optional" />
-                </div>
-              </div>
-              <div>
-                <Label>Subject</Label>
-                <Input value={emailSubject} onChange={(e) => setEmailSubject(e.target.value)} placeholder="Email subject" />
-              </div>
-              <div>
-                <Label>Body</Label>
-                <RichTextEditor value={emailBody} onChange={setEmailBody} />
-              </div>
-            </>
-          ) : (
-            <div className="border rounded-lg p-4 bg-white">
-              <div className="text-sm space-y-2 mb-4">
-                <p><strong>To:</strong> {emailToName} &lt;{emailTo}&gt;</p>
-                <p><strong>From:</strong> {emailFromName} &lt;{emailFrom}&gt;</p>
-                <p><strong>Subject:</strong> {emailSubject}</p>
-              </div>
-              <Separator />
-              <div className="mt-4 prose prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: emailBody }} />
-            </div>
-          )}
-
-          <div className="flex justify-end">
-            <Button onClick={handleSend} disabled={sendEmailMutation.isPending}>
-              <Send className="w-4 h-4 mr-2" />
-              {sendEmailMutation.isPending ? "Sending..." : "Send Email"}
-            </Button>
-          </div>
+        <CardContent>
+          <EmailComposer
+            ref={composerRef}
+            contacts={clientContacts.length > 0 ? clientContacts : undefined}
+            defaults={{
+              to: primaryContact?.email || "",
+              toName: primaryContact ? `${primaryContact.firstName} ${primaryContact.lastName}` : "",
+            }}
+            showAdvancedFields
+            richText
+            showPreview
+            autoFillSender
+            onSend={(data) => sendEmailMutation.mutate(data)}
+            isSending={sendEmailMutation.isPending}
+          />
         </CardContent>
       </Card>
 

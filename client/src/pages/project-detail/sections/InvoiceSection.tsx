@@ -1,8 +1,9 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -20,6 +21,8 @@ import {
   Banknote,
   Clock,
   CalendarIcon,
+  Info,
+  RefreshCw,
 } from "lucide-react";
 import { format, differenceInDays } from "date-fns";
 import type { useProjectData } from "../hooks/useProjectData";
@@ -27,6 +30,10 @@ import type { SectionLockStatus } from "@/hooks/useLockStatus";
 import LockBanner from "@/components/LockBanner";
 import ProjectInfoBar from "@/components/ProjectInfoBar";
 import SendInvoiceDialog from "@/components/modals/SendInvoiceDialog";
+import InvoiceTemplate from "@/components/documents/InvoiceTemplate";
+import GeneratedDocumentCard from "@/components/documents/GeneratedDocumentCard";
+import { DocumentEditor } from "@/components/DocumentEditor";
+import { useDocumentGeneration, buildItemsHash } from "@/hooks/useDocumentGeneration";
 import {
   Dialog,
   DialogContent,
@@ -35,6 +42,24 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+
+function getEditedItem(_id: string, item: any) {
+  return {
+    id: item.id,
+    productId: item.productId,
+    productName: item.productName,
+    productSku: item.productSku,
+    supplierId: item.supplierId,
+    color: item.color || "",
+    quantity: item.quantity || 0,
+    unitPrice: parseFloat(item.unitPrice) || 0,
+    cost: parseFloat(item.cost || 0),
+    decorationCost: parseFloat(item.decorationCost || 0),
+    charges: parseFloat(item.charges || 0),
+    margin: 44,
+    sizePricing: item.sizePricing || {},
+  };
+}
 
 interface InvoiceSectionProps {
   orderId: string;
@@ -51,7 +76,7 @@ const invoiceStatusColors: Record<string, string> = {
 };
 
 export default function InvoiceSection({ orderId, data, lockStatus }: InvoiceSectionProps) {
-  const { order, invoice, invoiceLoading, orderItems, companyName, primaryContact, serviceCharges } = data;
+  const { order, invoice, invoiceLoading, orderItems, companyName, primaryContact, contacts, serviceCharges } = data;
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [showSendDialog, setShowSendDialog] = useState(false);
@@ -59,6 +84,30 @@ export default function InvoiceSection({ orderId, data, lockStatus }: InvoiceSec
   const [paymentMethod, setPaymentMethod] = useState("check");
   const [paymentReference, setPaymentReference] = useState("");
   const [paymentAmount, setPaymentAmount] = useState("");
+  const [previewDoc, setPreviewDoc] = useState<any>(null);
+  const [invoiceNotes, setInvoiceNotes] = useState("");
+  const [notesInitialized, setNotesInitialized] = useState(false);
+
+  const templateRef = useRef<HTMLDivElement>(null);
+
+  // Document generation hook
+  const { invoiceDocuments, isGenerating, generateDocument, deleteDocument, isDeleting } = useDocumentGeneration(orderId);
+
+  // Initialize notes from invoice data
+  if (invoice && !notesInitialized) {
+    setInvoiceNotes((invoice as any).notes || "");
+    setNotesInitialized(true);
+  }
+
+  // Items hash for stale detection
+  const currentItemsHash = useMemo(() => {
+    if (!orderItems || orderItems.length === 0) return "";
+    return buildItemsHash(orderItems, "quote", order);
+  }, [orderItems, order]);
+
+  // Check if latest invoice document is stale
+  const latestInvoiceDoc = invoiceDocuments.length > 0 ? invoiceDocuments[invoiceDocuments.length - 1] : null;
+  const isDocStale = latestInvoiceDoc && currentItemsHash && latestInvoiceDoc.metadata?.itemsHash !== currentItemsHash;
 
   // Invoice aging calculation
   const agingInfo = useMemo(() => {
@@ -143,6 +192,20 @@ export default function InvoiceSection({ orderId, data, lockStatus }: InvoiceSec
     },
   });
 
+  // Update notes
+  const updateNotesMutation = useMutation({
+    mutationFn: async (notes: string) => {
+      await apiRequest("PATCH", `/api/orders/${orderId}/invoice`, { notes });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/orders/${orderId}/invoice`] });
+      toast({ title: "Notes updated" });
+    },
+    onError: () => {
+      toast({ title: "Failed to update notes", variant: "destructive" });
+    },
+  });
+
   // Stripe payment link (also generates Stripe invoice PDF)
   const stripePaymentMutation = useMutation({
     mutationFn: async () => {
@@ -166,10 +229,34 @@ export default function InvoiceSection({ orderId, data, lockStatus }: InvoiceSec
     },
   });
 
+  // Generate local PDF
+  const handleGeneratePdf = async () => {
+    if (!invoice || !templateRef.current) return;
+    try {
+      await generateDocument({
+        elementRef: templateRef.current,
+        documentType: "invoice",
+        documentNumber: invoice.invoiceNumber,
+        itemsHash: currentItemsHash,
+      });
+      toast({ title: "Invoice PDF generated" });
+    } catch (err) {
+      // Error handled by hook
+    }
+  };
+
   if (!order) return null;
 
   const hasStripePdf = !!invoice?.stripeInvoicePdfUrl;
   const hasStripeInvoice = !!invoice?.stripeInvoiceId;
+  const hasLocalPdf = invoiceDocuments.length > 0;
+
+  // Determine which PDF to use for sending
+  const sendableDocument = latestInvoiceDoc
+    ? { fileUrl: latestInvoiceDoc.filePath, id: latestInvoiceDoc.id }
+    : hasStripePdf
+      ? { fileUrl: invoice?.stripeInvoicePdfUrl, id: invoice?.stripeInvoiceId || "" }
+      : null;
 
   return (
     <div className="space-y-6">
@@ -268,6 +355,21 @@ export default function InvoiceSection({ orderId, data, lockStatus }: InvoiceSec
                 </div>
               )}
 
+              {/* CC Processing Fee Info */}
+              <div className="flex items-start gap-2 px-3 py-2 rounded-md border border-blue-200 bg-blue-50 text-blue-800">
+                <Info className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                <p className="text-xs">
+                  A 3% credit card processing fee applies to payments made by credit/debit card.
+                </p>
+              </div>
+
+              {/* Sent timestamp */}
+              {(invoice as any).sentAt && (
+                <p className="text-xs text-gray-400">
+                  Sent on {format(new Date((invoice as any).sentAt), "MMM d, yyyy 'at' h:mm a")}
+                </p>
+              )}
+
               {invoice.createdAt && (
                 <p className="text-xs text-gray-400">
                   Created {format(new Date(invoice.createdAt), "MMM d, yyyy 'at' h:mm a")}
@@ -276,7 +378,28 @@ export default function InvoiceSection({ orderId, data, lockStatus }: InvoiceSec
             </CardContent>
           </Card>
 
-          {/* Invoice Document (from Stripe) */}
+          {/* Invoice Notes */}
+          <Card>
+            <CardHeader className="py-3">
+              <CardTitle className="text-sm">Invoice Notes</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Textarea
+                value={invoiceNotes}
+                onChange={(e) => setInvoiceNotes(e.target.value)}
+                onBlur={() => {
+                  if (invoiceNotes !== ((invoice as any).notes || "")) {
+                    updateNotesMutation.mutate(invoiceNotes);
+                  }
+                }}
+                placeholder="Add notes to this invoice (visible on PDF)..."
+                className="min-h-[80px] resize-none text-sm"
+                disabled={invoice.status === "paid"}
+              />
+            </CardContent>
+          </Card>
+
+          {/* Invoice Document */}
           <Card>
             <CardHeader className="py-3">
               <CardTitle className="text-sm flex items-center gap-2">
@@ -284,73 +407,110 @@ export default function InvoiceSection({ orderId, data, lockStatus }: InvoiceSec
                 Invoice Document
               </CardTitle>
             </CardHeader>
-            <CardContent>
-              {hasStripePdf ? (
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <FileText className="w-4 h-4 text-purple-600" />
-                      <span className="text-sm font-medium">
-                        {invoice.invoiceNumber}.pdf
-                      </span>
-                      <Badge variant="outline" className="text-xs text-blue-600 border-blue-300">
-                        Stripe
-                      </Badge>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        asChild
-                      >
-                        <a href={invoice.stripeInvoicePdfUrl} target="_blank" rel="noopener noreferrer">
-                          <Download className="w-4 h-4 mr-1" />
-                          Download PDF
-                        </a>
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        asChild
-                      >
-                        <a href={invoice.stripeInvoiceUrl} target="_blank" rel="noopener noreferrer">
-                          <ExternalLink className="w-4 h-4 mr-1" />
-                          View in Stripe
-                        </a>
-                      </Button>
-                      <Button
-                        size="sm"
-                        onClick={() => setShowSendDialog(true)}
-                        disabled={invoice.status === "paid"}
-                      >
-                        <Send className="w-4 h-4 mr-1" />
-                        Send Invoice
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              ) : (
+            <CardContent className="space-y-3">
+              {/* Local PDF documents */}
+              {invoiceDocuments.map((doc: any) => (
+                <GeneratedDocumentCard
+                  key={doc.id}
+                  document={doc}
+                  isStale={doc.id === latestInvoiceDoc?.id && !!isDocStale}
+                  onPreview={() => setPreviewDoc(doc)}
+                  onDelete={() => deleteDocument(doc.id)}
+                  onRegenerate={handleGeneratePdf}
+                  isDeleting={isDeleting}
+                  isRegenerating={isGenerating}
+                />
+              ))}
+
+              {/* Generate PDF button */}
+              {!hasLocalPdf && (
                 <div className="text-center py-4">
                   <p className="text-sm text-gray-500 mb-3">
-                    {hasStripeInvoice
-                      ? "Stripe invoice exists but PDF URL is not available. Try generating a new payment link."
-                      : "Generate a Stripe invoice to get a professional PDF invoice for your client."}
+                    Generate a professional invoice PDF for your client.
                   </p>
                   <Button
-                    onClick={() => stripePaymentMutation.mutate()}
-                    disabled={stripePaymentMutation.isPending || orderItems.length === 0}
+                    onClick={handleGeneratePdf}
+                    disabled={isGenerating || orderItems.length === 0}
                   >
-                    {stripePaymentMutation.isPending ? (
+                    {isGenerating ? (
                       <>
                         <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        Creating Stripe Invoice...
+                        Generating PDF...
                       </>
                     ) : (
                       <>
                         <FileText className="w-4 h-4 mr-2" />
-                        {hasStripeInvoice ? "Regenerate Stripe Invoice" : "Create Stripe Invoice"}
+                        Generate Invoice PDF
                       </>
                     )}
+                  </Button>
+                </div>
+              )}
+
+              {/* Regenerate button when doc exists but is stale */}
+              {hasLocalPdf && isDocStale && (
+                <div className="text-center">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleGeneratePdf}
+                    disabled={isGenerating}
+                  >
+                    <RefreshCw className="w-4 h-4 mr-1" />
+                    Regenerate PDF
+                  </Button>
+                </div>
+              )}
+
+              {/* Stripe PDF section */}
+              {hasStripePdf && (
+                <div className="border-t pt-3 mt-3">
+                  <p className="text-xs text-gray-500 mb-2">Stripe Invoice PDF</p>
+                  <div className="flex items-center gap-2">
+                    <Button variant="ghost" size="sm" asChild>
+                      <a href={invoice.stripeInvoicePdfUrl} target="_blank" rel="noopener noreferrer">
+                        <Download className="w-4 h-4 mr-1" />
+                        Stripe Invoice PDF
+                      </a>
+                    </Button>
+                    <Button variant="ghost" size="sm" asChild>
+                      <a href={invoice.stripeInvoiceUrl} target="_blank" rel="noopener noreferrer">
+                        <ExternalLink className="w-4 h-4 mr-1" />
+                        View in Stripe
+                      </a>
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {/* Stripe generation if no Stripe invoice yet */}
+              {!hasStripeInvoice && (
+                <div className="border-t pt-3 mt-3">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => stripePaymentMutation.mutate()}
+                    disabled={stripePaymentMutation.isPending || orderItems.length === 0}
+                  >
+                    {stripePaymentMutation.isPending ? (
+                      <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                    ) : (
+                      <CreditCard className="w-4 h-4 mr-1" />
+                    )}
+                    Create Stripe Invoice
+                  </Button>
+                </div>
+              )}
+
+              {/* Send Invoice button */}
+              {sendableDocument && invoice.status !== "paid" && (
+                <div className="border-t pt-3 mt-3">
+                  <Button
+                    size="sm"
+                    onClick={() => setShowSendDialog(true)}
+                  >
+                    <Send className="w-4 h-4 mr-1" />
+                    Send Invoice
                   </Button>
                 </div>
               )}
@@ -410,11 +570,7 @@ export default function InvoiceSection({ orderId, data, lockStatus }: InvoiceSec
                         <ExternalLink className="w-4 h-4 mr-1" />
                         Copy Payment Link
                       </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        asChild
-                      >
+                      <Button variant="ghost" size="sm" asChild>
                         <a href={invoice.stripeInvoiceUrl} target="_blank" rel="noopener noreferrer">
                           Open in Stripe
                         </a>
@@ -451,6 +607,27 @@ export default function InvoiceSection({ orderId, data, lockStatus }: InvoiceSec
               )}
             </CardContent>
           </Card>
+
+          {/* Reminder info */}
+          {(invoice as any).reminderEnabled && (
+            <Card>
+              <CardHeader className="py-3">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <Clock className="w-4 h-4" />
+                  Payment Reminders
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="text-sm text-gray-600 space-y-1">
+                <p>Reminders: Every {(invoice as any).reminderFrequencyDays} days</p>
+                {(invoice as any).nextReminderDate && (
+                  <p>Next reminder: {format(new Date((invoice as any).nextReminderDate), "MMM d, yyyy")}</p>
+                )}
+                {(invoice as any).lastReminderSentAt && (
+                  <p className="text-xs text-gray-400">Last sent: {format(new Date((invoice as any).lastReminderSentAt), "MMM d, yyyy 'at' h:mm a")}</p>
+                )}
+              </CardContent>
+            </Card>
+          )}
         </div>
       ) : (
         <Card>
@@ -471,8 +648,34 @@ export default function InvoiceSection({ orderId, data, lockStatus }: InvoiceSec
         </Card>
       )}
 
-      {/* Send Invoice Dialog — uses Stripe PDF URL */}
-      {showSendDialog && invoice?.stripeInvoicePdfUrl && (
+      {/* Hidden Invoice Template for PDF generation */}
+      {invoice && (
+        <InvoiceTemplate
+          ref={templateRef}
+          invoice={{ ...invoice, notes: invoiceNotes }}
+          order={order}
+          orderItems={orderItems}
+          companyName={companyName}
+          primaryContact={primaryContact}
+          serviceCharges={serviceCharges}
+        />
+      )}
+
+      {/* Document Preview */}
+      {previewDoc && (
+        <DocumentEditor
+          document={previewDoc}
+          order={order}
+          orderItems={orderItems}
+          companyName={companyName}
+          primaryContact={primaryContact}
+          getEditedItem={getEditedItem}
+          onClose={() => setPreviewDoc(null)}
+        />
+      )}
+
+      {/* Send Invoice Dialog */}
+      {showSendDialog && invoice && sendableDocument && (
         <SendInvoiceDialog
           open={showSendDialog}
           onOpenChange={setShowSendDialog}
@@ -482,9 +685,10 @@ export default function InvoiceSection({ orderId, data, lockStatus }: InvoiceSec
           companyName={companyName}
           orderNumber={(order as any)?.orderNumber || ""}
           invoiceNumber={invoice.invoiceNumber}
-          invoiceDocument={{ fileUrl: invoice.stripeInvoicePdfUrl, id: invoice.stripeInvoiceId || "" }}
+          invoiceDocument={sendableDocument}
           totalAmount={Number(invoice.totalAmount || 0)}
           dueDate={invoice.dueDate}
+          contacts={(contacts || []).map((c: any) => ({ id: String(c.id), firstName: c.firstName || "", lastName: c.lastName || "", email: c.email, isPrimary: c.isPrimary, title: c.title, receiveOrderEmails: c.receiveOrderEmails }))}
         />
       )}
 

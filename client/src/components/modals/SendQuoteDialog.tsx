@@ -1,19 +1,16 @@
-import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Loader2, Send } from "lucide-react";
+import { Send } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import EmailComposer from "@/components/email/EmailComposer";
+import type { EmailContact, EmailFormData } from "@/components/email/types";
 
 interface SendQuoteDialogProps {
   open: boolean;
@@ -28,24 +25,18 @@ interface SendQuoteDialogProps {
   quoteTotal: number;
   quoteApprovals: any[];
   createQuoteApproval: (data: any) => Promise<any>;
+  contacts?: EmailContact[];
 }
 
 export default function SendQuoteDialog({
   open, onOpenChange, orderId, recipientEmail, recipientName, companyName, orderNumber,
-  quoteDocument, primaryContact, quoteTotal, quoteApprovals, createQuoteApproval,
+  quoteDocument, primaryContact, quoteTotal, quoteApprovals, createQuoteApproval, contacts,
 }: SendQuoteDialogProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const [to, setTo] = useState(recipientEmail);
-  const [subject, setSubject] = useState(`Quote #${orderNumber} from ${companyName}`);
-  const [body, setBody] = useState(
-    `Hi ${recipientName.split(" ")[0] || "there"},\n\nPlease find our quote for your upcoming project. Click the link below to review and approve the quote.\n\nWe look forward to working with you!\n\nBest regards,\n${companyName}`
-  );
-
   const sendMutation = useMutation({
-    mutationFn: async () => {
-      // 1. Reuse existing pending approval or create new one
+    mutationFn: async (formData: EmailFormData & { adHocEmails: string[] }) => {
       const existingApproval = quoteApprovals.find((a: any) => a.status === "pending");
       let approvalToken: string;
 
@@ -53,8 +44,8 @@ export default function SendQuoteDialog({
         approvalToken = existingApproval.approvalToken;
       } else {
         const result = await createQuoteApproval({
-          clientEmail: to,
-          clientName: recipientName,
+          clientEmail: formData.to,
+          clientName: formData.toName || recipientName,
           documentId: quoteDocument.id,
           pdfPath: quoteDocument.fileUrl,
           quoteTotal,
@@ -62,27 +53,26 @@ export default function SendQuoteDialog({
         approvalToken = result.approvalToken;
       }
       const approvalUrl = `${window.location.origin}/client-approval/${approvalToken}`;
-
-      // 2. Send email via communications endpoint
-      const emailBody = `${body}\n\n---\nView & Approve Quote: ${approvalUrl}`;
+      const emailBody = `${formData.body}\n\n---\nView & Approve Quote: ${approvalUrl}`;
 
       await apiRequest("POST", `/api/orders/${orderId}/communications`, {
         communicationType: "client_email",
         direction: "sent",
-        recipientEmail: to,
-        recipientName,
-        subject,
+        recipientEmail: formData.to,
+        recipientName: formData.toName || recipientName,
+        subject: formData.subject,
         body: emailBody,
+        cc: formData.cc || undefined,
+        bcc: formData.bcc || undefined,
         metadata: { type: "quote", approvalUrl },
       });
 
-      // 3. Auto-set status to sent
       await apiRequest("PATCH", `/api/orders/${orderId}`, {
         quoteStatus: "sent",
       });
     },
     onSuccess: () => {
-      toast({ title: "Quote sent!", description: `Email sent to ${to}` });
+      toast({ title: "Quote sent!", description: "Email sent successfully." });
       queryClient.invalidateQueries({ queryKey: [`/api/orders/${orderId}`] });
       queryClient.invalidateQueries({ queryKey: [`/api/orders/${orderId}/quote-approvals`] });
       onOpenChange(false);
@@ -94,7 +84,7 @@ export default function SendQuoteDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Send className="w-5 h-5" />
@@ -105,37 +95,21 @@ export default function SendQuoteDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 py-2">
-          <div>
-            <label className="text-xs font-medium text-gray-500 block mb-1">To</label>
-            <Input value={to} onChange={(e) => setTo(e.target.value)} placeholder="client@example.com" />
-          </div>
-          <div>
-            <label className="text-xs font-medium text-gray-500 block mb-1">Subject</label>
-            <Input value={subject} onChange={(e) => setSubject(e.target.value)} />
-          </div>
-          <div>
-            <label className="text-xs font-medium text-gray-500 block mb-1">Message</label>
-            <Textarea
-              value={body}
-              onChange={(e) => setBody(e.target.value)}
-              className="min-h-[160px] resize-none text-sm"
-            />
-            <p className="text-xs text-gray-400 mt-1">The quote approval link will be automatically added to the email.</p>
-          </div>
-        </div>
-
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button
-            onClick={() => sendMutation.mutate()}
-            disabled={sendMutation.isPending || !to.trim()}
-            className="gap-1"
-          >
-            {sendMutation.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
-            Send Email
-          </Button>
-        </DialogFooter>
+        <EmailComposer
+          contacts={contacts}
+          defaults={{
+            to: recipientEmail,
+            toName: recipientName,
+            subject: `Quote #${orderNumber} from ${companyName}`,
+            body: `Hi ${recipientName.split(" ")[0] || "there"},\n\nPlease find our quote for your upcoming project. Click the link below to review and approve the quote.\n\nWe look forward to working with you!\n\nBest regards,\n${companyName}`,
+          }}
+          showAdvancedFields
+          footerHint="The quote approval link will be automatically added to the email."
+          onSend={(data) => sendMutation.mutate(data)}
+          isSending={sendMutation.isPending}
+          onCancel={() => onOpenChange(false)}
+          resetTrigger={open}
+        />
       </DialogContent>
     </Dialog>
   );

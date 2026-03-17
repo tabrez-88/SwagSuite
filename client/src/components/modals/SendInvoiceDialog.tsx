@@ -4,16 +4,22 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Loader2, Send } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Send, Bell } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import EmailComposer from "@/components/email/EmailComposer";
+import type { EmailContact, EmailFormData } from "@/components/email/types";
 
 interface SendInvoiceDialogProps {
   open: boolean;
@@ -27,34 +33,33 @@ interface SendInvoiceDialogProps {
   invoiceDocument: any;
   totalAmount: number;
   dueDate?: string;
+  contacts?: EmailContact[];
 }
 
 export default function SendInvoiceDialog({
   open, onOpenChange, orderId, recipientEmail, recipientName, companyName, orderNumber,
-  invoiceNumber, invoiceDocument, totalAmount, dueDate,
+  invoiceNumber, invoiceDocument, totalAmount, dueDate, contacts,
 }: SendInvoiceDialogProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [reminderEnabled, setReminderEnabled] = useState(false);
+  const [reminderFrequency, setReminderFrequency] = useState(7);
 
   const dueDateFormatted = dueDate
     ? new Date(dueDate).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })
     : null;
 
-  const [to, setTo] = useState(recipientEmail);
-  const [subject, setSubject] = useState(`Invoice #${invoiceNumber} from ${companyName}`);
-  const [body, setBody] = useState(
-    `Hi ${recipientName.split(" ")[0] || "there"},\n\nPlease find attached Invoice #${invoiceNumber} for $${totalAmount.toFixed(2)}${dueDateFormatted ? ` due by ${dueDateFormatted}` : ""}.\n\nIf you have any questions regarding this invoice, please don't hesitate to reach out.\n\nThank you for your business!\n\nBest regards,\n${companyName}`
-  );
-
   const sendMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (formData: EmailFormData & { adHocEmails: string[] }) => {
       await apiRequest("POST", `/api/orders/${orderId}/communications`, {
         communicationType: "client_email",
         direction: "sent",
-        recipientEmail: to,
-        recipientName,
-        subject,
-        body,
+        recipientEmail: formData.to,
+        recipientName: formData.toName || recipientName,
+        subject: formData.subject,
+        body: formData.body,
+        cc: formData.cc || undefined,
+        bcc: formData.bcc || undefined,
         metadata: {
           type: "invoice",
           invoiceNumber,
@@ -67,13 +72,18 @@ export default function SendInvoiceDialog({
         },
       });
 
-      // Update invoice status to sent
       await apiRequest("PATCH", `/api/orders/${orderId}/invoice`, {
         status: "sent",
+        sentAt: new Date().toISOString(),
+        ...(reminderEnabled ? {
+          reminderEnabled: true,
+          reminderFrequencyDays: reminderFrequency,
+          nextReminderDate: new Date(Date.now() + reminderFrequency * 24 * 60 * 60 * 1000).toISOString(),
+        } : {}),
       });
     },
     onSuccess: () => {
-      toast({ title: "Invoice sent!", description: `Email sent to ${to}` });
+      toast({ title: "Invoice sent!", description: "Email sent successfully." });
       queryClient.invalidateQueries({ queryKey: [`/api/orders/${orderId}`] });
       queryClient.invalidateQueries({ queryKey: [`/api/orders/${orderId}/invoice`] });
       onOpenChange(false);
@@ -83,9 +93,47 @@ export default function SendInvoiceDialog({
     },
   });
 
+  const reminderSection = (
+    <div className="border rounded-lg p-3 bg-gray-50/50">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Bell className="w-4 h-4 text-gray-500" />
+          <label htmlFor="reminder-toggle" className="text-sm font-medium text-gray-700 cursor-pointer">
+            Send payment reminders if unpaid
+          </label>
+        </div>
+        <Switch
+          id="reminder-toggle"
+          checked={reminderEnabled}
+          onCheckedChange={setReminderEnabled}
+        />
+      </div>
+      {reminderEnabled && (
+        <div className="mt-3 flex items-center gap-2">
+          <span className="text-xs text-gray-500">Remind every</span>
+          <Select
+            value={String(reminderFrequency)}
+            onValueChange={(val) => setReminderFrequency(Number(val))}
+          >
+            <SelectTrigger className="w-[100px] h-8 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="3">3 days</SelectItem>
+              <SelectItem value="7">7 days</SelectItem>
+              <SelectItem value="14">14 days</SelectItem>
+              <SelectItem value="30">30 days</SelectItem>
+            </SelectContent>
+          </Select>
+          <span className="text-xs text-gray-500">until paid</span>
+        </div>
+      )}
+    </div>
+  );
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Send className="w-5 h-5" />
@@ -96,37 +144,23 @@ export default function SendInvoiceDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 py-2">
-          <div>
-            <label className="text-xs font-medium text-gray-500 block mb-1">To</label>
-            <Input value={to} onChange={(e) => setTo(e.target.value)} placeholder="client@example.com" />
-          </div>
-          <div>
-            <label className="text-xs font-medium text-gray-500 block mb-1">Subject</label>
-            <Input value={subject} onChange={(e) => setSubject(e.target.value)} />
-          </div>
-          <div>
-            <label className="text-xs font-medium text-gray-500 block mb-1">Message</label>
-            <Textarea
-              value={body}
-              onChange={(e) => setBody(e.target.value)}
-              className="min-h-[160px] resize-none text-sm"
-            />
-            <p className="text-xs text-gray-400 mt-1">The invoice PDF will be attached to the email.</p>
-          </div>
-        </div>
-
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button
-            onClick={() => sendMutation.mutate()}
-            disabled={sendMutation.isPending || !to.trim()}
-            className="gap-1"
-          >
-            {sendMutation.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
-            Send Invoice
-          </Button>
-        </DialogFooter>
+        <EmailComposer
+          contacts={contacts}
+          defaults={{
+            to: recipientEmail,
+            toName: recipientName,
+            subject: `Invoice #${invoiceNumber} from ${companyName}`,
+            body: `Hi ${recipientName.split(" ")[0] || "there"},\n\nPlease find attached Invoice #${invoiceNumber} for $${totalAmount.toFixed(2)}${dueDateFormatted ? ` due by ${dueDateFormatted}` : ""}.\n\nIf you have any questions regarding this invoice, please don't hesitate to reach out.\n\nThank you for your business!\n\nBest regards,\n${companyName}`,
+          }}
+          showAdvancedFields
+          footerHint="The invoice PDF will be attached to the email."
+          afterBody={reminderSection}
+          onSend={(data) => sendMutation.mutate(data)}
+          isSending={sendMutation.isPending}
+          sendLabel="Send Invoice"
+          onCancel={() => onOpenChange(false)}
+          resetTrigger={open}
+        />
       </DialogContent>
     </Dialog>
   );

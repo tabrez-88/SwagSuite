@@ -20,7 +20,10 @@ import {
   MessageSquare,
   AlertCircle,
   TrendingUp,
-  Clock
+  Clock,
+  Plus,
+  Trash2,
+  Package
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -133,6 +136,22 @@ interface Company {
     isExcitingNews: boolean;
   }>;
   lastSocialMediaSync?: string;
+  shippingAddresses?: Array<{
+    label?: string;
+    street?: string;
+    city?: string;
+    state?: string;
+    zipCode?: string;
+    country?: string;
+  }>;
+  billingAddress?: {
+    street?: string;
+    city?: string;
+    state?: string;
+    zipCode?: string;
+    country?: string;
+  };
+  customFields?: Record<string, string>;
 }
 
 // Engagement level colors
@@ -150,6 +169,12 @@ export default function CompanyDetail() {
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isEmailDialogOpen, setIsEmailDialogOpen] = useState(false);
+  const [editShippingAddresses, setEditShippingAddresses] = useState<Array<{
+    label?: string; street?: string; city?: string; state?: string; zipCode?: string; country?: string;
+  }>>([]);
+  const [editCustomFields, setEditCustomFields] = useState<Record<string, string>>({});
+  const [newCustomFieldKey, setNewCustomFieldKey] = useState("");
+  const [newCustomFieldValue, setNewCustomFieldValue] = useState("");
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -193,10 +218,12 @@ export default function CompanyDetail() {
   });
 
   const updateCompanyMutation = useMutation({
-    mutationFn: async (data: Partial<CompanyFormData>) => {
-      const { linkedinUrl, twitterUrl, facebookUrl, instagramUrl, otherSocialUrl, ...rest } = data;
+    mutationFn: async (data: Partial<CompanyFormData> & { shippingAddresses?: any[]; customFields?: Record<string, string> }) => {
+      const { linkedinUrl, twitterUrl, facebookUrl, instagramUrl, otherSocialUrl, shippingAddresses, customFields, ...rest } = data;
       const formattedData = {
         ...rest,
+        ...(shippingAddresses !== undefined ? { shippingAddresses } : {}),
+        ...(customFields !== undefined ? { customFields } : {}),
         ...(linkedinUrl !== undefined || twitterUrl !== undefined || facebookUrl !== undefined || instagramUrl !== undefined || otherSocialUrl !== undefined ? {
           socialMediaLinks: {
             linkedin: linkedinUrl || "",
@@ -250,11 +277,19 @@ export default function CompanyDetail() {
       otherSocialUrl: company.socialMediaLinks?.other || "",
     });
     
+    setEditShippingAddresses(company.shippingAddresses ? [...company.shippingAddresses] : []);
+    setEditCustomFields(company.customFields ? { ...company.customFields } : {});
+    setNewCustomFieldKey("");
+    setNewCustomFieldValue("");
     setIsEditModalOpen(true);
   };
 
   const handleUpdateCompany = (data: CompanyFormData) => {
-    updateCompanyMutation.mutate(data);
+    updateCompanyMutation.mutate({
+      ...data,
+      shippingAddresses: editShippingAddresses,
+      customFields: editCustomFields,
+    } as any);
   };
 
   const formatCurrency = (amount: string | undefined) => {
@@ -464,6 +499,71 @@ export default function CompanyDetail() {
                       <p className="text-sm font-medium mb-2">Notes</p>
                       <p className="text-sm text-muted-foreground">{company.notes}</p>
                     </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Addresses */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Package className="h-5 w-5" />
+                    Addresses
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {/* Billing Address */}
+                  <div>
+                    <p className="text-sm font-medium mb-1">Billing Address</p>
+                    {company.billingAddress && (company.billingAddress.street || company.billingAddress.city || company.billingAddress.state) ? (
+                      <p className="text-sm text-muted-foreground">
+                        {[company.billingAddress.street, company.billingAddress.city, company.billingAddress.state, company.billingAddress.zipCode, company.billingAddress.country].filter(Boolean).join(', ')}
+                      </p>
+                    ) : (
+                      <p className="text-sm text-muted-foreground italic">No billing address set</p>
+                    )}
+                  </div>
+
+                  {/* Shipping Addresses */}
+                  <div>
+                    <p className="text-sm font-medium mb-1">Shipping Addresses</p>
+                    {company.shippingAddresses && company.shippingAddresses.length > 0 ? (
+                      <div className="space-y-2">
+                        {company.shippingAddresses.map((addr, idx) => (
+                          <div key={idx} className="border rounded-md p-2">
+                            {addr.label && (
+                              <p className="text-xs font-semibold text-swag-navy">{addr.label}</p>
+                            )}
+                            <p className="text-sm text-muted-foreground">
+                              {[addr.street, addr.city, addr.state, addr.zipCode, addr.country].filter(Boolean).join(', ')}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-muted-foreground italic">No shipping addresses</p>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Custom Fields */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">Custom Fields</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {company.customFields && Object.keys(company.customFields).length > 0 ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {Object.entries(company.customFields).map(([key, value]) => (
+                        <div key={key} className="border rounded-md p-2">
+                          <p className="text-xs font-medium text-muted-foreground">{key}</p>
+                          <p className="text-sm">{value}</p>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground italic">No custom fields</p>
                   )}
                 </CardContent>
               </Card>
@@ -966,6 +1066,181 @@ export default function CompanyDetail() {
                     </FormItem>
                   )}
                 />
+              </div>
+
+              {/* Shipping Addresses */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="font-medium">Shipping Addresses</h4>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setEditShippingAddresses([...editShippingAddresses, { label: "", street: "", city: "", state: "", zipCode: "", country: "US" }])}
+                  >
+                    <Plus className="h-4 w-4 mr-1" />
+                    Add Address
+                  </Button>
+                </div>
+                {editShippingAddresses.length === 0 && (
+                  <p className="text-sm text-muted-foreground italic">No shipping addresses. Click "Add Address" to add one.</p>
+                )}
+                {editShippingAddresses.map((addr, idx) => (
+                  <div key={idx} className="border rounded-lg p-3 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-medium">Address {idx + 1}</p>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="text-red-600 hover:text-red-700 hover:bg-red-50 h-7 w-7 p-0"
+                        onClick={() => {
+                          const updated = [...editShippingAddresses];
+                          updated.splice(idx, 1);
+                          setEditShippingAddresses(updated);
+                        }}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                    <Input
+                      placeholder="Label (e.g., Warehouse, HQ)"
+                      value={addr.label || ""}
+                      onChange={(e) => {
+                        const updated = [...editShippingAddresses];
+                        updated[idx] = { ...updated[idx], label: e.target.value };
+                        setEditShippingAddresses(updated);
+                      }}
+                    />
+                    <Input
+                      placeholder="Street address"
+                      value={addr.street || ""}
+                      onChange={(e) => {
+                        const updated = [...editShippingAddresses];
+                        updated[idx] = { ...updated[idx], street: e.target.value };
+                        setEditShippingAddresses(updated);
+                      }}
+                    />
+                    <div className="grid grid-cols-3 gap-2">
+                      <Input
+                        placeholder="City"
+                        value={addr.city || ""}
+                        onChange={(e) => {
+                          const updated = [...editShippingAddresses];
+                          updated[idx] = { ...updated[idx], city: e.target.value };
+                          setEditShippingAddresses(updated);
+                        }}
+                      />
+                      <Input
+                        placeholder="State"
+                        value={addr.state || ""}
+                        onChange={(e) => {
+                          const updated = [...editShippingAddresses];
+                          updated[idx] = { ...updated[idx], state: e.target.value };
+                          setEditShippingAddresses(updated);
+                        }}
+                      />
+                      <Input
+                        placeholder="ZIP"
+                        value={addr.zipCode || ""}
+                        onChange={(e) => {
+                          const updated = [...editShippingAddresses];
+                          updated[idx] = { ...updated[idx], zipCode: e.target.value };
+                          setEditShippingAddresses(updated);
+                        }}
+                      />
+                    </div>
+                    <Select
+                      value={addr.country || "US"}
+                      onValueChange={(val) => {
+                        const updated = [...editShippingAddresses];
+                        updated[idx] = { ...updated[idx], country: val };
+                        setEditShippingAddresses(updated);
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="US">United States</SelectItem>
+                        <SelectItem value="CA">Canada</SelectItem>
+                        <SelectItem value="MX">Mexico</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                ))}
+              </div>
+
+              {/* Custom Fields */}
+              <div className="space-y-3">
+                <h4 className="font-medium">Custom Fields</h4>
+                {Object.keys(editCustomFields).length > 0 && (
+                  <div className="space-y-2">
+                    {Object.entries(editCustomFields).map(([key, value]) => (
+                      <div key={key} className="flex items-center gap-2">
+                        <Input value={key} disabled className="flex-1 bg-muted" />
+                        <Input
+                          value={value}
+                          className="flex-1"
+                          onChange={(e) => {
+                            setEditCustomFields({ ...editCustomFields, [key]: e.target.value });
+                          }}
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="text-red-600 hover:text-red-700 hover:bg-red-50 h-8 w-8 p-0"
+                          onClick={() => {
+                            const updated = { ...editCustomFields };
+                            delete updated[key];
+                            setEditCustomFields(updated);
+                          }}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div className="flex items-end gap-2">
+                  <div className="flex-1">
+                    <label className="text-xs text-muted-foreground">Field Name</label>
+                    <Input
+                      placeholder="e.g., Account Manager"
+                      value={newCustomFieldKey}
+                      onChange={(e) => setNewCustomFieldKey(e.target.value)}
+                    />
+                  </div>
+                  <div className="flex-1">
+                    <label className="text-xs text-muted-foreground">Value</label>
+                    <Input
+                      placeholder="e.g., John Smith"
+                      value={newCustomFieldValue}
+                      onChange={(e) => setNewCustomFieldValue(e.target.value)}
+                    />
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-9"
+                    disabled={!newCustomFieldKey.trim()}
+                    onClick={() => {
+                      if (newCustomFieldKey.trim()) {
+                        setEditCustomFields({ ...editCustomFields, [newCustomFieldKey.trim()]: newCustomFieldValue });
+                        setNewCustomFieldKey("");
+                        setNewCustomFieldValue("");
+                      }
+                    }}
+                  >
+                    <Plus className="h-4 w-4 mr-1" />
+                    Add
+                  </Button>
+                </div>
+                {Object.keys(editCustomFields).length === 0 && (
+                  <p className="text-sm text-muted-foreground italic">No custom fields. Add key-value pairs above.</p>
+                )}
               </div>
 
               <FormField

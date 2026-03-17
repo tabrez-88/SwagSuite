@@ -610,6 +610,7 @@ export default function SalesOrderSection({ orderId, data, lockStatus }: SalesOr
           soTotal={orderItems.reduce((sum: number, item: any) => sum + (parseFloat(item.unitPrice) || 0) * (item.quantity || 0), 0)}
           quoteApprovals={quoteApprovals}
           createQuoteApproval={createQuoteApproval}
+          contacts={(contacts || []).map((c: any) => ({ id: String(c.id), firstName: c.firstName || "", lastName: c.lastName || "", email: c.email, isPrimary: c.isPrimary, title: c.title, receiveOrderEmails: c.receiveOrderEmails }))}
         />
       )}
     </div>

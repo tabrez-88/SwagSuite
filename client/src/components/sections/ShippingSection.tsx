@@ -172,13 +172,34 @@ export default function ShippingSection({ orderId, data, isLocked }: ShippingSec
       if (!res.ok) throw new Error("Failed to update shipping details");
       return res.json();
     },
+    onMutate: async ({ itemId, fields }) => {
+      // Cancel in-flight refetches so they don't overwrite our optimistic update
+      await queryClient.cancelQueries({ queryKey: [`/api/orders/${orderId}/items`] });
+
+      // Snapshot previous cache for rollback
+      const previousItems = queryClient.getQueryData([`/api/orders/${orderId}/items`]);
+
+      // Optimistically update the items cache directly
+      queryClient.setQueryData([`/api/orders/${orderId}/items`], (old: any[] | undefined) => {
+        if (!old) return old;
+        return old.map((item: any) =>
+          item.id === itemId ? { ...item, ...fields } : item
+        );
+      });
+
+      return { previousItems };
+    },
     onSuccess: () => {
-      // Don't clear overrides here — refetch is async.
-      // Overrides stay until server data catches up (harmless: same value).
+      // Refetch to ensure cache matches server
+      queryClient.invalidateQueries({ queryKey: [`/api/orders/${orderId}/items`] });
       queryClient.invalidateQueries({ queryKey: [`/api/orders/${orderId}`] });
     },
-    onError: (_err, variables) => {
-      // Revert local overrides on error so UI shows original server value
+    onError: (_err, variables, context) => {
+      // Rollback cache to previous state
+      if (context?.previousItems) {
+        queryClient.setQueryData([`/api/orders/${orderId}/items`], context.previousItems);
+      }
+      // Revert local overrides
       setLocalOverrides(prev => {
         const next = { ...prev };
         for (const field of Object.keys(variables.fields)) {

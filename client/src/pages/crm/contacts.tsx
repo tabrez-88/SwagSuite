@@ -34,6 +34,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { isUnauthorizedError } from "@/lib/authUtils";
+import { LEAD_SOURCES } from "@/lib/leadSources";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
   DropdownMenu,
@@ -55,6 +56,8 @@ import {
   MoreHorizontal,
   Truck,
   AlertTriangle,
+  Target,
+  BarChart3,
 } from "lucide-react";
 import { CRMViewToggle } from "@/components/CRMViewToggle";
 import {
@@ -78,6 +81,7 @@ interface Contact {
   phone?: string;
   title?: string;
   isPrimary?: boolean;
+  leadSource?: string;
   billingAddress?: string;
   shippingAddress?: string;
   createdAt?: string;
@@ -96,12 +100,20 @@ interface Supplier {
   name: string;
 }
 
+interface LeadSourceReport {
+  source: string;
+  contacts: number;
+  leads: number;
+  total: number;
+}
+
 const contactFormSchema = z.object({
   firstName: z.string().min(1, "First name is required"),
   lastName: z.string().min(1, "Last name is required"),
   email: z.string().email("Invalid email").optional().or(z.literal("")),
   phone: z.string().optional(),
   title: z.string().optional(),
+  leadSource: z.string().optional(),
   isPrimary: z.boolean().default(false),
   associationType: z.enum(["company", "vendor", "none"]).default("none"),
   companyId: z.string().optional(),
@@ -129,6 +141,7 @@ export default function Contacts() {
       email: "",
       phone: "",
       title: "",
+      leadSource: "",
       isPrimary: false,
       associationType: "none",
       companyId: "",
@@ -150,6 +163,10 @@ export default function Contacts() {
     queryKey: ["/api/suppliers"],
   });
 
+  const { data: leadSourceReport = [] } = useQuery<LeadSourceReport[]>({
+    queryKey: ["/api/reports/lead-sources"],
+  });
+
   const createContactMutation = useMutation({
     mutationFn: async (data: ContactFormData) => {
       const payload: Record<string, unknown> = {
@@ -158,6 +175,7 @@ export default function Contacts() {
         email: data.email || undefined,
         phone: data.phone || undefined,
         title: data.title || undefined,
+        leadSource: data.leadSource || undefined,
         isPrimary: data.isPrimary,
       };
       if (data.associationType === "company" && data.companyId) {
@@ -356,18 +374,43 @@ export default function Contacts() {
                   />
                 </div>
 
-                <FormField
-                  control={form.control}
-                  name="title"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Job Title</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Enter job title" {...field} />
-                      </FormControl>
-                    </FormItem>
-                  )}
-                />
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="title"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Job Title</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Enter job title" {...field} />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="leadSource"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Lead Source</FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select source" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {LEAD_SOURCES.map((source) => (
+                              <SelectItem key={source} value={source}>
+                                {source}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </FormItem>
+                    )}
+                  />
+                </div>
 
                 <FormField
                   control={form.control}
@@ -522,6 +565,32 @@ export default function Contacts() {
         </div>
       </div>
 
+      {/* Lead Source Summary */}
+      {leadSourceReport.length > 0 && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <BarChart3 className="w-4 h-4" />
+              Lead Sources
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+              {leadSourceReport.map((item) => (
+                <div key={item.source} className="flex flex-col items-center p-2 rounded-lg bg-muted/50 text-center">
+                  <span className="text-lg font-bold text-swag-navy">{item.total}</span>
+                  <span className="text-xs text-muted-foreground truncate w-full">{item.source}</span>
+                  <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
+                    <span>{item.contacts} contacts</span>
+                    <span>{item.leads} leads</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Contacts Display */}
       {isLoading ? (
         viewMode === 'cards' ? (
@@ -549,6 +618,7 @@ export default function Contacts() {
                     <TableHead>Company / Vendor</TableHead>
                     <TableHead>Contact Info</TableHead>
                     <TableHead>Title</TableHead>
+                    <TableHead>Lead Source</TableHead>
                     <TableHead className="w-[100px]">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -558,6 +628,7 @@ export default function Contacts() {
                       <TableCell><Skeleton className="h-4 w-32" /></TableCell>
                       <TableCell><Skeleton className="h-4 w-24" /></TableCell>
                       <TableCell><Skeleton className="h-4 w-24" /></TableCell>
+                      <TableCell><Skeleton className="h-4 w-20" /></TableCell>
                       <TableCell><Skeleton className="h-4 w-20" /></TableCell>
                       <TableCell><Skeleton className="h-4 w-8" /></TableCell>
                     </TableRow>
@@ -609,7 +680,15 @@ export default function Contacts() {
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-3">
-                    {getAssociationBadge(contact)}
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {getAssociationBadge(contact)}
+                      {contact.leadSource && (
+                        <Badge variant="outline" className="text-xs gap-1 bg-blue-50 text-blue-700 border-blue-200">
+                          <Target className="h-3 w-3" />
+                          {contact.leadSource}
+                        </Badge>
+                      )}
+                    </div>
 
                     <div className="space-y-2">
                       {contact.email && (
@@ -654,6 +733,7 @@ export default function Contacts() {
                       <TableHead>Company / Vendor</TableHead>
                       <TableHead>Contact Info</TableHead>
                       <TableHead>Title</TableHead>
+                      <TableHead>Lead Source</TableHead>
                       <TableHead className="w-[100px]">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -699,6 +779,16 @@ export default function Contacts() {
                           <span className="text-sm text-muted-foreground">
                             {contact.title || "-"}
                           </span>
+                        </TableCell>
+                        <TableCell>
+                          {contact.leadSource ? (
+                            <Badge variant="outline" className="text-xs gap-1 bg-blue-50 text-blue-700 border-blue-200">
+                              <Target className="h-3 w-3" />
+                              {contact.leadSource}
+                            </Badge>
+                          ) : (
+                            <span className="text-sm text-muted-foreground">-</span>
+                          )}
                         </TableCell>
                         <TableCell>
                           <DropdownMenu>

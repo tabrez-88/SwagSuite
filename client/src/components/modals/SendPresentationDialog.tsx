@@ -1,19 +1,16 @@
-import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Loader2, Send } from "lucide-react";
+import { Send } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import EmailComposer from "@/components/email/EmailComposer";
+import type { EmailContact, EmailFormData } from "@/components/email/types";
 
 interface SendPresentationDialogProps {
   open: boolean;
@@ -23,47 +20,41 @@ interface SendPresentationDialogProps {
   recipientName: string;
   companyName: string;
   orderNumber: string;
+  contacts?: EmailContact[];
 }
 
 export default function SendPresentationDialog({
-  open, onOpenChange, orderId, recipientEmail, recipientName, companyName, orderNumber,
+  open, onOpenChange, orderId, recipientEmail, recipientName, companyName, orderNumber, contacts,
 }: SendPresentationDialogProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const [to, setTo] = useState(recipientEmail);
-  const [subject, setSubject] = useState(`Product Presentation from ${companyName}`);
-  const [body, setBody] = useState(
-    `Hi ${recipientName.split(" ")[0] || "there"},\n\nPlease find our product presentation for your upcoming project. Click the link below to view and comment on the products.\n\nWe look forward to your feedback!\n\nBest regards,\n${companyName}`
-  );
-
   const sendMutation = useMutation({
-    mutationFn: async () => {
-      // 1. Ensure share link exists
+    mutationFn: async (formData: EmailFormData & { adHocEmails: string[] }) => {
       const linkRes = await apiRequest("POST", `/api/orders/${orderId}/presentation/share-link`);
       const linkData = await linkRes.json();
       const presentationUrl = linkData.url;
 
-      // 2. Send email via communications endpoint
-      const emailBody = `${body}\n\n---\nView Presentation: ${presentationUrl}`;
+      const emailBody = `${formData.body}\n\n---\nView Presentation: ${presentationUrl}`;
 
       await apiRequest("POST", `/api/orders/${orderId}/communications`, {
         communicationType: "client_email",
         direction: "sent",
-        recipientEmail: to,
-        recipientName,
-        subject,
+        recipientEmail: formData.to,
+        recipientName: formData.toName || recipientName,
+        subject: formData.subject,
         body: emailBody,
+        cc: formData.cc || undefined,
+        bcc: formData.bcc || undefined,
         metadata: { type: "presentation", presentationUrl },
       });
 
-      // 3. Auto-set status to client_review
       await apiRequest("PATCH", `/api/orders/${orderId}`, {
         presentationStatus: "client_review",
       });
     },
     onSuccess: () => {
-      toast({ title: "Presentation sent!", description: `Email sent to ${to}` });
+      toast({ title: "Presentation sent!", description: "Email sent successfully." });
       queryClient.invalidateQueries({ queryKey: [`/api/orders/${orderId}`] });
       onOpenChange(false);
     },
@@ -74,7 +65,7 @@ export default function SendPresentationDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Send className="w-5 h-5" />
@@ -85,37 +76,21 @@ export default function SendPresentationDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 py-2">
-          <div>
-            <label className="text-xs font-medium text-gray-500 block mb-1">To</label>
-            <Input value={to} onChange={(e) => setTo(e.target.value)} placeholder="client@example.com" />
-          </div>
-          <div>
-            <label className="text-xs font-medium text-gray-500 block mb-1">Subject</label>
-            <Input value={subject} onChange={(e) => setSubject(e.target.value)} />
-          </div>
-          <div>
-            <label className="text-xs font-medium text-gray-500 block mb-1">Message</label>
-            <Textarea
-              value={body}
-              onChange={(e) => setBody(e.target.value)}
-              className="min-h-[160px] resize-none text-sm"
-            />
-            <p className="text-xs text-gray-400 mt-1">The presentation link will be automatically added to the email.</p>
-          </div>
-        </div>
-
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button
-            onClick={() => sendMutation.mutate()}
-            disabled={sendMutation.isPending || !to.trim()}
-            className="gap-1"
-          >
-            {sendMutation.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
-            Send Email
-          </Button>
-        </DialogFooter>
+        <EmailComposer
+          contacts={contacts}
+          defaults={{
+            to: recipientEmail,
+            toName: recipientName,
+            subject: `Product Presentation from ${companyName}`,
+            body: `Hi ${recipientName.split(" ")[0] || "there"},\n\nPlease find our product presentation for your upcoming project. Click the link below to view and comment on the products.\n\nWe look forward to your feedback!\n\nBest regards,\n${companyName}`,
+          }}
+          showAdvancedFields
+          footerHint="The presentation link will be automatically added to the email."
+          onSend={(data) => sendMutation.mutate(data)}
+          isSending={sendMutation.isPending}
+          onCancel={() => onOpenChange(false)}
+          resetTrigger={open}
+        />
       </DialogContent>
     </Dialog>
   );

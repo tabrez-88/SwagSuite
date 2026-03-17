@@ -2188,6 +2188,61 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Lead source report — aggregate from contacts + leads
+  app.get('/api/reports/lead-sources', isAuthenticated, async (req, res) => {
+    try {
+      const { contacts, leads } = await import("@shared/schema");
+      const { db } = await import("./db");
+      const { sql, isNotNull } = await import("drizzle-orm");
+
+      // Count contacts by lead source
+      const contactCounts = await db
+        .select({
+          source: contacts.leadSource,
+          count: sql<number>`count(*)::int`,
+        })
+        .from(contacts)
+        .where(isNotNull(contacts.leadSource))
+        .groupBy(contacts.leadSource);
+
+      // Count leads by source
+      const leadCounts = await db
+        .select({
+          source: leads.source,
+          count: sql<number>`count(*)::int`,
+        })
+        .from(leads)
+        .groupBy(leads.source);
+
+      // Merge counts
+      const sourceMap = new Map<string, { contacts: number; leads: number }>();
+      for (const row of contactCounts) {
+        if (row.source) {
+          sourceMap.set(row.source, { contacts: row.count, leads: 0 });
+        }
+      }
+      for (const row of leadCounts) {
+        if (row.source) {
+          const existing = sourceMap.get(row.source) || { contacts: 0, leads: 0 };
+          existing.leads = row.count;
+          sourceMap.set(row.source, existing);
+        }
+      }
+
+      const results = Array.from(sourceMap.entries()).map(([source, counts]) => ({
+        source,
+        contacts: counts.contacts,
+        leads: counts.leads,
+        total: counts.contacts + counts.leads,
+      })).sort((a, b) => b.total - a.total);
+
+      res.json(results);
+    } catch (error) {
+      console.error("Error fetching lead source report:", error);
+      res.status(500).json({ message: "Failed to fetch lead source report" });
+    }
+  });
+
 
   // Order routes
   app.get('/api/orders', isAuthenticated, async (req, res) => {
@@ -11358,13 +11413,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const invoice = await storage.getInvoiceByOrderId(req.params.id);
       if (!invoice) return res.status(404).json({ message: "Invoice not found" });
 
-      const { status, dueDate, taxAmount, totalAmount, notes } = req.body;
+      const { status, dueDate, taxAmount, totalAmount, notes, sentAt, reminderEnabled, reminderFrequencyDays, nextReminderDate, lastReminderSentAt } = req.body;
       const updates: any = {};
       if (status !== undefined) updates.status = status;
       if (dueDate !== undefined) updates.dueDate = new Date(dueDate);
       if (taxAmount !== undefined) updates.taxAmount = taxAmount;
       if (totalAmount !== undefined) updates.totalAmount = totalAmount;
       if (notes !== undefined) updates.notes = notes;
+      if (sentAt !== undefined) updates.sentAt = new Date(sentAt);
+      if (reminderEnabled !== undefined) updates.reminderEnabled = reminderEnabled;
+      if (reminderFrequencyDays !== undefined) updates.reminderFrequencyDays = reminderFrequencyDays;
+      if (nextReminderDate !== undefined) updates.nextReminderDate = new Date(nextReminderDate);
+      if (lastReminderSentAt !== undefined) updates.lastReminderSentAt = new Date(lastReminderSentAt);
 
       const updated = await storage.updateInvoice(invoice.id, updates);
       res.json(updated);
