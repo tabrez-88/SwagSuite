@@ -3,7 +3,14 @@ import { QueryClient, QueryFunction, QueryCache, MutationCache } from "@tanstack
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
     const text = (await res.text()) || res.statusText;
-    throw new Error(`${res.status}: ${text}`);
+    let message = text;
+    try {
+      const json = JSON.parse(text);
+      if (json.message) message = json.message;
+    } catch {
+      // not JSON, use raw text
+    }
+    throw new Error(`${res.status}: ${message}`);
   }
 }
 

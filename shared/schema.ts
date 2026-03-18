@@ -42,6 +42,9 @@ export const users = pgTable("users", {
   lastLoginAt: timestamp("last_login_at"),
   emailReportsEnabled: boolean("email_reports_enabled").default(true),
   lastEmailReportSent: timestamp("last_email_report_sent"),
+  twoFactorEnabled: boolean("two_factor_enabled").default(false),
+  twoFactorSecret: varchar("two_factor_secret"), // AES-256-GCM encrypted
+  twoFactorBackupCodes: jsonb("two_factor_backup_codes"), // hashed backup codes
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

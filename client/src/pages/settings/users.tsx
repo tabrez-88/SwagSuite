@@ -40,6 +40,7 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { isUnauthorizedError } from "@/lib/authUtils";
 import { Shield, Users, Crown, User as UserIcon, UserPlus, Mail, Copy, Camera } from "lucide-react";
+import TwoFactorSettings from "@/components/settings/TwoFactorSettings";
 import { Skeleton } from "@/components/ui/skeleton";
 import FilePickerDialog from "@/components/modals/FilePickerDialog";
 import { UserAvatar } from "@/components/UserAvatar";
@@ -401,6 +402,9 @@ export default function UsersPage() {
           </CardContent>
         </Card>
       )}
+
+      {/* Two-Factor Authentication */}
+      {currentUser && <TwoFactorSettings />}
 
       <FilePickerDialog
         open={showAvatarPicker}

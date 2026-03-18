@@ -148,6 +148,12 @@ export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
   upsertUser(user: UpsertUser): Promise<User>;
 
+  // Two-Factor Authentication
+  setTwoFactorSecret(userId: string, encryptedSecret: string): Promise<void>;
+  enableTwoFactor(userId: string): Promise<void>;
+  disableTwoFactor(userId: string): Promise<void>;
+  setTwoFactorBackupCodes(userId: string, codes: { hash: string; used: boolean }[]): Promise<void>;
+
   // Company operations
   getCompanies(): Promise<Company[]>;
   getCompany(id: string): Promise<Company | undefined>;
@@ -2874,6 +2880,43 @@ export class DatabaseStorage implements IStorage {
       .select()
       .from(users)
       .orderBy(desc(users.createdAt));
+  }
+
+  // Two-Factor Authentication methods
+  async setTwoFactorSecret(userId: string, encryptedSecret: string): Promise<void> {
+    await db
+      .update(users)
+      .set({ twoFactorSecret: encryptedSecret, updatedAt: new Date() })
+      .where(eq(users.id, userId));
+  }
+
+  async enableTwoFactor(userId: string): Promise<void> {
+    await db
+      .update(users)
+      .set({ twoFactorEnabled: true, updatedAt: new Date() })
+      .where(eq(users.id, userId));
+  }
+
+  async disableTwoFactor(userId: string): Promise<void> {
+    await db
+      .update(users)
+      .set({
+        twoFactorEnabled: false,
+        twoFactorSecret: null,
+        twoFactorBackupCodes: null,
+        updatedAt: new Date(),
+      })
+      .where(eq(users.id, userId));
+  }
+
+  async setTwoFactorBackupCodes(
+    userId: string,
+    codes: { hash: string; used: boolean }[]
+  ): Promise<void> {
+    await db
+      .update(users)
+      .set({ twoFactorBackupCodes: codes, updatedAt: new Date() })
+      .where(eq(users.id, userId));
   }
 
   async getSupplierBySageId(sageId: string): Promise<Supplier | undefined> {

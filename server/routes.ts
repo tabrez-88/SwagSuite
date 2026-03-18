@@ -493,7 +493,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.log(`Auto-registered user ${userId} with role ${role}`);
       }
 
-      res.json(user);
+      // Strip sensitive 2FA fields from response
+      const { twoFactorSecret, twoFactorBackupCodes, password, ...safeUser } = user as any;
+      res.json(safeUser);
     } catch (error) {
       console.error("Error fetching user:", error);
       res.status(500).json({ message: "Failed to fetch user" });

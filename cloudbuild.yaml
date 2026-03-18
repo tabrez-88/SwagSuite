@@ -62,6 +62,8 @@ steps:
       - '300'
       - '--update-env-vars'
       - 'NODE_ENV=production,QB_ENVIRONMENT=sandbox,DEFAULT_USER_ROLE=admin'
+      - '--update-secrets'
+      - 'TWO_FACTOR_ENCRYPTION_KEY=TWO_FACTOR_ENCRYPTION_KEY:latest'
     id: 'deploy-cloud-run'
     waitFor: ['push-image']
 

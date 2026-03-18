@@ -155,6 +155,13 @@
       "when": 1741484400000,
       "tag": "0021_add_artwork_proof_fields",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1742256000000,
+      "tag": "0034_two_factor_auth",
+      "breakpoints": true
     }
   ]
 }

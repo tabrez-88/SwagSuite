@@ -11,6 +11,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Shield, Mail, Calendar, User as UserIcon, Crown, CheckCircle2, XCircle, Sparkles, Camera, Upload, Settings } from "lucide-react";
+import TwoFactorSettings from "@/components/settings/TwoFactorSettings";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
@@ -371,6 +372,9 @@ export default function ProfilePage() {
             </Card>
 
             <MailCredentialsDialog open={mailCredentialsOpen} onOpenChange={setMailCredentialsOpen} />
+
+            {/* Two-Factor Authentication */}
+            <TwoFactorSettings />
 
             {/* Permissions */}
             <Card>
