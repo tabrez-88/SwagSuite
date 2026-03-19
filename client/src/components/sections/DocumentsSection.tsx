@@ -1,4 +1,4 @@
-import { DocumentsTab } from "@/components/DocumentsTab";
+import { DocumentsTab } from "@/components/feature/DocumentsTab";
 import type { ProjectData } from "@/types/project-types";
 
 interface DocumentsSectionProps {

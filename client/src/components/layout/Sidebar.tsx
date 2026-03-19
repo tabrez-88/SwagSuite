@@ -21,7 +21,7 @@ import {
   ShieldAlert,
   FolderOpen,
 } from "lucide-react";
-import { PacmanGame } from "./PacmanGame";
+import { PacmanGame } from "@/components/shared/PacmanGame";
 import { useTheme } from "@/providers/ThemeProvider";
 import {
   Sidebar as SidebarRoot,

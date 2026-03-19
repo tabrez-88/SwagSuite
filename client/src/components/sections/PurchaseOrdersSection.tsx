@@ -29,12 +29,12 @@ import type { OrderItemLine } from "@shared/schema";
 import { useDocumentGeneration, buildItemsHash } from "@/hooks/useDocumentGeneration";
 import PurchaseOrderTemplate from "@/components/documents/PurchaseOrderTemplate";
 import GeneratedDocumentCard from "@/components/documents/GeneratedDocumentCard";
-import { DocumentEditor } from "@/components/DocumentEditor";
+import { DocumentEditor } from "@/components/feature/DocumentEditor";
 import FilePickerDialog from "@/components/modals/FilePickerDialog";
 import { FilePreviewModal } from "@/components/modals/FilePreviewModal";
 import { useProductionStages } from "@/hooks/useProductionStages";
 import { useInlineEdit } from "@/hooks/useInlineEdit";
-import { EditableDate } from "@/components/InlineEditable";
+import { EditableDate } from "@/components/shared/InlineEditable";
 
 interface PurchaseOrdersSectionProps {
   orderId: string;

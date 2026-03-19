@@ -49,7 +49,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import type { OrderItemLine } from "@shared/schema";
 import type { useProjectData } from "../hooks/useProjectData";
-import { IMPRINT_LOCATIONS, IMPRINT_METHODS } from "@/lib/imprintOptions";
+import { IMPRINT_LOCATIONS, IMPRINT_METHODS } from "@/constants/imprintOptions";
 import FilePickerDialog from "@/components/modals/FilePickerDialog";
 import StageConversionDialog from "../components/StageConversionDialog";
 import SendPresentationDialog from "@/components/modals/SendPresentationDialog";

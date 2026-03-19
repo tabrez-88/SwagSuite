@@ -1,15 +1,15 @@
 import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useToast } from "@/hooks/use-toast";
-import { apiRequest } from "@/lib/queryClient";
-import { isUnauthorizedError } from "@/lib/authUtils";
 import { Box, Search, Plus, DollarSign, Package, Database, ShoppingCart, Trash2, TrendingUp, Eye, Edit, AlertTriangle } from "lucide-react";
+import { useDeleteProduct } from "@/services/products";
+import { supplierKeys } from "@/services/suppliers/keys";
+import { productKeys } from "@/services/products/keys";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -25,7 +25,7 @@ import { ProductIntegrations } from "@/components/integrations/ProductIntegratio
 import { SsActivewearIntegration } from "@/components/integrations/SsActivewearIntegration";
 import { SageIntegration } from "@/components/integrations/SageIntegration";
 import { SanmarIntegration } from "@/components/integrations/SanmarIntegration";
-import { PopularProducts } from "@/components/PopularProducts";
+import { PopularProducts } from "@/components/shared/PopularProducts";
 import { ProductDetailModal } from "@/components/modals/ProductDetailModal";
 
 interface Product {
@@ -81,49 +81,15 @@ export default function Products() {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [productToDelete, setProductToDelete] = useState<Product | null>(null);
 
-  const { toast } = useToast();
-  const queryClient = useQueryClient();
-
   const { data: products = [], isLoading } = useQuery<Product[]>({
-    queryKey: ["/api/products"],
+    queryKey: productKeys.all,
   });
 
   const { data: suppliers = [] } = useQuery<Supplier[]>({
-    queryKey: ["/api/suppliers"],
+    queryKey: supplierKeys.all,
   });
 
-  const deleteProductMutation = useMutation({
-    mutationFn: async (productId: string) => {
-      return await apiRequest("DELETE", `/api/products/${productId}`);
-    },
-    onSuccess: () => {
-      toast({
-        title: "Success",
-        description: "Product deleted successfully",
-      });
-      queryClient.invalidateQueries({ queryKey: ["/api/products"] });
-      setIsDeleteDialogOpen(false);
-      setProductToDelete(null);
-    },
-    onError: (error) => {
-      if (isUnauthorizedError(error)) {
-        toast({
-          title: "Unauthorized",
-          description: "You are logged out. Logging in again...",
-          variant: "destructive",
-        });
-        setTimeout(() => {
-          window.location.href = "/api/login";
-        }, 500);
-        return;
-      }
-      toast({
-        title: "Error",
-        description: "Failed to delete product. Please try again.",
-        variant: "destructive",
-      });
-    },
-  });
+  const deleteProductMutation = useDeleteProduct();
 
   const handleDeleteProduct = (product: Product) => {
     setProductToDelete(product);
@@ -443,7 +409,9 @@ export default function Products() {
             <AlertDialogAction
               onClick={() => {
                 if (productToDelete) {
-                  deleteProductMutation.mutate(productToDelete.id);
+                  deleteProductMutation.mutate(productToDelete.id, {
+                    onSuccess: () => { setIsDeleteDialogOpen(false); setProductToDelete(null); },
+                  });
                 }
               }}
               className="bg-red-600 hover:bg-red-700 focus:ring-red-600"

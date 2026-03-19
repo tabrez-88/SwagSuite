@@ -13,9 +13,9 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { DataTableColumnHeader } from "@/components/data-table/data-table-column-header";
-import { UserAvatar } from "@/components/UserAvatar";
-import { StageBadge } from "@/components/StageBadge";
-import { determineBusinessStage, STAGE_ORDER, type DeterminedStage } from "@/lib/businessStages";
+import { UserAvatar } from "@/components/shared/UserAvatar";
+import { StageBadge } from "@/components/shared/StageBadge";
+import { determineBusinessStage, STAGE_ORDER, type DeterminedStage } from "@/constants/businessStages";
 import type { Order } from "@shared/schema";
 
 export type OrderWithRelations = Order & {

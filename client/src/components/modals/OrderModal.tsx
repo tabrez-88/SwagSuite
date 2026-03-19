@@ -40,7 +40,7 @@ import type { Company, Order } from "@shared/schema";
 import { Separator } from "@/components/ui/separator";
 import { Checkbox } from "@/components/ui/checkbox";
 import { AddressAutocomplete } from "@/components/ui/address-autocomplete";
-import type { BusinessStage } from "@/lib/businessStages";
+import type { BusinessStage } from "@/constants/businessStages";
 
 // Normalize various country name/code formats to standard 2-letter codes
 function normalizeCountryCode(country: string): string {

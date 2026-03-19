@@ -1,9 +1,7 @@
 import { useState } from "react";
 import * as React from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
 import {
   User,
   Plus,
@@ -48,10 +46,10 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { useToast } from "@/hooks/use-toast";
-import { apiRequest } from "@/lib/queryClient";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Separator } from "./ui/separator";
+import { contactManagerFormSchema as contactFormSchema, type ContactManagerFormData as ContactFormData } from "@/schemas/crm.schemas";
+import { normalizeCountryCode } from "@/lib/address";
+import { Separator } from "@/components/ui/separator";
 import { Checkbox } from "@/components/ui/checkbox";
 import { AddressAutocomplete } from "@/components/ui/address-autocomplete";
 import {
@@ -61,61 +59,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-
-interface Contact {
-  id: string;
-  companyId: string;
-  firstName: string;
-  lastName: string;
-  email?: string;
-  phone?: string;
-  title?: string;
-  isPrimary: boolean;
-  billingAddress?: string;
-  shippingAddress?: string;
-  createdAt?: string;
-  updatedAt?: string;
-}
-
-// Normalize various country name/code formats to standard 2-letter codes
-function normalizeCountryCode(country: string): string {
-  if (!country) return "US";
-  const c = country.trim().toUpperCase();
-  if (c === "US" || c === "CA" || c === "MX") return c;
-  const mapping: Record<string, string> = {
-    "USA": "US", "U.S.": "US", "U.S.A.": "US",
-    "UNITED STATES": "US", "UNITED STATES OF AMERICA": "US",
-    "CANADA": "CA", "CAN": "CA",
-    "MEXICO": "MX", "MEX": "MX", "MÉXICO": "MX",
-  };
-  return mapping[c] || "US";
-}
+import {
+  useContactsByCompany,
+  useCreateCompanyContact,
+  useUpdateContact,
+  useDeleteContact,
+} from "@/services/contacts";
+import type { Contact } from "@/services/contacts";
 
 interface ContactsManagerProps {
   companyId: string;
   companyName?: string;
 }
-
-const contactFormSchema = z.object({
-  firstName: z.string().min(1, "First name is required"),
-  lastName: z.string().min(1, "Last name is required"),
-  email: z.string().email("Invalid email address").optional().or(z.literal("")),
-  phone: z.string().optional(),
-  title: z.string().optional(),
-  isPrimary: z.boolean().default(false),
-  billingStreet: z.string().optional(),
-  billingCity: z.string().optional(),
-  billingState: z.string().optional(),
-  billingZipCode: z.string().optional(),
-  billingCountry: z.string().optional(),
-  shippingStreet: z.string().optional(),
-  shippingCity: z.string().optional(),
-  shippingState: z.string().optional(),
-  shippingZipCode: z.string().optional(),
-  shippingCountry: z.string().optional(),
-});
-
-type ContactFormData = z.infer<typeof contactFormSchema>;
 
 // Move ContactFormFields outside to prevent re-creation on every render
 const ContactFormFields = ({ form, sameAsBilling, setSameAsBilling }: { form: any; sameAsBilling: boolean; setSameAsBilling: (value: boolean) => void }) => (
@@ -433,8 +388,6 @@ export function ContactsManager({ companyId, companyName }: ContactsManagerProps
   const [sameAsBillingEdit, setSameAsBillingEdit] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [contactToDelete, setContactToDelete] = useState<Contact | null>(null);
-  const { toast } = useToast();
-  const queryClient = useQueryClient();
 
   // Separate forms for create and edit to prevent focus issues
   const createForm = useForm<ContactFormData>({
@@ -515,167 +468,30 @@ export function ContactsManager({ companyId, companyName }: ContactsManagerProps
     }
   }, [sameAsBillingCreate, billingStreetCreate, billingCityCreate, billingStateCreate, billingZipCodeCreate, billingCountryCreate, createForm]);
 
-  const { data: contacts = [], isLoading } = useQuery<Contact[]>({
-    queryKey: ["/api/contacts", companyId],
-    queryFn: async () => {
-      const response = await fetch(`/api/contacts?companyId=${companyId}`);
-      if (!response.ok) throw new Error("Failed to fetch contacts");
-      return response.json();
-    },
-    enabled: !!companyId,
-  });
+  const { data: contacts = [], isLoading } = useContactsByCompany(companyId);
 
-  const createContactMutation = useMutation({
-    mutationFn: async (data: ContactFormData) => {
-      // Convert address fields to JSON
-      const payload: any = {
-        firstName: data.firstName,
-        lastName: data.lastName,
-        email: data.email,
-        phone: data.phone,
-        title: data.title,
-        isPrimary: data.isPrimary,
-        companyId,
-      };
-
-      // Build billing address JSON if any field is filled
-      if (data.billingStreet || data.billingCity || data.billingState || data.billingZipCode || data.billingCountry) {
-        payload.billingAddress = JSON.stringify({
-          street: data.billingStreet || "",
-          city: data.billingCity || "",
-          state: data.billingState || "",
-          zipCode: data.billingZipCode || "",
-          country: data.billingCountry || "",
-          phone: "",
-        });
-      }
-
-      // Build shipping address JSON if any field is filled
-      if (data.shippingStreet || data.shippingCity || data.shippingState || data.shippingZipCode || data.shippingCountry) {
-        payload.shippingAddress = JSON.stringify({
-          street: data.shippingStreet || "",
-          city: data.shippingCity || "",
-          state: data.shippingState || "",
-          zipCode: data.shippingZipCode || "",
-          country: data.shippingCountry || "",
-          phone: "",
-        });
-      }
-
-      const response = await apiRequest("POST", "/api/contacts", payload);
-      return response.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/contacts", companyId] });
-      queryClient.invalidateQueries({ queryKey: ["/api/companies"] });
-      setIsCreateModalOpen(false);
-      createForm.reset();
-      toast({
-        title: "Contact created",
-        description: "The contact has been successfully added.",
-      });
-    },
-    onError: (error) => {
-      toast({
-        title: "Error",
-        description: `Failed to create contact: ${error.message}`,
-        variant: "destructive",
-      });
-    },
-  });
-
-  const updateContactMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: string; data: Partial<ContactFormData> }) => {
-      console.log('Updating contact:', id, 'with data:', data);
-
-      // Convert address fields to JSON
-      const payload: any = {
-        firstName: data.firstName,
-        lastName: data.lastName,
-        email: data.email,
-        phone: data.phone,
-        title: data.title,
-        isPrimary: data.isPrimary,
-      };
-
-      // Build billing address JSON if any field is filled
-      if (data.billingStreet || data.billingCity || data.billingState || data.billingZipCode || data.billingCountry) {
-        payload.billingAddress = JSON.stringify({
-          street: data.billingStreet || "",
-          city: data.billingCity || "",
-          state: data.billingState || "",
-          zipCode: data.billingZipCode || "",
-          country: data.billingCountry || "",
-          phone: "",
-        });
-      }
-
-      // Build shipping address JSON if any field is filled
-      if (data.shippingStreet || data.shippingCity || data.shippingState || data.shippingZipCode || data.shippingCountry) {
-        payload.shippingAddress = JSON.stringify({
-          street: data.shippingStreet || "",
-          city: data.shippingCity || "",
-          state: data.shippingState || "",
-          zipCode: data.shippingZipCode || "",
-          country: data.shippingCountry || "",
-          phone: "",
-        });
-      }
-
-      const response = await apiRequest("PATCH", `/api/contacts/${id}`, payload);
-      return response.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/contacts", companyId] });
-      queryClient.invalidateQueries({ queryKey: ["/api/companies"] });
-      setIsEditModalOpen(false);
-      setSelectedContact(null);
-      editForm.reset();
-      toast({
-        title: "Contact updated",
-        description: "The contact has been successfully updated.",
-      });
-    },
-    onError: (error: Error) => {
-      console.error('Update contact error:', error);
-      toast({
-        title: "Error",
-        description: error.message || "Failed to update contact. Please try again.",
-        variant: "destructive",
-      });
-    },
-  });
-
-  const deleteContactMutation = useMutation({
-    mutationFn: async (id: string) => {
-      await apiRequest("DELETE", `/api/contacts/${id}`);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/contacts", companyId] });
-      queryClient.invalidateQueries({ queryKey: ["/api/companies"] });
-      toast({
-        title: "Contact deleted",
-        description: "The contact has been successfully deleted.",
-      });
-      setIsDeleteDialogOpen(false);
-      setContactToDelete(null);
-    },
-    onError: (error) => {
-      toast({
-        title: "Error",
-        description: "Failed to delete contact. Please try again.",
-        variant: "destructive",
-      });
-    },
-  });
+  const createContactMutation = useCreateCompanyContact(companyId);
+  const updateContactMutation = useUpdateContact(companyId);
+  const deleteContactMutation = useDeleteContact({ companyId });
 
   const handleCreateContact = (data: ContactFormData) => {
-    createContactMutation.mutate(data);
+    createContactMutation.mutate({ companyId, data }, {
+      onSuccess: () => {
+        setIsCreateModalOpen(false);
+        createForm.reset();
+      },
+    });
   };
 
   const handleUpdateContact = (data: ContactFormData) => {
     if (selectedContact) {
-      updateContactMutation.mutate({ id: selectedContact.id, data });
+      updateContactMutation.mutate({ id: selectedContact.id, data }, {
+        onSuccess: () => {
+          setIsEditModalOpen(false);
+          setSelectedContact(null);
+          editForm.reset();
+        },
+      });
     }
   };
 
@@ -989,7 +805,12 @@ export function ContactsManager({ companyId, companyName }: ContactsManagerProps
             <AlertDialogAction
               onClick={() => {
                 if (contactToDelete) {
-                  deleteContactMutation.mutate(contactToDelete.id);
+                  deleteContactMutation.mutate(contactToDelete.id, {
+                    onSuccess: () => {
+                      setIsDeleteDialogOpen(false);
+                      setContactToDelete(null);
+                    },
+                  });
                 }
               }}
               className="bg-red-600 hover:bg-red-700 focus:ring-red-600"

@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -48,10 +47,24 @@ import {
   EyeOff,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { apiRequest } from "@/lib/queryClient";
+import { useQueryClient } from "@tanstack/react-query";
 import type { ProjectData } from "@/types/project-types";
+import {
+  useDeleteOrderItem,
+  useUpdateOrderItem,
+  useUpdateLine,
+  useDeleteLine,
+  useAddLine,
+  useAddCharge,
+  useDeleteCharge,
+  useToggleChargeDisplay,
+  useCreateArtwork,
+  useDeleteArtwork,
+} from "@/services/order-items";
+import * as orderItemRequests from "@/services/order-items/requests";
+import { orderKeys } from "@/services/orders/keys";
 import type { OrderItemLine, OrderAdditionalCharge } from "@shared/schema";
-import { IMPRINT_LOCATIONS, IMPRINT_METHODS } from "@/lib/imprintOptions";
+import { IMPRINT_LOCATIONS, IMPRINT_METHODS } from "@/constants/imprintOptions";
 import FilePickerDialog from "@/components/modals/FilePickerDialog";
 import { useMarginSettings, marginColorClass, marginBgClass, isBelowMinimum, calcMarginPercent, applyMargin } from "@/hooks/useMarginSettings";
 
@@ -129,163 +142,17 @@ export default function ProductsSection({ orderId, data, isLocked }: ProductsSec
     });
   };
 
-  // ── Mutations ──
-
-  const deleteOrderItemMutation = useMutation({
-    mutationFn: async (orderItemId: string) => {
-      const response = await fetch(`/api/orders/${orderId}/items/${orderItemId}`, { method: "DELETE", credentials: "include" });
-      if (!response.ok) throw new Error("Failed to delete order item");
-    },
-    onSuccess: () => {
-      invalidateAll();
-      setIsDeleteDialogOpen(false);
-      setDeletingProduct(null);
-      toast({ title: "Item removed", description: "Product has been removed from this order." });
-    },
-    onError: () => {
-      setIsDeleteDialogOpen(false);
-      toast({ title: "Failed to remove item", variant: "destructive" });
-    },
-  });
-
-  const updateOrderItemMutation = useMutation({
-    mutationFn: async ({ itemId, updates }: { itemId: string; updates: any }) => {
-      const res = await fetch(`/api/orders/${orderId}/items/${itemId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify(updates),
-      });
-      if (!res.ok) throw new Error("Failed to update order item");
-      return res.json();
-    },
-    onSuccess: () => {
-      invalidateAll();
-      setEditingItem(null);
-      toast({ title: "Item updated", description: "Product details have been saved." });
-    },
-    onError: () => toast({ title: "Failed to update item", variant: "destructive" }),
-  });
-
-  const updateLineMutation = useMutation({
-    mutationFn: async ({ lineId, orderItemId, updates }: { lineId: string; orderItemId: string; updates: any }) => {
-      const res = await fetch(`/api/order-items/${orderItemId}/lines/${lineId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(updates),
-      });
-      if (!res.ok) throw new Error("Failed to update line");
-      return res.json();
-    },
-    onSuccess: () => {
-      invalidateAll();
-      setEditingLine(null);
-      toast({ title: "Line updated" });
-    },
-    onError: () => toast({ title: "Failed to update line", variant: "destructive" }),
-  });
-
-  const deleteLineMutation = useMutation({
-    mutationFn: async ({ lineId, orderItemId }: { lineId: string; orderItemId: string }) => {
-      const res = await fetch(`/api/order-items/${orderItemId}/lines/${lineId}`, { method: "DELETE" });
-      if (!res.ok) throw new Error("Failed to delete line");
-    },
-    onSuccess: () => {
-      invalidateAll();
-      toast({ title: "Line removed" });
-    },
-    onError: () => toast({ title: "Failed to remove line", variant: "destructive" }),
-  });
-
-  const addChargeMutation = useMutation({
-    mutationFn: async ({ orderItemId, charge }: { orderItemId: string; charge: any }) => {
-      const res = await fetch(`/api/order-items/${orderItemId}/charges`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...charge, orderItemId }),
-      });
-      if (!res.ok) throw new Error("Failed to add charge");
-      return res.json();
-    },
-    onSuccess: () => {
-      invalidateAll();
-      setAddChargeForItem(null);
-      setNewCharge({ description: "", chargeType: "flat", amount: 0, isVendorCharge: false, displayToClient: true });
-      toast({ title: "Charge added" });
-    },
-    onError: () => toast({ title: "Failed to add charge", variant: "destructive" }),
-  });
-
-  const deleteChargeMutation = useMutation({
-    mutationFn: async ({ chargeId, orderItemId }: { chargeId: string; orderItemId: string }) => {
-      const res = await fetch(`/api/order-items/${orderItemId}/charges/${chargeId}`, { method: "DELETE" });
-      if (!res.ok) throw new Error("Failed to delete charge");
-    },
-    onSuccess: () => {
-      invalidateAll();
-      toast({ title: "Charge removed" });
-    },
-    onError: () => toast({ title: "Failed to remove charge", variant: "destructive" }),
-  });
-
-  const toggleChargeDisplayMutation = useMutation({
-    mutationFn: async ({ chargeId, orderItemId, displayToClient }: { chargeId: string; orderItemId: string; displayToClient: boolean }) => {
-      const res = await apiRequest("PATCH", `/api/order-items/${orderItemId}/charges/${chargeId}`, { displayToClient });
-      if (!res.ok) throw new Error("Failed to update charge");
-    },
-    onSuccess: () => invalidateAll(),
-    onError: () => toast({ title: "Failed to update charge", variant: "destructive" }),
-  });
-
-  const addLineMutation = useMutation({
-    mutationFn: async ({ orderItemId, line }: { orderItemId: string; line: any }) => {
-      const res = await fetch(`/api/order-items/${orderItemId}/lines`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...line, orderItemId }),
-      });
-      if (!res.ok) throw new Error("Failed to add line");
-      return res.json();
-    },
-    onSuccess: () => {
-      invalidateAll();
-      toast({ title: "Line added" });
-    },
-    onError: () => toast({ title: "Failed to add line", variant: "destructive" }),
-  });
-
-  const createArtworkMutation = useMutation({
-    mutationFn: async (payload: { orderItemId: string; name: string; filePath: string; fileName: string; location?: string; artworkType?: string; color?: string; size?: string }) => {
-      const res = await apiRequest("POST", `/api/order-items/${payload.orderItemId}/artworks`, payload);
-      return res.json();
-    },
-    onSuccess: () => {
-      invalidateAll();
-      resetArtForm();
-      toast({ title: "Artwork added" });
-    },
-    onError: () => toast({ title: "Failed to add artwork", variant: "destructive" }),
-  });
-
-  const deleteArtworkMutation = useMutation({
-    mutationFn: async ({ artworkId, orderItemId }: { artworkId: string; orderItemId: string }) => {
-      const res = await fetch(`/api/order-items/${orderItemId}/artworks/${artworkId}`, { method: "DELETE", credentials: "include" });
-      if (!res.ok) throw new Error("Failed to delete artwork");
-    },
-    onSuccess: () => {
-      invalidateAll();
-      toast({ title: "Artwork removed" });
-    },
-    onError: () => toast({ title: "Failed to remove artwork", variant: "destructive" }),
-  });
-
-  function invalidateAll() {
-    queryClient.invalidateQueries({ queryKey: [`/api/orders/${orderId}/items`] });
-    queryClient.invalidateQueries({ queryKey: [`/api/orders/${orderId}`] });
-    queryClient.invalidateQueries({ queryKey: [`/api/orders/${orderId}/all-item-lines`] });
-    queryClient.invalidateQueries({ queryKey: [`/api/orders/${orderId}/all-item-charges`] });
-    queryClient.invalidateQueries({ queryKey: [`/api/orders/${orderId}/all-artworks`] });
-  }
+  // ── Service mutations ──
+  const deleteOrderItemMutation = useDeleteOrderItem(orderId);
+  const updateOrderItemMutation = useUpdateOrderItem(orderId);
+  const updateLineMutation = useUpdateLine(orderId);
+  const deleteLineMutation = useDeleteLine(orderId);
+  const addLineMutation = useAddLine(orderId);
+  const addChargeMutation = useAddCharge(orderId);
+  const deleteChargeMutation = useDeleteCharge(orderId);
+  const toggleChargeDisplayMutation = useToggleChargeDisplay(orderId);
+  const createArtworkMutation = useCreateArtwork(orderId);
+  const deleteArtworkMutation = useDeleteArtwork(orderId);
 
   // ── Helpers ──
 
@@ -455,22 +322,19 @@ export default function ProductsSection({ orderId, data, isLocked }: ProductsSec
     const avgPrice = totalQty > 0 ? totalRevenue / totalQty : 0;
     const avgCost = totalQty > 0 ? totalCost / totalQty : 0;
 
-    await updateOrderItemMutation.mutateAsync({
-      itemId: editingItem.id,
-      updates: {
-        imprintMethod: editItemData.imprintMethod,
-        imprintLocation: editItemData.imprintLocation,
-        notes: editItemData.notes,
-        shippingDestination: editItemData.shippingDestination || null,
-        shippingAccountType: editItemData.shippingAccountType || null,
-        shippingNotes: editItemData.shippingNotes || null,
-        quantity: totalQty,
-        cost: avgCost.toFixed(2),
-        unitPrice: avgPrice.toFixed(2),
-        totalPrice: totalRevenue.toFixed(2),
-        color: editDialogLines.length === 1 ? editDialogLines[0].color : "",
-        size: editDialogLines.length === 1 ? editDialogLines[0].size : "",
-      },
+    await orderItemRequests.updateOrderItem(orderId, editingItem.id, {
+      imprintMethod: editItemData.imprintMethod,
+      imprintLocation: editItemData.imprintLocation,
+      notes: editItemData.notes,
+      shippingDestination: editItemData.shippingDestination || null,
+      shippingAccountType: editItemData.shippingAccountType || null,
+      shippingNotes: editItemData.shippingNotes || null,
+      quantity: totalQty,
+      cost: avgCost.toFixed(2),
+      unitPrice: avgPrice.toFixed(2),
+      totalPrice: totalRevenue.toFixed(2),
+      color: editDialogLines.length === 1 ? editDialogLines[0].color : "",
+      size: editDialogLines.length === 1 ? editDialogLines[0].size : "",
     });
 
     // 2. Sync line items: delete removed, update existing, create new
@@ -481,7 +345,7 @@ export default function ProductsSection({ orderId, data, isLocked }: ProductsSec
     // Delete lines that were removed
     for (const existing of existingLines) {
       if (!editIds.has(existing.id)) {
-        await deleteLineMutation.mutateAsync({ lineId: existing.id, orderItemId: editingItem.id });
+        await orderItemRequests.deleteLine(editingItem.id, existing.id);
       }
     }
 
@@ -499,20 +363,18 @@ export default function ProductsSection({ orderId, data, isLocked }: ProductsSec
       };
 
       if (line.isExisting && existingIds.has(line.id)) {
-        await updateLineMutation.mutateAsync({
-          lineId: line.id,
-          orderItemId: editingItem.id,
-          updates: lineData,
-        });
+        await orderItemRequests.updateLine(editingItem.id, line.id, lineData);
       } else if (!line.isExisting) {
-        await addLineMutation.mutateAsync({
-          orderItemId: editingItem.id,
-          line: lineData,
-        });
+        await orderItemRequests.addLine(editingItem.id, lineData);
       }
     }
 
-    invalidateAll();
+    // Invalidate all order item caches
+    queryClient.invalidateQueries({ queryKey: orderKeys.items(orderId) });
+    queryClient.invalidateQueries({ queryKey: orderKeys.detail(orderId) });
+    queryClient.invalidateQueries({ queryKey: orderKeys.itemLines(orderId) });
+    queryClient.invalidateQueries({ queryKey: orderKeys.itemCharges(orderId) });
+    queryClient.invalidateQueries({ queryKey: orderKeys.artworks(orderId) });
     setEditingItem(null);
     toast({ title: "Product updated", description: "All changes have been saved." });
   };
@@ -559,7 +421,7 @@ export default function ProductsSection({ orderId, data, isLocked }: ProductsSec
         color: editLineData.color,
         size: editLineData.size,
       },
-    });
+    }, { onSuccess: () => setEditingLine(null) });
   };
 
   return (
@@ -1201,6 +1063,11 @@ export default function ProductsSection({ orderId, data, isLocked }: ProductsSec
                     isVendorCharge: newCharge.isVendorCharge,
                     displayToClient: newCharge.displayToClient,
                   },
+                }, {
+                  onSuccess: () => {
+                    setAddChargeForItem(null);
+                    setNewCharge({ description: "", chargeType: "flat", amount: 0, isVendorCharge: false, displayToClient: true });
+                  },
                 });
               }}
             >
@@ -1234,7 +1101,10 @@ export default function ProductsSection({ orderId, data, isLocked }: ProductsSec
               Cancel
             </AlertDialogCancel>
             <AlertDialogAction
-              onClick={() => deletingProduct && deleteOrderItemMutation.mutate(deletingProduct.id)}
+              onClick={() => deletingProduct && deleteOrderItemMutation.mutate(deletingProduct.id, {
+                onSuccess: () => { setIsDeleteDialogOpen(false); setDeletingProduct(null); },
+                onError: () => setIsDeleteDialogOpen(false),
+              })}
               className="bg-red-600 hover:bg-red-700"
               disabled={deleteOrderItemMutation.isPending}
             >
@@ -1622,7 +1492,7 @@ export default function ProductsSection({ orderId, data, isLocked }: ProductsSec
                   artworkType: artUploadMethod || undefined,
                   color: artUploadColor || undefined,
                   size: artUploadSize || undefined,
-                });
+                }, { onSuccess: () => resetArtForm() });
               }}
             >
               {createArtworkMutation.isPending ? (

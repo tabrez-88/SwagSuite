@@ -39,9 +39,9 @@ import {
   PROOF_STATUSES,
   getPOStatusBadgeClass,
   getProofStatusBadgeClass,
-} from "@/lib/poStages";
+} from "@/constants/poStages";
 import { useProductionStages } from "@/hooks/useProductionStages";
-import { getStageBadgeClass } from "@/lib/productionStages";
+import { getStageBadgeClass } from "@/constants/productionStages";
 import { getDateStatus } from "@/lib/dateUtils";
 import { useNextActionTypes, getActionTypeBadgeClass } from "@/hooks/useNextActionTypes";
 import { Input } from "@/components/ui/input";

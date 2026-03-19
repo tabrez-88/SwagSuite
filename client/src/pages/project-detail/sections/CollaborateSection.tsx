@@ -1,5 +1,5 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { UserAvatar } from "@/components/UserAvatar";
+import { UserAvatar } from "@/components/shared/UserAvatar";
 import { MessageSquare, User } from "lucide-react";
 import type { useProjectData } from "../hooks/useProjectData";
 

@@ -54,11 +54,11 @@ import {
   PROOF_ACTIVE_STATUSES,
   getPOStatusBadgeClass,
   getProofStatusBadgeClass,
-} from "@/lib/poStages";
-import { getStageBadgeClass } from "@/lib/productionStages";
+} from "@/constants/poStages";
+import { getStageBadgeClass } from "@/constants/productionStages";
 import ProductionAlerts from "@/components/dashboard/ProductionAlerts";
 import PODetailPanel from "@/components/production/PODetailPanel";
-import { UserAvatar } from "@/components/UserAvatar";
+import { UserAvatar } from "@/components/shared/UserAvatar";
 import { useProductionStages } from "@/hooks/useProductionStages";
 import { useNextActionTypes, getActionTypeBadgeClass } from "@/hooks/useNextActionTypes";
 

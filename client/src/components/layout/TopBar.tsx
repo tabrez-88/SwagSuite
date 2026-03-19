@@ -1,6 +1,6 @@
 import { LogOut, Settings, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { UserAvatar } from "@/components/UserAvatar";
+import { UserAvatar } from "@/components/shared/UserAvatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -11,8 +11,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Separator } from "@/components/ui/separator";
-import GlobalSearch from "./GlobalSearch";
-import { NotificationDropdown } from "./NotificationDropdown";
+import GlobalSearch from "@/components/shared/GlobalSearch";
+import { NotificationDropdown } from "@/components/shared/NotificationDropdown";
 import { useAuth } from "@/hooks/useAuth";
 
 export default function TopBar() {

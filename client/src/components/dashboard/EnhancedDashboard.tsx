@@ -26,7 +26,7 @@ import {
   Database
 } from "lucide-react";
 import { SlackPanel } from "./SlackPanel";
-import { PopularProducts } from "../PopularProducts";
+import { PopularProducts } from "@/components/shared/PopularProducts";
 
 interface DashboardMetrics {
   totalRevenue: number;

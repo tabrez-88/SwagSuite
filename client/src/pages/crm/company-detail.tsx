@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useCompany, useCompanyContacts, useUpdateCompanyDetail } from "@/services/companies";
+import type { Company } from "@/services/companies";
 import { useParams, useLocation } from "wouter";
 import { 
   Building, 
@@ -35,7 +36,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import NewProjectWizard from "@/components/modals/NewProjectWizard";
 import SendEmailDialog from "@/components/modals/SendEmailDialog";
-import { ContactsManager } from "@/components/ContactsManager";
+import { ContactsManager } from "@/components/feature/ContactsManager";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
@@ -43,23 +44,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import * as z from "zod";
-import { apiRequest } from "@/lib/queryClient";
 import { AddressAutocomplete } from "@/components/ui/address-autocomplete";
-
-// Normalize various country name/code formats to standard 2-letter codes
-function normalizeCountryCode(country: string): string {
-  if (!country) return "US";
-  const c = country.trim().toUpperCase();
-  if (c === "US" || c === "CA" || c === "MX") return c;
-  const mapping: Record<string, string> = {
-    "USA": "US", "U.S.": "US", "U.S.A.": "US",
-    "UNITED STATES": "US", "UNITED STATES OF AMERICA": "US",
-    "CANADA": "CA", "CAN": "CA",
-    "MEXICO": "MX", "MEX": "MX", "MÉXICO": "MX",
-  };
-  return mapping[c] || "US";
-}
+import { companyFormSchema, type CompanyFormData } from "@/schemas/crm.schemas";
+import { normalizeCountryCode } from "@/lib/address";
 
 // Industry options
 const INDUSTRY_OPTIONS = [
@@ -80,79 +67,6 @@ const INDUSTRY_OPTIONS = [
   "Other"
 ];
 
-// Form schema for company editing
-const companyFormSchema = z.object({
-  name: z.string().min(1, "Company name is required"),
-  email: z.string().email("Invalid email address").optional().or(z.literal("")),
-  phone: z.string().optional(),
-  website: z.string().url("Invalid website URL").optional().or(z.literal("")),
-  address: z.string().optional(),
-  city: z.string().optional(),
-  state: z.string().optional(),
-  zipCode: z.string().optional(),
-  country: z.string().optional(),
-  industry: z.string().optional(),
-  notes: z.string().optional(),
-  linkedinUrl: z.string().url("Invalid LinkedIn URL").optional().or(z.literal("")),
-  twitterUrl: z.string().url("Invalid Twitter URL").optional().or(z.literal("")),
-  facebookUrl: z.string().url("Invalid Facebook URL").optional().or(z.literal("")),
-  instagramUrl: z.string().url("Invalid Instagram URL").optional().or(z.literal("")),
-  otherSocialUrl: z.string().url("Invalid URL").optional().or(z.literal("")),
-});
-
-type CompanyFormData = z.infer<typeof companyFormSchema>;
-
-// Define the Company type with social media posts
-interface Company {
-  id: string;
-  name: string;
-  email?: string;
-  phone?: string;
-  website?: string;
-  address?: string;
-  city?: string;
-  state?: string;
-  zipCode?: string;
-  country?: string;
-  industry?: string;
-  notes?: string;
-  ytdSpend?: string;
-  socialMediaLinks?: {
-    linkedin?: string;
-    twitter?: string;
-    facebook?: string;
-    instagram?: string;
-    other?: string;
-  };
-  customerScore?: number;
-  engagementLevel?: string;
-  createdAt?: string;
-  updatedAt?: string;
-  socialMediaPosts?: Array<{
-    platform: string;
-    content: string;
-    timestamp: string;
-    url: string;
-    isExcitingNews: boolean;
-  }>;
-  lastSocialMediaSync?: string;
-  shippingAddresses?: Array<{
-    label?: string;
-    street?: string;
-    city?: string;
-    state?: string;
-    zipCode?: string;
-    country?: string;
-  }>;
-  billingAddress?: {
-    street?: string;
-    city?: string;
-    state?: string;
-    zipCode?: string;
-    country?: string;
-  };
-  customFields?: Record<string, string>;
-}
 
 // Engagement level colors
 const ENGAGEMENT_COLORS = {
@@ -176,7 +90,6 @@ export default function CompanyDetail() {
   const [newCustomFieldKey, setNewCustomFieldKey] = useState("");
   const [newCustomFieldValue, setNewCustomFieldValue] = useState("");
   const { toast } = useToast();
-  const queryClient = useQueryClient();
 
   const form = useForm<CompanyFormData>({
     resolver: zodResolver(companyFormSchema),
@@ -202,58 +115,11 @@ export default function CompanyDetail() {
 
   const companyId = params.id;
 
-  const { data: company, isLoading, error } = useQuery<Company>({
-    queryKey: ["/api/companies", companyId],
-    enabled: !!companyId,
-  });
+  const { data: company, isLoading, error } = useCompany(companyId);
 
-  const { data: companyContacts = [] } = useQuery<any[]>({
-    queryKey: ["/api/contacts", { companyId }],
-    queryFn: async () => {
-      const res = await fetch(`/api/contacts?companyId=${companyId}`, { credentials: "include" });
-      if (!res.ok) throw new Error("Failed to fetch contacts");
-      return res.json();
-    },
-    enabled: !!companyId,
-  });
+  const { data: companyContacts = [] } = useCompanyContacts(companyId);
 
-  const updateCompanyMutation = useMutation({
-    mutationFn: async (data: Partial<CompanyFormData> & { shippingAddresses?: any[]; customFields?: Record<string, string> }) => {
-      const { linkedinUrl, twitterUrl, facebookUrl, instagramUrl, otherSocialUrl, shippingAddresses, customFields, ...rest } = data;
-      const formattedData = {
-        ...rest,
-        ...(shippingAddresses !== undefined ? { shippingAddresses } : {}),
-        ...(customFields !== undefined ? { customFields } : {}),
-        ...(linkedinUrl !== undefined || twitterUrl !== undefined || facebookUrl !== undefined || instagramUrl !== undefined || otherSocialUrl !== undefined ? {
-          socialMediaLinks: {
-            linkedin: linkedinUrl || "",
-            twitter: twitterUrl || "",
-            facebook: facebookUrl || "",
-            instagram: instagramUrl || "",
-            other: otherSocialUrl || ""
-          }
-        } : {})
-      };
-      const response = await apiRequest("PATCH", `/api/companies/${companyId}`, formattedData);
-      return response.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/companies", companyId] });
-      queryClient.invalidateQueries({ queryKey: ["/api/companies"] });
-      setIsEditModalOpen(false);
-      toast({
-        title: "Company updated",
-        description: "The company has been successfully updated.",
-      });
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Error",
-        description: `Failed to update company: ${error.message || "Please try again."}`,
-        variant: "destructive",
-      });
-    },
-  });
+  const updateCompanyMutation = useUpdateCompanyDetail(companyId);
 
   const handleEditCompany = () => {
     if (!company) return;
@@ -286,10 +152,17 @@ export default function CompanyDetail() {
 
   const handleUpdateCompany = (data: CompanyFormData) => {
     updateCompanyMutation.mutate({
-      ...data,
-      shippingAddresses: editShippingAddresses,
-      customFields: editCustomFields,
-    } as any);
+      id: companyId!,
+      data: {
+        ...data,
+        shippingAddresses: editShippingAddresses,
+        customFields: editCustomFields,
+      },
+    } as any, {
+      onSuccess: () => {
+        setIsEditModalOpen(false);
+      },
+    });
   };
 
   const formatCurrency = (amount: string | undefined) => {

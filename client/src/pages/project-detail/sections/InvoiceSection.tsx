@@ -6,8 +6,13 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
+import {
+  useCreateInvoice,
+  useUpdateInvoiceDueDate,
+  useUpdateInvoiceNotes,
+  useRecordManualPayment,
+  useCreateStripePayment,
+} from "@/services/invoices";
 import {
   CreditCard,
   FileText,
@@ -27,12 +32,12 @@ import {
 import { format, differenceInDays } from "date-fns";
 import type { useProjectData } from "../hooks/useProjectData";
 import type { SectionLockStatus } from "@/hooks/useLockStatus";
-import LockBanner from "@/components/LockBanner";
-import ProjectInfoBar from "@/components/ProjectInfoBar";
+import LockBanner from "@/components/shared/LockBanner";
+import ProjectInfoBar from "@/components/layout/ProjectInfoBar";
 import SendInvoiceDialog from "@/components/modals/SendInvoiceDialog";
 import InvoiceTemplate from "@/components/documents/InvoiceTemplate";
 import GeneratedDocumentCard from "@/components/documents/GeneratedDocumentCard";
-import { DocumentEditor } from "@/components/DocumentEditor";
+import { DocumentEditor } from "@/components/feature/DocumentEditor";
 import { useDocumentGeneration, buildItemsHash } from "@/hooks/useDocumentGeneration";
 import {
   Dialog,
@@ -78,7 +83,6 @@ const invoiceStatusColors: Record<string, string> = {
 export default function InvoiceSection({ orderId, data, lockStatus }: InvoiceSectionProps) {
   const { order, invoice, invoiceLoading, orderItems, companyName, primaryContact, contacts, serviceCharges } = data;
   const { toast } = useToast();
-  const queryClient = useQueryClient();
   const [showSendDialog, setShowSendDialog] = useState(false);
   const [showPaymentDialog, setShowPaymentDialog] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState("check");
@@ -132,102 +136,11 @@ export default function InvoiceSection({ orderId, data, lockStatus }: InvoiceSec
     return { daysOverdue, category, colorClass };
   }, [invoice?.dueDate, invoice?.status]);
 
-  const createInvoiceMutation = useMutation({
-    mutationFn: async () => {
-      const response = await fetch(`/api/orders/${orderId}/invoice`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-      });
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || "Failed to create invoice");
-      }
-      return response.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/orders/${orderId}/invoice`] });
-      toast({ title: "Invoice created successfully" });
-    },
-    onError: (error: Error) => {
-      toast({ title: error.message || "Failed to create invoice", variant: "destructive" });
-    },
-  });
-
-  // Manual payment recording
-  const manualPaymentMutation = useMutation({
-    mutationFn: async () => {
-      if (!invoice) throw new Error("No invoice");
-      await apiRequest("POST", `/api/invoices/${invoice.id}/manual-payment`, {
-        paymentMethod,
-        paymentReference,
-        amount: paymentAmount || invoice.totalAmount,
-      });
-    },
-    onSuccess: () => {
-      toast({ title: "Payment recorded", description: "Invoice marked as paid." });
-      queryClient.invalidateQueries({ queryKey: [`/api/orders/${orderId}/invoice`] });
-      queryClient.invalidateQueries({ queryKey: [`/api/orders/${orderId}`] });
-      setShowPaymentDialog(false);
-      setPaymentMethod("check");
-      setPaymentReference("");
-      setPaymentAmount("");
-    },
-    onError: () => {
-      toast({ title: "Failed to record payment", variant: "destructive" });
-    },
-  });
-
-  // Update due date
-  const updateDueDateMutation = useMutation({
-    mutationFn: async (newDueDate: string) => {
-      await apiRequest("PATCH", `/api/orders/${orderId}/invoice`, { dueDate: newDueDate });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/orders/${orderId}/invoice`] });
-      toast({ title: "Due date updated" });
-    },
-    onError: () => {
-      toast({ title: "Failed to update due date", variant: "destructive" });
-    },
-  });
-
-  // Update notes
-  const updateNotesMutation = useMutation({
-    mutationFn: async (notes: string) => {
-      await apiRequest("PATCH", `/api/orders/${orderId}/invoice`, { notes });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/orders/${orderId}/invoice`] });
-      toast({ title: "Notes updated" });
-    },
-    onError: () => {
-      toast({ title: "Failed to update notes", variant: "destructive" });
-    },
-  });
-
-  // Stripe payment link (also generates Stripe invoice PDF)
-  const stripePaymentMutation = useMutation({
-    mutationFn: async () => {
-      if (!invoice) throw new Error("No invoice");
-      const res = await apiRequest("POST", `/api/invoices/${invoice.id}/payment-link`) as unknown as {
-        paymentLink: string;
-        stripeInvoiceId: string;
-        stripeInvoicePdfUrl: string;
-      };
-      return res;
-    },
-    onSuccess: (data) => {
-      if (data.paymentLink) {
-        navigator.clipboard.writeText(data.paymentLink);
-        toast({ title: "Stripe invoice created!", description: "Payment link copied to clipboard. Invoice PDF is now available from Stripe." });
-      }
-      queryClient.invalidateQueries({ queryKey: [`/api/orders/${orderId}/invoice`] });
-    },
-    onError: (error: Error) => {
-      toast({ title: "Failed to create Stripe invoice", description: error.message, variant: "destructive" });
-    },
-  });
+  const createInvoiceMutation = useCreateInvoice(orderId);
+  const updateDueDateMutation = useUpdateInvoiceDueDate(orderId);
+  const updateNotesMutation = useUpdateInvoiceNotes(orderId);
+  const manualPaymentMutation = useRecordManualPayment(orderId);
+  const stripePaymentMutation = useCreateStripePayment(orderId);
 
   // Generate local PDF
   const handleGeneratePdf = async () => {
@@ -489,7 +402,14 @@ export default function InvoiceSection({ orderId, data, lockStatus }: InvoiceSec
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => stripePaymentMutation.mutate()}
+                    onClick={() => stripePaymentMutation.mutate(invoice!.id, {
+                      onSuccess: (data: any) => {
+                        if (data.paymentLink) {
+                          navigator.clipboard.writeText(data.paymentLink);
+                          toast({ title: "Payment link copied to clipboard", description: "Invoice PDF is now available from Stripe." });
+                        }
+                      },
+                    })}
                     disabled={stripePaymentMutation.isPending || orderItems.length === 0}
                   >
                     {stripePaymentMutation.isPending ? (
@@ -580,7 +500,14 @@ export default function InvoiceSection({ orderId, data, lockStatus }: InvoiceSec
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => stripePaymentMutation.mutate()}
+                      onClick={() => stripePaymentMutation.mutate(invoice!.id, {
+                        onSuccess: (data: any) => {
+                          if (data.paymentLink) {
+                            navigator.clipboard.writeText(data.paymentLink);
+                            toast({ title: "Payment link copied to clipboard", description: "Invoice PDF is now available from Stripe." });
+                          }
+                        },
+                      })}
                       disabled={stripePaymentMutation.isPending}
                     >
                       {stripePaymentMutation.isPending ? (
@@ -746,7 +673,24 @@ export default function InvoiceSection({ orderId, data, lockStatus }: InvoiceSec
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowPaymentDialog(false)}>Cancel</Button>
             <Button
-              onClick={() => manualPaymentMutation.mutate()}
+              onClick={() => manualPaymentMutation.mutate(
+                {
+                  invoiceId: invoice!.id,
+                  data: {
+                    paymentMethod,
+                    paymentReference,
+                    amount: paymentAmount || invoice!.totalAmount,
+                  },
+                },
+                {
+                  onSuccess: () => {
+                    setShowPaymentDialog(false);
+                    setPaymentMethod("check");
+                    setPaymentReference("");
+                    setPaymentAmount("");
+                  },
+                },
+              )}
               disabled={manualPaymentMutation.isPending}
               className="gap-1"
             >

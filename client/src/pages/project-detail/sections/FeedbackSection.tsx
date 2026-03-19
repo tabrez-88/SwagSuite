@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import type { useProjectData } from "../hooks/useProjectData";
-import ProjectInfoBar from "@/components/ProjectInfoBar";
+import ProjectInfoBar from "@/components/layout/ProjectInfoBar";
 
 interface FeedbackSectionProps {
   orderId: string;

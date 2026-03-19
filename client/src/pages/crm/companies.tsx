@@ -1,8 +1,6 @@
 import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
 import { useLocation } from "wouter";
 import {
   Building,
@@ -34,7 +32,7 @@ import {
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { UserAvatar } from "@/components/UserAvatar";
+import { UserAvatar } from "@/components/shared/UserAvatar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -80,60 +78,16 @@ import {
 } from "@/components/ui/form";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useToast } from "@/hooks/use-toast";
-import { apiRequest } from "@/lib/queryClient";
-import { ContactsManager } from "@/components/ContactsManager";
+import {
+  useCompanies,
+  useCreateCompany,
+  useUpdateCompany,
+  useDeleteCompany,
+} from "@/services/companies";
+import type { Company } from "@/services/companies";
+import { ContactsManager } from "@/components/feature/ContactsManager";
+import { companyFormSchema, type CompanyFormData } from "@/schemas/crm.schemas";
 
-// Define the Company type based on the schema
-interface Company {
-  id: string;
-  name: string;
-  email?: string;
-  phone?: string;
-  website?: string;
-  address?: string;
-  city?: string;
-  state?: string;
-  zipCode?: string;
-  country?: string;
-  industry?: string;
-  notes?: string;
-  ytdSpend?: string;
-  socialMediaLinks?: {
-    linkedin?: string;
-    twitter?: string;
-    facebook?: string;
-    instagram?: string;
-    other?: string;
-  };
-  customerScore?: number;
-  engagementLevel?: string;
-  createdAt?: string;
-  updatedAt?: string;
-}
-
-// Form schema for company creation/editing
-const companyFormSchema = z.object({
-  name: z.string().min(1, "Company name is required"),
-  email: z.string().email("Invalid email address").optional().or(z.literal("")),
-  phone: z.string().optional(),
-  website: z.string().url("Invalid website URL").optional().or(z.literal("")),
-  address: z.string().optional(),
-  city: z.string().optional(),
-  state: z.string().optional(),
-  zipCode: z.string().optional(),
-  country: z.string().optional(),
-  industry: z.string().optional(),
-  notes: z.string().optional(),
-  // Social media links
-  linkedinUrl: z.string().url("Invalid LinkedIn URL").optional().or(z.literal("")),
-  twitterUrl: z.string().url("Invalid Twitter URL").optional().or(z.literal("")),
-  facebookUrl: z.string().url("Invalid Facebook URL").optional().or(z.literal("")),
-  instagramUrl: z.string().url("Invalid Instagram URL").optional().or(z.literal("")),
-  otherSocialUrl: z.string().url("Invalid URL").optional().or(z.literal("")),
-});
-
-type CompanyFormData = z.infer<typeof companyFormSchema>;
 
 // Industry options for the select dropdown
 const INDUSTRY_OPTIONS = [
@@ -174,8 +128,6 @@ export default function Companies() {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [companyToDelete, setCompanyToDelete] = useState<Company | null>(null);
 
-  const { toast } = useToast();
-  const queryClient = useQueryClient();
   const [, setLocation] = useLocation();
 
   const form = useForm<CompanyFormData>({
@@ -200,114 +152,30 @@ export default function Companies() {
     },
   });
 
-  const { data: companies = [], isLoading } = useQuery<Company[]>({
-    queryKey: ["/api/companies"],
-  });
+  const { data: companies = [], isLoading } = useCompanies();
 
-  const createCompanyMutation = useMutation({
-    mutationFn: async (data: CompanyFormData) => {
-      // Transform form data to match API schema
-      const { linkedinUrl, twitterUrl, facebookUrl, instagramUrl, otherSocialUrl, ...rest } = data;
-      const formattedData = {
-        ...rest,
-        socialMediaLinks: {
-          linkedin: linkedinUrl || "",
-          twitter: twitterUrl || "",
-          facebook: facebookUrl || "",
-          instagram: instagramUrl || "",
-          other: otherSocialUrl || ""
-        }
-      };
-      const response = await apiRequest("POST", "/api/companies", formattedData);
-      return response.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/companies"] });
-      setIsCreateModalOpen(false);
-      form.reset();
-      toast({
-        title: "Company created",
-        description: "The company has been successfully created.",
-      });
-    },
-    onError: (error) => {
-      console.error("Create company error:", error);
-      toast({
-        title: "Error",
-        description: `Failed to create company: ${error.message || "Unknown error"}`,
-        variant: "destructive",
-      });
-    },
-  });
-
-  const updateCompanyMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: string; data: Partial<CompanyFormData> }) => {
-      const { linkedinUrl, twitterUrl, facebookUrl, instagramUrl, otherSocialUrl, ...rest } = data;
-      const formattedData = {
-        ...rest,
-        ...(linkedinUrl !== undefined || twitterUrl !== undefined || facebookUrl !== undefined || instagramUrl !== undefined || otherSocialUrl !== undefined ? {
-          socialMediaLinks: {
-            linkedin: linkedinUrl || "",
-            twitter: twitterUrl || "",
-            facebook: facebookUrl || "",
-            instagram: instagramUrl || "",
-            other: otherSocialUrl || ""
-          }
-        } : {})
-      };
-      const response = await apiRequest("PATCH", `/api/companies/${id}`, formattedData);
-      return response.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/companies"] });
-      setIsEditModalOpen(false);
-      setSelectedCompany(null);
-      form.reset();
-      toast({
-        title: "Company updated",
-        description: "The company has been successfully updated.",
-      });
-    },
-    onError: (error: any) => {
-      console.error("Update company error:", error);
-      toast({
-        title: "Error",
-        description: `Failed to update company: ${error.message || "Please try again."}`,
-        variant: "destructive",
-      });
-    },
-  });
-
-  const deleteCompanyMutation = useMutation({
-    mutationFn: async (id: string) => {
-      await apiRequest("DELETE", `/api/companies/${id}`);
-      return true;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/companies"] });
-      toast({
-        title: "Company deleted",
-        description: "The company has been successfully deleted.",
-      });
-      setIsDeleteDialogOpen(false);
-      setCompanyToDelete(null);
-    },
-    onError: (error) => {
-      toast({
-        title: "Error",
-        description: "Failed to delete company. Please try again.",
-        variant: "destructive",
-      });
-    },
-  });
+  const createCompanyMutation = useCreateCompany();
+  const updateCompanyMutation = useUpdateCompany();
+  const deleteCompanyMutation = useDeleteCompany();
 
   const handleCreateCompany = (data: CompanyFormData) => {
-    createCompanyMutation.mutate(data);
+    createCompanyMutation.mutate(data, {
+      onSuccess: () => {
+        setIsCreateModalOpen(false);
+        form.reset();
+      },
+    });
   };
 
   const handleUpdateCompany = (data: CompanyFormData) => {
     if (selectedCompany) {
-      updateCompanyMutation.mutate({ id: selectedCompany.id, data });
+      updateCompanyMutation.mutate({ id: selectedCompany.id, data }, {
+        onSuccess: () => {
+          setIsEditModalOpen(false);
+          setSelectedCompany(null);
+          form.reset();
+        },
+      });
     }
   };
 
@@ -1586,7 +1454,12 @@ export default function Companies() {
             <AlertDialogAction
               onClick={() => {
                 if (companyToDelete) {
-                  deleteCompanyMutation.mutate(companyToDelete.id);
+                  deleteCompanyMutation.mutate(companyToDelete.id, {
+                    onSuccess: () => {
+                      setIsDeleteDialogOpen(false);
+                      setCompanyToDelete(null);
+                    },
+                  });
                 }
               }}
               className="bg-red-600 hover:bg-red-700 focus:ring-red-600"

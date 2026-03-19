@@ -1,11 +1,10 @@
 import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { UserAvatar } from "@/components/UserAvatar";
+import { UserAvatar } from "@/components/shared/UserAvatar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -31,10 +30,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useToast } from "@/hooks/use-toast";
-import { apiRequest } from "@/lib/queryClient";
-import { isUnauthorizedError } from "@/lib/authUtils";
-import { LEAD_SOURCES } from "@/lib/leadSources";
+import { contactFormSchema, type ContactFormData } from "@/schemas/crm.schemas";
+import { LEAD_SOURCES } from "@/constants/leadSources";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
   DropdownMenu,
@@ -59,7 +56,7 @@ import {
   Target,
   BarChart3,
 } from "lucide-react";
-import { CRMViewToggle } from "@/components/CRMViewToggle";
+import { CRMViewToggle } from "@/components/shared/CRMViewToggle";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -70,25 +67,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-
-interface Contact {
-  id: string;
-  companyId?: string;
-  supplierId?: string;
-  firstName: string;
-  lastName: string;
-  email?: string;
-  phone?: string;
-  title?: string;
-  isPrimary?: boolean;
-  leadSource?: string;
-  billingAddress?: string;
-  shippingAddress?: string;
-  createdAt?: string;
-  updatedAt?: string;
-  companyName?: string;
-  supplierName?: string;
-}
+import { useContacts, useCreateContact, useDeleteContact } from "@/services/contacts";
+import type { Contact } from "@/services/contacts";
 
 interface Company {
   id: string;
@@ -107,21 +87,6 @@ interface LeadSourceReport {
   total: number;
 }
 
-const contactFormSchema = z.object({
-  firstName: z.string().min(1, "First name is required"),
-  lastName: z.string().min(1, "Last name is required"),
-  email: z.string().email("Invalid email").optional().or(z.literal("")),
-  phone: z.string().optional(),
-  title: z.string().optional(),
-  leadSource: z.string().optional(),
-  isPrimary: z.boolean().default(false),
-  associationType: z.enum(["company", "vendor", "none"]).default("none"),
-  companyId: z.string().optional(),
-  supplierId: z.string().optional(),
-});
-
-type ContactFormData = z.infer<typeof contactFormSchema>;
-
 export default function Contacts() {
   const [searchQuery, setSearchQuery] = useState("");
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -129,9 +94,6 @@ export default function Contacts() {
   const [viewMode, setViewMode] = useState<'cards' | 'list'>('cards');
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [contactToDelete, setContactToDelete] = useState<Contact | null>(null);
-
-  const { toast } = useToast();
-  const queryClient = useQueryClient();
 
   const form = useForm<ContactFormData>({
     resolver: zodResolver(contactFormSchema),
@@ -151,9 +113,7 @@ export default function Contacts() {
 
   const associationType = form.watch("associationType");
 
-  const { data: contacts = [], isLoading } = useQuery<Contact[]>({
-    queryKey: ["/api/contacts"],
-  });
+  const { data: contacts = [], isLoading } = useContacts();
 
   const { data: companies = [] } = useQuery<Company[]>({
     queryKey: ["/api/companies"],
@@ -167,89 +127,16 @@ export default function Contacts() {
     queryKey: ["/api/reports/lead-sources"],
   });
 
-  const createContactMutation = useMutation({
-    mutationFn: async (data: ContactFormData) => {
-      const payload: Record<string, unknown> = {
-        firstName: data.firstName,
-        lastName: data.lastName,
-        email: data.email || undefined,
-        phone: data.phone || undefined,
-        title: data.title || undefined,
-        leadSource: data.leadSource || undefined,
-        isPrimary: data.isPrimary,
-      };
-      if (data.associationType === "company" && data.companyId) {
-        payload.companyId = data.companyId;
-      }
-      if (data.associationType === "vendor" && data.supplierId) {
-        payload.supplierId = data.supplierId;
-      }
-      return await apiRequest("POST", "/api/contacts", payload);
-    },
-    onSuccess: () => {
-      toast({
-        title: "Success",
-        description: "Contact created successfully",
-      });
-      queryClient.invalidateQueries({ queryKey: ["/api/contacts"] });
-      setIsCreateModalOpen(false);
-      form.reset();
-    },
-    onError: (error) => {
-      if (isUnauthorizedError(error)) {
-        toast({
-          title: "Unauthorized",
-          description: "You are logged out. Logging in again...",
-          variant: "destructive",
-        });
-        setTimeout(() => {
-          window.location.href = "/api/login";
-        }, 500);
-        return;
-      }
-      toast({
-        title: "Error",
-        description: "Failed to create contact. Please try again.",
-        variant: "destructive",
-      });
-    },
-  });
-
-  const deleteContactMutation = useMutation({
-    mutationFn: async (contactId: string) => {
-      return await apiRequest("DELETE", `/api/contacts/${contactId}`);
-    },
-    onSuccess: () => {
-      toast({
-        title: "Success",
-        description: "Contact deleted successfully",
-      });
-      queryClient.invalidateQueries({ queryKey: ["/api/contacts"] });
-      setIsDeleteDialogOpen(false);
-      setContactToDelete(null);
-    },
-    onError: (error) => {
-      if (isUnauthorizedError(error)) {
-        toast({
-          title: "Unauthorized",
-          description: "You are logged out. Logging in again...",
-          variant: "destructive",
-        });
-        setTimeout(() => {
-          window.location.href = "/api/login";
-        }, 500);
-        return;
-      }
-      toast({
-        title: "Error",
-        description: "Failed to delete contact. Please try again.",
-        variant: "destructive",
-      });
-    },
-  });
+  const createContactMutation = useCreateContact();
+  const deleteContactMutation = useDeleteContact();
 
   const onSubmit = (data: ContactFormData) => {
-    createContactMutation.mutate(data);
+    createContactMutation.mutate(data, {
+      onSuccess: () => {
+        setIsCreateModalOpen(false);
+        form.reset();
+      },
+    });
   };
 
   const handleDeleteContact = (contact: Contact) => {
@@ -869,7 +756,12 @@ export default function Contacts() {
             <AlertDialogAction
               onClick={() => {
                 if (contactToDelete) {
-                  deleteContactMutation.mutate(contactToDelete.id);
+                  deleteContactMutation.mutate(contactToDelete.id, {
+                    onSuccess: () => {
+                      setIsDeleteDialogOpen(false);
+                      setContactToDelete(null);
+                    },
+                  });
                 }
               }}
               className="bg-red-600 hover:bg-red-700 focus:ring-red-600"

@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type { Order, OrderItemLine, OrderAdditionalCharge, OrderShipment, CustomerPortalToken } from "@shared/schema";
-import { determineBusinessStage } from "@/lib/businessStages";
+import { determineBusinessStage } from "@/constants/businessStages";
 import {
   type TeamMember,
   type ProjectActivity,

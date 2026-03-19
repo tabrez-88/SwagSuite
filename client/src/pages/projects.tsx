@@ -10,7 +10,7 @@ import { DollarSign, FileText, Kanban, List, PlusCircle, ShoppingCart, Receipt }
 import { columns, OrderWithRelations } from "./projects/columns";
 import { DataTable } from "./projects/data-table";
 import { KanbanBoard } from "./projects/kanban-board";
-import { determineBusinessStage } from "@/lib/businessStages";
+import { determineBusinessStage } from "@/constants/businessStages";
 
 export default function ProjectsPage() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);

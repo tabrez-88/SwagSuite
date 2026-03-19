@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Dialog,
   DialogContent,
@@ -16,86 +16,25 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { apiRequest } from "@/lib/queryClient";
 import { isUnauthorizedError } from "@/lib/authUtils";
 import { Loader2, Search, ShoppingCart, Database, Pencil, CheckCircle2, Package } from "lucide-react";
 import type { Supplier } from "@shared/schema";
+import {
+  useCreateProduct,
+  useUpdateProduct,
+  useSearchSSActivewear,
+  useSearchSage,
+  useSearchSanMar,
+} from "@/services/products";
+import type { SsActivewearProduct, SageProduct, SanMarProductResult } from "@/services/products";
+import { useCreateVendor } from "@/services/suppliers";
+import { supplierKeys } from "@/services/suppliers/keys";
+import * as supplierRequests from "@/services/suppliers/requests";
 
 interface ProductModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   product?: any;
-}
-
-interface SsActivewearProduct {
-  sku: string;
-  gtin: string;
-  styleID: number;
-  brandName: string;
-  styleName: string;
-  colorName: string;
-  colorCode: string;
-  sizeName: string;
-  sizeCode: string;
-  unitWeight: number;
-  caseQty: number;
-  piecePrice: number;
-  dozenPrice: number;
-  casePrice: number;
-  customerPrice: number;
-  qty: number;
-  colorFrontImage: string;
-  colorBackImage: string;
-  colorSideImage: string;
-  colorSwatchImage: string;
-  countryOfOrigin: string;
-}
-
-interface SageProduct {
-  id: string;
-  name: string;
-  description?: string;
-  sku: string;
-  price?: number;
-  imageUrl?: string;
-  brand?: string;
-  category?: string;
-  supplierName?: string;
-  supplierId?: string;
-  asiNumber?: string;
-  colors?: string[];
-  sizes?: string[];
-}
-
-interface SanMarProductResult {
-  styleId: string;
-  styleName: string;
-  brandName: string;
-  productTitle: string;
-  productDescription: string;
-  categoryName: string;
-  availableSizes: string;
-  caseSize: number;
-  pieceWeight?: number;
-  casePrice?: number;
-  caseSalePrice?: number;
-  dozenPrice?: number;
-  dozenSalePrice?: number;
-  piecePrice?: number;
-  pieceSalePrice?: number;
-  priceCode?: string;
-  priceText?: string;
-  colors: string[];
-  sizes: string[];
-  productImage?: string;
-  colorProductImage?: string;
-  frontModel?: string;
-  backModel?: string;
-  frontFlat?: string;
-  backFlat?: string;
-  thumbnailImage?: string;
-  brandLogoImage?: string;
-  productStatus?: string;
 }
 
 export default function ProductModal({ open, onOpenChange, product }: ProductModalProps) {
@@ -250,341 +189,62 @@ export default function ProductModal({ open, onOpenChange, product }: ProductMod
     }
   };
 
-  const searchProductMutation = useMutation({
-    mutationFn: async (query: string) => {
-      const response = await fetch(`/api/ss-activewear/search?q=${encodeURIComponent(query)}`, {
-        credentials: "include",
-      });
+  // ── Service mutations ──
+  const searchProductMutation = useSearchSSActivewear();
+  const searchSageProductMutation = useSearchSage();
+  const searchSanmarProductMutation = useSearchSanMar();
+  const createSupplierMutation = useCreateVendor();
+  const createProductMutation = useCreateProduct();
+  const updateProductMutation = useUpdateProduct();
 
-      if (!response.ok) {
-        if (response.status === 404) {
-          throw new Error("No products found in S&S Activewear catalog");
-        }
-        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-        throw new Error(errorData.error || "Failed to search products");
-      }
+  const handleSearchSuccess = (products: any[], setResults: (r: any[]) => void, selectFn: (p: any) => void, source: string) => {
+    setResults(products);
+    setSearchError("");
+    if (products.length === 0) {
+      toast({ title: "No Results", description: `No products found in ${source}`, variant: "destructive" });
+    } else if (products.length === 1) {
+      selectFn(products[0]);
+    } else {
+      toast({ title: "Search Results", description: `Found ${products.length} products in ${source}` });
+    }
+  };
 
-      return response.json() as Promise<SsActivewearProduct[]>;
-    },
-    onSuccess: (products) => {
-      setSearchResults(products);
-      setSearchError("");
-
-      if (products.length === 0) {
-        toast({
-          title: "No Results",
-          description: "No products found matching your search",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      if (products.length === 1) {
-        // Auto-import single result using the same function as manual click
-        selectProduct(products[0]);
-      } else {
-        toast({
-          title: "Search Results",
-          description: `Found ${products.length} products matching your search`,
-        });
-      }
-    },
-    onError: (error: Error) => {
-      if (isUnauthorizedError(error)) {
-        toast({
-          title: "Unauthorized",
-          description: "You are logged out. Logging in again...",
-          variant: "destructive",
-        });
-        setTimeout(() => {
-          window.location.href = "/api/login";
-        }, 500);
-        return;
-      }
-
-      setSearchError(error.message);
-      toast({
-        title: "Product Not Found",
-        description: error.message,
-        variant: "destructive",
-      });
-    },
-  });
-
-  const searchSageProductMutation = useMutation({
-    mutationFn: async (query: string) => {
-      const response = await fetch(`/api/sage/products?search=${encodeURIComponent(query)}`, {
-        credentials: "include",
-      });
-
-      if (!response.ok) {
-        if (response.status === 404) {
-          throw new Error("No products found in SAGE catalog");
-        }
-        const errorData = await response.json().catch(() => ({ message: 'Unknown error' }));
-        throw new Error(errorData.message || "Failed to search SAGE products");
-      }
-
-      const products = await response.json();
-      
-      // Transform SAGE products to match expected interface
-      return products.map((p: any) => ({
-        id: p.productId || p.spc || p.SPC || p.id || '',
-        name: p.productName || p.name || 'Unnamed Product',
-        description: p.description || '',
-        sku: p.productNumber || p.sku || p.productId || '',
-        price: p.pricingStructure?.minPrice ? parseFloat(p.pricingStructure.minPrice) : undefined,
-        imageUrl: p.imageGallery?.[0] || p.thumbPic || '',
-        brand: p.supplierName || p.brand || '',
-        category: p.category || '',
-        supplierName: p.supplierName || '',
-        supplierId: p.supplierId || '',
-        asiNumber: p.asiNumber || '',
-        colors: Array.isArray(p.colors) ? p.colors : [],
-        sizes: Array.isArray(p.sizes) ? p.sizes : (p.dimensions ? [p.dimensions] : []),
-      })) as SageProduct[];
-    },
-    onSuccess: (products) => {
-      setSageSearchResults(products);
-      setSearchError("");
-
-      if (products.length === 0) {
-        toast({
-          title: "No Results",
-          description: "No products found in SAGE catalog",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      if (products.length === 1) {
-        // Auto-import single result using the same function as manual click
-        selectSageProduct(products[0]);
-      } else {
-        toast({
-          title: "Search Results",
-          description: `Found ${products.length} products in SAGE`,
-        });
-      }
-    },
-    onError: (error: Error) => {
-      if (isUnauthorizedError(error)) {
-        toast({
-          title: "Unauthorized",
-          description: "You are logged out. Logging in again...",
-          variant: "destructive",
-        });
-        setTimeout(() => {
-          window.location.href = "/api/login";
-        }, 500);
-        return;
-      }
-
-      setSearchError(error.message);
-      toast({
-        title: "Product Not Found",
-        description: error.message,
-        variant: "destructive",
-      });
-    },
-  });
-
-  const searchSanmarProductMutation = useMutation({
-    mutationFn: async (query: string) => {
-      const response = await fetch(`/api/sanmar/search?q=${encodeURIComponent(query)}`, {
-        credentials: "include",
-      });
-
-      if (!response.ok) {
-        if (response.status === 404) {
-          throw new Error("No products found in SanMar catalog");
-        }
-        const errorData = await response.json().catch(() => ({ message: 'Unknown error' }));
-        throw new Error(errorData.message || "Failed to search SanMar products");
-      }
-
-      return response.json() as Promise<SanMarProductResult[]>;
-    },
-    onSuccess: (products) => {
-      setSanmarSearchResults(products);
-      setSearchError("");
-
-      if (products.length === 0) {
-        toast({
-          title: "No Results",
-          description: "No products found in SanMar catalog",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      if (products.length === 1) {
-        selectSanmarProduct(products[0]);
-      } else {
-        toast({
-          title: "Search Results",
-          description: `Found ${products.length} products in SanMar`,
-        });
-      }
-    },
-    onError: (error: Error) => {
-      if (isUnauthorizedError(error)) {
-        toast({
-          title: "Unauthorized",
-          description: "You are logged out. Logging in again...",
-          variant: "destructive",
-        });
-        setTimeout(() => {
-          window.location.href = "/api/login";
-        }, 500);
-        return;
-      }
-
-      setSearchError(error.message);
-      toast({
-        title: "Product Not Found",
-        description: error.message,
-        variant: "destructive",
-      });
-    },
-  });
-
-  const createSupplierMutation = useMutation({
-    mutationFn: async (data: any) => {
-      const response = await apiRequest("POST", "/api/suppliers", data);
-      return response.json();
-    },
-    onSuccess: (newSupplier) => {
-      toast({
-        title: "Success",
-        description: `Supplier "${newSupplier.name}" created successfully`,
-      });
-      queryClient.invalidateQueries({ queryKey: ["/api/suppliers"] });
-      setFormData({ ...formData, supplierId: newSupplier.id });
-      setIsCreatingSupplier(false);
-      setNewSupplierData({ name: "", email: "", phone: "", website: "" });
-    },
-    onError: (error: Error) => {
-      if (isUnauthorizedError(error)) {
-        toast({
-          title: "Unauthorized",
-          description: "You are logged out. Logging in again...",
-          variant: "destructive",
-        });
-        setTimeout(() => {
-          window.location.href = "/api/login";
-        }, 500);
-        return;
-      }
-      toast({
-        title: "Error",
-        description: "Failed to create supplier",
-        variant: "destructive",
-      });
-    },
-  });
-
-  const createProductMutation = useMutation({
-    mutationFn: async (data: any) => {
-      const response = await apiRequest("POST", "/api/products", data);
-      return response.json();
-    },
-    onSuccess: () => {
-      toast({
-        title: "Success",
-        description: "Product added successfully",
-      });
-      queryClient.invalidateQueries({ queryKey: ["/api/products"] });
-      onOpenChange(false);
-      resetForm();
-    },
-    onError: (error: Error) => {
-      if (isUnauthorizedError(error)) {
-        toast({
-          title: "Unauthorized",
-          description: "You are logged out. Logging in again...",
-          variant: "destructive",
-        });
-        setTimeout(() => {
-          window.location.href = "/api/login";
-        }, 500);
-        return;
-      }
-      toast({
-        title: "Error",
-        description: "Failed to add product",
-        variant: "destructive",
-      });
-    },
-  });
-
-  const updateProductMutation = useMutation({
-    mutationFn: async (data: any) => {
-      const response = await apiRequest("PATCH", `/api/products/${product?.id}`, data);
-      return response.json();
-    },
-    onSuccess: () => {
-      toast({
-        title: "Success",
-        description: "Product updated successfully",
-      });
-      // Invalidate all product-related queries (including vendor products)
-      queryClient.invalidateQueries({ queryKey: ["/api/products"] });
-      onOpenChange(false);
-      resetForm();
-    },
-    onError: (error: Error) => {
-      if (isUnauthorizedError(error)) {
-        toast({
-          title: "Unauthorized",
-          description: "You are logged out. Logging in again...",
-          variant: "destructive",
-        });
-        setTimeout(() => {
-          window.location.href = "/api/login";
-        }, 500);
-        return;
-      }
-      toast({
-        title: "Error",
-        description: "Failed to update product",
-        variant: "destructive",
-      });
-    },
-  });
-
-  const handleSearch = () => {
-    if (!searchQuery.trim()) {
-      setSearchError("Please enter a search query");
+  const handleSearchError = (error: Error) => {
+    if (isUnauthorizedError(error)) {
+      toast({ title: "Unauthorized", description: "You are logged out. Logging in again...", variant: "destructive" });
+      setTimeout(() => { window.location.href = "/api/login"; }, 500);
       return;
     }
+    setSearchError(error.message);
+    toast({ title: "Product Not Found", description: error.message, variant: "destructive" });
+  };
 
+  const handleSearch = () => {
+    if (!searchQuery.trim()) { setSearchError("Please enter a search query"); return; }
     setIsSearching(true);
     searchProductMutation.mutate(searchQuery.trim(), {
+      onSuccess: (products) => handleSearchSuccess(products, setSearchResults, selectProduct, "S&S Activewear"),
+      onError: handleSearchError,
       onSettled: () => setIsSearching(false),
     });
   };
 
   const handleSageSearch = () => {
-    if (!sageSearchQuery.trim()) {
-      setSearchError("Please enter a search query");
-      return;
-    }
-
+    if (!sageSearchQuery.trim()) { setSearchError("Please enter a search query"); return; }
     setIsSearching(true);
     searchSageProductMutation.mutate(sageSearchQuery.trim(), {
+      onSuccess: (products) => handleSearchSuccess(products, setSageSearchResults, selectSageProduct, "SAGE"),
+      onError: handleSearchError,
       onSettled: () => setIsSearching(false),
     });
   };
 
   const handleSanmarSearch = () => {
-    if (!sanmarSearchQuery.trim()) {
-      setSearchError("Please enter a search query");
-      return;
-    }
-
+    if (!sanmarSearchQuery.trim()) { setSearchError("Please enter a search query"); return; }
     setIsSearching(true);
     searchSanmarProductMutation.mutate(sanmarSearchQuery.trim(), {
+      onSuccess: (products) => handleSearchSuccess(products, setSanmarSearchResults, selectSanmarProduct, "SanMar"),
+      onError: handleSearchError,
       onSettled: () => setIsSearching(false),
     });
   };
@@ -776,10 +436,9 @@ export default function ProductModal({ open, onOpenChange, product }: ProductMod
       let resolvedSupplierId = formData.supplierId;
       if (pendingSupplier) {
         console.log('Creating pending supplier:', pendingSupplier.name);
-        const supplierResponse = await apiRequest("POST", "/api/suppliers", pendingSupplier);
-        const newSupplier = await supplierResponse.json();
+        const newSupplier = await supplierRequests.createVendor(pendingSupplier as any);
         resolvedSupplierId = newSupplier.id;
-        queryClient.invalidateQueries({ queryKey: ["/api/suppliers"] });
+        queryClient.invalidateQueries({ queryKey: supplierKeys.all });
         setPendingSupplier(null);
         toast({
           title: "Supplier Created",
@@ -806,10 +465,11 @@ export default function ProductModal({ open, onOpenChange, product }: ProductMod
 
       console.log('Submitting product data:', productData);
 
+      const closeAndReset = () => { onOpenChange(false); resetForm(); };
       if (product) {
-        updateProductMutation.mutate(productData);
+        updateProductMutation.mutate({ id: product.id, data: productData }, { onSuccess: closeAndReset });
       } else {
-        createProductMutation.mutate(productData);
+        createProductMutation.mutate(productData, { onSuccess: closeAndReset });
       }
     } catch (error) {
       console.error('Error in handleSubmit:', error);
@@ -1590,7 +1250,13 @@ export default function ProductModal({ open, onOpenChange, product }: ProductMod
               });
               return;
             }
-            createSupplierMutation.mutate(newSupplierData);
+            createSupplierMutation.mutate(newSupplierData as any, {
+              onSuccess: (newSupplier: any) => {
+                setFormData({ ...formData, supplierId: newSupplier.id });
+                setIsCreatingSupplier(false);
+                setNewSupplierData({ name: "", email: "", phone: "", website: "" });
+              },
+            });
           }} className="space-y-4">
             <div>
               <Label htmlFor="newSupplierName">Supplier Name *</Label>

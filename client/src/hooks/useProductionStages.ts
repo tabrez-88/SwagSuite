@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
-import { DEFAULT_STAGES, type ProductionStage } from "@/lib/productionStages";
+import { DEFAULT_STAGES, type ProductionStage } from "@/constants/productionStages";
 
 const STAGES_QUERY_KEY = ["/api/production/stages"];
 

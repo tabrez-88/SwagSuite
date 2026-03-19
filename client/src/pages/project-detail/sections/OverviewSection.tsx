@@ -13,11 +13,11 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command";
-import { UserAvatar } from "@/components/UserAvatar";
+import { UserAvatar } from "@/components/shared/UserAvatar";
 import { useProductionStages } from "@/hooks/useProductionStages";
 import { useToast } from "@/hooks/use-toast";
 import { useInlineEdit } from "@/hooks/useInlineEdit";
-import { EditableText, EditableDate, EditableTextarea } from "@/components/InlineEditable";
+import { EditableText, EditableDate, EditableTextarea } from "@/components/shared/InlineEditable";
 import {
   Building2,
   Calendar,

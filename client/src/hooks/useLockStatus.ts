@@ -1,5 +1,5 @@
 import type { ProjectData } from "@/types/project-types";
-import { STAGE_ORDER, type BusinessStage } from "@/lib/businessStages";
+import { STAGE_ORDER, type BusinessStage } from "@/constants/businessStages";
 
 export interface SectionLockStatus {
   isLocked: boolean;

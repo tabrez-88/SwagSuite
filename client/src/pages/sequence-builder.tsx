@@ -10,8 +10,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
 import { apiRequest } from "@/lib/queryClient";
+import { sequenceFormSchema, stepFormSchema, type SequenceFormData, type StepFormData } from "@/schemas/sequence.schemas";
 import { useToast } from "@/hooks/use-toast";
 import { 
   Zap, 
@@ -48,26 +48,6 @@ import {
 } from "@/components/ui/alert-dialog";
 import type { Sequence, SequenceStep, SequenceEnrollment, SequenceAnalytics } from "@shared/schema";
 
-const sequenceFormSchema = z.object({
-  name: z.string().min(1, "Name is required"),
-  description: z.string().optional(),
-  status: z.enum(["draft", "active", "paused", "archived"]).default("draft"),
-  automation: z.number().min(0).max(100).default(100),
-  unenrollCriteria: z.string().optional(),
-  settings: z.string().optional(),
-});
-
-const stepFormSchema = z.object({
-  type: z.enum(["email", "task", "call", "linkedin_message"]),
-  title: z.string().min(1, "Title is required"),
-  content: z.string().optional(),
-  delayDays: z.number().min(0).default(1),
-  delayHours: z.number().min(0).max(23).default(0),
-  delayMinutes: z.number().min(0).max(59).default(0),
-  position: z.number().min(1),
-  settings: z.string().optional(),
-});
-
 export default function SequenceBuilder() {
   const [selectedSequence, setSelectedSequence] = useState<Sequence | null>(null);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
@@ -102,7 +82,7 @@ export default function SequenceBuilder() {
 
   // Mutations
   const createSequenceMutation = useMutation({
-    mutationFn: (data: z.infer<typeof sequenceFormSchema>) =>
+    mutationFn: (data: SequenceFormData) =>
       apiRequest("/api/sequences", {
         method: "POST",
         body: JSON.stringify(data),
@@ -146,7 +126,7 @@ export default function SequenceBuilder() {
   });
 
   const createStepMutation = useMutation({
-    mutationFn: (data: z.infer<typeof stepFormSchema>) =>
+    mutationFn: (data: StepFormData) =>
       apiRequest(`/api/sequences/${selectedSequence?.id}/steps`, {
         method: "POST",
         body: JSON.stringify(data),
@@ -163,7 +143,7 @@ export default function SequenceBuilder() {
   });
 
   // Forms
-  const sequenceForm = useForm<z.infer<typeof sequenceFormSchema>>({
+  const sequenceForm = useForm<SequenceFormData>({
     resolver: zodResolver(sequenceFormSchema),
     defaultValues: {
       name: "",
@@ -173,7 +153,7 @@ export default function SequenceBuilder() {
     },
   });
 
-  const stepForm = useForm<z.infer<typeof stepFormSchema>>({
+  const stepForm = useForm<StepFormData>({
     resolver: zodResolver(stepFormSchema),
     defaultValues: {
       type: "email",
@@ -186,11 +166,11 @@ export default function SequenceBuilder() {
     },
   });
 
-  const onCreateSequence = (data: z.infer<typeof sequenceFormSchema>) => {
+  const onCreateSequence = (data: SequenceFormData) => {
     createSequenceMutation.mutate(data);
   };
 
-  const onCreateStep = (data: z.infer<typeof stepFormSchema>) => {
+  const onCreateStep = (data: StepFormData) => {
     createStepMutation.mutate(data);
   };
 

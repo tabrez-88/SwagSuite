@@ -14,7 +14,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { ArrowRight, Loader2, Package } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { apiRequest } from "@/lib/queryClient";
-import { getStageTransitionPayload } from "@/lib/businessStages";
+import { getStageTransitionPayload } from "@/constants/businessStages";
 import { useToast } from "@/hooks/use-toast";
 
 interface StageConversionDialogProps {

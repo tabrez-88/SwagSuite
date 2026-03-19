@@ -1,10 +1,10 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { StageBadge } from "@/components/StageBadge";
+import { StageBadge } from "@/components/shared/StageBadge";
 import { FileText, X, Zap } from "lucide-react";
 import { useLocation } from "wouter";
 import type { Order } from "@shared/schema";
-import type { DeterminedStage } from "@/lib/businessStages";
+import type { DeterminedStage } from "@/constants/businessStages";
 
 interface ProjectHeaderProps {
   order: Order;

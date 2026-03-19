@@ -43,7 +43,7 @@ import { Shield, Users, Crown, User as UserIcon, UserPlus, Mail, Copy, Camera } 
 import TwoFactorSettings from "@/components/settings/TwoFactorSettings";
 import { Skeleton } from "@/components/ui/skeleton";
 import FilePickerDialog from "@/components/modals/FilePickerDialog";
-import { UserAvatar } from "@/components/UserAvatar";
+import { UserAvatar } from "@/components/shared/UserAvatar";
 
 interface User {
   id: string;

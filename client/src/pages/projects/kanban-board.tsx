@@ -3,8 +3,8 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { UserAvatar } from "@/components/UserAvatar";
-import { StageBadge } from "@/components/StageBadge";
+import { UserAvatar } from "@/components/shared/UserAvatar";
+import { StageBadge } from "@/components/shared/StageBadge";
 import { format } from "date-fns";
 import { AlertTriangle, Calendar, DollarSign, GripVertical } from "lucide-react";
 import { getDateStatus } from "@/lib/dateUtils";
@@ -16,7 +16,7 @@ import {
   determineBusinessStage,
   getStageTransitionPayload,
   type BusinessStage,
-} from "@/lib/businessStages";
+} from "@/constants/businessStages";
 
 const kanbanStages = STAGE_ORDER.map((id) => BUSINESS_STAGES[id]);
 

@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useLocation } from "wouter";
-import { ProductDetailModal } from "./modals/ProductDetailModal";
+import { ProductDetailModal } from "@/components/modals/ProductDetailModal";
 
 interface SearchResult {
   id: string;

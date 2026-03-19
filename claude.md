@@ -15,20 +15,35 @@ Full-stack monorepo SaaS for promotional apparel/merchandise business management
 ```
 client/src/
   App.tsx              # Main router (Wouter)
+  schemas/             # Zod validation schemas (frontend forms)
+    crm.schemas.ts     # company, contact, vendor, lead form schemas
+    artwork.schemas.ts # artwork kanban card/column schemas
+    sequence.schemas.ts # sequence builder schemas
+  constants/           # Static config & business constants
+    businessStages.ts  # Order pipeline stages (presentation → quote → SO → invoice)
+    poStages.ts        # PO lifecycle stages & proofing statuses
+    productionStages.ts # Production workflow stage definitions
+    leadSources.ts     # CRM lead source options
+    imprintOptions.ts  # Decoration locations & imprint methods
   types/               # Shared TypeScript types
-    project-types.ts   # ProjectData, TeamMember, ProjectActivity, Communication, status maps
+    project-types.ts   # ProjectData, TeamMember, ProjectActivity, Communication
+    margin-types.ts    # MarginSettings interface
   components/
     ui/                # Shadcn/ui primitives
+    layout/            # App shell: Layout, Sidebar, TopBar, ProjectInfoBar
+    shared/            # Reusable: EditableAddress, InlineEditable, StageBadge, LockBanner, etc.
+    feature/           # Domain-specific: ContactsManager, DocumentEditor, FilesTab, etc.
     sections/          # Shared detail sections (Activities, Products, Shipping, Files, etc.)
     modals/            # Modal/dialog components (OrderModal, FilePickerDialog, etc.)
     data-table/        # Data table utilities (column header, pagination, view options)
     documents/         # Document templates (PO, Quote, Sales Order)
+    email/             # Unified EmailComposer system
     dashboard/         # Dashboard components
     integrations/      # Vendor integration components
     newsletter/        # Newsletter/email campaign components
     reports/           # Report components
     settings/          # Settings-specific components
-    [root files]       # Layout, Sidebar, TopBar, FilesTab, etc.
+    production/        # Production feature components
   pages/
     projects/          # Project list components (columns, data-table, kanban-board)
     project-detail/    # Project detail page
@@ -39,40 +54,52 @@ client/src/
       sections/        # Project-specific sections (Overview, Quote, Invoice, etc.)
       components/      # Project-specific components (StageConversionDialog)
     crm/               # CRM sub-pages (companies, contacts, leads, vendors)
-    settings/          # Settings sub-pages
+    settings/          # Settings tabs (decomposed from 4367-line settings.tsx)
+      index is settings.tsx  # Shell with tabs + auth check (203 lines)
+      FeaturesTab.tsx, UsersTab.tsx, GeneralTab.tsx, EmailConfigTab.tsx,
+      NotificationsTab.tsx, IntegrationsTab.tsx, BrandingTab.tsx, ThemeTab.tsx,
+      FormsTab.tsx, ProductionStagesTab.tsx, ImportTab.tsx, EmailReportsTab.tsx
     [root page files]  # home, products, media-library, etc.
   hooks/               # Shared React hooks (useAuth, useMediaLibrary, useToast, etc.)
-  lib/                 # Utilities (queryClient, media-library, authUtils, etc.)
+  lib/                 # Pure utilities only
+    queryClient.ts     # apiRequest, getQueryFn, queryClient
+    utils.ts           # cn() - Tailwind class merge
+    authUtils.ts       # isUnauthorizedError
+    dateUtils.ts       # getDateStatus, hasTimelineConflict, isInvoiceOverdue
+    imageUtils.ts      # proxyImg, imageToBase64, preloadAndConvertImages
+    media-library.ts   # MediaLibraryItem types + file helpers
+    address.ts         # normalizeCountryCode
+    margin.ts          # marginColorClass, calcMarginPercent, applyMargin, etc.
   providers/           # ThemeProvider
 server/
   index.ts             # Express app + middleware setup
-  routes.ts            # Remaining API endpoints (orders, approvals, payments, etc.)
   storage.ts           # IStorage interface + DatabaseStorage class (~3200 lines)
   db.ts                # Neon DB connection
-  auth.ts              # Passport.js config
-  cloudinary.ts        # Cloudinary config
-  emailService.ts      # SendGrid/Nodemailer
-  *Service.ts          # Vendor integrations (sage, sanmar, ssActivewear)
-  routes/              # Modular route files (extracted from routes.ts)
+  types.ts             # Shared server types
+  vite.ts              # Vite dev server setup
+  config/              # Configuration
+    auth.ts            # Passport.js config
+    cloudinary.ts      # Cloudinary + Multer config
+    secrets.ts         # GCP Secret Manager loader
+  services/            # Business logic & external integrations
+    email.service.ts   # SendGrid/Nodemailer
+    stripe.service.ts  # Stripe payments
+    quickbooks.service.ts # QuickBooks integration
+    taxjar.service.ts  # TaxJar tax calculation
+    sage.service.ts    # Sage integration
+    sanmar.service.ts  # SanMar supplier
+    ssActivewear.service.ts # S&S Activewear supplier
+    storage.service.ts # File storage helpers
+    twoFactor.service.ts # 2FA TOTP/backup codes
+    notificationScheduler.service.ts # Hourly notification checks
+    [domain].service.ts # Per-domain business logic
+  routes/              # Modular route files
     index.ts           # registerModularRoutes() - combines all routers
-    notification.routes.ts
-    lead.routes.ts
-    company.routes.ts
-    contact.routes.ts
-    supplier.routes.ts
-    product.routes.ts
-    dashboard.routes.ts  # Also health check, image proxy, search
+    [domain].routes.ts # Per-domain route definitions
   controllers/         # Request handlers (route → controller → storage)
-    notification.controller.ts
-    lead.controller.ts
-    company.controller.ts
-    contact.controller.ts
-    supplier.controller.ts
-    product.controller.ts
-    dashboard.controller.ts
-    search.controller.ts
+    [domain].controller.ts
   repositories/        # Data access layer (extracted from storage.ts)
-    notification.repository.ts
+    [domain].repository.ts
   errors/              # Custom error classes
     AppError.ts        # AppError, NotFoundError, ForbiddenError, ValidationError
   utils/               # Shared helpers
@@ -81,10 +108,14 @@ server/
     lockHelpers.ts     # isSectionLocked, checkLockByOrderItemId
     ytdHelpers.ts      # updateCompanyYtdSpending, updateSupplierYtdSpending
     normalizeArrayField.ts  # Normalize colors/sizes arrays
+    password.ts        # Password hashing, validation, token generation
 shared/
   schema.ts            # Drizzle tables, relations, Zod schemas (~2100 lines)
   project-schema.ts    # Project-specific tables (activities, communications, attachments)
 migrations/            # Drizzle migration SQL files
+scripts/               # One-time migration & utility scripts
+deploy/                # Deployment scripts (deploy.sh, deploy.ps1, setup-secrets.sh)
+docs/                  # Documentation (deployment guides, sprint status, etc.)
 ```
 
 ## Key Patterns & Conventions
@@ -98,8 +129,8 @@ migrations/            # Drizzle migration SQL files
 - **Errors** (`server/errors/`): Custom error classes (AppError, NotFoundError, ForbiddenError, ValidationError).
 - `asyncHandler()` wraps async route handlers — eliminates try/catch boilerplate.
 - `getUserId(req)` extracts user ID from `req.user` consistently.
-- New routes registered via `registerModularRoutes(app)` in `server/routes/index.ts`, called from `routes.ts`.
-- **Migration strategy**: Routes are extracted incrementally from `routes.ts`. Order/approval/payment routes remain in `routes.ts` (complex, interconnected). Simpler CRUD domains have been fully extracted.
+- New routes registered via `registerModularRoutes(app)` in `server/routes/index.ts`, called from `index.ts`.
+- All routes have been fully extracted into modular route files under `server/routes/`.
 
 ### API & Data Fetching
 - `apiRequest(method, url, data?)` in `client/src/lib/queryClient.ts` - centralized fetch with credentials + error handling. Use for JSON requests (not FormData).
@@ -345,7 +376,7 @@ External product images (e.g., SanMar CDN) are blocked by CORS, preventing html2
 - Auto-populates imprint method/location from product-level defaults when file is picked
 
 ## Important Notes
-- `routes.ts` is very large (~9800 lines). Search for specific endpoint patterns rather than reading the whole file.
+- Routes are fully modularized in `server/routes/*.routes.ts` with corresponding controllers.
 - `storage.ts` is also large (~3200 lines). New methods follow existing patterns.
 - Pre-existing TS errors exist in `AINewsMonitor.tsx` and `HubSpotIntegration.tsx` (wrong `apiRequest` call signature) - not our changes.
 - Cloudinary URL detection: use `url.includes('cloudinary.com')` consistently (not just `'cloudinary'`).

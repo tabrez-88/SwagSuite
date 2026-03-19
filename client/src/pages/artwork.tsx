@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
-import { UserAvatar } from "@/components/UserAvatar";
+import { UserAvatar } from "@/components/shared/UserAvatar";
 import {
   Form,
   FormControl,
@@ -28,26 +28,8 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
 import { apiRequest } from "@/lib/queryClient";
-
-const createCardSchema = z.object({
-  title: z.string().min(1, "Title is required"),
-  description: z.string().optional(),
-  companyId: z.string().optional(),
-  orderId: z.string().optional(),
-  assignedUserId: z.string().optional(),
-  priority: z.enum(["low", "medium", "high", "urgent"]).default("medium"),
-  dueDate: z.string().optional(),
-});
-
-const createColumnSchema = z.object({
-  name: z.string().min(1, "Column name is required"),
-  color: z.string().default("#3b82f6"),
-});
-
-type CreateCardFormData = z.infer<typeof createCardSchema>;
-type CreateColumnFormData = z.infer<typeof createColumnSchema>;
+import { createCardSchema, createColumnSchema, type CreateCardFormData, type CreateColumnFormData } from "@/schemas/artwork.schemas";
 
 // Safe JSON parsing helper
 const safeJsonParse = (jsonString: any, fallback: any = []) => {

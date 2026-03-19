@@ -12,7 +12,7 @@ import {
   Truck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { type BusinessStage, STAGE_ORDER } from "@/lib/businessStages";
+import { type BusinessStage, STAGE_ORDER } from "@/constants/businessStages";
 
 // Sales order statuses that mean "client approved or beyond"
 const PO_UNLOCK_STATUSES = ["client_approved", "in_production", "shipped", "ready_to_invoice"];

@@ -1,6 +1,7 @@
 import { useState, useMemo, useCallback } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useCreateShipment, useUpdateShipment, useDeleteShipment } from "@/services/shipments";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,7 +25,7 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { hasTimelineConflict, getDateStatus } from "@/lib/dateUtils";
-import TimelineWarningBanner from "@/components/TimelineWarningBanner";
+import TimelineWarningBanner from "@/components/shared/TimelineWarningBanner";
 import type { ProjectData } from "@/types/project-types";
 import type { OrderShipment } from "@shared/schema";
 
@@ -150,10 +151,9 @@ export default function ShippingSection({ orderId, data, isLocked }: ShippingSec
     return { total, configured };
   }, [orderItems, localOverrides]);
 
-  const invalidate = useCallback(() => {
-    queryClient.invalidateQueries({ queryKey: [`/api/orders/${orderId}/shipments`] });
-    queryClient.invalidateQueries({ queryKey: [`/api/orders/${orderId}`] });
-  }, [queryClient, orderId]);
+  const createMutation = useCreateShipment(orderId);
+  const updateMutation = useUpdateShipment(orderId);
+  const deleteMutation = useDeleteShipment(orderId);
 
   const setField = useCallback((key: keyof ShipmentFormData, value: string) => {
     setForm(prev => ({ ...prev, [key]: value }));
@@ -316,43 +316,6 @@ export default function ShippingSection({ orderId, data, isLocked }: ShippingSec
     setIsFormOpen(true);
   }, []);
 
-  const createMutation = useMutation({
-    mutationFn: async (payload: Record<string, any>) => {
-      const res = await fetch(`/api/orders/${orderId}/shipments`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        credentials: "include", body: JSON.stringify(payload),
-      });
-      if (!res.ok) throw new Error("Failed to create shipment");
-      return res.json();
-    },
-    onSuccess: () => { invalidate(); setIsFormOpen(false); toast({ title: "Shipment created" }); },
-    onError: () => toast({ title: "Failed to create shipment", variant: "destructive" }),
-  });
-
-  const updateMutation = useMutation({
-    mutationFn: async ({ id, payload }: { id: string; payload: Record<string, any> }) => {
-      const res = await fetch(`/api/orders/${orderId}/shipments/${id}`, {
-        method: "PATCH", headers: { "Content-Type": "application/json" },
-        credentials: "include", body: JSON.stringify(payload),
-      });
-      if (!res.ok) throw new Error("Failed to update shipment");
-      return res.json();
-    },
-    onSuccess: () => { invalidate(); setIsFormOpen(false); toast({ title: "Shipment updated" }); },
-    onError: () => toast({ title: "Failed to update shipment", variant: "destructive" }),
-  });
-
-  const deleteMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const res = await fetch(`/api/orders/${orderId}/shipments/${id}`, {
-        method: "DELETE", credentials: "include",
-      });
-      if (!res.ok) throw new Error("Failed to delete shipment");
-    },
-    onSuccess: () => { invalidate(); setDeleteTarget(null); toast({ title: "Shipment removed" }); },
-    onError: () => toast({ title: "Failed to delete shipment", variant: "destructive" }),
-  });
-
   const isSaving = createMutation.isPending || updateMutation.isPending;
 
   const handleSave = () => {
@@ -372,9 +335,14 @@ export default function ShippingSection({ orderId, data, isLocked }: ShippingSec
     };
 
     if (editingShipment) {
-      updateMutation.mutate({ id: editingShipment.id, payload });
+      updateMutation.mutate(
+        { shipmentId: editingShipment.id, data: payload },
+        { onSuccess: () => setIsFormOpen(false) },
+      );
     } else {
-      createMutation.mutate(payload);
+      createMutation.mutate(payload, {
+        onSuccess: () => setIsFormOpen(false),
+      });
     }
   };
 
@@ -949,7 +917,7 @@ export default function ShippingSection({ orderId, data, isLocked }: ShippingSec
             <AlertDialogAction
               className="bg-red-600 hover:bg-red-700"
               disabled={deleteMutation.isPending}
-              onClick={() => deleteTarget && deleteMutation.mutate(deleteTarget.id)}
+              onClick={() => deleteTarget && deleteMutation.mutate(deleteTarget.id, { onSuccess: () => setDeleteTarget(null) })}
             >
               {deleteMutation.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Trash2 className="w-4 h-4 mr-2" />}
               Delete

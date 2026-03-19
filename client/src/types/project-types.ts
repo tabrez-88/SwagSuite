@@ -1,5 +1,5 @@
 import type { Order, OrderItemLine, OrderAdditionalCharge, OrderShipment, CustomerPortalToken } from "@shared/schema";
-import type { DeterminedStage } from "@/lib/businessStages";
+import type { DeterminedStage } from "@/constants/businessStages";
 
 export interface TeamMember {
   id: string;

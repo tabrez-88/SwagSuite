@@ -1,11 +1,9 @@
 import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { UserAvatar } from "@/components/UserAvatar";
+import { UserAvatar } from "@/components/shared/UserAvatar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -32,10 +30,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useToast } from "@/hooks/use-toast";
-import { apiRequest } from "@/lib/queryClient";
-import { isUnauthorizedError } from "@/lib/authUtils";
-import { LEAD_SOURCES } from "@/lib/leadSources";
+import { leadFormSchema, type LeadFormData } from "@/schemas/crm.schemas";
+import { LEAD_SOURCES } from "@/constants/leadSources";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
   DropdownMenu,
@@ -43,12 +39,12 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { 
-  Search, 
-  Plus, 
-  User, 
-  Phone, 
-  Mail, 
+import {
+  Search,
+  Plus,
+  User,
+  Phone,
+  Mail,
   Calendar,
   DollarSign,
   Trash2,
@@ -60,7 +56,7 @@ import {
   Eye,
   AlertTriangle,
 } from "lucide-react";
-import { CRMViewToggle } from "@/components/CRMViewToggle";
+import { CRMViewToggle } from "@/components/shared/CRMViewToggle";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -71,42 +67,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-
-interface Lead {
-  id: string;
-  firstName: string;
-  lastName: string;
-  email?: string;
-  phone?: string;
-  company?: string;
-  title?: string;
-  source: string;
-  status: string;
-  score?: number;
-  estimatedValue?: number;
-  notes?: string;
-  lastContactDate?: string;
-  nextFollowUpDate?: string;
-  createdAt?: string;
-  updatedAt?: string;
-}
-
-// Form schema for lead creation
-const leadFormSchema = z.object({
-  firstName: z.string().min(1, "First name is required"),
-  lastName: z.string().min(1, "Last name is required"),
-  email: z.string().email().optional().or(z.literal("")),
-  phone: z.string().optional(),
-  company: z.string().optional(),
-  title: z.string().optional(),
-  source: z.string().min(1, "Lead source is required"),
-  status: z.string().min(1, "Lead status is required"),
-  estimatedValue: z.string().optional().transform((val) => val ? parseFloat(val) : undefined),
-  notes: z.string().optional(),
-  nextFollowUpDate: z.string().optional(),
-});
-
-type LeadFormData = z.infer<typeof leadFormSchema>;
+import { useLeads, useCreateLead, useDeleteLead } from "@/services/leads";
+import type { Lead } from "@/services/leads";
 
 const LEAD_STATUSES = [
   "new",
@@ -139,9 +101,6 @@ export default function Leads() {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [leadToDelete, setLeadToDelete] = useState<Lead | null>(null);
 
-  const { toast } = useToast();
-  const queryClient = useQueryClient();
-
   const form = useForm<LeadFormData>({
     resolver: zodResolver(leadFormSchema),
     defaultValues: {
@@ -159,78 +118,17 @@ export default function Leads() {
     },
   });
 
-  const { data: leads = [], isLoading } = useQuery<Lead[]>({
-    queryKey: ["/api/leads"],
-  });
-
-  const createLeadMutation = useMutation({
-    mutationFn: async (data: LeadFormData) => {
-      return await apiRequest("/api/leads", "POST", data);
-    },
-    onSuccess: () => {
-      toast({
-        title: "Success",
-        description: "Lead created successfully",
-      });
-      queryClient.invalidateQueries({ queryKey: ["/api/leads"] });
-      setIsCreateModalOpen(false);
-      form.reset();
-    },
-    onError: (error) => {
-      if (isUnauthorizedError(error)) {
-        toast({
-          title: "Unauthorized",
-          description: "You are logged out. Logging in again...",
-          variant: "destructive",
-        });
-        setTimeout(() => {
-          window.location.href = "/api/login";
-        }, 500);
-        return;
-      }
-      toast({
-        title: "Error",
-        description: "Failed to create lead. Please try again.",
-        variant: "destructive",
-      });
-    },
-  });
-
-  const deleteLeadMutation = useMutation({
-    mutationFn: async (leadId: string) => {
-      return await apiRequest(`/api/leads/${leadId}`, "DELETE");
-    },
-    onSuccess: () => {
-      toast({
-        title: "Success",
-        description: "Lead deleted successfully",
-      });
-      queryClient.invalidateQueries({ queryKey: ["/api/leads"] });
-      setIsDeleteDialogOpen(false);
-      setLeadToDelete(null);
-    },
-    onError: (error) => {
-      if (isUnauthorizedError(error)) {
-        toast({
-          title: "Unauthorized",
-          description: "You are logged out. Logging in again...",
-          variant: "destructive",
-        });
-        setTimeout(() => {
-          window.location.href = "/api/login";
-        }, 500);
-        return;
-      }
-      toast({
-        title: "Error",
-        description: "Failed to delete lead. Please try again.",
-        variant: "destructive",
-      });
-    },
-  });
+  const { data: leads = [], isLoading } = useLeads();
+  const createLeadMutation = useCreateLead();
+  const deleteLeadMutation = useDeleteLead();
 
   const onSubmit = (data: LeadFormData) => {
-    createLeadMutation.mutate(data);
+    createLeadMutation.mutate(data, {
+      onSuccess: () => {
+        setIsCreateModalOpen(false);
+        form.reset();
+      },
+    });
   };
 
   const handleDeleteLead = (lead: Lead) => {
@@ -831,7 +729,12 @@ export default function Leads() {
             <AlertDialogAction
               onClick={() => {
                 if (leadToDelete) {
-                  deleteLeadMutation.mutate(leadToDelete.id);
+                  deleteLeadMutation.mutate(leadToDelete.id, {
+                    onSuccess: () => {
+                      setIsDeleteDialogOpen(false);
+                      setLeadToDelete(null);
+                    },
+                  });
                 }
               }}
               className="bg-red-600 hover:bg-red-700 focus:ring-red-600"

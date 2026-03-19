@@ -1,9 +1,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
-import { z } from "zod";
-import { CRMViewToggle } from "@/components/CRMViewToggle";
+import { CRMViewToggle } from "@/components/shared/CRMViewToggle";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -46,10 +44,22 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { AddressAutocomplete } from "@/components/ui/address-autocomplete";
-import { UserAvatar } from "@/components/UserAvatar";
-import { useToast } from "@/hooks/use-toast";
-import { isUnauthorizedError } from "@/lib/authUtils";
-import { apiRequest } from "@/lib/queryClient";
+import { UserAvatar } from "@/components/shared/UserAvatar";
+import { vendorContactFormSchema as contactFormSchema, type VendorContactFormData as ContactFormData, vendorFormSchema, type VendorFormData } from "@/schemas/crm.schemas";
+import {
+  useSuppliers,
+  useVendorProducts,
+  useVendorContacts,
+  useCreateVendor,
+  useUpdateVendor,
+  useDeleteVendor,
+  useTogglePreferred,
+  useUpdateBenefits,
+  useCreateVendorContact,
+  useUpdateVendorContact,
+  useDeleteVendorContact,
+} from "@/services/suppliers";
+import type { Vendor, VendorContact } from "@/services/suppliers";
 import {
   AlertTriangle,
   Award,
@@ -75,89 +85,6 @@ import {
   TrendingUp,
   Users
 } from "lucide-react";
-
-interface Vendor {
-  id: string;
-  name: string;
-  email?: string;
-  phone?: string;
-  website?: string;
-  address?: string;
-  contactPerson?: string;
-  paymentTerms?: string;
-  notes?: string;
-  isPreferred?: boolean;
-  doNotOrder?: boolean;
-  ytdSpend?: number;
-  lastYearSpend?: number;
-  productCount?: number;
-  lastOrderDate?: string;
-  apiIntegrationStatus?: string;
-  createdAt?: string;
-  updatedAt?: string;
-  preferredBenefits?: {
-    eqpPricing?: number; // percentage discount
-    rebatePercentage?: number;
-    freeSetups?: boolean;
-    reducedSpecSamples?: boolean;
-    freeSpecSamples?: boolean;
-    reducedSelfPromo?: boolean;
-    freeSelfPromo?: boolean;
-    ytdEqpSavings?: number;
-    ytdRebates?: number;
-    selfPromosSent?: number;
-    specSamplesSent?: number;
-  };
-}
-
-interface VendorContact {
-  id: string;
-  supplierId: string;
-  firstName: string;
-  lastName: string;
-  email?: string;
-  phone?: string;
-  title?: string;
-  isPrimary?: boolean;
-  receiveOrderEmails?: boolean;
-  createdAt?: string;
-  updatedAt?: string;
-}
-
-// Contact form schema
-const contactFormSchema = z.object({
-  firstName: z.string().min(1, "First name is required"),
-  lastName: z.string().min(1, "Last name is required"),
-  email: z.string().email().optional().or(z.literal("")),
-  phone: z.string().optional(),
-  title: z.string().optional(),
-  isPrimary: z.boolean().default(false),
-  receiveOrderEmails: z.boolean().default(true),
-});
-
-type ContactFormData = z.infer<typeof contactFormSchema>;
-
-// Form schema for vendor creation
-const vendorFormSchema = z.object({
-  name: z.string().min(1, "Vendor name is required"),
-  email: z.string().email().optional().or(z.literal("")),
-  phone: z.string().optional(),
-  website: z.string().url().optional().or(z.literal("")),
-  address: z.string().optional(),
-  contactPerson: z.string().optional(),
-  paymentTerms: z.string().optional(),
-  notes: z.string().optional(),
-  isPreferred: z.boolean().default(false),
-  doNotOrder: z.boolean().default(false),
-  eqpPricing: z.number().optional(),
-  rebatePercentage: z.number().optional(),
-  freeSetups: z.boolean().default(false),
-  freeSpecSamples: z.boolean().default(false),
-  freeSelfPromo: z.boolean().default(false),
-  reducedSpecSamples: z.boolean().default(false),
-});
-
-type VendorFormData = z.infer<typeof vendorFormSchema>;
 
 export default function Vendors() {
   const [searchQuery, setSearchQuery] = useState("");
@@ -192,40 +119,18 @@ export default function Vendors() {
   });
 
   // Fetch products for selected vendor
-  const { data: vendorProducts, isLoading: isLoadingProducts } = useQuery({
-    queryKey: ["/api/products", "vendor", selectedVendor?.id],
-    enabled: !!selectedVendor && isVendorDetailOpen,
-    queryFn: async () => {
-      if (!selectedVendor) return [];
-      console.log('Fetching products for vendor:', selectedVendor.id);
-      const res = await fetch(`/api/products?supplierId=${selectedVendor.id}`, {
-        credentials: "include",
-      });
-      if (!res.ok) throw new Error("Failed to fetch products");
-      const data = await res.json();
-      console.log('Received products:', data.length);
-      return data;
-    },
-  });
+  const { data: vendorProducts, isLoading: isLoadingProducts } = useVendorProducts(
+    selectedVendor?.id,
+    !!selectedVendor && isVendorDetailOpen,
+  );
 
   // Fetch contacts for selected vendor
-  const { data: vendorContacts = [], isLoading: isLoadingContacts } = useQuery<VendorContact[]>({
-    queryKey: ["/api/contacts", "vendor", selectedVendor?.id],
-    enabled: !!selectedVendor && isVendorDetailOpen,
-    queryFn: async () => {
-      if (!selectedVendor) return [];
-      const res = await fetch(`/api/contacts?supplierId=${selectedVendor.id}`, {
-        credentials: "include",
-      });
-      if (!res.ok) throw new Error("Failed to fetch contacts");
-      return res.json();
-    },
-  });
+  const { data: vendorContacts = [], isLoading: isLoadingContacts } = useVendorContacts(
+    selectedVendor?.id,
+    !!selectedVendor && isVendorDetailOpen,
+  );
 
   const [activeTab, setActiveTab] = useState<string>("all");
-
-  const { toast } = useToast();
-  const queryClient = useQueryClient();
 
   const form = useForm<VendorFormData>({
     resolver: zodResolver(vendorFormSchema),
@@ -261,153 +166,37 @@ export default function Vendors() {
     },
   });
 
-  const { data: vendors = [], isLoading } = useQuery<Vendor[]>({
-    queryKey: ["/api/suppliers"],
-  });
+  const { data: vendors = [], isLoading } = useSuppliers();
 
-  const createVendorMutation = useMutation({
-    mutationFn: async (data: VendorFormData) => {
-      const response = await apiRequest("POST", "/api/suppliers", data);
-      return response.json();
-    },
-    onSuccess: () => {
-      toast({
-        title: "Success",
-        description: "Vendor created successfully",
-      });
-      queryClient.invalidateQueries({ queryKey: ["/api/suppliers"] });
-      setIsCreateModalOpen(false);
-      form.reset();
-    },
-    onError: (error) => {
-      if (isUnauthorizedError(error)) {
-        toast({
-          title: "Unauthorized",
-          description: "You are logged out. Logging in again...",
-          variant: "destructive",
-        });
-        setTimeout(() => {
-          window.location.href = "/api/login";
-        }, 500);
-        return;
-      }
-      toast({
-        title: "Error",
-        description: "Failed to create vendor. Please try again.",
-        variant: "destructive",
-      });
-    },
-  });
-
-  const updateVendorMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: string; data: Partial<VendorFormData> }) => {
-      // Format data for API, converting benefit fields to preferredBenefits object
-      const apiData: any = {
-        name: data.name,
-        email: data.email,
-        phone: data.phone,
-        website: data.website,
-        address: data.address,
-        contactPerson: data.contactPerson,
-        paymentTerms: data.paymentTerms,
-        notes: data.notes,
-        isPreferred: data.isPreferred,
-        doNotOrder: data.doNotOrder,
-      };
-
-      // If vendor is preferred, include benefits
-      if (data.isPreferred) {
-        apiData.preferredBenefits = {
-          eqpPricing: data.eqpPricing || 0,
-          rebatePercentage: data.rebatePercentage || 0,
-          freeSetups: data.freeSetups || false,
-          freeSpecSamples: data.freeSpecSamples || false,
-          reducedSpecSamples: data.reducedSpecSamples || false,
-          freeSelfPromo: data.freeSelfPromo || false,
-          reducedSelfPromo: false, // not in form but keep for consistency
-          ytdEqpSavings: 0,
-          ytdRebates: 0,
-          selfPromosSent: 0,
-          specSamplesSent: 0,
-        };
-      }
-
-      const response = await apiRequest("PATCH", `/api/suppliers/${id}`, apiData);
-      return response.json();
-    },
-    onSuccess: () => {
-      toast({
-        title: "Success",
-        description: "Vendor updated successfully",
-      });
-      queryClient.invalidateQueries({ queryKey: ["/api/suppliers"] });
-      setIsEditVendorOpen(false);
-      setSelectedVendor(null);
-    },
-    onError: (error) => {
-      if (isUnauthorizedError(error)) {
-        toast({
-          title: "Unauthorized",
-          description: "You are logged out. Logging in again...",
-          variant: "destructive",
-        });
-        setTimeout(() => {
-          window.location.href = "/api/login";
-        }, 500);
-        return;
-      }
-      toast({
-        title: "Error",
-        description: "Failed to update vendor. Please try again.",
-        variant: "destructive",
-      });
-    },
-  });
-
-  const deleteVendorMutation = useMutation({
-    mutationFn: async (vendorId: string) => {
-      const response = await apiRequest("DELETE", `/api/suppliers/${vendorId}`);
-      return response;
-    },
-    onSuccess: () => {
-      toast({
-        title: "Success",
-        description: "Vendor deleted successfully",
-      });
-      queryClient.invalidateQueries({ queryKey: ["/api/suppliers"] });
-      setIsDeleteVendorDialogOpen(false);
-      setVendorToDelete(null);
-    },
-    onError: (error) => {
-      if (isUnauthorizedError(error)) {
-        toast({
-          title: "Unauthorized",
-          description: "You are logged out. Logging in again...",
-          variant: "destructive",
-        });
-        setTimeout(() => {
-          window.location.href = "/api/login";
-        }, 500);
-        return;
-      }
-      toast({
-        title: "Error",
-        description: "Failed to delete vendor. Please try again.",
-        variant: "destructive",
-      });
-    },
-  });
+  const createVendorMutation = useCreateVendor();
+  const updateVendorMutation = useUpdateVendor();
+  const deleteVendorMutation = useDeleteVendor();
+  const togglePreferredMutation = useTogglePreferred();
+  const updateBenefitsMutation = useUpdateBenefits();
+  const createContactMutation = useCreateVendorContact(selectedVendor?.id);
+  const updateContactMutation = useUpdateVendorContact(selectedVendor?.id);
+  const deleteContactMutation = useDeleteVendorContact(selectedVendor?.id);
 
   const onSubmit = (data: VendorFormData) => {
-    createVendorMutation.mutate(data);
+    createVendorMutation.mutate(data, {
+      onSuccess: () => {
+        setIsCreateModalOpen(false);
+        form.reset();
+      },
+    });
   };
 
   const onUpdateSubmit = (data: VendorFormData) => {
     if (selectedVendor) {
-      updateVendorMutation.mutate({
-        id: selectedVendor.id,
-        data
-      });
+      updateVendorMutation.mutate(
+        { id: selectedVendor.id, data },
+        {
+          onSuccess: () => {
+            setIsEditVendorOpen(false);
+            setSelectedVendor(null);
+          },
+        },
+      );
     }
   };
 
@@ -439,40 +228,6 @@ export default function Vendors() {
     setIsDeleteVendorDialogOpen(true);
   };
 
-  // Toggle preferred vendor status
-  const togglePreferredMutation = useMutation({
-    mutationFn: async ({ vendorId, isPreferred }: { vendorId: string; isPreferred: boolean }) => {
-      console.log('Toggling preferred for vendor:', vendorId, 'to:', isPreferred);
-      const response = await apiRequest("PATCH", `/api/suppliers/${vendorId}`, { isPreferred });
-      return response.json();
-    },
-    onSuccess: () => {
-      toast({
-        title: "Success",
-        description: "Vendor preference updated successfully",
-      });
-      queryClient.invalidateQueries({ queryKey: ["/api/suppliers"] });
-    },
-    onError: (error) => {
-      if (isUnauthorizedError(error)) {
-        toast({
-          title: "Unauthorized",
-          description: "You are logged out. Logging in again...",
-          variant: "destructive",
-        });
-        setTimeout(() => {
-          window.location.href = "/api/login";
-        }, 500);
-        return;
-      }
-      toast({
-        title: "Error",
-        description: "Failed to update vendor preference. Please try again.",
-        variant: "destructive",
-      });
-    },
-  });
-
   const handleTogglePreferred = (vendor: Vendor) => {
     togglePreferredMutation.mutate({
       vendorId: vendor.id,
@@ -480,7 +235,6 @@ export default function Vendors() {
     });
   };
 
-  // Update preferred benefits
   // Initialize benefits form when vendor is selected
   useEffect(() => {
     if (selectedVendor?.preferredBenefits) {
@@ -500,155 +254,6 @@ export default function Vendors() {
     }
   }, [selectedVendor, isEditBenefitsOpen]);
 
-  const updateBenefitsMutation = useMutation({
-    mutationFn: async (data: { vendorId: string; preferredBenefits: any }) => {
-      console.log('Updating benefits for vendor:', data.vendorId, 'with:', data.preferredBenefits);
-      const response = await apiRequest("PATCH", `/api/suppliers/${data.vendorId}`, {
-        preferredBenefits: data.preferredBenefits
-      });
-      return response.json();
-    },
-    onSuccess: async (updatedVendor) => {
-      // Update selectedVendor with fresh data
-      if (selectedVendor) {
-        setSelectedVendor({
-          ...selectedVendor,
-          preferredBenefits: updatedVendor.preferredBenefits || benefitsForm
-        });
-      }
-
-      toast({
-        title: "Success",
-        description: "Vendor benefits updated successfully",
-      });
-
-      // Refetch all vendors to update the list
-      await queryClient.invalidateQueries({ queryKey: ["/api/suppliers"] });
-      setIsEditBenefitsOpen(false);
-    },
-    onError: (error) => {
-      if (isUnauthorizedError(error)) {
-        toast({
-          title: "Unauthorized",
-          description: "You are logged out. Logging in again...",
-          variant: "destructive",
-        });
-        setTimeout(() => {
-          window.location.href = "/api/login";
-        }, 500);
-        return;
-      }
-      toast({
-        title: "Error",
-        description: "Failed to update vendor benefits. Please try again.",
-        variant: "destructive",
-      });
-    },
-  });
-
-  // Contact mutations
-  const createContactMutation = useMutation({
-    mutationFn: async (data: ContactFormData & { supplierId: string }) => {
-      const response = await apiRequest("POST", "/api/contacts", data);
-      return response.json();
-    },
-    onSuccess: () => {
-      toast({
-        title: "Success",
-        description: "Contact added successfully",
-      });
-      queryClient.invalidateQueries({ queryKey: ["/api/contacts", "vendor", selectedVendor?.id] });
-      setIsAddContactOpen(false);
-      contactForm.reset();
-    },
-    onError: (error) => {
-      if (isUnauthorizedError(error)) {
-        toast({
-          title: "Unauthorized",
-          description: "You are logged out. Logging in again...",
-          variant: "destructive",
-        });
-        setTimeout(() => {
-          window.location.href = "/api/login";
-        }, 500);
-        return;
-      }
-      toast({
-        title: "Error",
-        description: "Failed to add contact. Please try again.",
-        variant: "destructive",
-      });
-    },
-  });
-
-  const updateContactMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: string; data: Partial<ContactFormData> }) => {
-      const response = await apiRequest("PATCH", `/api/contacts/${id}`, data);
-      return response.json();
-    },
-    onSuccess: () => {
-      toast({
-        title: "Success",
-        description: "Contact updated successfully",
-      });
-      queryClient.invalidateQueries({ queryKey: ["/api/contacts", "vendor", selectedVendor?.id] });
-      setIsEditContactOpen(false);
-      setSelectedContact(null);
-      contactForm.reset();
-    },
-    onError: (error) => {
-      if (isUnauthorizedError(error)) {
-        toast({
-          title: "Unauthorized",
-          description: "You are logged out. Logging in again...",
-          variant: "destructive",
-        });
-        setTimeout(() => {
-          window.location.href = "/api/login";
-        }, 500);
-        return;
-      }
-      toast({
-        title: "Error",
-        description: "Failed to update contact. Please try again.",
-        variant: "destructive",
-      });
-    },
-  });
-
-  const deleteContactMutation = useMutation({
-    mutationFn: async (contactId: string) => {
-      const response = await apiRequest("DELETE", `/api/contacts/${contactId}`);
-      return response;
-    },
-    onSuccess: () => {
-      toast({
-        title: "Success",
-        description: "Contact deleted successfully",
-      });
-      queryClient.invalidateQueries({ queryKey: ["/api/contacts", "vendor", selectedVendor?.id] });
-      setIsDeleteContactDialogOpen(false);
-      setContactToDelete(null);
-    },
-    onError: (error) => {
-      if (isUnauthorizedError(error)) {
-        toast({
-          title: "Unauthorized",
-          description: "You are logged out. Logging in again...",
-          variant: "destructive",
-        });
-        setTimeout(() => {
-          window.location.href = "/api/login";
-        }, 500);
-        return;
-      }
-      toast({
-        title: "Error",
-        description: "Failed to delete contact. Please try again.",
-        variant: "destructive",
-      });
-    },
-  });
 
   // Filter vendors based on search and tab selection
   const filteredVendors = vendors.filter((vendor: Vendor) => {
@@ -2363,11 +1968,23 @@ export default function Vendors() {
                 </Button>
                 <Button
                   onClick={() => {
-                    console.log('Saving benefits form:', benefitsForm);
-                    updateBenefitsMutation.mutate({
-                      vendorId: selectedVendor.id,
-                      preferredBenefits: benefitsForm
-                    });
+                    updateBenefitsMutation.mutate(
+                      {
+                        vendorId: selectedVendor.id,
+                        preferredBenefits: benefitsForm,
+                      },
+                      {
+                        onSuccess: (updatedVendor) => {
+                          if (selectedVendor) {
+                            setSelectedVendor({
+                              ...selectedVendor,
+                              preferredBenefits: updatedVendor.preferredBenefits || benefitsForm,
+                            });
+                          }
+                          setIsEditBenefitsOpen(false);
+                        },
+                      },
+                    );
                   }}
                 >
                   <Star className="h-4 w-4 mr-2" />
@@ -2693,10 +2310,15 @@ export default function Vendors() {
           <Form {...contactForm}>
             <form onSubmit={contactForm.handleSubmit((data) => {
               if (selectedVendor) {
-                createContactMutation.mutate({
-                  ...data,
-                  supplierId: selectedVendor.id
-                });
+                createContactMutation.mutate(
+                  { ...data, supplierId: selectedVendor.id },
+                  {
+                    onSuccess: () => {
+                      setIsAddContactOpen(false);
+                      contactForm.reset();
+                    },
+                  },
+                );
               }
             })} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
@@ -2841,10 +2463,16 @@ export default function Vendors() {
           <Form {...contactForm}>
             <form onSubmit={contactForm.handleSubmit((data) => {
               if (selectedContact) {
-                updateContactMutation.mutate({
-                  id: selectedContact.id,
-                  data
-                });
+                updateContactMutation.mutate(
+                  { id: selectedContact.id, data },
+                  {
+                    onSuccess: () => {
+                      setIsEditContactOpen(false);
+                      setSelectedContact(null);
+                      contactForm.reset();
+                    },
+                  },
+                );
               }
             })} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
@@ -3005,7 +2633,12 @@ export default function Vendors() {
             <AlertDialogAction
               onClick={() => {
                 if (vendorToDelete) {
-                  deleteVendorMutation.mutate(vendorToDelete.id);
+                  deleteVendorMutation.mutate(vendorToDelete.id, {
+                    onSuccess: () => {
+                      setIsDeleteVendorDialogOpen(false);
+                      setVendorToDelete(null);
+                    },
+                  });
                 }
               }}
               className="bg-red-600 hover:bg-red-700 focus:ring-red-600"
@@ -3044,7 +2677,12 @@ export default function Vendors() {
             <AlertDialogAction
               onClick={() => {
                 if (contactToDelete) {
-                  deleteContactMutation.mutate(contactToDelete.id);
+                  deleteContactMutation.mutate(contactToDelete.id, {
+                    onSuccess: () => {
+                      setIsDeleteContactDialogOpen(false);
+                      setContactToDelete(null);
+                    },
+                  });
                 }
               }}
               className="bg-red-600 hover:bg-red-700 focus:ring-red-600"

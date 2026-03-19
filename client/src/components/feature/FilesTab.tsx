@@ -30,9 +30,9 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { UploadFilesModal } from "./modals/UploadFilesModal";
-import { FilePreviewModal } from "./modals/FilePreviewModal";
-import FilePickerDialog from "./modals/FilePickerDialog";
+import { UploadFilesModal } from "@/components/modals/UploadFilesModal";
+import { FilePreviewModal } from "@/components/modals/FilePreviewModal";
+import FilePickerDialog from "@/components/modals/FilePickerDialog";
 import {
     Upload,
     FileText,
@@ -50,7 +50,7 @@ import {
     AlertTriangle,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { Separator } from "./ui/separator";
+import { Separator } from "@/components/ui/separator";
 import { format } from "date-fns";
 
 interface OrderFile {

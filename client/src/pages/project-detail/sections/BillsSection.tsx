@@ -15,7 +15,7 @@ import { FileText, Building2, Plus, Loader2, Link2 } from "lucide-react";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import ProjectInfoBar from "@/components/ProjectInfoBar";
+import ProjectInfoBar from "@/components/layout/ProjectInfoBar";
 import type { ProjectData } from "@/types/project-types";
 
 interface BillsSectionProps {

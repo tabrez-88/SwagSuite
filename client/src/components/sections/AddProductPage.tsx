@@ -27,7 +27,7 @@ import {
   DollarSign, ShoppingCart, Trash2, ImageIcon, Tag, ShieldAlert
 } from "lucide-react";
 import type { ProjectData } from "@/types/project-types";
-import { IMPRINT_LOCATIONS, IMPRINT_METHODS } from "@/lib/imprintOptions";
+import { IMPRINT_LOCATIONS, IMPRINT_METHODS } from "@/constants/imprintOptions";
 import { useMarginSettings, marginColorClass, isBelowMinimum, calcMarginPercent, applyMargin } from "@/hooks/useMarginSettings";
 
 interface AddProductPageProps {

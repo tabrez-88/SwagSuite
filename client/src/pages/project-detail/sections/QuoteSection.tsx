@@ -16,9 +16,9 @@ import { useToast } from "@/hooks/use-toast";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useInlineEdit } from "@/hooks/useInlineEdit";
-import { EditableText, EditableDate, EditableTextarea } from "@/components/InlineEditable";
-import EditableAddress from "@/components/EditableAddress";
-import ProjectInfoBar from "@/components/ProjectInfoBar";
+import { EditableText, EditableDate, EditableTextarea } from "@/components/shared/InlineEditable";
+import EditableAddress from "@/components/shared/EditableAddress";
+import ProjectInfoBar from "@/components/layout/ProjectInfoBar";
 import {
   ArrowRight,
   CheckCircle,
@@ -34,12 +34,12 @@ import {
 import { format } from "date-fns";
 import type { useProjectData } from "../hooks/useProjectData";
 import type { SectionLockStatus } from "@/hooks/useLockStatus";
-import LockBanner from "@/components/LockBanner";
+import LockBanner from "@/components/shared/LockBanner";
 import StageConversionDialog from "../components/StageConversionDialog";
 import { useDocumentGeneration, buildItemsHash } from "@/hooks/useDocumentGeneration";
 import QuoteTemplate from "@/components/documents/QuoteTemplate";
 import GeneratedDocumentCard from "@/components/documents/GeneratedDocumentCard";
-import { DocumentEditor } from "@/components/DocumentEditor";
+import { DocumentEditor } from "@/components/feature/DocumentEditor";
 import SendQuoteDialog from "@/components/modals/SendQuoteDialog";
 import ProductsSection from "@/components/sections/ProductsSection";
 import { Separator } from "@/components/ui/separator";

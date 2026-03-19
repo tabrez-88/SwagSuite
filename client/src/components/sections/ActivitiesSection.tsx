@@ -1,6 +1,6 @@
 import { useState, useRef } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
+import { usePostActivity } from "@/services/activities";
 import {
   Activity,
   AtSign,
@@ -17,8 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
-import { UserAvatar } from "@/components/UserAvatar";
-import { useToast } from "@/hooks/use-toast";
+import { UserAvatar } from "@/components/shared/UserAvatar";
 import FilePickerDialog from "@/components/modals/FilePickerDialog";
 import { FilePreviewModal } from "@/components/modals/FilePreviewModal";
 import { type MediaLibraryItem, getCloudinaryThumbnail, isImageFile } from "@/lib/media-library";
@@ -112,8 +111,6 @@ function getActivityBg(activityType: string) {
 
 export default function ActivitiesSection({ orderId, data }: ActivitiesSectionProps) {
   const { activities, teamMembers } = data;
-  const { toast } = useToast();
-  const queryClient = useQueryClient();
 
   const [internalNote, setInternalNote] = useState("");
   const [mentionQuery, setMentionQuery] = useState("");
@@ -123,38 +120,7 @@ export default function ActivitiesSection({ orderId, data }: ActivitiesSectionPr
   const [previewFile, setPreviewFile] = useState<{ originalName: string; filePath: string; mimeType: string; fileName: string } | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  const createActivityMutation = useMutation({
-    mutationFn: async (mutationData: {
-      activityType: string;
-      content: string;
-      mentionedUsers?: string[];
-      attachments?: { fileName: string; mimeType: string | null; cloudinaryUrl: string; thumbnailUrl: string | null }[];
-    }) => {
-      const response = await fetch(`/api/projects/${orderId}/activities`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(mutationData),
-      });
-      if (!response.ok) throw new Error("Failed to create activity");
-      return response.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: [`/api/projects/${orderId}/activities`],
-      });
-      toast({
-        title: "Note sent",
-        description: "Internal note has been added successfully.",
-      });
-    },
-    onError: () => {
-      toast({
-        title: "Error",
-        description: "Failed to send internal note.",
-        variant: "destructive",
-      });
-    },
-  });
+  const createActivityMutation = usePostActivity(orderId);
 
   const resolvedTeamMembers = teamMembers.length > 0 ? teamMembers : defaultTeamMembers;
 
@@ -215,9 +181,12 @@ export default function ActivitiesSection({ orderId, data }: ActivitiesSectionPr
         cloudinaryUrl: f.cloudinaryUrl,
         thumbnailUrl: f.thumbnailUrl,
       })) : undefined,
+    }, {
+      onSuccess: () => {
+        setInternalNote("");
+        setPendingAttachments([]);
+      },
     });
-    setInternalNote("");
-    setPendingAttachments([]);
   };
 
   const removeAttachment = (id: string) => {

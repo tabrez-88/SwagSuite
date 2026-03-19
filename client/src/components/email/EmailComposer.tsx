@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { RichTextEditor } from "@/components/RichTextEditor";
+import { RichTextEditor } from "@/components/shared/RichTextEditor";
 import { Send, Eye, Edit, Loader2 } from "lucide-react";
 import EmailContactPicker from "./EmailContactPicker";
 import EmailPreview from "./EmailPreview";

@@ -36,7 +36,7 @@ import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { isUnauthorizedError } from "@/lib/authUtils";
-import { BUSINESS_STAGES, type BusinessStage } from "@/lib/businessStages";
+import { BUSINESS_STAGES, type BusinessStage } from "@/constants/businessStages";
 import type { Company } from "@shared/schema";
 
 function normalizeCountryCode(country: string): string {

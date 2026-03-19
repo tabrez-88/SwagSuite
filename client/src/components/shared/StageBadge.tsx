@@ -1,5 +1,5 @@
 import { Check } from "lucide-react";
-import type { DeterminedStage } from "@/lib/businessStages";
+import type { DeterminedStage } from "@/constants/businessStages";
 
 interface StageBadgeProps {
   stage: DeterminedStage;
