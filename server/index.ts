@@ -1,7 +1,9 @@
 import "dotenv/config";
-import { loadSecrets } from "./secrets";
+import { loadSecrets } from "./config/secrets";
 import express, { type Request, Response, NextFunction } from "express";
-import { registerRoutes } from "./routes";
+import { createServer } from "http";
+import { setupAuth } from "./config/auth";
+import { registerModularRoutes } from "./routes/index";
 import { setupVite, serveStatic, log } from "./vite";
 
 // Load secrets from GCP Secret Manager (production only)
@@ -51,23 +53,25 @@ app.use((req, res, next) => {
 
 (async () => {
   // Seed default production stages if none exist
-  const { storage } = await import("./storage");
+  const { productionRepository } = await import("./repositories/production.repository");
   try {
-    await storage.seedDefaultProductionStages();
-    await storage.seedDefaultNextActionTypes();
+    await productionRepository.seedDefaultProductionStages();
+    await productionRepository.seedDefaultNextActionTypes();
   } catch (e) {
     console.error("Failed to seed production stages/action types:", e);
   }
 
   // Start notification scheduler for daily action reminders
   try {
-    const { notificationScheduler } = await import("./notificationScheduler");
+    const { notificationScheduler } = await import("./services/notificationScheduler.service");
     notificationScheduler.start(3600000); // Check every hour
   } catch (e) {
     console.error("Failed to start notification scheduler:", e);
   }
 
-  const server = await registerRoutes(app);
+  await setupAuth(app);
+  registerModularRoutes(app);
+  const server = createServer(app);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;

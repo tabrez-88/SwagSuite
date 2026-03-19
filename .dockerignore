@@ -41,10 +41,6 @@ coverage
 
 # Documentation
 README.md
-CLOUD_RUN_DEPLOYMENT.md
-QUICKSTART.md
-ENVIRONMENT_VARIABLES.md
-DEPLOYMENT_CHECKLIST.md
 docs
 
 # CI/CD
@@ -78,8 +74,8 @@ replit.md
 scripts/*.ts
 !scripts/seed.ts
 
-# Install command file
-install.cmd
+# Deploy scripts
+deploy
 
 # Keep necessary TypeScript files for migrations
 !migrations/**/*.ts

@@ -8,25 +8,25 @@ SwagSuite adalah sistem manajemen order untuk industri produk promosi yang diban
 
 Project ini sudah siap untuk di-deploy ke Google Cloud Run. Ikuti panduan berikut:
 
-- **Quick Start (10 menit)**: [QUICKSTART.md](./QUICKSTART.md) - Panduan singkat untuk deployment cepat
-- **Deployment Lengkap**: [CLOUD_RUN_DEPLOYMENT.md](./CLOUD_RUN_DEPLOYMENT.md) - Panduan detail lengkap dengan troubleshooting
-- **Environment Variables**: [ENVIRONMENT_VARIABLES.md](./ENVIRONMENT_VARIABLES.md) - Daftar lengkap environment variables yang diperlukan
+- **Quick Start (10 menit)**: [QUICKSTART.md](./docs/QUICKSTART.md) - Panduan singkat untuk deployment cepat
+- **Deployment Lengkap**: [CLOUD_RUN_DEPLOYMENT.md](./docs/CLOUD_RUN_DEPLOYMENT.md) - Panduan detail lengkap dengan troubleshooting
+- **Environment Variables**: [ENVIRONMENT_VARIABLES.md](./docs/ENVIRONMENT_VARIABLES.md) - Daftar lengkap environment variables yang diperlukan
 
 #### Quick Deploy Command
 
 ```bash
 # Setup secrets interaktif
-chmod +x setup-secrets.sh
-./setup-secrets.sh
+chmod +x deploy/setup-secrets.sh
+./deploy/setup-secrets.sh
 
 # Deploy ke Cloud Run
-chmod +x deploy.sh
-./deploy.sh
+chmod +x deploy/deploy.sh
+./deploy/deploy.sh
 ```
 
 Atau untuk Windows PowerShell:
 ```powershell
-.\deploy.ps1
+.\deploy\deploy.ps1
 ```
 
 ## 🛠️ Technology Stack

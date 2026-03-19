@@ -46,13 +46,41 @@ client/src/
   providers/           # ThemeProvider
 server/
   index.ts             # Express app + middleware setup
-  routes.ts            # ALL API endpoints (~9800 lines)
+  routes.ts            # Remaining API endpoints (orders, approvals, payments, etc.)
   storage.ts           # IStorage interface + DatabaseStorage class (~3200 lines)
   db.ts                # Neon DB connection
   auth.ts              # Passport.js config
   cloudinary.ts        # Cloudinary config
   emailService.ts      # SendGrid/Nodemailer
   *Service.ts          # Vendor integrations (sage, sanmar, ssActivewear)
+  routes/              # Modular route files (extracted from routes.ts)
+    index.ts           # registerModularRoutes() - combines all routers
+    notification.routes.ts
+    lead.routes.ts
+    company.routes.ts
+    contact.routes.ts
+    supplier.routes.ts
+    product.routes.ts
+    dashboard.routes.ts  # Also health check, image proxy, search
+  controllers/         # Request handlers (route → controller → storage)
+    notification.controller.ts
+    lead.controller.ts
+    company.controller.ts
+    contact.controller.ts
+    supplier.controller.ts
+    product.controller.ts
+    dashboard.controller.ts
+    search.controller.ts
+  repositories/        # Data access layer (extracted from storage.ts)
+    notification.repository.ts
+  errors/              # Custom error classes
+    AppError.ts        # AppError, NotFoundError, ForbiddenError, ValidationError
+  utils/               # Shared helpers
+    asyncHandler.ts    # Wraps async route handlers (no more try/catch)
+    getUserId.ts       # Extract userId from req.user
+    lockHelpers.ts     # isSectionLocked, checkLockByOrderItemId
+    ytdHelpers.ts      # updateCompanyYtdSpending, updateSupplierYtdSpending
+    normalizeArrayField.ts  # Normalize colors/sizes arrays
 shared/
   schema.ts            # Drizzle tables, relations, Zod schemas (~2100 lines)
   project-schema.ts    # Project-specific tables (activities, communications, attachments)
@@ -60,6 +88,18 @@ migrations/            # Drizzle migration SQL files
 ```
 
 ## Key Patterns & Conventions
+
+### Backend Architecture (Layered)
+- **Route → Controller → Storage** pattern for extracted modules.
+- **Routes** (`server/routes/*.routes.ts`): Thin route declarations using `Router()`. Only define path + middleware + controller method.
+- **Controllers** (`server/controllers/*.controller.ts`): Handle request parsing, validation, call storage/services, format response. Use static methods.
+- **Repositories** (`server/repositories/`): Direct DB access. Currently only notifications extracted; other domains still use `storage` singleton.
+- **Utils** (`server/utils/`): Shared helpers (lock checks, YTD calculations, async handler wrapper).
+- **Errors** (`server/errors/`): Custom error classes (AppError, NotFoundError, ForbiddenError, ValidationError).
+- `asyncHandler()` wraps async route handlers — eliminates try/catch boilerplate.
+- `getUserId(req)` extracts user ID from `req.user` consistently.
+- New routes registered via `registerModularRoutes(app)` in `server/routes/index.ts`, called from `routes.ts`.
+- **Migration strategy**: Routes are extracted incrementally from `routes.ts`. Order/approval/payment routes remain in `routes.ts` (complex, interconnected). Simpler CRUD domains have been fully extracted.
 
 ### API & Data Fetching
 - `apiRequest(method, url, data?)` in `client/src/lib/queryClient.ts` - centralized fetch with credentials + error handling. Use for JSON requests (not FormData).
