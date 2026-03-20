@@ -1,0 +1,43 @@
+export interface POConfirmationData {
+  id: string;
+  order_id: string;
+  document_id: string;
+  confirmation_token: string;
+  status: "pending" | "confirmed" | "declined";
+  vendor_email: string;
+  vendor_name: string;
+  po_total: string;
+  sent_at: string;
+  viewed_at: string;
+  confirmed_at: string;
+  declined_at: string;
+  decline_reason: string;
+  confirmation_notes: string;
+  pdf_path: string;
+  order_number: string;
+  in_hands_date: string;
+  supplier_in_hands_date: string;
+  event_date: string;
+  is_firm: boolean;
+  is_rush: boolean;
+  supplier_notes: string;
+  shipping_method: string;
+  shipping_address: string;
+  company_name: string;
+  document_number: string;
+  pdf_url: string;
+  doc_vendor_name: string;
+  items: Array<{
+    product_name: string;
+    product_sku: string;
+    product_image: string;
+    quantity: number;
+    unit_price: string;
+    total_price: string;
+    color: string;
+    size: string;
+    imprint_location: string;
+    imprint_method: string;
+    notes: string;
+  }>;
+}
