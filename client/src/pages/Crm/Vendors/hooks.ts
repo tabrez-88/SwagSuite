@@ -40,6 +40,7 @@ export function useVendors() {
   const [isDeleteContactDialogOpen, setIsDeleteContactDialogOpen] = useState(false);
   const [contactToDelete, setContactToDelete] = useState<VendorContact | null>(null);
   const [activeTab, setActiveTab] = useState<string>("all");
+  const [showInactiveContacts, setShowInactiveContacts] = useState(false);
 
   // Benefits form state
   const [benefitsForm, setBenefitsForm] = useState<BenefitsFormState>({
@@ -75,7 +76,6 @@ export function useVendors() {
       email: "",
       phone: "",
       website: "",
-      address: "",
       contactPerson: "",
       paymentTerms: "",
       notes: "",
@@ -97,6 +97,8 @@ export function useVendors() {
       email: "",
       phone: "",
       title: "",
+      department: "",
+      noMarketing: false,
       isPrimary: false,
       receiveOrderEmails: true,
     },
@@ -143,7 +145,6 @@ export function useVendors() {
       email: "",
       phone: "",
       website: vendor.website || "",
-      address: vendor.address || "",
       contactPerson: "",
       paymentTerms: vendor.paymentTerms || "",
       notes: vendor.notes || "",
@@ -210,6 +211,19 @@ export function useVendors() {
   // Get preferred vendors specifically
   const preferredVendors = vendors.filter((vendor: Vendor) => vendor.isPreferred);
 
+  // Filter contacts by active status
+  const filteredContacts = showInactiveContacts
+    ? vendorContacts
+    : vendorContacts.filter((c) => c.isActive !== false);
+  const inactiveContactCount = vendorContacts.filter((c) => c.isActive === false).length;
+
+  const handleToggleActive = (contact: VendorContact) => {
+    updateContactMutation.mutate({
+      id: contact.id,
+      data: { isActive: contact.isActive === false ? true : false },
+    });
+  };
+
   const handleEditContact = (contact: VendorContact) => {
     setSelectedContact(contact);
     contactForm.reset({
@@ -218,6 +232,8 @@ export function useVendors() {
       email: contact.email || "",
       phone: contact.phone || "",
       title: contact.title || "",
+      department: contact.department || "",
+      noMarketing: contact.noMarketing || false,
       isPrimary: contact.isPrimary || false,
       receiveOrderEmails: contact.receiveOrderEmails !== false,
     });
@@ -357,6 +373,8 @@ export function useVendors() {
     setActiveTab,
     benefitsForm,
     setBenefitsForm,
+    showInactiveContacts,
+    setShowInactiveContacts,
 
     // Data
     vendors,
@@ -364,6 +382,8 @@ export function useVendors() {
     vendorProducts,
     isLoadingProducts,
     vendorContacts,
+    filteredContacts,
+    inactiveContactCount,
     isLoadingContacts,
     filteredVendors,
     preferredVendors,
@@ -390,6 +410,7 @@ export function useVendors() {
     handleTogglePreferred,
     handleEditContact,
     handleDeleteContact,
+    handleToggleActive,
     handleAddContactSubmit,
     handleEditContactSubmit,
     handleSaveBenefits,

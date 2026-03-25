@@ -4,11 +4,6 @@ export interface Company {
   email?: string;
   phone?: string;
   website?: string;
-  address?: string;
-  city?: string;
-  state?: string;
-  zipCode?: string;
-  country?: string;
   industry?: string;
   notes?: string;
   ytdSpend?: string;
@@ -31,20 +26,5 @@ export interface Company {
     isExcitingNews: boolean;
   }>;
   lastSocialMediaSync?: string;
-  shippingAddresses?: Array<{
-    label?: string;
-    street?: string;
-    city?: string;
-    state?: string;
-    zipCode?: string;
-    country?: string;
-  }>;
-  billingAddress?: {
-    street?: string;
-    city?: string;
-    state?: string;
-    zipCode?: string;
-    country?: string;
-  };
   customFields?: Record<string, string>;
 }

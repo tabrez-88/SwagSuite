@@ -5,6 +5,7 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { isUnauthorizedError } from "@/lib/authUtils";
 import type { Company } from "@shared/schema";
+import { useCompanyAddresses } from "@/services/company-addresses";
 import type { OrderModalProps, OrderFormData } from "./types";
 
 // Normalize various country name/code formats to standard 2-letter codes
@@ -89,6 +90,9 @@ export function useOrderModal({ open, onOpenChange, order, initialCompanyId, bus
     queryKey: ["/api/contacts"],
     enabled: open,
   });
+
+  // Fetch company addresses for auto-fill
+  const { data: companyAddresses = [] } = useCompanyAddresses(formData.companyId || undefined);
 
   const { data: users = [] } = useQuery<any[]>({
     queryKey: ["/api/users/team"],
@@ -203,50 +207,48 @@ export function useOrderModal({ open, onOpenChange, order, initialCompanyId, bus
     }
   }, [sameAsBilling, formData.billingContact, formData.billingEmail, formData.billingStreet, formData.billingCity, formData.billingState, formData.billingZipCode, formData.billingCountry, formData.billingPhone]);
 
-  // Auto-fill billing and shipping address when contact is selected
+  // Auto-fill contact name/email when contact is selected
   useEffect(() => {
     if (formData.contactId && contacts.length > 0) {
       const selectedContact = contacts.find((c: any) => c.id === formData.contactId);
       if (selectedContact) {
         const contactFullName = `${selectedContact.firstName} ${selectedContact.lastName}`;
         const contactEmail = selectedContact.email || "";
-        if (selectedContact.billingAddress) {
-          try {
-            const billingAddr = JSON.parse(selectedContact.billingAddress);
-            setFormData((prev) => ({
-              ...prev,
-              billingContact: contactFullName, billingEmail: contactEmail,
-              billingStreet: billingAddr.street || "", billingCity: billingAddr.city || "",
-              billingState: billingAddr.state || "", billingZipCode: billingAddr.zipCode || "",
-              billingCountry: normalizeCountryCode(billingAddr.country || "US"),
-              billingPhone: selectedContact.phone || "",
-            }));
-          } catch {
-            setFormData((prev) => ({ ...prev, billingContact: contactFullName, billingEmail: contactEmail, billingPhone: selectedContact.phone || "" }));
-          }
-        } else {
-          setFormData((prev) => ({ ...prev, billingContact: contactFullName, billingEmail: contactEmail, billingPhone: selectedContact.phone || "" }));
-        }
-        if (selectedContact.shippingAddress) {
-          try {
-            const shippingAddr = JSON.parse(selectedContact.shippingAddress);
-            setFormData((prev) => ({
-              ...prev,
-              shippingContact: contactFullName, shippingEmail: contactEmail,
-              shippingStreet: shippingAddr.street || "", shippingCity: shippingAddr.city || "",
-              shippingState: shippingAddr.state || "", shippingZipCode: shippingAddr.zipCode || "",
-              shippingCountry: normalizeCountryCode(shippingAddr.country || "US"),
-              shippingPhone: shippingAddr.phone || "",
-            }));
-          } catch {
-            setFormData((prev) => ({ ...prev, shippingContact: contactFullName, shippingEmail: contactEmail }));
-          }
-        } else {
-          setFormData((prev) => ({ ...prev, shippingContact: contactFullName, shippingEmail: contactEmail }));
-        }
+        setFormData((prev) => ({
+          ...prev,
+          billingContact: contactFullName, billingEmail: contactEmail, billingPhone: selectedContact.phone || "",
+          shippingContact: contactFullName, shippingEmail: contactEmail,
+        }));
       }
     }
   }, [formData.contactId, contacts]);
+
+  // Auto-fill addresses from company addresses (CommonSKU-style)
+  useEffect(() => {
+    if (!formData.companyId || companyAddresses.length === 0) return;
+
+    const billingAddrs = companyAddresses.filter((a) => a.addressType === "billing" || a.addressType === "both");
+    const defaultBilling = billingAddrs.find((a) => a.isDefault) || billingAddrs[0];
+    if (defaultBilling) {
+      setFormData((prev) => ({
+        ...prev,
+        billingStreet: defaultBilling.street || "", billingCity: defaultBilling.city || "",
+        billingState: defaultBilling.state || "", billingZipCode: defaultBilling.zipCode || "",
+        billingCountry: normalizeCountryCode(defaultBilling.country || "US"),
+      }));
+    }
+
+    const shippingAddrs = companyAddresses.filter((a) => a.addressType === "shipping" || a.addressType === "both");
+    const defaultShipping = shippingAddrs.find((a) => a.isDefault) || shippingAddrs[0];
+    if (defaultShipping) {
+      setFormData((prev) => ({
+        ...prev,
+        shippingStreet: defaultShipping.street || "", shippingCity: defaultShipping.city || "",
+        shippingState: defaultShipping.state || "", shippingZipCode: defaultShipping.zipCode || "",
+        shippingCountry: normalizeCountryCode(defaultShipping.country || "US"),
+      }));
+    }
+  }, [formData.companyId, companyAddresses]);
 
   const updateOrderMutation = useMutation({
     mutationFn: async (data: any) => {

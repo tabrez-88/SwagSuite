@@ -5,20 +5,20 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { UserAvatar } from "@/components/shared/UserAvatar";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Separator } from "@/components/ui/separator";
 import {
   ArrowLeft,
   User,
   Phone,
   Mail,
   Building2,
-  MapPin,
   AlertCircle,
   Star,
   Truck,
   FileText,
   Briefcase,
   Target,
+  MailX,
+  UserX,
 } from "lucide-react";
 
 interface Contact {
@@ -30,29 +30,15 @@ interface Contact {
   email?: string;
   phone?: string;
   title?: string;
+  department?: string;
+  noMarketing?: boolean;
+  isActive?: boolean;
   leadSource?: string;
   isPrimary?: boolean;
-  billingAddress?: string;
-  shippingAddress?: string;
   createdAt?: string;
   updatedAt?: string;
   companyName?: string;
   supplierName?: string;
-}
-
-function parseAddress(addressJson?: string): { street?: string; city?: string; state?: string; zipCode?: string; country?: string } | null {
-  if (!addressJson) return null;
-  try {
-    return JSON.parse(addressJson);
-  } catch {
-    return null;
-  }
-}
-
-function formatAddress(addr: { street?: string; city?: string; state?: string; zipCode?: string; country?: string } | null): string | null {
-  if (!addr) return null;
-  const parts = [addr.street, [addr.city, addr.state, addr.zipCode].filter(Boolean).join(", "), addr.country].filter(Boolean);
-  return parts.length > 0 ? parts.join("\n") : null;
 }
 
 export default function ContactDetail() {
@@ -106,9 +92,6 @@ export default function ContactDetail() {
     );
   }
 
-  const billingAddr = parseAddress(contact.billingAddress);
-  const shippingAddr = parseAddress(contact.shippingAddress);
-
   return (
     <div className="space-y-6 p-6">
       {/* Header */}
@@ -135,10 +118,22 @@ export default function ContactDetail() {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {contact.isActive === false && (
+            <Badge variant="outline" className="text-gray-500 gap-1">
+              <UserX className="h-3 w-3" />
+              Inactive
+            </Badge>
+          )}
           {contact.isPrimary && (
             <Badge className="bg-yellow-100 text-yellow-800 gap-1">
               <Star className="h-3 w-3" />
               Primary Contact
+            </Badge>
+          )}
+          {contact.noMarketing && (
+            <Badge variant="outline" className="text-orange-600 border-orange-200 gap-1">
+              <MailX className="h-3 w-3" />
+              No Marketing
             </Badge>
           )}
         </div>
@@ -174,6 +169,12 @@ export default function ContactDetail() {
                 <div className="flex items-center gap-2">
                   <Briefcase className="w-4 h-4 text-gray-500" />
                   <span className="text-sm">{contact.title}</span>
+                </div>
+              )}
+              {contact.department && (
+                <div className="flex items-center gap-2">
+                  <Building2 className="w-4 h-4 text-gray-500" />
+                  <span className="text-sm">{contact.department.charAt(0).toUpperCase() + contact.department.slice(1)}</span>
                 </div>
               )}
               {contact.leadSource && (
@@ -212,32 +213,6 @@ export default function ContactDetail() {
             </Card>
           )}
 
-          {/* Addresses */}
-          {(billingAddr || shippingAddr) && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <MapPin className="w-5 h-5" />
-                  Addresses
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {billingAddr && (
-                  <div>
-                    <p className="text-xs font-medium text-muted-foreground mb-1">Billing Address</p>
-                    <p className="text-sm whitespace-pre-line">{formatAddress(billingAddr)}</p>
-                  </div>
-                )}
-                {billingAddr && shippingAddr && <Separator />}
-                {shippingAddr && (
-                  <div>
-                    <p className="text-xs font-medium text-muted-foreground mb-1">Shipping Address</p>
-                    <p className="text-sm whitespace-pre-line">{formatAddress(shippingAddr)}</p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          )}
         </div>
 
         {/* Main Content */}

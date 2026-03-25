@@ -558,7 +558,7 @@ export default function ArtworkPage() {
 
       {/* Edit Card Dialog */}
       <Dialog open={showEditCardDialog} onOpenChange={setShowEditCardDialog}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-5xl">
           <DialogHeader>
             <DialogTitle>Edit Card</DialogTitle>
             <DialogDescription>

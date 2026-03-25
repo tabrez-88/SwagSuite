@@ -2,6 +2,18 @@ import { forwardRef } from "react";
 import { format } from "date-fns";
 import { proxyImg } from "@/lib/imageUtils";
 
+interface VendorAddressData {
+  addressName?: string | null;
+  companyNameOnDocs?: string | null;
+  street?: string | null;
+  street2?: string | null;
+  city?: string | null;
+  state?: string | null;
+  zipCode?: string | null;
+  country?: string | null;
+  addressType?: string;
+}
+
 interface PurchaseOrderTemplateProps {
   order: any;
   vendor: any;
@@ -9,10 +21,11 @@ interface PurchaseOrderTemplateProps {
   poNumber: string;
   artworkItems?: any[];
   vendorIHD?: string | null; // Per-vendor Supplier IHD (yyyy-MM-dd), falls back to order.supplierInHandsDate
+  vendorAddress?: VendorAddressData | null; // Structured vendor address from supplier_addresses
 }
 
 const PurchaseOrderTemplate = forwardRef<HTMLDivElement, PurchaseOrderTemplateProps>(
-  ({ order, vendor, vendorItems, poNumber, artworkItems = [], vendorIHD }, ref) => {
+  ({ order, vendor, vendorItems, poNumber, artworkItems = [], vendorIHD, vendorAddress }, ref) => {
     // Effective supplier IHD: vendor-specific → order-level fallback
     const effectiveIHD = vendorIHD || order?.supplierInHandsDate;
     const shippingAddr = (() => {
@@ -60,7 +73,17 @@ const PurchaseOrderTemplate = forwardRef<HTMLDivElement, PurchaseOrderTemplatePr
           <div className="mb-6">
             <h3 className="text-sm font-bold text-gray-800 mb-2">VENDOR:</h3>
             <div className="text-sm text-gray-700">
-              <p className="font-bold text-lg">{vendor.name}</p>
+              <p className="font-bold text-lg">{vendorAddress?.companyNameOnDocs || vendor.name}</p>
+              {vendorAddress ? (
+                <>
+                  {vendorAddress.street && <p>{vendorAddress.street}</p>}
+                  {vendorAddress.street2 && <p>{vendorAddress.street2}</p>}
+                  {(vendorAddress.city || vendorAddress.state || vendorAddress.zipCode) && (
+                    <p>{[vendorAddress.city, vendorAddress.state, vendorAddress.zipCode].filter(Boolean).join(", ")}</p>
+                  )}
+                  {vendorAddress.country && vendorAddress.country !== "US" && <p>{vendorAddress.country}</p>}
+                </>
+              ) : null}
               {vendor.email && <p>Email: {vendor.email}</p>}
               {vendor.phone && <p>Phone: {vendor.phone}</p>}
             </div>

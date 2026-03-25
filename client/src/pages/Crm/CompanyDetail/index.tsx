@@ -4,7 +4,6 @@ import {
   Edit,
   Mail,
   Globe,
-  MapPin,
   Calendar,
   DollarSign,
   ExternalLink,
@@ -14,7 +13,6 @@ import {
   Clock,
   Plus,
   Trash2,
-  Package,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -26,19 +24,19 @@ import { Skeleton } from "@/components/ui/skeleton";
 import NewProjectWizard from "@/components/modals/NewProjectWizard";
 import SendEmailDialog from "@/components/modals/SendEmailDialog";
 import { ContactsManager } from "@/components/feature/ContactsManager";
+import { CompanyAddressesManager } from "@/components/feature/CompanyAddressesManager";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { AddressAutocomplete } from "@/components/ui/address-autocomplete";
-
 import { useCompanyDetail } from "./hooks";
 import { INDUSTRY_OPTIONS, ENGAGEMENT_COLORS } from "./types";
 
 export default function CompanyDetail() {
   const {
     company,
+    companyId,
     companyContacts,
     isLoading,
     error,
@@ -52,7 +50,6 @@ export default function CompanyDetail() {
     setIsEditModalOpen,
     isEmailDialogOpen,
     setIsEmailDialogOpen,
-    editShippingAddresses,
     editCustomFields,
     newCustomFieldKey,
     setNewCustomFieldKey,
@@ -63,9 +60,6 @@ export default function CompanyDetail() {
     handleUpdateCompany,
     handleSendEmail,
     handleCreateQuote,
-    addShippingAddress,
-    removeShippingAddress,
-    updateShippingAddress,
     updateCustomFieldValue,
     removeCustomField,
     addCustomField,
@@ -153,8 +147,9 @@ export default function CompanyDetail() {
         {/* Main Content Area */}
         <div className="lg:col-span-2">
           <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="grid w-full grid-cols-4">
+            <TabsList className="grid w-full grid-cols-5">
               <TabsTrigger value="overview">Overview</TabsTrigger>
+              <TabsTrigger value="addresses">Addresses</TabsTrigger>
               <TabsTrigger value="contacts">Contacts</TabsTrigger>
               <TabsTrigger value="social">Social Media</TabsTrigger>
               <TabsTrigger value="activity">Activity</TabsTrigger>
@@ -187,32 +182,12 @@ export default function CompanyDetail() {
                         </div>
                       </div>
                     )}
-                    {(company.address || company.city || company.state) && (
-                      <div className="flex items-center gap-3">
-                        <MapPin className="h-4 w-4 text-muted-foreground" />
-                        <div>
-                          <p className="text-sm font-medium">Address</p>
-                          <p className="text-sm text-muted-foreground">
-                            {[company.address, company.city, company.state, company.zipCode].filter(Boolean).join(', ')}
-                          </p>
-                        </div>
-                      </div>
-                    )}
                     {company.industry && (
                       <div className="flex items-center gap-3">
                         <Building className="h-4 w-4 text-muted-foreground" />
                         <div>
                           <p className="text-sm font-medium">Industry</p>
                           <p className="text-sm text-muted-foreground">{company.industry}</p>
-                        </div>
-                      </div>
-                    )}
-                    {company.country && (
-                      <div className="flex items-center gap-3">
-                        <Globe className="h-4 w-4 text-muted-foreground" />
-                        <div>
-                          <p className="text-sm font-medium">Country</p>
-                          <p className="text-sm text-muted-foreground">{company.country}</p>
                         </div>
                       </div>
                     )}
@@ -231,50 +206,6 @@ export default function CompanyDetail() {
                       <p className="text-sm text-muted-foreground">{company.notes}</p>
                     </div>
                   )}
-                </CardContent>
-              </Card>
-
-              {/* Addresses */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Package className="h-5 w-5" />
-                    Addresses
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {/* Billing Address */}
-                  <div>
-                    <p className="text-sm font-medium mb-1">Billing Address</p>
-                    {company.billingAddress && (company.billingAddress.street || company.billingAddress.city || company.billingAddress.state) ? (
-                      <p className="text-sm text-muted-foreground">
-                        {[company.billingAddress.street, company.billingAddress.city, company.billingAddress.state, company.billingAddress.zipCode, company.billingAddress.country].filter(Boolean).join(', ')}
-                      </p>
-                    ) : (
-                      <p className="text-sm text-muted-foreground italic">No billing address set</p>
-                    )}
-                  </div>
-
-                  {/* Shipping Addresses */}
-                  <div>
-                    <p className="text-sm font-medium mb-1">Shipping Addresses</p>
-                    {company.shippingAddresses && company.shippingAddresses.length > 0 ? (
-                      <div className="space-y-2">
-                        {company.shippingAddresses.map((addr, idx) => (
-                          <div key={idx} className="border rounded-md p-2">
-                            {addr.label && (
-                              <p className="text-xs font-semibold text-swag-navy">{addr.label}</p>
-                            )}
-                            <p className="text-sm text-muted-foreground">
-                              {[addr.street, addr.city, addr.state, addr.zipCode, addr.country].filter(Boolean).join(', ')}
-                            </p>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="text-sm text-muted-foreground italic">No shipping addresses</p>
-                    )}
-                  </div>
                 </CardContent>
               </Card>
 
@@ -341,6 +272,10 @@ export default function CompanyDetail() {
                   </CardContent>
                 </Card>
               </div>
+            </TabsContent>
+
+            <TabsContent value="addresses" className="space-y-6">
+              <CompanyAddressesManager companyId={companyId!} companyName={company.name} />
             </TabsContent>
 
             <TabsContent value="contacts" className="space-y-6">
@@ -555,7 +490,7 @@ export default function CompanyDetail() {
 
       {/* Edit Company Modal */}
       <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Edit Company</DialogTitle>
             <DialogDescription>
@@ -619,108 +554,12 @@ export default function CompanyDetail() {
                   )}
                 />
 
-                <FormField
-                  control={form.control}
-                  name="country"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Country</FormLabel>
-                      <Select
-                        value={field.value || "US"}
-                        onValueChange={field.onChange}
-                      >
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="US">United States</SelectItem>
-                          <SelectItem value="CA">Canada</SelectItem>
-                          <SelectItem value="MX">Mexico</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
               </div>
 
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                 <p className="text-sm text-blue-900 mb-2">
-                  <strong>Contact Management:</strong> Use the Contacts tab to manage all contact persons for this company.
+                  <strong>Contacts & Addresses:</strong> Use the Contacts tab and the Addresses section on the Overview tab to manage contacts and addresses.
                 </p>
-                <p className="text-xs text-blue-700">
-                  The legacy Email and Phone fields have been moved to the Contacts system for better organization.
-                </p>
-              </div>
-
-              <FormField
-                control={form.control}
-                name="address"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Address</FormLabel>
-                    <FormControl>
-                      <AddressAutocomplete
-                        value={field.value || ""}
-                        onChange={field.onChange}
-                        onAddressSelect={(addr) => {
-                          form.setValue("city", addr.city);
-                          form.setValue("state", addr.state);
-                          form.setValue("zipCode", addr.zipCode);
-                          form.setValue("country", addr.country);
-                        }}
-                        placeholder="123 Business Ave"
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <FormField
-                  control={form.control}
-                  name="city"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>City</FormLabel>
-                      <FormControl>
-                        <Input placeholder="New York" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="state"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>State</FormLabel>
-                      <FormControl>
-                        <Input placeholder="NY" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="zipCode"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>ZIP Code</FormLabel>
-                      <FormControl>
-                        <Input placeholder="10001" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
               </div>
 
               {/* Social Media Links */}
@@ -797,81 +636,6 @@ export default function CompanyDetail() {
                     </FormItem>
                   )}
                 />
-              </div>
-
-              {/* Shipping Addresses */}
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <h4 className="font-medium">Shipping Addresses</h4>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={addShippingAddress}
-                  >
-                    <Plus className="h-4 w-4 mr-1" />
-                    Add Address
-                  </Button>
-                </div>
-                {editShippingAddresses.length === 0 && (
-                  <p className="text-sm text-muted-foreground italic">No shipping addresses. Click "Add Address" to add one.</p>
-                )}
-                {editShippingAddresses.map((addr, idx) => (
-                  <div key={idx} className="border rounded-lg p-3 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <p className="text-sm font-medium">Address {idx + 1}</p>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="text-red-600 hover:text-red-700 hover:bg-red-50 h-7 w-7 p-0"
-                        onClick={() => removeShippingAddress(idx)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                    <Input
-                      placeholder="Label (e.g., Warehouse, HQ)"
-                      value={addr.label || ""}
-                      onChange={(e) => updateShippingAddress(idx, "label", e.target.value)}
-                    />
-                    <Input
-                      placeholder="Street address"
-                      value={addr.street || ""}
-                      onChange={(e) => updateShippingAddress(idx, "street", e.target.value)}
-                    />
-                    <div className="grid grid-cols-3 gap-2">
-                      <Input
-                        placeholder="City"
-                        value={addr.city || ""}
-                        onChange={(e) => updateShippingAddress(idx, "city", e.target.value)}
-                      />
-                      <Input
-                        placeholder="State"
-                        value={addr.state || ""}
-                        onChange={(e) => updateShippingAddress(idx, "state", e.target.value)}
-                      />
-                      <Input
-                        placeholder="ZIP"
-                        value={addr.zipCode || ""}
-                        onChange={(e) => updateShippingAddress(idx, "zipCode", e.target.value)}
-                      />
-                    </div>
-                    <Select
-                      value={addr.country || "US"}
-                      onValueChange={(val) => updateShippingAddress(idx, "country", val)}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="US">United States</SelectItem>
-                        <SelectItem value="CA">Canada</SelectItem>
-                        <SelectItem value="MX">Mexico</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                ))}
               </div>
 
               {/* Custom Fields */}

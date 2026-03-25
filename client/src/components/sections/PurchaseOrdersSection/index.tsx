@@ -160,6 +160,12 @@ export default function PurchaseOrdersSection({ orderId, data, isLocked }: Purch
                         <div className="flex items-center gap-2 text-xs text-gray-500">
                           {po.vendor.contactPerson && <span>Attn: {po.vendor.contactPerson}</span>}
                           {po.vendor.email && <span>{po.vendor.email}</span>}
+                          {(() => {
+                            const addr = h.getVendorDefaultAddress(po.vendor.id);
+                            if (!addr) return null;
+                            const parts = [addr.city, addr.state].filter(Boolean).join(", ");
+                            return parts ? <span className="text-gray-400">| {parts}</span> : null;
+                          })()}
                         </div>
                       </div>
                     </div>
@@ -610,13 +616,14 @@ export default function PurchaseOrdersSection({ orderId, data, isLocked }: Purch
             poNumber={poNumber}
             artworkItems={h.getVendorArtworks(po.vendor.id)}
             vendorIHD={h.getVendorDoc(po.vendor.id)?.metadata?.supplierIHD || null}
+            vendorAddress={h.getVendorDefaultAddress(po.vendor.id)}
           />
         );
       })}
 
       {/* Email PO to Vendor Dialog */}
       <Dialog open={!!h.emailPOVendor} onOpenChange={(open) => !open && h.setEmailPOVendor(null)}>
-        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+        <DialogContent className="max-w-5xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Mail className="w-5 h-5" /> Email PO to Vendor
@@ -670,7 +677,7 @@ export default function PurchaseOrdersSection({ orderId, data, isLocked }: Purch
 
       {/* Send Batch Proofs to Client Dialog */}
       <Dialog open={h.sendProofArts.length > 0} onOpenChange={(open) => !open && h.setSendProofArts([])}>
-        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+        <DialogContent className="max-w-5xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Send className="w-5 h-5" /> Send Proofs to Client
@@ -747,7 +754,7 @@ export default function PurchaseOrdersSection({ orderId, data, isLocked }: Purch
 
       {/* PO Preview Dialog */}
       <Dialog open={!!h.previewPO} onOpenChange={(open) => !open && h.setPreviewPO(null)}>
-        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+        <DialogContent className="max-w-5xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <FileText className="w-5 h-5" /> Purchase Order Preview
@@ -764,6 +771,12 @@ export default function PurchaseOrdersSection({ orderId, data, isLocked }: Purch
                   </div>
                   <div className="text-right">
                     <p className="font-semibold">{h.previewPO.vendor.name}</p>
+                    {(() => {
+                      const addr = h.getVendorDefaultAddress(h.previewPO.vendor.id);
+                      if (!addr) return null;
+                      const line = [addr.street, addr.city, addr.state, addr.zipCode].filter(Boolean).join(", ");
+                      return line ? <p className="text-sm text-gray-600">{line}</p> : null;
+                    })()}
                     {h.previewPO.vendor.email && <p className="text-sm text-gray-600">{h.previewPO.vendor.email}</p>}
                   </div>
                 </div>

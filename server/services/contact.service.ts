@@ -2,8 +2,8 @@ import type { InsertContact } from "@shared/schema";
 import { contactRepository } from "../repositories/contact.repository";
 
 export class ContactService {
-  async getAll(companyId?: string, supplierId?: string) {
-    const contacts = await contactRepository.getAll(companyId, supplierId);
+  async getAll(companyId?: string, supplierId?: string, includeInactive = false) {
+    const contacts = await contactRepository.getAll(companyId, supplierId, includeInactive);
 
     const companyMap = await contactRepository.getAllCompanyNames();
     const supplierMap = await contactRepository.getAllSupplierNames();

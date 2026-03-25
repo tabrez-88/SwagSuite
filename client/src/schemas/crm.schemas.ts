@@ -2,24 +2,29 @@ import { z } from "zod";
 
 // ── Company ──────────────────────────────────────────────
 
+const urlField = (label = "URL") =>
+  z.string()
+    .transform((v) => {
+      if (!v) return v;
+      return /^https?:\/\//i.test(v) ? v : `https://${v}`;
+    })
+    .pipe(z.string().url(`Invalid ${label}`))
+    .optional()
+    .or(z.literal(""));
+
 export const companyFormSchema = z.object({
   name: z.string().min(1, "Company name is required"),
   email: z.string().email("Invalid email address").optional().or(z.literal("")),
   phone: z.string().optional(),
-  website: z.string().url("Invalid website URL").optional().or(z.literal("")),
-  address: z.string().optional(),
-  city: z.string().optional(),
-  state: z.string().optional(),
-  zipCode: z.string().optional(),
-  country: z.string().optional(),
+  website: urlField("website URL"),
   industry: z.string().optional(),
   notes: z.string().optional(),
   // Social media links
-  linkedinUrl: z.string().url("Invalid LinkedIn URL").optional().or(z.literal("")),
-  twitterUrl: z.string().url("Invalid Twitter URL").optional().or(z.literal("")),
-  facebookUrl: z.string().url("Invalid Facebook URL").optional().or(z.literal("")),
-  instagramUrl: z.string().url("Invalid Instagram URL").optional().or(z.literal("")),
-  otherSocialUrl: z.string().url("Invalid URL").optional().or(z.literal("")),
+  linkedinUrl: urlField("LinkedIn URL"),
+  twitterUrl: urlField("Twitter URL"),
+  facebookUrl: urlField("Facebook URL"),
+  instagramUrl: urlField("Instagram URL"),
+  otherSocialUrl: urlField("URL"),
 });
 
 export type CompanyFormData = z.infer<typeof companyFormSchema>;
@@ -32,6 +37,8 @@ export const contactFormSchema = z.object({
   email: z.string().email("Invalid email").optional().or(z.literal("")),
   phone: z.string().optional(),
   title: z.string().optional(),
+  department: z.string().optional(),
+  noMarketing: z.boolean().default(false),
   leadSource: z.string().optional(),
   isPrimary: z.boolean().default(false),
   associationType: z.enum(["company", "vendor", "none"]).default("none"),
@@ -49,13 +56,29 @@ export const vendorContactFormSchema = z.object({
   email: z.string().email().optional().or(z.literal("")),
   phone: z.string().optional(),
   title: z.string().optional(),
+  department: z.string().optional(),
+  noMarketing: z.boolean().default(false),
   isPrimary: z.boolean().default(false),
   receiveOrderEmails: z.boolean().default(true),
 });
 
 export type VendorContactFormData = z.infer<typeof vendorContactFormSchema>;
 
-// ── Contact (inline manager — has billing/shipping) ─────
+// ── Contact (inline manager) ─────
+
+export const CONTACT_DEPARTMENTS = [
+  "Executive",
+  "Sales",
+  "Marketing",
+  "Accounting",
+  "Purchasing",
+  "Design",
+  "Operations",
+  "IT",
+  "HR",
+  "Administration",
+  "Other",
+] as const;
 
 export const contactManagerFormSchema = z.object({
   firstName: z.string().min(1, "First name is required"),
@@ -63,17 +86,9 @@ export const contactManagerFormSchema = z.object({
   email: z.string().email("Invalid email address").optional().or(z.literal("")),
   phone: z.string().optional(),
   title: z.string().optional(),
+  department: z.string().optional(),
+  noMarketing: z.boolean().default(false),
   isPrimary: z.boolean().default(false),
-  billingStreet: z.string().optional(),
-  billingCity: z.string().optional(),
-  billingState: z.string().optional(),
-  billingZipCode: z.string().optional(),
-  billingCountry: z.string().optional(),
-  shippingStreet: z.string().optional(),
-  shippingCity: z.string().optional(),
-  shippingState: z.string().optional(),
-  shippingZipCode: z.string().optional(),
-  shippingCountry: z.string().optional(),
 });
 
 export type ContactManagerFormData = z.infer<typeof contactManagerFormSchema>;
@@ -85,7 +100,6 @@ export const vendorFormSchema = z.object({
   email: z.string().email().optional().or(z.literal("")),
   phone: z.string().optional(),
   website: z.string().url().optional().or(z.literal("")),
-  address: z.string().optional(),
   contactPerson: z.string().optional(),
   paymentTerms: z.string().optional(),
   notes: z.string().optional(),

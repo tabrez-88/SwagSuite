@@ -83,7 +83,7 @@ export default function KnowledgeBase() {
               Add Article
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-2xl">
+          <DialogContent className="max-w-5xl">
             <DialogHeader>
               <DialogTitle>Add New Knowledge Article</DialogTitle>
             </DialogHeader>

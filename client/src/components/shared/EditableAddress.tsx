@@ -12,7 +12,8 @@ import {
 } from "@/components/ui/select";
 import { AddressAutocomplete } from "@/components/ui/address-autocomplete";
 import { Checkbox } from "@/components/ui/checkbox";
-import { MapPin, Pencil, Check, X, Loader2, UserCheck } from "lucide-react";
+import { MapPin, Pencil, Check, X, Loader2, Building } from "lucide-react";
+import { useCompanyAddresses, type CompanyAddress } from "@/services/company-addresses";
 
 function normalizeCountryCode(country: string): string {
   if (!country) return "US";
@@ -45,14 +46,14 @@ interface EditableAddressProps {
   isLocked?: boolean;
   isPending?: boolean;
   icon?: React.ReactNode;
-  /** Primary contact — used for "Fill from Contact" and auto-fill when empty */
+  /** Company ID — used to fetch company addresses for the picker */
+  companyId?: string | null;
+  /** Primary contact name/email for pre-filling contact info */
   primaryContact?: {
     firstName?: string;
     lastName?: string;
     email?: string;
     phone?: string;
-    billingAddress?: string | null;
-    shippingAddress?: string | null;
   } | null;
   /** Billing address JSON — when provided on a shipping card, enables "Same as Billing" */
   billingAddressJson?: string | null;
@@ -75,12 +76,22 @@ export default function EditableAddress({
   isLocked = false,
   isPending = false,
   icon,
+  companyId,
   primaryContact,
   billingAddressJson,
 }: EditableAddressProps) {
   const [editing, setEditing] = useState(false);
   const [sameAsBilling, setSameAsBilling] = useState(false);
   const addr = parseAddress(addressJson);
+
+  // Fetch company addresses for the picker
+  const { data: companyAddresses = [] } = useCompanyAddresses(companyId || undefined);
+
+  // Filter addresses by type based on field
+  const relevantAddresses = companyAddresses.filter((a) => {
+    if (field === "billingAddress") return a.addressType === "billing" || a.addressType === "both";
+    return a.addressType === "shipping" || a.addressType === "both";
+  });
 
   const [formData, setFormData] = useState({
     contactName: "",
@@ -93,26 +104,22 @@ export default function EditableAddress({
     phone: "",
   });
 
-  // Build contact fill data from contact record + their stored address
-  const buildContactFill = () => {
-    const contactAddrJson = field === "billingAddress"
-      ? primaryContact?.billingAddress
-      : primaryContact?.shippingAddress;
-    const contactAddr = parseAddress(contactAddrJson);
+  // Fill form from a company address
+  const fillFromCompanyAddress = (companyAddr: CompanyAddress) => {
     const contactFullName = primaryContact
       ? [primaryContact.firstName, primaryContact.lastName].filter(Boolean).join(" ")
       : "";
-
-    return {
-      contactName: contactAddr.contactName || contactFullName,
-      email: contactAddr.email || primaryContact?.email || "",
-      street: contactAddr.street || contactAddr.address || "",
-      city: contactAddr.city || "",
-      state: contactAddr.state || "",
-      zipCode: contactAddr.zipCode || "",
-      country: normalizeCountryCode(contactAddr.country || "US"),
-      phone: contactAddr.phone || primaryContact?.phone || "",
-    };
+    setFormData({
+      contactName: companyAddr.companyNameOnDocs || formData.contactName || contactFullName,
+      email: primaryContact?.email || formData.email || "",
+      street: companyAddr.street || "",
+      city: companyAddr.city || "",
+      state: companyAddr.state || "",
+      zipCode: companyAddr.zipCode || "",
+      country: normalizeCountryCode(companyAddr.country || "US"),
+      phone: primaryContact?.phone || formData.phone || "",
+    });
+    setSameAsBilling(false);
   };
 
   useEffect(() => {
@@ -130,19 +137,24 @@ export default function EditableAddress({
           country: normalizeCountryCode(addr.country || "US"),
           phone: addr.phone || "",
         });
-      } else if (primaryContact) {
-        // No address yet — auto-fill from contact
-        setFormData(buildContactFill());
+      } else if (relevantAddresses.length > 0) {
+        // No address yet — auto-fill from default company address
+        const defaultAddr = relevantAddresses.find((a) => a.isDefault) || relevantAddresses[0];
+        fillFromCompanyAddress(defaultAddr);
       } else {
+        // No company addresses available — start blank with contact info
+        const contactFullName = primaryContact
+          ? [primaryContact.firstName, primaryContact.lastName].filter(Boolean).join(" ")
+          : "";
         setFormData({
-          contactName: "",
-          email: "",
+          contactName: contactFullName,
+          email: primaryContact?.email || "",
           street: "",
           city: "",
           state: "",
           zipCode: "",
           country: "US",
-          phone: "",
+          phone: primaryContact?.phone || "",
         });
       }
       setSameAsBilling(false);
@@ -227,19 +239,25 @@ export default function EditableAddress({
                   <span className="text-xs text-muted-foreground">Same as Billing Address</span>
                 </label>
               )}
-              {primaryContact && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-7 text-xs gap-1.5"
-                  onClick={() => {
-                    setFormData(buildContactFill());
-                    setSameAsBilling(false);
+              {relevantAddresses.length > 0 && (
+                <Select
+                  onValueChange={(addressId) => {
+                    const selected = relevantAddresses.find((a) => a.id === addressId);
+                    if (selected) fillFromCompanyAddress(selected);
                   }}
                 >
-                  <UserCheck className="w-3 h-3" />
-                  Fill from Contact
-                </Button>
+                  <SelectTrigger className="h-7 text-xs w-auto gap-1.5 px-2">
+                    <Building className="w-3 h-3" />
+                    <SelectValue placeholder="Fill from company address" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {relevantAddresses.map((a) => (
+                      <SelectItem key={a.id} value={a.id}>
+                        {a.addressName || "Unnamed"} — {[a.street, a.city, a.state].filter(Boolean).join(", ").slice(0, 40)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               )}
             </div>
             <div className="grid grid-cols-2 gap-3">

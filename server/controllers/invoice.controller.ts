@@ -81,13 +81,23 @@ export class InvoiceController {
         const company = await companyRepository.getById(order.companyId);
         if (company && !company.taxExempt) {
           try {
+            // Extract zip/state from order billing address or fall back to company default address
+            let toZip = '10001';
+            let toState = 'NY';
+            if ((order as any).billingAddress) {
+              try {
+                const billing = JSON.parse((order as any).billingAddress);
+                toZip = billing.zipCode || toZip;
+                toState = billing.state || toState;
+              } catch { /* ignore parse errors */ }
+            }
             const taxCalc = await taxService.calculateTax({
               from_country: 'US',
               from_zip: '10001',
               from_state: 'NY',
               to_country: 'US',
-              to_zip: company.zipCode || '10001',
-              to_state: company.state || 'NY',
+              to_zip: toZip,
+              to_state: toState,
               amount: Number(order.subtotal),
               shipping: Number(order.shipping || 0)
             });

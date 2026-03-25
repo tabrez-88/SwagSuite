@@ -49,14 +49,12 @@ export async function updateCompany({
 }: {
   id: string;
   data: Partial<CompanyFormData> & {
-    shippingAddresses?: any[];
     customFields?: Record<string, string>;
   };
 }) {
-  const { shippingAddresses, customFields, ...formFields } = data;
+  const { customFields, ...formFields } = data;
   const formattedData = {
     ...transformSocialMediaLinks(formFields),
-    ...(shippingAddresses !== undefined ? { shippingAddresses } : {}),
     ...(customFields !== undefined ? { customFields } : {}),
   };
   const response = await apiRequest("PATCH", `/api/companies/${id}`, formattedData);

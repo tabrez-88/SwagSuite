@@ -280,6 +280,7 @@ export default function QuoteSection(props: QuoteSectionProps) {
           isLocked={isLocked}
           isPending={isFieldPending}
           icon={<MapPin className="w-4 h-4" />}
+          companyId={order?.companyId}
           primaryContact={primaryContact}
         />
         <EditableAddress
@@ -290,6 +291,7 @@ export default function QuoteSection(props: QuoteSectionProps) {
           isLocked={isLocked}
           isPending={isFieldPending}
           icon={<MapPin className="w-4 h-4" />}
+          companyId={order?.companyId}
           primaryContact={primaryContact}
           billingAddressJson={(order as any)?.billingAddress}
         />

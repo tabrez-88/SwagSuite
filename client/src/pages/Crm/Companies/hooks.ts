@@ -10,7 +10,6 @@ import {
 } from "@/services/companies";
 import type { Company } from "@/services/companies";
 import { companyFormSchema, type CompanyFormData } from "@/schemas/crm.schemas";
-
 export function useCompaniesPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -22,6 +21,9 @@ export function useCompaniesPage() {
   const [isCompanyDetailOpen, setIsCompanyDetailOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [companyToDelete, setCompanyToDelete] = useState<Company | null>(null);
+  const [editCustomFields, setEditCustomFields] = useState<Record<string, string>>({});
+  const [newCustomFieldKey, setNewCustomFieldKey] = useState("");
+  const [newCustomFieldValue, setNewCustomFieldValue] = useState("");
 
   const [, setLocation] = useLocation();
 
@@ -32,11 +34,6 @@ export function useCompaniesPage() {
       email: "",
       phone: "",
       website: "",
-      address: "",
-      city: "",
-      state: "",
-      zipCode: "",
-      country: "US",
       industry: "",
       notes: "",
       linkedinUrl: "",
@@ -54,18 +51,33 @@ export function useCompaniesPage() {
   const deleteCompanyMutation = useDeleteCompany();
 
   const handleCreateCompany = (data: CompanyFormData) => {
-    createCompanyMutation.mutate(data, {
-      onSuccess: () => {
-        setIsCreateModalOpen(false);
-        form.reset();
-      },
-    });
+    createCompanyMutation.mutate(
+      {
+        ...data,
+        customFields: editCustomFields,
+      } as any,
+      {
+        onSuccess: () => {
+          setIsCreateModalOpen(false);
+          form.reset();
+          setEditCustomFields({});
+          setNewCustomFieldKey("");
+          setNewCustomFieldValue("");
+        },
+      }
+    );
   };
 
   const handleUpdateCompany = (data: CompanyFormData) => {
     if (selectedCompany) {
       updateCompanyMutation.mutate(
-        { id: selectedCompany.id, data },
+        {
+          id: selectedCompany.id,
+          data: {
+            ...data,
+            customFields: editCustomFields,
+          },
+        } as any,
         {
           onSuccess: () => {
             setIsEditModalOpen(false);
@@ -90,11 +102,6 @@ export function useCompaniesPage() {
       email: company.email || "",
       phone: company.phone || "",
       website: company.website || "",
-      address: company.address || "",
-      city: company.city || "",
-      state: company.state || "",
-      zipCode: company.zipCode || "",
-      country: company.country || "US",
       industry: company.industry || "",
       notes: company.notes || "",
       linkedinUrl: company.socialMediaLinks?.linkedin || "",
@@ -104,7 +111,29 @@ export function useCompaniesPage() {
       otherSocialUrl: company.socialMediaLinks?.other || "",
     });
 
+    setEditCustomFields(company.customFields ? { ...company.customFields } : {});
+    setNewCustomFieldKey("");
+    setNewCustomFieldValue("");
     setIsEditModalOpen(true);
+  };
+
+  // Custom field helpers
+  const addCustomField = () => {
+    if (newCustomFieldKey.trim()) {
+      setEditCustomFields({ ...editCustomFields, [newCustomFieldKey.trim()]: newCustomFieldValue });
+      setNewCustomFieldKey("");
+      setNewCustomFieldValue("");
+    }
+  };
+
+  const updateCustomFieldValue = (key: string, value: string) => {
+    setEditCustomFields({ ...editCustomFields, [key]: value });
+  };
+
+  const removeCustomField = (key: string) => {
+    const updated = { ...editCustomFields };
+    delete updated[key];
+    setEditCustomFields(updated);
   };
 
   const handleConfirmDelete = () => {
@@ -135,7 +164,7 @@ export function useCompaniesPage() {
     }
   };
 
-  const handleNavigateToCompany = (companyId: number) => {
+  const handleNavigateToCompany = (companyId: string) => {
     setLocation(`/crm/companies/${companyId}`);
   };
 
@@ -208,6 +237,16 @@ export function useCompaniesPage() {
     handleOpenDetailFromList,
     handleEditFromDetail,
     handleNavigateToCompany,
+
+    // Custom Fields (Edit modal)
+    editCustomFields,
+    newCustomFieldKey,
+    setNewCustomFieldKey,
+    newCustomFieldValue,
+    setNewCustomFieldValue,
+    addCustomField,
+    updateCustomFieldValue,
+    removeCustomField,
 
     // Utilities
     formatCurrency,

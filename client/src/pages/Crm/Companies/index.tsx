@@ -160,6 +160,14 @@ export default function Companies() {
     handleOpenDetailFromList,
     handleEditFromDetail,
     handleNavigateToCompany,
+    editCustomFields,
+    newCustomFieldKey,
+    setNewCustomFieldKey,
+    newCustomFieldValue,
+    setNewCustomFieldValue,
+    addCustomField,
+    updateCustomFieldValue,
+    removeCustomField,
     formatCurrency,
   } = useCompaniesPage();
 
@@ -180,7 +188,7 @@ export default function Companies() {
               Add Company
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Add New Company</DialogTitle>
               <DialogDescription>
@@ -255,94 +263,13 @@ export default function Companies() {
                       </FormItem>
                     )}
                   />
-
-                  <FormField
-                    control={form.control}
-                    name="country"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Country</FormLabel>
-                        <FormControl>
-                          <Input placeholder="US" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
                 </div>
 
-                {/* Contact Management Info */}
+                {/* Info about contacts & addresses */}
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                  <p className="text-sm text-blue-900 mb-2">
-                    <strong>Contact Management:</strong> After creating the
-                    company, you can add contacts through the company detail
-                    page.
+                  <p className="text-sm text-blue-900">
+                    <strong>Contacts & Addresses:</strong> After creating the company, you can manage contacts and addresses through the company detail page.
                   </p>
-                  <p className="text-xs text-blue-700">
-                    Each company can have multiple contacts with their own
-                    email, phone, and role information.
-                  </p>
-                </div>
-
-                <FormField
-                  control={form.control}
-                  name="address"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Address</FormLabel>
-                      <FormControl>
-                        <Input
-                          placeholder="123 Business Ave"
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="city"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>City</FormLabel>
-                        <FormControl>
-                          <Input placeholder="New York" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="state"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>State</FormLabel>
-                        <FormControl>
-                          <Input placeholder="NY" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="zipCode"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>ZIP Code</FormLabel>
-                        <FormControl>
-                          <Input placeholder="10001" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
                 </div>
 
                 {/* Social Media Links */}
@@ -431,6 +358,66 @@ export default function Companies() {
                       </FormItem>
                     )}
                   />
+                </div>
+
+                {/* Custom Fields */}
+                <div className="space-y-3">
+                  <h4 className="font-medium">Custom Fields</h4>
+                  {Object.keys(editCustomFields).length > 0 && (
+                    <div className="space-y-2">
+                      {Object.entries(editCustomFields).map(([key, value]) => (
+                        <div key={key} className="flex items-center gap-2">
+                          <Input value={key} disabled className="flex-1 bg-muted" />
+                          <Input
+                            value={value}
+                            className="flex-1"
+                            onChange={(e) => updateCustomFieldValue(key, e.target.value)}
+                          />
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="text-red-600 hover:text-red-700 hover:bg-red-50 h-8 w-8 p-0"
+                            onClick={() => removeCustomField(key)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <div className="flex items-end gap-2">
+                    <div className="flex-1">
+                      <label className="text-xs text-muted-foreground">Field Name</label>
+                      <Input
+                        placeholder="e.g., Account Manager"
+                        value={newCustomFieldKey}
+                        onChange={(e) => setNewCustomFieldKey(e.target.value)}
+                      />
+                    </div>
+                    <div className="flex-1">
+                      <label className="text-xs text-muted-foreground">Value</label>
+                      <Input
+                        placeholder="e.g., John Smith"
+                        value={newCustomFieldValue}
+                        onChange={(e) => setNewCustomFieldValue(e.target.value)}
+                      />
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-9"
+                      disabled={!newCustomFieldKey.trim()}
+                      onClick={addCustomField}
+                    >
+                      <Plus className="h-4 w-4 mr-1" />
+                      Add
+                    </Button>
+                  </div>
+                  {Object.keys(editCustomFields).length === 0 && (
+                    <p className="text-sm text-muted-foreground italic">No custom fields. Add key-value pairs above.</p>
+                  )}
                 </div>
 
                 <FormField
@@ -572,7 +559,7 @@ export default function Companies() {
                       <TableHead>Company</TableHead>
                       <TableHead>Industry</TableHead>
                       <TableHead>Contact</TableHead>
-                      <TableHead>Location</TableHead>
+                      <TableHead>Industry</TableHead>
                       <TableHead>YTD Spend</TableHead>
                       <TableHead>Engagement</TableHead>
                       <TableHead className="w-[100px]">Actions</TableHead>
@@ -707,16 +694,6 @@ export default function Companies() {
                             </a>
                           </div>
                         )}
-                        {(company.city || company.state) && (
-                          <div className="flex items-center gap-2 text-sm">
-                            <MapPin className="h-4 w-4 text-muted-foreground" />
-                            <span className="text-muted-foreground">
-                              {[company.city, company.state]
-                                .filter(Boolean)
-                                .join(", ")}
-                            </span>
-                          </div>
-                        )}
                         {company.industry && (
                           <div className="flex items-center gap-2 text-sm">
                             <Building className="h-4 w-4 text-muted-foreground" />
@@ -797,7 +774,7 @@ export default function Companies() {
                         <TableHead>Company</TableHead>
                         <TableHead>Industry</TableHead>
                         <TableHead>Contact</TableHead>
-                        <TableHead>Location</TableHead>
+                        <TableHead>Industry</TableHead>
                         <TableHead>YTD Spend</TableHead>
                         <TableHead>Engagement</TableHead>
                         <TableHead className="w-[100px]">Actions</TableHead>
@@ -855,15 +832,8 @@ export default function Companies() {
                             </div>
                           </TableCell>
                           <TableCell>
-                            {(company.city || company.state) && (
-                              <div className="flex items-center gap-1 text-sm">
-                                <MapPin className="h-3 w-3 text-muted-foreground" />
-                                <span>
-                                  {[company.city, company.state]
-                                    .filter(Boolean)
-                                    .join(", ")}
-                                </span>
-                              </div>
+                            {company.industry && (
+                              <span className="text-sm text-muted-foreground">{company.industry}</span>
                             )}
                           </TableCell>
                           <TableCell>
@@ -974,7 +944,7 @@ export default function Companies() {
 
       {/* Edit Company Modal */}
       <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Edit Company</DialogTitle>
             <DialogDescription>
@@ -1051,92 +1021,13 @@ export default function Companies() {
                   )}
                 />
 
-                <FormField
-                  control={form.control}
-                  name="country"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Country</FormLabel>
-                      <FormControl>
-                        <Input placeholder="US" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
               </div>
 
-              {/* Contact Management Notice */}
+              {/* Contacts & Addresses Info */}
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <p className="text-sm text-blue-900 mb-2">
-                  <strong>Contact Management:</strong> Use the company detail
-                  page to manage all contact persons for this company.
+                <p className="text-sm text-blue-900">
+                  <strong>Contacts & Addresses:</strong> Use the company detail page to manage contacts and addresses.
                 </p>
-                <p className="text-xs text-blue-700">
-                  The legacy Email and Phone fields have been moved to the
-                  Contacts system for better organization.
-                </p>
-              </div>
-
-              <FormField
-                control={form.control}
-                name="address"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Address</FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder="123 Business Ave"
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <FormField
-                  control={form.control}
-                  name="city"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>City</FormLabel>
-                      <FormControl>
-                        <Input placeholder="New York" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="state"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>State</FormLabel>
-                      <FormControl>
-                        <Input placeholder="NY" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="zipCode"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>ZIP Code</FormLabel>
-                      <FormControl>
-                        <Input placeholder="10001" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
               </div>
 
               {/* Social Media Links */}
@@ -1225,6 +1116,66 @@ export default function Companies() {
                     </FormItem>
                   )}
                 />
+              </div>
+
+              {/* Custom Fields */}
+              <div className="space-y-3">
+                <h4 className="font-medium">Custom Fields</h4>
+                {Object.keys(editCustomFields).length > 0 && (
+                  <div className="space-y-2">
+                    {Object.entries(editCustomFields).map(([key, value]) => (
+                      <div key={key} className="flex items-center gap-2">
+                        <Input value={key} disabled className="flex-1 bg-muted" />
+                        <Input
+                          value={value}
+                          className="flex-1"
+                          onChange={(e) => updateCustomFieldValue(key, e.target.value)}
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="text-red-600 hover:text-red-700 hover:bg-red-50 h-8 w-8 p-0"
+                          onClick={() => removeCustomField(key)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div className="flex items-end gap-2">
+                  <div className="flex-1">
+                    <label className="text-xs text-muted-foreground">Field Name</label>
+                    <Input
+                      placeholder="e.g., Account Manager"
+                      value={newCustomFieldKey}
+                      onChange={(e) => setNewCustomFieldKey(e.target.value)}
+                    />
+                  </div>
+                  <div className="flex-1">
+                    <label className="text-xs text-muted-foreground">Value</label>
+                    <Input
+                      placeholder="e.g., John Smith"
+                      value={newCustomFieldValue}
+                      onChange={(e) => setNewCustomFieldValue(e.target.value)}
+                    />
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-9"
+                    disabled={!newCustomFieldKey.trim()}
+                    onClick={addCustomField}
+                  >
+                    <Plus className="h-4 w-4 mr-1" />
+                    Add
+                  </Button>
+                </div>
+                {Object.keys(editCustomFields).length === 0 && (
+                  <p className="text-sm text-muted-foreground italic">No custom fields. Add key-value pairs above.</p>
+                )}
               </div>
 
               <FormField
@@ -1372,39 +1323,6 @@ export default function Companies() {
                       </div>
                     )}
 
-                    {(selectedCompany.address ||
-                      selectedCompany.city ||
-                      selectedCompany.state) && (
-                      <div className="flex items-start gap-3">
-                        <MapPin className="h-5 w-5 text-muted-foreground mt-0.5" />
-                        <div>
-                          <p className="text-sm text-muted-foreground">
-                            Address
-                          </p>
-                          <div>
-                            {selectedCompany.address && (
-                              <p>{selectedCompany.address}</p>
-                            )}
-                            {(selectedCompany.city ||
-                              selectedCompany.state) && (
-                              <p>
-                                {[
-                                  selectedCompany.city,
-                                  selectedCompany.state,
-                                  selectedCompany.zipCode,
-                                ]
-                                  .filter(Boolean)
-                                  .join(", ")}
-                              </p>
-                            )}
-                            {selectedCompany.country &&
-                              selectedCompany.country !== "US" && (
-                                <p>{selectedCompany.country}</p>
-                              )}
-                          </div>
-                        </div>
-                      </div>
-                    )}
                   </CardContent>
                 </Card>
 

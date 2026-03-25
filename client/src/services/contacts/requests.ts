@@ -12,6 +12,8 @@ export async function createContact(data: ContactFormData) {
     email: data.email || undefined,
     phone: data.phone || undefined,
     title: data.title || undefined,
+    department: data.department || undefined,
+    noMarketing: data.noMarketing || false,
     leadSource: data.leadSource || undefined,
     isPrimary: data.isPrimary,
   };
@@ -40,33 +42,11 @@ export async function createCompanyContact({
     email: data.email,
     phone: data.phone,
     title: data.title,
+    department: data.department || undefined,
+    noMarketing: data.noMarketing || false,
     isPrimary: data.isPrimary,
     companyId,
   };
-
-  // Build billing address JSON if any field is filled
-  if (data.billingStreet || data.billingCity || data.billingState || data.billingZipCode || data.billingCountry) {
-    payload.billingAddress = JSON.stringify({
-      street: data.billingStreet || "",
-      city: data.billingCity || "",
-      state: data.billingState || "",
-      zipCode: data.billingZipCode || "",
-      country: data.billingCountry || "",
-      phone: "",
-    });
-  }
-
-  // Build shipping address JSON if any field is filled
-  if (data.shippingStreet || data.shippingCity || data.shippingState || data.shippingZipCode || data.shippingCountry) {
-    payload.shippingAddress = JSON.stringify({
-      street: data.shippingStreet || "",
-      city: data.shippingCity || "",
-      state: data.shippingState || "",
-      zipCode: data.shippingZipCode || "",
-      country: data.shippingCountry || "",
-      phone: "",
-    });
-  }
 
   const response = await apiRequest("POST", "/api/contacts", payload);
   return response.json();
@@ -80,7 +60,7 @@ export async function updateContact({
   data,
 }: {
   id: string;
-  data: Partial<ContactManagerFormData>;
+  data: Partial<ContactManagerFormData> & { isActive?: boolean };
 }) {
   const payload: Record<string, unknown> = {
     firstName: data.firstName,
@@ -88,32 +68,11 @@ export async function updateContact({
     email: data.email,
     phone: data.phone,
     title: data.title,
+    department: data.department,
+    noMarketing: data.noMarketing,
     isPrimary: data.isPrimary,
   };
-
-  // Build billing address JSON if any field is filled
-  if (data.billingStreet || data.billingCity || data.billingState || data.billingZipCode || data.billingCountry) {
-    payload.billingAddress = JSON.stringify({
-      street: data.billingStreet || "",
-      city: data.billingCity || "",
-      state: data.billingState || "",
-      zipCode: data.billingZipCode || "",
-      country: data.billingCountry || "",
-      phone: "",
-    });
-  }
-
-  // Build shipping address JSON if any field is filled
-  if (data.shippingStreet || data.shippingCity || data.shippingState || data.shippingZipCode || data.shippingCountry) {
-    payload.shippingAddress = JSON.stringify({
-      street: data.shippingStreet || "",
-      city: data.shippingCity || "",
-      state: data.shippingState || "",
-      zipCode: data.shippingZipCode || "",
-      country: data.shippingCountry || "",
-      phone: "",
-    });
-  }
+  if (data.isActive !== undefined) payload.isActive = data.isActive;
 
   const response = await apiRequest("PATCH", `/api/contacts/${id}`, payload);
   return response.json();

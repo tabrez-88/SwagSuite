@@ -296,6 +296,7 @@ export default function SalesOrderSection(props: SalesOrderSectionProps) {
               isLocked={hook.isLocked}
               isPending={hook.isFieldPending}
               icon={<CreditCard className="w-4 h-4" />}
+              companyId={hook.order?.companyId}
               primaryContact={hook.primaryContact}
             />
             <EditableAddress
@@ -306,6 +307,7 @@ export default function SalesOrderSection(props: SalesOrderSectionProps) {
               isLocked={hook.isLocked}
               isPending={hook.isFieldPending}
               icon={<MapPin className="w-4 h-4" />}
+              companyId={hook.order?.companyId}
               primaryContact={hook.primaryContact}
               billingAddressJson={(hook.order as any)?.billingAddress}
             />

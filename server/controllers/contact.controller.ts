@@ -6,7 +6,8 @@ export class ContactController {
   static async list(req: Request, res: Response) {
     const companyId = req.query.companyId as string;
     const supplierId = req.query.supplierId as string;
-    const contacts = await contactService.getAll(companyId, supplierId);
+    const includeInactive = req.query.includeInactive === "true";
+    const contacts = await contactService.getAll(companyId, supplierId, includeInactive);
     res.json(contacts);
   }
 

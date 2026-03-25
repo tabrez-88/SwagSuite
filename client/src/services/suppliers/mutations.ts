@@ -148,7 +148,7 @@ export function useUpdateVendorContact(vendorId: string | undefined) {
   const { toast } = useToast();
 
   return useMutation({
-    mutationFn: (params: { id: string; data: Partial<VendorContactFormData> }) =>
+    mutationFn: (params: { id: string; data: Partial<VendorContactFormData> & { isActive?: boolean } }) =>
       requests.updateVendorContact(params),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: supplierKeys.contacts(vendorId!) });

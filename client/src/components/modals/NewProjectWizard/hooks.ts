@@ -5,6 +5,7 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { isUnauthorizedError } from "@/lib/authUtils";
 import type { Company } from "@shared/schema";
+import { useCompanyAddresses } from "@/services/company-addresses";
 import type { NewProjectWizardProps, StartingStage } from "./types";
 
 function normalizeCountryCode(country: string): string {
@@ -76,6 +77,9 @@ export function useNewProjectWizard({ open, onOpenChange, initialCompanyId }: Ne
     enabled: open,
   });
 
+  // Fetch company addresses for auto-fill
+  const { data: companyAddresses = [] } = useCompanyAddresses(companyId || undefined);
+
   // Reset on open
   useEffect(() => {
     if (open) {
@@ -121,42 +125,32 @@ export function useNewProjectWizard({ open, onOpenChange, initialCompanyId }: Ne
     }
   }, [companyId, contacts]);
 
-  // Auto-populate addresses from selected contact (or company fallback)
+  // Auto-populate addresses from company addresses (CommonSKU-style)
   useEffect(() => {
-    if (!contactId || startingStage === "presentation") return;
-    const contact = contacts.find((c: any) => c.id === contactId);
-    if (!contact) return;
-    if (contact.billingAddress) {
-      try {
-        const addr = JSON.parse(contact.billingAddress);
-        if (addr.street) setBillingStreet(addr.street);
-        if (addr.city) setBillingCity(addr.city);
-        if (addr.state) setBillingState(addr.state);
-        if (addr.zipCode) setBillingZipCode(addr.zipCode);
-        if (addr.country) setBillingCountry(normalizeCountryCode(addr.country));
-      } catch { /* non-JSON, skip */ }
+    if (!companyId || startingStage === "presentation" || companyAddresses.length === 0) return;
+
+    // Find default billing address (or first billing/both)
+    const billingAddrs = companyAddresses.filter((a) => a.addressType === "billing" || a.addressType === "both");
+    const defaultBilling = billingAddrs.find((a) => a.isDefault) || billingAddrs[0];
+    if (defaultBilling) {
+      setBillingStreet(defaultBilling.street || "");
+      setBillingCity(defaultBilling.city || "");
+      setBillingState(defaultBilling.state || "");
+      setBillingZipCode(defaultBilling.zipCode || "");
+      setBillingCountry(normalizeCountryCode(defaultBilling.country || "US"));
     }
-    if (contact.shippingAddress) {
-      try {
-        const addr = JSON.parse(contact.shippingAddress);
-        if (addr.street) setShippingStreet(addr.street);
-        if (addr.city) setShippingCity(addr.city);
-        if (addr.state) setShippingState(addr.state);
-        if (addr.zipCode) setShippingZipCode(addr.zipCode);
-        if (addr.country) setShippingCountry(normalizeCountryCode(addr.country));
-      } catch { /* non-JSON, skip */ }
+
+    // Find default shipping address (or first shipping/both)
+    const shippingAddrs = companyAddresses.filter((a) => a.addressType === "shipping" || a.addressType === "both");
+    const defaultShipping = shippingAddrs.find((a) => a.isDefault) || shippingAddrs[0];
+    if (defaultShipping) {
+      setShippingStreet(defaultShipping.street || "");
+      setShippingCity(defaultShipping.city || "");
+      setShippingState(defaultShipping.state || "");
+      setShippingZipCode(defaultShipping.zipCode || "");
+      setShippingCountry(normalizeCountryCode(defaultShipping.country || "US"));
     }
-    if (!contact.billingAddress && !contact.shippingAddress) {
-      const company = companies.find((c) => c.id === companyId);
-      if (company?.address || company?.city) {
-        setBillingStreet(company.address || "");
-        setBillingCity(company.city || "");
-        setBillingState(company.state || "");
-        setBillingZipCode(company.zipCode || "");
-        if (company.country) setBillingCountry(normalizeCountryCode(company.country));
-      }
-    }
-  }, [contactId, contacts, companies, companyId, startingStage]);
+  }, [companyId, companyAddresses, startingStage]);
 
   // Sync shipping with billing
   useEffect(() => {

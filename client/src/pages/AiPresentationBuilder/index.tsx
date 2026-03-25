@@ -141,7 +141,7 @@ export default function AIPresentationBuilder() {
                 Create Presentation
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-2xl">
+            <DialogContent className="max-w-5xl">
               <DialogHeader>
                 <DialogTitle>Create New AI Presentation</DialogTitle>
               </DialogHeader>

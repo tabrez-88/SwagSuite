@@ -5,8 +5,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { companyFormSchema, type CompanyFormData } from "@/schemas/crm.schemas";
-import { normalizeCountryCode } from "@/lib/address";
-import type { ShippingAddress } from "./types";
+
 import {
   Linkedin,
   Twitter,
@@ -23,7 +22,6 @@ export function useCompanyDetail() {
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isEmailDialogOpen, setIsEmailDialogOpen] = useState(false);
-  const [editShippingAddresses, setEditShippingAddresses] = useState<ShippingAddress[]>([]);
   const [editCustomFields, setEditCustomFields] = useState<Record<string, string>>({});
   const [newCustomFieldKey, setNewCustomFieldKey] = useState("");
   const [newCustomFieldValue, setNewCustomFieldValue] = useState("");
@@ -36,11 +34,6 @@ export function useCompanyDetail() {
       email: "",
       phone: "",
       website: "",
-      address: "",
-      city: "",
-      state: "",
-      zipCode: "",
-      country: "",
       industry: "",
       notes: "",
       linkedinUrl: "",
@@ -65,11 +58,6 @@ export function useCompanyDetail() {
       email: "",
       phone: "",
       website: company.website || "",
-      address: company.address || "",
-      city: company.city || "",
-      state: company.state || "",
-      zipCode: company.zipCode || "",
-      country: normalizeCountryCode(company.country || ""),
       industry: company.industry || "",
       notes: company.notes || "",
       linkedinUrl: company.socialMediaLinks?.linkedin || "",
@@ -79,7 +67,6 @@ export function useCompanyDetail() {
       otherSocialUrl: company.socialMediaLinks?.other || "",
     });
 
-    setEditShippingAddresses(company.shippingAddresses ? [...company.shippingAddresses] : []);
     setEditCustomFields(company.customFields ? { ...company.customFields } : {});
     setNewCustomFieldKey("");
     setNewCustomFieldValue("");
@@ -92,7 +79,6 @@ export function useCompanyDetail() {
         id: companyId!,
         data: {
           ...data,
-          shippingAddresses: editShippingAddresses,
           customFields: editCustomFields,
         },
       } as any,
@@ -169,25 +155,6 @@ export function useCompanyDetail() {
     setIsOrderModalOpen(true);
   };
 
-  const addShippingAddress = () => {
-    setEditShippingAddresses([
-      ...editShippingAddresses,
-      { label: "", street: "", city: "", state: "", zipCode: "", country: "US" },
-    ]);
-  };
-
-  const removeShippingAddress = (idx: number) => {
-    const updated = [...editShippingAddresses];
-    updated.splice(idx, 1);
-    setEditShippingAddresses(updated);
-  };
-
-  const updateShippingAddress = (idx: number, field: keyof ShippingAddress, value: string) => {
-    const updated = [...editShippingAddresses];
-    updated[idx] = { ...updated[idx], [field]: value };
-    setEditShippingAddresses(updated);
-  };
-
   const updateCustomFieldValue = (key: string, value: string) => {
     setEditCustomFields({ ...editCustomFields, [key]: value });
   };
@@ -227,7 +194,6 @@ export function useCompanyDetail() {
     setIsEditModalOpen,
     isEmailDialogOpen,
     setIsEmailDialogOpen,
-    editShippingAddresses,
     editCustomFields,
     newCustomFieldKey,
     setNewCustomFieldKey,
@@ -242,9 +208,6 @@ export function useCompanyDetail() {
     handleUpdateCompany,
     handleSendEmail,
     handleCreateQuote,
-    addShippingAddress,
-    removeShippingAddress,
-    updateShippingAddress,
     updateCustomFieldValue,
     removeCustomField,
     addCustomField,

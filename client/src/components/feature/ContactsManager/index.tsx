@@ -9,12 +9,26 @@ import {
   Star,
   StarOff,
   AlertTriangle,
+  Building,
+  EyeOff,
+  Eye,
+  UserX,
+  UserCheck,
+  MailX,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { CONTACT_DEPARTMENTS } from "@/schemas/crm.schemas";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -43,22 +57,11 @@ import {
 } from "@/components/ui/form";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Separator } from "@/components/ui/separator";
-import { Checkbox } from "@/components/ui/checkbox";
-import { AddressAutocomplete } from "@/components/ui/address-autocomplete";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-
 import type { ContactsManagerProps } from "./types";
 import { useContactsManager } from "./hooks";
 
 // Move ContactFormFields outside to prevent re-creation on every render
-const ContactFormFields = ({ form, sameAsBilling, setSameAsBilling }: { form: any; sameAsBilling: boolean; setSameAsBilling: (value: boolean) => void }) => (
+const ContactFormFields = ({ form }: { form: any }) => (
   <>
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
       <FormField
@@ -118,249 +121,92 @@ const ContactFormFields = ({ form, sameAsBilling, setSameAsBilling }: { form: an
       />
     </div>
 
-    <FormField
-      control={form.control}
-      name="title"
-      render={({ field }) => (
-        <FormItem>
-          <FormLabel>Job Title</FormLabel>
-          <FormControl>
-            <Input placeholder="Sales Manager" {...field} />
-          </FormControl>
-          <FormMessage />
-        </FormItem>
-      )}
-    />
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <FormField
+        control={form.control}
+        name="title"
+        render={({ field }) => (
+          <FormItem>
+            <FormLabel>Job Title</FormLabel>
+            <FormControl>
+              <Input placeholder="Sales Manager" {...field} />
+            </FormControl>
+            <FormMessage />
+          </FormItem>
+        )}
+      />
 
-    <FormField
-      control={form.control}
-      name="isPrimary"
-      render={({ field }) => (
-        <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
-          <FormControl>
-            <input
-              type="checkbox"
-              checked={field.value}
-              onChange={field.onChange}
-              className="h-4 w-4 rounded border-gray-300"
-            />
-          </FormControl>
-          <div className="space-y-1 leading-none">
-            <FormLabel>Primary Contact</FormLabel>
-            <p className="text-sm text-muted-foreground">
-              Set this person as the primary contact for the company
-            </p>
-          </div>
-        </FormItem>
-      )}
-    />
+      <FormField
+        control={form.control}
+        name="department"
+        render={({ field }) => (
+          <FormItem>
+            <FormLabel>Department</FormLabel>
+            <Select value={field.value || "none"} onValueChange={(v) => field.onChange(v === "none" ? "" : v)}>
+              <FormControl>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select department" />
+                </SelectTrigger>
+              </FormControl>
+              <SelectContent>
+                <SelectItem value="none">None</SelectItem>
+                {CONTACT_DEPARTMENTS.map((dept) => (
+                  <SelectItem key={dept} value={dept.toLowerCase()}>{dept}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <FormMessage />
+          </FormItem>
+        )}
+      />
+    </div>
 
-    <Separator />
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+    <div className="flex gap-4">
+      <FormField
+        control={form.control}
+        name="isPrimary"
+        render={({ field }) => (
+          <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4 flex-1">
+            <FormControl>
+              <input
+                type="checkbox"
+                checked={field.value}
+                onChange={field.onChange}
+                className="h-4 w-4 rounded border-gray-300"
+              />
+            </FormControl>
+            <div className="space-y-1 leading-none">
+              <FormLabel>Primary Contact</FormLabel>
+              <p className="text-sm text-muted-foreground">
+                Primary contact for the company
+              </p>
+            </div>
+          </FormItem>
+        )}
+      />
 
-      {/* Billing Address Section */}
-      <div className="space-y-4">
-        <h4 className="font-semibold text-lg">Billing Address</h4>
-        <Separator />
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <FormField
-            control={form.control}
-            name="billingStreet"
-            render={({ field }) => (
-              <FormItem className="md:col-span-2">
-                <FormLabel>Street Address</FormLabel>
-                <FormControl>
-                  <AddressAutocomplete
-                    value={field.value || ""}
-                    onChange={field.onChange}
-                    onAddressSelect={(addr) => {
-                      form.setValue("billingCity", addr.city);
-                      form.setValue("billingState", addr.state);
-                      form.setValue("billingZipCode", addr.zipCode);
-                      form.setValue("billingCountry", addr.country);
-                    }}
-                    placeholder="123 Main St"
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="billingCity"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>City</FormLabel>
-                <FormControl>
-                  <Input placeholder="City" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="billingState"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>State</FormLabel>
-                <FormControl>
-                  <Input placeholder="CA" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="billingZipCode"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>ZIP Code</FormLabel>
-                <FormControl>
-                  <Input placeholder="12345" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="billingCountry"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Country</FormLabel>
-                <Select
-                  value={field.value || "US"}
-                  onValueChange={field.onChange}
-                >
-                  <FormControl>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    <SelectItem value="US">United States</SelectItem>
-                    <SelectItem value="CA">Canada</SelectItem>
-                    <SelectItem value="MX">Mexico</SelectItem>
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        </div>
-      </div>
-
-      {/* Shipping Address Section */}
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h4 className="font-semibold text-lg">Shipping Address</h4>
-          <div className="flex items-center space-x-2">
-            <Checkbox
-              id="sameAsBilling"
-              checked={sameAsBilling}
-              onCheckedChange={(checked) => setSameAsBilling(checked as boolean)}
-            />
-            <label htmlFor="sameAsBilling" className="text-sm cursor-pointer">
-              Same as Billing Address
-            </label>
-          </div>
-        </div>
-        <Separator />
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <FormField
-            control={form.control}
-            name="shippingStreet"
-            render={({ field }) => (
-              <FormItem className="md:col-span-2">
-                <FormLabel>Street Address</FormLabel>
-                <FormControl>
-                  <AddressAutocomplete
-                    value={field.value || ""}
-                    onChange={field.onChange}
-                    onAddressSelect={(addr) => {
-                      form.setValue("shippingCity", addr.city);
-                      form.setValue("shippingState", addr.state);
-                      form.setValue("shippingZipCode", addr.zipCode);
-                      form.setValue("shippingCountry", addr.country);
-                    }}
-                    placeholder="456 Oak Ave"
-                    disabled={sameAsBilling}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="shippingCity"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>City</FormLabel>
-                <FormControl>
-                  <Input placeholder="City" {...field} disabled={sameAsBilling} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="shippingState"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>State</FormLabel>
-                <FormControl>
-                  <Input placeholder="CA" {...field} disabled={sameAsBilling} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="shippingZipCode"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>ZIP Code</FormLabel>
-                <FormControl>
-                  <Input placeholder="12345" {...field} disabled={sameAsBilling} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="shippingCountry"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Country</FormLabel>
-                <Select
-                  value={field.value || "US"}
-                  onValueChange={field.onChange}
-                  disabled={sameAsBilling}
-                >
-                  <FormControl>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    <SelectItem value="US">United States</SelectItem>
-                    <SelectItem value="CA">Canada</SelectItem>
-                    <SelectItem value="MX">Mexico</SelectItem>
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        </div>
-      </div>
+      <FormField
+        control={form.control}
+        name="noMarketing"
+        render={({ field }) => (
+          <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4 flex-1">
+            <FormControl>
+              <input
+                type="checkbox"
+                checked={field.value}
+                onChange={field.onChange}
+                className="h-4 w-4 rounded border-gray-300"
+              />
+            </FormControl>
+            <div className="space-y-1 leading-none">
+              <FormLabel>No Marketing</FormLabel>
+              <p className="text-sm text-muted-foreground">
+                Opt out of marketing emails
+              </p>
+            </div>
+          </FormItem>
+        )}
+      />
     </div>
   </>
 );
@@ -371,17 +217,16 @@ export function ContactsManager({ companyId, companyName }: ContactsManagerProps
     setIsCreateModalOpen,
     isEditModalOpen,
     setIsEditModalOpen,
-    sameAsBillingCreate,
-    setSameAsBillingCreate,
-    sameAsBillingEdit,
-    setSameAsBillingEdit,
     isDeleteDialogOpen,
     setIsDeleteDialogOpen,
     contactToDelete,
     setContactToDelete,
+    showInactive,
+    setShowInactive,
     createForm,
     editForm,
     contacts,
+    allContacts,
     isLoading,
     createContactMutation,
     updateContactMutation,
@@ -391,13 +236,28 @@ export function ContactsManager({ companyId, companyName }: ContactsManagerProps
     handleEditContact,
     handleDeleteContact,
     handleTogglePrimary,
+    handleToggleActive,
     getInitials,
   } = useContactsManager(companyId);
+
+  const inactiveCount = (allContacts as any[]).filter((c: any) => c.isActive === false).length;
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h3 className="text-lg font-semibold">Contacts</h3>
+        <div className="flex items-center gap-2">
+          {inactiveCount > 0 && (
+            <Button
+              variant={showInactive ? "secondary" : "ghost"}
+              size="sm"
+              onClick={() => setShowInactive(!showInactive)}
+              className="text-xs"
+            >
+              {showInactive ? <Eye className="h-3.5 w-3.5 mr-1" /> : <EyeOff className="h-3.5 w-3.5 mr-1" />}
+              {showInactive ? "Hide" : "Show"} Inactive ({inactiveCount})
+            </Button>
+          )}
         <Dialog open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen}>
           <DialogTrigger asChild>
             <Button size="sm" variant="outline">
@@ -405,7 +265,7 @@ export function ContactsManager({ companyId, companyName }: ContactsManagerProps
               Add Contact
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-7xl max-h-[90vh] overflow-y-auto">
+          <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Add New Contact</DialogTitle>
               <DialogDescription>
@@ -415,7 +275,7 @@ export function ContactsManager({ companyId, companyName }: ContactsManagerProps
 
             <Form {...createForm}>
               <form onSubmit={createForm.handleSubmit(handleCreateContact)} className="space-y-4">
-                <ContactFormFields form={createForm} sameAsBilling={sameAsBillingCreate} setSameAsBilling={setSameAsBillingCreate} />
+                <ContactFormFields form={createForm} />
 
                 <div className="flex justify-end gap-2">
                   <Button
@@ -437,6 +297,7 @@ export function ContactsManager({ companyId, companyName }: ContactsManagerProps
             </Form>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
       {isLoading ? (
@@ -458,19 +319,21 @@ export function ContactsManager({ companyId, companyName }: ContactsManagerProps
         </div>
       ) : contacts.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {contacts.map((contact) => (
-            <Card key={contact.id} className="hover:shadow-md transition-shadow">
+          {contacts.map((contact) => {
+            const isInactive = contact.isActive === false;
+            return (
+            <Card key={contact.id} className={`hover:shadow-md transition-shadow ${isInactive ? "opacity-60" : ""}`}>
               <CardContent className="p-4">
                 <div className="flex items-start gap-3">
                   <Avatar className="h-12 w-12">
-                    <AvatarFallback className="bg-swag-primary text-white">
+                    <AvatarFallback className={isInactive ? "bg-gray-400 text-white" : "bg-swag-primary text-white"}>
                       {getInitials(contact.firstName, contact.lastName)}
                     </AvatarFallback>
                   </Avatar>
 
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <h4 className="font-semibold text-swag-navy truncate">
+                    <div className="flex items-center gap-2 mb-1 flex-wrap">
+                      <h4 className={`font-semibold truncate ${isInactive ? "text-gray-500 line-through" : "text-swag-navy"}`}>
                         {contact.firstName} {contact.lastName}
                       </h4>
                       {contact.isPrimary && (
@@ -479,14 +342,34 @@ export function ContactsManager({ companyId, companyName }: ContactsManagerProps
                           Primary
                         </Badge>
                       )}
+                      {isInactive && (
+                        <Badge variant="outline" className="text-xs text-gray-500">
+                          Inactive
+                        </Badge>
+                      )}
+                      {contact.noMarketing && (
+                        <Badge variant="outline" className="text-xs text-orange-600 border-orange-200">
+                          <MailX className="h-3 w-3 mr-1" />
+                          No Marketing
+                        </Badge>
+                      )}
                     </div>
 
-                    {contact.title && (
-                      <div className="flex items-center gap-1 text-sm text-muted-foreground mb-2">
-                        <Briefcase className="h-3 w-3" />
-                        <span className="truncate">{contact.title}</span>
-                      </div>
-                    )}
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
+                      {contact.title && (
+                        <span className="flex items-center gap-1 truncate">
+                          <Briefcase className="h-3 w-3" />
+                          {contact.title}
+                        </span>
+                      )}
+                      {contact.title && contact.department && <span className="text-gray-300">|</span>}
+                      {contact.department && (
+                        <span className="flex items-center gap-1 truncate">
+                          <Building className="h-3 w-3" />
+                          {contact.department.charAt(0).toUpperCase() + contact.department.slice(1)}
+                        </span>
+                      )}
+                    </div>
 
                     <div className="space-y-1">
                       {contact.email && (
@@ -515,6 +398,7 @@ export function ContactsManager({ companyId, companyName }: ContactsManagerProps
                         </div>
                       )}
                     </div>
+
                   </div>
 
                   <div className="flex flex-col gap-1">
@@ -540,16 +424,18 @@ export function ContactsManager({ companyId, companyName }: ContactsManagerProps
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => handleDeleteContact(contact)}
-                      className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                      onClick={() => handleToggleActive(contact)}
+                      title={isInactive ? "Reactivate contact" : "Deactivate contact"}
+                      className={isInactive ? "text-green-600 hover:text-green-700 hover:bg-green-50" : "text-orange-600 hover:text-orange-700 hover:bg-orange-50"}
                     >
-                      <Trash2 className="h-4 w-4" />
+                      {isInactive ? <UserCheck className="h-4 w-4" /> : <UserX className="h-4 w-4" />}
                     </Button>
                   </div>
                 </div>
               </CardContent>
             </Card>
-          ))}
+            );
+          })}
         </div>
       ) : (
         <Card>
@@ -575,7 +461,7 @@ export function ContactsManager({ companyId, companyName }: ContactsManagerProps
 
       {/* Edit Contact Modal */}
       <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
-        <DialogContent className="max-w-7xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Edit Contact</DialogTitle>
             <DialogDescription>
@@ -585,7 +471,7 @@ export function ContactsManager({ companyId, companyName }: ContactsManagerProps
 
           <Form {...editForm}>
             <form onSubmit={editForm.handleSubmit(handleUpdateContact)} className="space-y-4">
-              <ContactFormFields form={editForm} sameAsBilling={sameAsBillingEdit} setSameAsBilling={setSameAsBillingEdit} />
+              <ContactFormFields form={editForm} />
 
               <div className="flex justify-end gap-2">
                 <Button
@@ -608,16 +494,19 @@ export function ContactsManager({ companyId, companyName }: ContactsManagerProps
         </DialogContent>
       </Dialog>
 
-      {/* Delete Confirmation Dialog */}
+      {/* Delete Confirmation Dialog (kept for permanent delete if needed) */}
       <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center gap-2">
               <AlertTriangle className="w-5 h-5 text-red-600" />
-              Delete Contact?
+              Delete Contact Permanently?
             </AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete <strong>{contactToDelete?.firstName} {contactToDelete?.lastName}</strong>?
+              Are you sure you want to permanently delete <strong>{contactToDelete?.firstName} {contactToDelete?.lastName}</strong>?
+              <span className="block mt-2 text-muted-foreground">
+                Tip: You can deactivate contacts instead using the <UserX className="inline h-3.5 w-3.5" /> button to keep them for historical records.
+              </span>
               <span className="block mt-2 text-red-600 font-medium">
                 This action cannot be undone.
               </span>
@@ -646,7 +535,7 @@ export function ContactsManager({ companyId, companyName }: ContactsManagerProps
               className="bg-red-600 hover:bg-red-700 focus:ring-red-600"
               disabled={deleteContactMutation.isPending}
             >
-              {deleteContactMutation.isPending ? "Deleting..." : "Delete Contact"}
+              {deleteContactMutation.isPending ? "Deleting..." : "Delete Permanently"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -1,5 +1,6 @@
 import type { InsertCompany } from "@shared/schema";
 import { companyRepository } from "../repositories/company.repository";
+import { companyAddressRepository } from "../repositories/company-address.repository";
 import { activityRepository } from "../repositories/activity.repository";
 
 export class CompanyService {
@@ -41,7 +42,10 @@ export class CompanyService {
   }
 
   async getById(id: string) {
-    return companyRepository.getById(id);
+    const company = await companyRepository.getById(id);
+    if (!company) return undefined;
+    const addresses = await companyAddressRepository.getByCompanyId(id);
+    return { ...company, addresses };
   }
 
   /**

@@ -4,7 +4,6 @@ export interface Vendor {
   email?: string;
   phone?: string;
   website?: string;
-  address?: string;
   contactPerson?: string;
   paymentTerms?: string;
   notes?: string;
@@ -42,6 +41,9 @@ export interface VendorContact {
   email?: string;
   phone?: string;
   title?: string;
+  department?: string;
+  noMarketing?: boolean;
+  isActive?: boolean;
   isPrimary?: boolean;
   receiveOrderEmails?: boolean;
   createdAt?: string;

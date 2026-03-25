@@ -78,11 +78,6 @@ export const companies = pgTable("companies", {
   email: varchar("email"),
   phone: varchar("phone"),
   website: varchar("website"),
-  address: text("address"),
-  city: varchar("city"),
-  state: varchar("state"),
-  zipCode: varchar("zip_code"),
-  country: varchar("country").default("US"),
   industry: varchar("industry"),
   notes: text("notes"),
   ytdSpend: decimal("ytd_spend", { precision: 12, scale: 2 }).default("0"),
@@ -104,10 +99,43 @@ export const companies = pgTable("companies", {
   // Customer scoring and analytics
   customerScore: integer("customer_score").default(0),
   engagementLevel: varchar("engagement_level"), // high, medium, low
-  // Additional addresses for multiple locations
-  shippingAddresses: jsonb("shipping_addresses"),
-  billingAddress: jsonb("billing_address"),
   customFields: jsonb("custom_fields"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Company Addresses (CommonSKU-style: separate entity per company)
+export const companyAddresses = pgTable("company_addresses", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  companyId: varchar("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+  addressName: varchar("address_name"), // Internal label (e.g., "HQ", "Warehouse LA")
+  companyNameOnDocs: varchar("company_name_on_docs"), // Override company name on external documents
+  street: text("street"),
+  street2: text("street2"),
+  city: varchar("city"),
+  state: varchar("state"),
+  zipCode: varchar("zip_code"),
+  country: varchar("country").default("US"),
+  addressType: varchar("address_type").notNull().default("both"), // 'billing' | 'shipping' | 'both'
+  isDefault: boolean("is_default").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Supplier Addresses (CommonSKU-style: separate entity per supplier)
+export const supplierAddresses = pgTable("supplier_addresses", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  supplierId: varchar("supplier_id").notNull().references(() => suppliers.id, { onDelete: "cascade" }),
+  addressName: varchar("address_name"), // Internal label (e.g., "Main Warehouse", "East Coast")
+  companyNameOnDocs: varchar("company_name_on_docs"), // Override supplier name on external documents (POs, etc.)
+  street: text("street"),
+  street2: text("street2"),
+  city: varchar("city"),
+  state: varchar("state"),
+  zipCode: varchar("zip_code"),
+  country: varchar("country").default("US"),
+  addressType: varchar("address_type").notNull().default("both"), // 'billing' | 'shipping' | 'both'
+  isDefault: boolean("is_default").default(false),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -123,10 +151,13 @@ export const contacts = pgTable("contacts", {
   phone: varchar("phone"),
   title: varchar("title"),
   isPrimary: boolean("is_primary").default(false),
-  receiveOrderEmails: boolean("receive_order_emails").default(true), // Whether this contact receives order communication emails
+  receiveOrderEmails: boolean("receive_order_emails").default(true),
   leadSource: varchar("lead_source"),
-  billingAddress: text("billing_address"),
-  shippingAddress: text("shipping_address"),
+  // CommonSKU-style fields
+  department: varchar("department"), // executive, marketing, shop, sales, purchasing, accounting, administration, hr, other
+  isActive: boolean("is_active").default(true), // Soft delete (CommonSKU never hard-deletes)
+  mailingAddress: text("mailing_address"), // Personal mailing address for reports
+  noMarketing: boolean("no_marketing").default(false), // Opt out of marketing
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -202,7 +233,6 @@ export const suppliers = pgTable("suppliers", {
   email: varchar("email"),
   phone: varchar("phone"),
   website: varchar("website"),
-  address: text("address"),
   contactPerson: varchar("contact_person"),
   paymentTerms: varchar("payment_terms"),
   notes: text("notes"),
@@ -621,6 +651,14 @@ export const companiesRelations = relations(companies, ({ many }) => ({
   contacts: many(contacts),
   orders: many(orders),
   artworkFiles: many(artworkFiles),
+  addresses: many(companyAddresses),
+}));
+
+export const companyAddressesRelations = relations(companyAddresses, ({ one }) => ({
+  company: one(companies, {
+    fields: [companyAddresses.companyId],
+    references: [companies.id],
+  }),
 }));
 
 export const contactsRelations = relations(contacts, ({ one, many }) => ({
@@ -638,6 +676,14 @@ export const contactsRelations = relations(contacts, ({ one, many }) => ({
 export const suppliersRelations = relations(suppliers, ({ many }) => ({
   products: many(products),
   contacts: many(contacts),
+  addresses: many(supplierAddresses),
+}));
+
+export const supplierAddressesRelations = relations(supplierAddresses, ({ one }) => ({
+  supplier: one(suppliers, {
+    fields: [supplierAddresses.supplierId],
+    references: [suppliers.id],
+  }),
 }));
 
 export const productCategoriesRelations = relations(productCategories, ({ many }) => ({
@@ -742,6 +788,18 @@ export const insertCompanySchema = createInsertSchema(companies).extend({
   instagramUrl: z.string().optional(),
   otherSocialUrl: z.string().optional(),
 }).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertCompanyAddressSchema = createInsertSchema(companyAddresses).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertSupplierAddressSchema = createInsertSchema(supplierAddresses).omit({
   id: true,
   createdAt: true,
   updatedAt: true,
@@ -1756,6 +1814,10 @@ export type ProductionNotification = typeof productionNotifications.$inferSelect
 export type InsertProductionNotification = typeof productionNotifications.$inferInsert;
 export type Company = typeof companies.$inferSelect;
 export type InsertCompany = z.infer<typeof insertCompanySchema>;
+export type CompanyAddress = typeof companyAddresses.$inferSelect;
+export type InsertCompanyAddress = z.infer<typeof insertCompanyAddressSchema>;
+export type SupplierAddress = typeof supplierAddresses.$inferSelect;
+export type InsertSupplierAddress = z.infer<typeof insertSupplierAddressSchema>;
 export type Contact = typeof contacts.$inferSelect;
 export type InsertContact = z.infer<typeof insertContactSchema>;
 export type Client = typeof clients.$inferSelect;

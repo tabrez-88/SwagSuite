@@ -59,7 +59,7 @@ export function CampaignWorkflow() {
                   Create Campaign
                 </Button>
               </DialogTrigger>
-              <DialogContent className="max-w-2xl">
+              <DialogContent className="max-w-5xl">
                 <DialogHeader>
                   <DialogTitle>Create New Campaign</DialogTitle>
                 </DialogHeader>
@@ -264,7 +264,7 @@ export function CampaignWorkflow() {
                   Create Automation
                 </Button>
               </DialogTrigger>
-              <DialogContent className="max-w-2xl">
+              <DialogContent className="max-w-5xl">
                 <DialogHeader>
                   <DialogTitle>Create New Automation</DialogTitle>
                 </DialogHeader>

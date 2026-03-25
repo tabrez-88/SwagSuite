@@ -44,7 +44,7 @@ function ApprovalPage() {
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex items-center justify-center">
-        <Card className="w-full max-w-2xl mx-4">
+        <Card className="w-full max-w-5xl mx-4">
           <CardContent className="py-12 text-center">
             <div className="animate-spin w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full mx-auto mb-4"></div>
             <p className="text-gray-600">Loading artwork approval...</p>
@@ -57,7 +57,7 @@ function ApprovalPage() {
   if (error || !approval) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex items-center justify-center">
-        <Card className="w-full max-w-2xl mx-4">
+        <Card className="w-full max-w-5xl mx-4">
           <CardContent className="py-12 text-center">
             <AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
             <h2 className="text-2xl font-bold text-gray-900 mb-2">Invalid Approval Link</h2>

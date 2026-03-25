@@ -159,8 +159,127 @@
     {
       "idx": 22,
       "version": "7",
+      "when": 1741570800000,
+      "tag": "0022_add_vendor_invoice_document_id",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1741657200000,
+      "tag": "0023_add_proof_required_to_artwork_items",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1741743600000,
+      "tag": "0024_add_service_charges_and_shipping_config",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1741830000000,
+      "tag": "0025_add_po_confirmations",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1741916400000,
+      "tag": "0026_add_project_name_and_budget",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1742002800000,
+      "tag": "0027_add_artwork_item_id_to_approvals",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1742089200000,
+      "tag": "0028_add_quote_details_fields",
+      "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1742175600000,
+      "tag": "0029_add_company_settings",
+      "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
       "when": 1742256000000,
+      "tag": "0030_add_leads_table",
+      "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1742342400000,
+      "tag": "0031_add_stripe_invoice_pdf_url",
+      "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1742428800000,
+      "tag": "0032_invoice_reminders_contact_lead_source_company_custom_fields",
+      "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1742515200000,
+      "tag": "0033_next_action_types",
+      "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1742601600000,
       "tag": "0034_two_factor_auth",
+      "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1742688000000,
+      "tag": "0035_company_addresses_contact_enhancements",
+      "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1742774400000,
+      "tag": "0036_drop_legacy_address_columns",
+      "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1742860800000,
+      "tag": "0037_drop_contact_tags_column",
+      "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1742947200000,
+      "tag": "0038_add_supplier_addresses",
+      "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1743033600000,
+      "tag": "0039_drop_supplier_legacy_address",
       "breakpoints": true
     }
   ]

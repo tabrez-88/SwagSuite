@@ -22,7 +22,6 @@ export async function updateVendor({
     email: data.email,
     phone: data.phone,
     website: data.website,
-    address: data.address,
     contactPerson: data.contactPerson,
     paymentTerms: data.paymentTerms,
     notes: data.notes,
@@ -95,7 +94,7 @@ export async function updateVendorContact({
   data,
 }: {
   id: string;
-  data: Partial<VendorContactFormData>;
+  data: Partial<VendorContactFormData> & { isActive?: boolean };
 }) {
   const response = await apiRequest("PATCH", `/api/contacts/${id}`, data);
   return response.json();

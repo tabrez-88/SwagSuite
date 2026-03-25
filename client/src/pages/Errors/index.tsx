@@ -204,7 +204,7 @@ export default function ErrorsPage() {
                 Report Error
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>{selectedError ? "Edit Error" : "Report New Error"}</DialogTitle>
               </DialogHeader>

@@ -99,7 +99,7 @@ export default function SequenceBuilder() {
                   Create Sequence
                 </Button>
               </DialogTrigger>
-              <DialogContent className="max-w-2xl">
+              <DialogContent className="max-w-5xl">
                 <DialogHeader>
                   <DialogTitle>Create New Sequence</DialogTitle>
                 </DialogHeader>
@@ -431,7 +431,7 @@ export default function SequenceBuilder() {
 
       {/* Add Step Dialog */}
       <Dialog open={showStepDialog} onOpenChange={setShowStepDialog}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-5xl">
           <DialogHeader>
             <DialogTitle>{editingStep ? "Edit Step" : "Add New Step"}</DialogTitle>
           </DialogHeader>

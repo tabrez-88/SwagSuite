@@ -60,7 +60,7 @@ export default function Reports() {
                 Create Custom Report
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-2xl">
+            <DialogContent className="max-w-5xl">
               <DialogHeader>
                 <DialogTitle>Create Custom Report with AI</DialogTitle>
               </DialogHeader>

@@ -35,12 +35,18 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import { AddressAutocomplete } from "@/components/ui/address-autocomplete";
 import { UserAvatar } from "@/components/shared/UserAvatar";
 import type { Vendor } from "@/services/suppliers";
 import {
@@ -55,7 +61,6 @@ import {
   Gift,
   Globe,
   Mail,
-  MapPin,
   MoreHorizontal,
   Package,
   Percent,
@@ -66,8 +71,13 @@ import {
   Target,
   Trash2,
   TrendingUp,
+  UserCheck,
+  UserX,
   Users,
+  MailX,
 } from "lucide-react";
+import { SupplierAddressesManager } from "@/components/feature/SupplierAddressesManager";
+import { CONTACT_DEPARTMENTS } from "@/schemas/crm.schemas";
 import { useVendors } from "./hooks";
 
 export default function Vendors() {
@@ -90,7 +100,7 @@ export default function Vendors() {
               Add Vendor
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Add New Vendor</DialogTitle>
             </DialogHeader>
@@ -124,22 +134,6 @@ export default function Vendors() {
                   )}
                 />
 
-                <FormField
-                  control={v.form.control}
-                  name="address"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Address</FormLabel>
-                      <FormControl>
-                        <AddressAutocomplete
-                          value={field.value || ""}
-                          onChange={field.onChange}
-                          placeholder="Enter vendor address"
-                        />
-                      </FormControl>
-                    </FormItem>
-                  )}
-                />
 
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                   <p className="text-sm text-blue-900 mb-2">
@@ -486,12 +480,6 @@ export default function Vendors() {
                               >
                                 Website
                               </a>
-                            </div>
-                          )}
-                          {vendor.address && (
-                            <div className="flex items-center gap-2 text-sm">
-                              <MapPin className="h-4 w-4 text-muted-foreground" />
-                              <span className="text-muted-foreground text-xs truncate">{vendor.address}</span>
                             </div>
                           )}
                         </div>
@@ -1188,15 +1176,6 @@ export default function Vendors() {
                         </div>
                       </div>
                     )}
-                    {v.selectedVendor.address && (
-                      <div className="flex items-center gap-3">
-                        <MapPin className="h-4 w-4 text-muted-foreground" />
-                        <div>
-                          <p className="text-sm font-medium">Address</p>
-                          <p className="text-muted-foreground">{v.selectedVendor.address}</p>
-                        </div>
-                      </div>
-                    )}
                     {v.selectedVendor.apiIntegrationStatus && (
                       <div className="flex items-center gap-3">
                         <Package className="h-4 w-4 text-muted-foreground" />
@@ -1306,21 +1285,39 @@ export default function Vendors() {
 
               </div>
 
+              {/* Supplier Addresses */}
+              <SupplierAddressesManager
+                supplierId={v.selectedVendor.id}
+                supplierName={v.selectedVendor.name}
+              />
+
               {/* Vendor Contacts */}
               <Card>
                 <CardHeader>
                   <div className="flex items-center justify-between">
                     <CardTitle className="flex items-center gap-2">
                       <Users className="h-4 w-4" />
-                      Contacts ({v.vendorContacts.length})
+                      Contacts ({v.filteredContacts.length})
                     </CardTitle>
-                    <Button
-                      size="sm"
-                      onClick={() => v.setIsAddContactOpen(true)}
-                    >
-                      <Plus className="h-4 w-4 mr-1" />
-                      Add Contact
-                    </Button>
+                    <div className="flex items-center gap-2">
+                      {v.inactiveContactCount > 0 && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => v.setShowInactiveContacts(!v.showInactiveContacts)}
+                          className="text-xs text-muted-foreground"
+                        >
+                          {v.showInactiveContacts ? "Hide" : "Show"} Inactive ({v.inactiveContactCount})
+                        </Button>
+                      )}
+                      <Button
+                        size="sm"
+                        onClick={() => v.setIsAddContactOpen(true)}
+                      >
+                        <Plus className="h-4 w-4 mr-1" />
+                        Add Contact
+                      </Button>
+                    </div>
                   </div>
                 </CardHeader>
                 <CardContent>
@@ -1330,10 +1327,10 @@ export default function Vendors() {
                         <Skeleton key={i} className="h-20 w-full" />
                       ))}
                     </div>
-                  ) : v.vendorContacts && v.vendorContacts.length > 0 ? (
+                  ) : v.filteredContacts && v.filteredContacts.length > 0 ? (
                     <div className="space-y-3">
-                      {v.vendorContacts.map((contact) => (
-                        <Card key={contact.id} className="border">
+                      {v.filteredContacts.map((contact) => (
+                        <Card key={contact.id} className={`border ${contact.isActive === false ? "opacity-50" : ""}`}>
                           <CardContent className="p-4">
                             <div className="flex items-start justify-between">
                               <div className="flex items-start gap-3 flex-1">
@@ -1343,12 +1340,29 @@ export default function Vendors() {
                                 />
                                 <div className="flex-1">
                                   <div className="flex items-center gap-2 flex-wrap">
-                                    <h4 className="font-medium">
+                                    <h4 className={`font-medium ${contact.isActive === false ? "line-through text-muted-foreground" : ""}`}>
                                       {contact.firstName} {contact.lastName}
                                     </h4>
+                                    {contact.isActive === false && (
+                                      <Badge variant="outline" className="text-xs text-gray-500">
+                                        <UserX className="h-3 w-3 mr-1" />
+                                        Inactive
+                                      </Badge>
+                                    )}
                                     {contact.isPrimary && (
                                       <Badge variant="secondary" className="text-xs bg-blue-100 text-blue-800">
                                         Primary
+                                      </Badge>
+                                    )}
+                                    {contact.department && (
+                                      <Badge variant="secondary" className="text-xs bg-gray-100 text-gray-700">
+                                        {contact.department.charAt(0).toUpperCase() + contact.department.slice(1)}
+                                      </Badge>
+                                    )}
+                                    {contact.noMarketing && (
+                                      <Badge variant="outline" className="text-xs text-orange-600 border-orange-200">
+                                        <MailX className="h-3 w-3 mr-1" />
+                                        No Marketing
                                       </Badge>
                                     )}
                                     {contact.receiveOrderEmails !== false && contact.email && (
@@ -1397,16 +1411,18 @@ export default function Vendors() {
                                   variant="ghost"
                                   size="sm"
                                   onClick={() => v.handleEditContact(contact)}
+                                  title="Edit contact"
                                 >
                                   <Edit className="h-4 w-4" />
                                 </Button>
                                 <Button
                                   variant="ghost"
                                   size="sm"
-                                  onClick={() => v.handleDeleteContact(contact)}
-                                  className="text-red-600 hover:text-red-700"
+                                  onClick={() => v.handleToggleActive(contact)}
+                                  title={contact.isActive === false ? "Reactivate contact" : "Deactivate contact"}
+                                  className={contact.isActive === false ? "text-green-600 hover:text-green-700" : "text-gray-500 hover:text-gray-700"}
                                 >
-                                  <Trash2 className="h-4 w-4" />
+                                  {contact.isActive === false ? <UserCheck className="h-4 w-4" /> : <UserX className="h-4 w-4" />}
                                 </Button>
                               </div>
                             </div>
@@ -1602,7 +1618,7 @@ export default function Vendors() {
 
       {/* Edit Preferred Benefits Dialog */}
       <Dialog open={v.isEditBenefitsOpen} onOpenChange={v.setIsEditBenefitsOpen}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-5xl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Star className="h-5 w-5 text-yellow-600" />
@@ -1739,7 +1755,7 @@ export default function Vendors() {
 
       {/* Edit Vendor Dialog */}
       <Dialog open={v.isEditVendorOpen} onOpenChange={v.setIsEditVendorOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Edit className="h-5 w-5" />
@@ -1788,31 +1804,9 @@ export default function Vendors() {
                   />
                 </div>
 
-                {/* Legacy Fields Notice */}
-
-                <FormField
-                  control={v.form.control}
-                  name="address"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Address</FormLabel>
-                      <FormControl>
-                        <AddressAutocomplete
-                          value={field.value || ""}
-                          onChange={field.onChange}
-                          placeholder="Full address"
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                   <p className="text-sm text-blue-900 mb-2">
-                    <strong>Contact Management:</strong> Use the "Contacts" tab in vendor details to manage all contact persons for this vendor.
-                  </p>
-                  <p className="text-xs text-blue-700">
-                    The legacy Contact Person, Email, and Phone fields have been moved to the Contacts system for better organization.
+                    <strong>Addresses & Contacts:</strong> Manage addresses and contacts in the vendor detail view.
                   </p>
                 </div>
               </div>
@@ -2119,6 +2113,34 @@ export default function Vendors() {
               />
               <FormField
                 control={v.contactForm.control}
+                name="department"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Department</FormLabel>
+                    <Select
+                      value={field.value || "none"}
+                      onValueChange={(val) => field.onChange(val === "none" ? "" : val)}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select department" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="none">No Department</SelectItem>
+                        {CONTACT_DEPARTMENTS.map((dept) => (
+                          <SelectItem key={dept} value={dept.toLowerCase()}>
+                            {dept}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={v.contactForm.control}
                 name="isPrimary"
                 render={({ field }) => (
                   <FormItem className="flex items-center justify-between p-3 border rounded-lg">
@@ -2149,6 +2171,29 @@ export default function Vendors() {
                       </FormLabel>
                       <p className="text-sm text-muted-foreground">
                         Include in vendor order communication emails
+                      </p>
+                    </div>
+                    <FormControl>
+                      <Checkbox
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                      />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={v.contactForm.control}
+                name="noMarketing"
+                render={({ field }) => (
+                  <FormItem className="flex items-center justify-between p-3 border rounded-lg">
+                    <div>
+                      <FormLabel className="flex items-center gap-2">
+                        <MailX className="h-4 w-4" />
+                        No Marketing
+                      </FormLabel>
+                      <p className="text-sm text-muted-foreground">
+                        Opt out of marketing communications
                       </p>
                     </div>
                     <FormControl>
@@ -2260,6 +2305,34 @@ export default function Vendors() {
               />
               <FormField
                 control={v.contactForm.control}
+                name="department"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Department</FormLabel>
+                    <Select
+                      value={field.value || "none"}
+                      onValueChange={(val) => field.onChange(val === "none" ? "" : val)}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select department" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="none">No Department</SelectItem>
+                        {CONTACT_DEPARTMENTS.map((dept) => (
+                          <SelectItem key={dept} value={dept.toLowerCase()}>
+                            {dept}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={v.contactForm.control}
                 name="isPrimary"
                 render={({ field }) => (
                   <FormItem className="flex items-center justify-between p-3 border rounded-lg">
@@ -2290,6 +2363,29 @@ export default function Vendors() {
                       </FormLabel>
                       <p className="text-sm text-muted-foreground">
                         Include in vendor order communication emails
+                      </p>
+                    </div>
+                    <FormControl>
+                      <Checkbox
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                      />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={v.contactForm.control}
+                name="noMarketing"
+                render={({ field }) => (
+                  <FormItem className="flex items-center justify-between p-3 border rounded-lg">
+                    <div>
+                      <FormLabel className="flex items-center gap-2">
+                        <MailX className="h-4 w-4" />
+                        No Marketing
+                      </FormLabel>
+                      <p className="text-sm text-muted-foreground">
+                        Opt out of marketing communications
                       </p>
                     </div>
                     <FormControl>

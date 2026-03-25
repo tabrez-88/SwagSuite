@@ -7,10 +7,11 @@ export interface Contact {
   email?: string;
   phone?: string;
   title?: string;
+  department?: string;
+  noMarketing?: boolean;
+  isActive?: boolean;
   isPrimary?: boolean;
   leadSource?: string;
-  billingAddress?: string;
-  shippingAddress?: string;
   createdAt?: string;
   updatedAt?: string;
   companyName?: string;

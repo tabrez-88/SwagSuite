@@ -3,8 +3,10 @@ import authRoutes from "./auth.routes";
 import notificationRoutes from "./notification.routes";
 import leadRoutes from "./lead.routes";
 import companyRoutes from "./company.routes";
+import companyAddressRoutes from "./company-address.routes";
 import contactRoutes from "./contact.routes";
 import supplierRoutes from "./supplier.routes";
+import supplierAddressRoutes from "./supplier-address.routes";
 import productRoutes from "./product.routes";
 import dashboardRoutes from "./dashboard.routes";
 import settingsRoutes from "./settings.routes";
@@ -41,8 +43,10 @@ export function registerModularRoutes(app: Express) {
 
   // CRM
   app.use(companyRoutes);
+  app.use(companyAddressRoutes);
   app.use(contactRoutes);
   app.use(supplierRoutes);
+  app.use(supplierAddressRoutes);
   app.use(leadRoutes);
 
   // Products

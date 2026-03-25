@@ -63,6 +63,32 @@ export function usePurchaseOrdersSection({ orderId, data, isLocked }: PurchaseOr
     enabled: !!emailPOVendor?.vendor?.id,
   });
 
+  // Fetch supplier addresses for all vendors in this order
+  const vendorIds = orderVendors.map((v: any) => v.id).filter(Boolean);
+  const supplierAddressQueries = useQuery<Record<string, any[]>>({
+    queryKey: ["/api/supplier-addresses", vendorIds.join(",")],
+    queryFn: async () => {
+      const result: Record<string, any[]> = {};
+      await Promise.all(vendorIds.map(async (vid: string) => {
+        try {
+          const res = await fetch(`/api/suppliers/${vid}/addresses`, { credentials: "include" });
+          if (res.ok) result[vid] = await res.json();
+        } catch { /* ignore */ }
+      }));
+      return result;
+    },
+    enabled: vendorIds.length > 0,
+  });
+  const vendorAddressesMap = supplierAddressQueries.data || {};
+
+  // Get default address for a vendor (prefers default billing/both, falls back to first)
+  const getVendorDefaultAddress = useCallback((vendorId: string) => {
+    const addresses = vendorAddressesMap[vendorId] || [];
+    if (addresses.length === 0) return null;
+    const defaultAddr = addresses.find((a: any) => a.isDefault && (a.addressType === "billing" || a.addressType === "both"));
+    return defaultAddr || addresses.find((a: any) => a.isDefault) || addresses[0];
+  }, [vendorAddressesMap]);
+
   const {
     poDocuments,
     isGenerating,
@@ -519,6 +545,9 @@ export function usePurchaseOrdersSection({ orderId, data, isLocked }: PurchaseOr
     openSendAllProofs,
     openSendAllVendorProofs,
     handleProofUploaded,
+    // Vendor addresses
+    vendorAddressesMap,
+    getVendorDefaultAddress,
     // Clipboard
     copyPOToClipboard,
   };

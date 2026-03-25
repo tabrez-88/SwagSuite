@@ -214,11 +214,6 @@ export class QuickBooksService {
                 const newQbCustomer = await this.createCustomer({
                     DisplayName: company.name,
                     PrimaryEmailAddr: { Address: email },
-                    BillAddr: company.address ? {
-                        Line1: company.address,
-                        City: 'Unknown', // Parsing address is hard without structured data
-                        Country: 'USA'
-                    } : undefined
                 });
                 qbCustomerId = newQbCustomer.Id ?? null;
             }

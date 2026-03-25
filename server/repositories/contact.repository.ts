@@ -7,15 +7,25 @@ import {
 } from "@shared/schema";
 
 export class ContactRepository {
-  async getAll(companyId?: string, supplierId?: string): Promise<Contact[]> {
-    const query = db.select().from(contacts);
+  async getAll(companyId?: string, supplierId?: string, includeInactive = false): Promise<Contact[]> {
+    const activeFilter = includeInactive ? undefined : eq(contacts.isActive, true);
+
     if (companyId) {
-      return await query.where(eq(contacts.companyId, companyId));
+      const conditions = activeFilter
+        ? and(eq(contacts.companyId, companyId), activeFilter)
+        : eq(contacts.companyId, companyId);
+      return await db.select().from(contacts).where(conditions).orderBy(desc(contacts.createdAt));
     }
     if (supplierId) {
-      return await query.where(eq(contacts.supplierId, supplierId)).orderBy(desc(contacts.createdAt));
+      const conditions = activeFilter
+        ? and(eq(contacts.supplierId, supplierId), activeFilter)
+        : eq(contacts.supplierId, supplierId);
+      return await db.select().from(contacts).where(conditions).orderBy(desc(contacts.createdAt));
     }
-    return await query.orderBy(desc(contacts.createdAt));
+    if (activeFilter) {
+      return await db.select().from(contacts).where(activeFilter).orderBy(desc(contacts.createdAt));
+    }
+    return await db.select().from(contacts).orderBy(desc(contacts.createdAt));
   }
 
   async getById(id: string): Promise<Contact | undefined> {
@@ -89,22 +99,11 @@ export class ContactRepository {
   }
 
   async delete(id: string): Promise<void> {
-    const { orders, orderItems } = await import("@shared/schema");
-
-    const contactOrders = await db
-      .select({ id: orders.id })
-      .from(orders)
-      .where(eq(orders.contactId, id));
-
-    const orderIds = contactOrders.map(o => o.id);
-    if (orderIds.length > 0) {
-      await db.delete(orderItems).where(
-        sql`${orderItems.orderId} IN ${sql.raw(`(${orderIds.map(id => `'${id}'`).join(',')})`)}`
-      );
-    }
-
-    await db.delete(orders).where(eq(orders.contactId, id));
-    await db.delete(contacts).where(eq(contacts.id, id));
+    // Soft delete — mark as inactive (CommonSKU-style: preserve history)
+    await db
+      .update(contacts)
+      .set({ isActive: false, updatedAt: new Date() })
+      .where(eq(contacts.id, id));
   }
 
   async getCompanyName(companyId: string): Promise<string | null> {

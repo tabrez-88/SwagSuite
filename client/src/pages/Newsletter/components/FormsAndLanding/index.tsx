@@ -59,7 +59,7 @@ export function FormsAndLanding() {
                   Create Form
                 </Button>
               </DialogTrigger>
-              <DialogContent className="max-w-2xl">
+              <DialogContent className="max-w-5xl">
                 <DialogHeader>
                   <DialogTitle>Create Signup Form</DialogTitle>
                 </DialogHeader>
@@ -235,7 +235,7 @@ export function FormsAndLanding() {
                   Create Landing Page
                 </Button>
               </DialogTrigger>
-              <DialogContent className="max-w-2xl">
+              <DialogContent className="max-w-5xl">
                 <DialogHeader>
                   <DialogTitle>Create Landing Page</DialogTitle>
                 </DialogHeader>
