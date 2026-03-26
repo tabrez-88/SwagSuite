@@ -229,6 +229,12 @@ export class OrderController {
       // Manually convert date strings to Date objects for validation
       if (dataToValidate.inHandsDate) {
         dataToValidate.inHandsDate = new Date(dataToValidate.inHandsDate);
+        // Auto-set supplier in-hands date to 2 days before in-hands date if not explicitly provided
+        if (!dataToValidate.supplierInHandsDate) {
+          const supplierDate = new Date(dataToValidate.inHandsDate);
+          supplierDate.setDate(supplierDate.getDate() - 2);
+          dataToValidate.supplierInHandsDate = supplierDate;
+        }
       }
       if (dataToValidate.eventDate) {
         dataToValidate.eventDate = new Date(dataToValidate.eventDate);
@@ -295,6 +301,12 @@ export class OrderController {
       // Convert date strings to Date objects for validation
       if (dataToValidate.inHandsDate) {
         dataToValidate.inHandsDate = new Date(dataToValidate.inHandsDate);
+        // Auto-set supplier in-hands date to 2 days before in-hands date if not explicitly provided
+        if (!dataToValidate.supplierInHandsDate) {
+          const supplierDate = new Date(dataToValidate.inHandsDate);
+          supplierDate.setDate(supplierDate.getDate() - 2);
+          dataToValidate.supplierInHandsDate = supplierDate;
+        }
       }
       if (dataToValidate.eventDate) {
         dataToValidate.eventDate = new Date(dataToValidate.eventDate);

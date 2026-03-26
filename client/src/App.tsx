@@ -32,6 +32,7 @@ import ProfilePage from "@/pages/Profile";
 import VendorApprovals from "@/pages/VendorApprovals";
 import NotificationsPage from "@/pages/Notifications";
 import NotFound from "@/pages/NotFound";
+import TwoFactorSetup from "@/pages/TwoFactorSetup";
 import ApprovalPage from "@/pages/Approval";
 import QuoteApprovalPage from "@/pages/QuoteApproval";
 import AcceptInvitation from "@/pages/AcceptInvitation";
@@ -106,7 +107,7 @@ function RedirectToLanding() {
 }
 
 function Router() {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { user, isAuthenticated, isLoading } = useAuth();
 
   if (isLoading) {
     return (
@@ -120,7 +121,8 @@ function Router() {
   }
 
   // After login, redirect to the originally requested URL if stored
-  if (isAuthenticated) {
+  // Only redirect if 2FA is already set up (otherwise show 2FA setup first)
+  if (isAuthenticated && (user as any)?.twoFactorEnabled) {
     const redirectTo = sessionStorage.getItem("redirectAfterLogin");
     if (redirectTo) {
       sessionStorage.removeItem("redirectAfterLogin");
@@ -151,6 +153,8 @@ function Router() {
 
       {!isAuthenticated ? (
         <Route component={RedirectToLanding} />
+      ) : !(user as any)?.twoFactorEnabled && (user as any)?.id !== "dev-user-id" ? (
+        <Route component={TwoFactorSetup} />
       ) : (
         <AuthenticatedLayout>
           <Switch>

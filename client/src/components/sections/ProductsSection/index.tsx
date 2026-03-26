@@ -50,6 +50,7 @@ import FilePickerDialog from "@/components/modals/FilePickerDialog";
 import { isBelowMinimum, calcMarginPercent, applyMargin } from "@/hooks/useMarginSettings";
 import type { ProductsSectionProps } from "./types";
 import { useProductsSection } from "./hooks";
+import { getCloudinaryThumbnail } from "@/lib/media-library";
 
 export default function ProductsSection({ orderId, data, isLocked }: ProductsSectionProps) {
   const h = useProductsSection({ orderId, data, isLocked });
@@ -517,7 +518,28 @@ export default function ProductsSection({ orderId, data, isLocked }: ProductsSec
                           {artworks.map((art: any) => (
                             <div key={art.id} className="border rounded-lg p-2 bg-white w-36 group relative">
                               {art.filePath ? (
-                                <img src={art.filePath} alt={art.name} className="w-full h-20 object-contain rounded mb-1.5" />
+                                (() => {
+                                  const ext = art.filePath.split("?")[0].split(".").pop()?.toLowerCase();
+                                  const isDesignFile = ["ai", "eps", "psd"].includes(ext || "");
+                                  const imgSrc = isDesignFile && art.filePath.includes("cloudinary.com")
+                                    ? getCloudinaryThumbnail(art.filePath, 280, 160)
+                                    : art.filePath;
+                                  return (
+                                    <img
+                                      src={imgSrc}
+                                      alt={art.name}
+                                      className="w-full h-20 object-contain rounded mb-1.5"
+                                      onError={(e) => {
+                                        const target = e.target as HTMLImageElement;
+                                        target.style.display = "none";
+                                        target.parentElement?.insertAdjacentHTML(
+                                          "afterbegin",
+                                          `<div class="w-full h-20 bg-gray-100 rounded flex items-center justify-center mb-1.5"><span class="text-[10px] text-gray-400 uppercase font-medium">.${ext || "file"}</span></div>`
+                                        );
+                                      }}
+                                    />
+                                  );
+                                })()
                               ) : (
                                 <div className="w-full h-20 bg-gray-100 rounded flex items-center justify-center mb-1.5">
                                   <FileText className="w-6 h-6 text-gray-300" />

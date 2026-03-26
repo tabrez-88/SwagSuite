@@ -5,9 +5,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
-import { Download, FileText, ImageIcon, Loader2, Save, ShoppingCart } from "lucide-react";
+import { Download, FileText, ImageIcon, Loader2, Paperclip, Save, ShoppingCart } from "lucide-react";
 import type { DocumentEditorProps } from "./types";
 import { useDocumentEditor } from "./hooks";
+import { getRenderableImageUrl } from "@/lib/media-library";
+import { proxyImg } from "@/lib/imageUtils";
 
 export function DocumentEditor(props: DocumentEditorProps) {
   const {
@@ -531,13 +533,25 @@ export function DocumentEditor(props: DocumentEditorProps) {
                                   </table>
                                 </div>
                                 {/* Artwork thumbnail */}
-                                {(art.filePath || art.fileUrl) && (
-                                  <div style={{ width: "120px", flexShrink: 0 }}>
-                                    <div style={{ width: "110px", height: "110px" }} className="border rounded bg-white overflow-hidden">
-                                      <img src={art.filePath || art.fileUrl} alt={art.name || "Artwork"} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+                                {(() => {
+                                  const artUrl = art.filePath || art.fileUrl;
+                                  const renderUrl = getRenderableImageUrl(artUrl);
+                                  if (!artUrl) return null;
+                                  return (
+                                    <div style={{ width: "120px", flexShrink: 0 }}>
+                                      <div style={{ width: "110px", height: "110px" }} className="border rounded bg-white overflow-hidden flex items-center justify-center">
+                                        {renderUrl ? (
+                                          <img src={proxyImg(renderUrl)} alt={art.name || "Artwork"} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+                                        ) : (
+                                          <div className="text-center p-2">
+                                            <Paperclip className="w-6 h-6 text-gray-400 mx-auto" />
+                                            <p style={{ fontSize: "7px" }} className="text-gray-500 mt-1 break-all">{artUrl.split('/').pop()?.split('?')[0] || art.name}</p>
+                                          </div>
+                                        )}
+                                      </div>
                                     </div>
-                                  </div>
-                                )}
+                                  );
+                                })()}
                               </div>
                             ))}
                           </div>

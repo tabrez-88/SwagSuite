@@ -234,7 +234,7 @@ export function SubscriberManagement() {
                           </div>
                         </td>
                         <td className="p-4">
-                          <Badge className={getStatusColor(subscriber.status)} data-testid={`badge-status-${subscriber.id}`}>
+                          <Badge className={getStatusColor(subscriber.status ?? "")} data-testid={`badge-status-${subscriber.id}`}>
                             {subscriber.status}
                           </Badge>
                         </td>
@@ -336,7 +336,7 @@ export function SubscriberManagement() {
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-muted-foreground">Subscribers</span>
                     <span className="font-medium" data-testid={`text-list-count-${list.id}`}>
-                      {list.subscriberCount.toLocaleString()}
+                      {(list.subscriberCount ?? 0).toLocaleString()}
                     </span>
                   </div>
                   <div className="flex gap-2 mt-4">

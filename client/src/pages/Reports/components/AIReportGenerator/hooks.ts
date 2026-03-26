@@ -26,10 +26,7 @@ export function useAIReportGenerator() {
   const generateReportMutation = useMutation({
     mutationFn: async (query: string) => {
       setIsGenerating(true);
-      return await apiRequest('/api/reports/generate', {
-        method: 'POST',
-        body: { query }
-      });
+      return await apiRequest('POST', '/api/reports/generate', { query });
     },
     onSuccess: (data) => {
       toast({
@@ -53,10 +50,7 @@ export function useAIReportGenerator() {
 
   const saveTemplateMutation = useMutation({
     mutationFn: async (template: Partial<ReportTemplate>) => {
-      await apiRequest('/api/reports/templates', {
-        method: 'POST',
-        body: template
-      });
+      await apiRequest('POST', '/api/reports/templates', template);
     },
     onSuccess: () => {
       toast({
@@ -69,9 +63,7 @@ export function useAIReportGenerator() {
 
   const runTemplateMutation = useMutation({
     mutationFn: async (templateId: string) => {
-      return await apiRequest(`/api/reports/templates/${templateId}/run`, {
-        method: 'POST'
-      });
+      return await apiRequest('POST', `/api/reports/templates/${templateId}/run`);
     },
     onSuccess: () => {
       toast({

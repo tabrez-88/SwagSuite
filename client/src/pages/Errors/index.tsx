@@ -18,12 +18,12 @@ function ErrorForm({ form, onSubmit, isLoading, selectedError }: ErrorFormProps)
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <FormField
             control={form.control}
-            name="orderNumber"
+            name="projectNumber"
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Order Number</FormLabel>
                 <FormControl>
-                  <Input {...field} placeholder="ORD-2024-001" />
+                  <Input {...field} value={field.value ?? ""} placeholder="ORD-2024-001" />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -60,12 +60,12 @@ function ErrorForm({ form, onSubmit, isLoading, selectedError }: ErrorFormProps)
 
         <FormField
           control={form.control}
-          name="description"
+          name="additionalNotes"
           render={({ field }) => (
             <FormItem>
               <FormLabel>Description</FormLabel>
               <FormControl>
-                <Textarea {...field} placeholder="Describe the error in detail" rows={3} />
+                <Textarea {...field} value={field.value ?? ""} placeholder="Describe the error in detail" rows={3} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -103,7 +103,7 @@ function ErrorForm({ form, onSubmit, isLoading, selectedError }: ErrorFormProps)
               <FormItem>
                 <FormLabel>Cost to LSD</FormLabel>
                 <FormControl>
-                  <Input {...field} type="number" min="0" step="0.01" placeholder="0.00" />
+                  <Input {...field} value={field.value ?? ""} type="number" min="0" step="0.01" placeholder="0.00" />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -119,7 +119,7 @@ function ErrorForm({ form, onSubmit, isLoading, selectedError }: ErrorFormProps)
               <FormItem>
                 <FormLabel>Order Rep</FormLabel>
                 <FormControl>
-                  <Input {...field} placeholder="Sales representative name" />
+                  <Input {...field} value={field.value ?? ""} placeholder="Sales representative name" />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -133,7 +133,7 @@ function ErrorForm({ form, onSubmit, isLoading, selectedError }: ErrorFormProps)
               <FormItem>
                 <FormLabel>Production Rep</FormLabel>
                 <FormControl>
-                  <Input {...field} placeholder="Production representative name" />
+                  <Input {...field} value={field.value ?? ""} placeholder="Production representative name" />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -368,8 +368,8 @@ export default function ErrorsPage() {
                       </Badge>
                     </div>
                     <div>
-                      <h3 className="font-semibold">Order: {error.orderNumber}</h3>
-                      <p className="text-gray-600">{error.description}</p>
+                      <h3 className="font-semibold">Order: {error.projectNumber}</h3>
+                      <p className="text-gray-600">{error.additionalNotes}</p>
                       <p className="text-sm text-gray-500">
                         Cost: ${parseFloat(error.costToLsd || "0").toFixed(2)} |
                         Rep: {error.orderRep} |

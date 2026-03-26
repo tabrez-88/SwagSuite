@@ -102,18 +102,6 @@ export default function GeneratedDocumentCard({
               {doc.fileSize && (
                 <span className="text-xs text-gray-500">{formatFileSize(doc.fileSize)}</span>
               )}
-              <Badge
-                variant="outline"
-                className={`text-xs ${
-                  doc.status === "approved" ? "border-green-500 text-green-600 bg-green-50" :
-                  doc.status === "sent" ? "border-blue-500 text-blue-600 bg-blue-50" :
-                  doc.status === "paid" ? "border-emerald-500 text-emerald-600 bg-emerald-50" :
-                  doc.status === "cancelled" ? "border-red-500 text-red-600 bg-red-50" :
-                  "border-gray-400 text-gray-500"
-                }`}
-              >
-                {doc.status}
-              </Badge>
               {isStale && isProtected && (
                 <Badge
                   variant="outline"
@@ -147,7 +135,6 @@ export default function GeneratedDocumentCard({
               variant="outline"
               size="sm"
               onClick={onGetApprovalLink}
-              className="text-green-600 hover:text-green-700 hover:bg-green-50"
             >
               <CheckCircle2 className="w-4 h-4 mr-1" />
               Approval Link

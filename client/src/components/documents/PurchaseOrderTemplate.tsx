@@ -1,6 +1,7 @@
 import { forwardRef } from "react";
 import { format } from "date-fns";
 import { proxyImg } from "@/lib/imageUtils";
+import { getRenderableImageUrl } from "@/lib/media-library";
 
 interface VendorAddressData {
   addressName?: string | null;
@@ -227,20 +228,43 @@ const PurchaseOrderTemplate = forwardRef<HTMLDivElement, PurchaseOrderTemplatePr
                           </div>
                           {/* Artwork thumbnail - larger */}
                           <div style={{ width: "120px", flexShrink: 0 }} className="flex flex-col gap-2">
-                            {(art.filePath || art.fileUrl) && (
-                              <div style={{ width: "110px", height: "110px" }} className="border rounded bg-white overflow-hidden">
-                                <img src={proxyImg(art.filePath || art.fileUrl)} alt={art.name || "Artwork"} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
-                              </div>
-                            )}
-                            {/* Proof thumbnail if different */}
-                            {art.proofFilePath && art.proofFilePath !== art.filePath && (
-                              <div>
-                                <p className="text-[8px] text-gray-500 mb-0.5">Vendor Proof:</p>
-                                <div style={{ width: "80px", height: "80px" }} className="border rounded bg-white overflow-hidden">
-                                  <img src={proxyImg(art.proofFilePath)} alt="Proof" style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+                            {(() => {
+                              const artUrl = art.filePath || art.fileUrl;
+                              const renderUrl = getRenderableImageUrl(artUrl);
+                              if (!artUrl) return null;
+                              return (
+                                <div style={{ width: "110px", height: "110px" }} className="border rounded bg-white overflow-hidden flex items-center justify-center">
+                                  {renderUrl ? (
+                                    <img src={proxyImg(renderUrl)} alt={art.name || "Artwork"} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+                                  ) : (
+                                    <div className="text-center p-2">
+                                      <div style={{ fontSize: "24px" }}>📎</div>
+                                      <p style={{ fontSize: "7px" }} className="text-gray-500 mt-1 break-all">{artUrl.split('/').pop()?.split('?')[0] || art.name}</p>
+                                    </div>
+                                  )}
                                 </div>
-                              </div>
-                            )}
+                              );
+                            })()}
+                            {/* Proof thumbnail if different */}
+                            {(() => {
+                              if (!art.proofFilePath || art.proofFilePath === art.filePath) return null;
+                              const proofRenderUrl = getRenderableImageUrl(art.proofFilePath);
+                              return (
+                                <div>
+                                  <p className="text-[8px] text-gray-500 mb-0.5">Vendor Proof:</p>
+                                  <div style={{ width: "80px", height: "80px" }} className="border rounded bg-white overflow-hidden flex items-center justify-center">
+                                    {proofRenderUrl ? (
+                                      <img src={proxyImg(proofRenderUrl)} alt="Proof" style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+                                    ) : (
+                                      <div className="text-center p-1">
+                                        <div style={{ fontSize: "18px" }}>📎</div>
+                                        <p style={{ fontSize: "6px" }} className="text-gray-500 mt-0.5 break-all">{art.proofFilePath.split('/').pop()?.split('?')[0]}</p>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })()}
                           </div>
                         </div>
                       ))}
@@ -297,13 +321,25 @@ const PurchaseOrderTemplate = forwardRef<HTMLDivElement, PurchaseOrderTemplatePr
                       </tbody>
                     </table>
                   </div>
-                  {(art.filePath || art.fileUrl) && (
-                    <div style={{ width: "120px", flexShrink: 0 }}>
-                      <div style={{ width: "110px", height: "110px" }} className="border rounded bg-white overflow-hidden">
-                        <img src={proxyImg(art.filePath || art.fileUrl)} alt={art.name || "Artwork"} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+                  {(() => {
+                    const artUrl = art.filePath || art.fileUrl;
+                    const renderUrl = getRenderableImageUrl(artUrl);
+                    if (!artUrl) return null;
+                    return (
+                      <div style={{ width: "120px", flexShrink: 0 }}>
+                        <div style={{ width: "110px", height: "110px" }} className="border rounded bg-white overflow-hidden flex items-center justify-center">
+                          {renderUrl ? (
+                            <img src={proxyImg(renderUrl)} alt={art.name || "Artwork"} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+                          ) : (
+                            <div className="text-center p-2">
+                              <div style={{ fontSize: "24px" }}>📎</div>
+                              <p style={{ fontSize: "7px" }} className="text-gray-500 mt-1 break-all">{artUrl.split('/').pop()?.split('?')[0] || art.name}</p>
+                            </div>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    );
+                  })()}
                 </div>
               ))}
             </div>

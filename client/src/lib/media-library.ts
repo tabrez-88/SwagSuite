@@ -47,6 +47,34 @@ export function isImageFile(mimeType: string | null, url?: string | null): boole
   return false;
 }
 
+/**
+ * Get a browser-renderable image URL. For design files (.ai, .eps, .psd) on Cloudinary,
+ * adds format transformation (f_png) so Cloudinary converts them to PNG.
+ * Returns null if the URL can't be rendered as an image.
+ */
+export function getRenderableImageUrl(url: string | null | undefined): string | null {
+  if (!url) return null;
+  const cleanUrl = url.split("?")[0].split("#")[0].toLowerCase();
+
+  // Cloudinary raw uploads can't be transformed — not renderable
+  if (cleanUrl.includes("/raw/upload/")) return null;
+
+  // Non-Cloudinary design files — browser can't render
+  if (!cleanUrl.includes("cloudinary.com") && /\.(ai|eps|psd|indd|cdr|sketch|fig)$/.test(cleanUrl)) return null;
+
+  // Cloudinary image uploads of design files — add f_png transformation
+  if (cleanUrl.includes("/image/upload/") && /\.(ai|eps|psd)$/.test(cleanUrl)) {
+    return url.replace("/image/upload/", "/image/upload/f_png,pg_1/");
+  }
+
+  // Standard browser-renderable images
+  if (/\.(jpe?g|png|gif|webp|svg|bmp|ico|tiff?)$/.test(cleanUrl) || cleanUrl.includes("/image/upload/")) {
+    return url;
+  }
+
+  return null;
+}
+
 export function isPdfFile(mimeType: string | null): boolean {
   return mimeType === "application/pdf";
 }

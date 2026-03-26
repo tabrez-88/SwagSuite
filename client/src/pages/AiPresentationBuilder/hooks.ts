@@ -23,17 +23,14 @@ export function useAiPresentationBuilder() {
   const queryClient = useQueryClient();
 
   // Fetch presentations
-  const { data: presentations = [], isLoading, refetch } = useQuery({
+  const { data: presentations = [], isLoading, refetch } = useQuery<any[]>({
     queryKey: ['/api/presentations'],
   });
 
   // Create presentation mutation
   const createPresentationMutation = useMutation({
     mutationFn: async (data: any) => {
-      return apiRequest('/api/presentations', {
-        method: 'POST',
-        body: JSON.stringify(data)
-      });
+      return apiRequest('POST', '/api/presentations', data);
     },
     onSuccess: () => {
       toast({
@@ -56,10 +53,7 @@ export function useAiPresentationBuilder() {
   // Import from HubSpot mutation
   const importHubspotMutation = useMutation({
     mutationFn: async (dealId: string) => {
-      return apiRequest('/api/presentations/import-hubspot', {
-        method: 'POST',
-        body: JSON.stringify({ hubspotDealId: dealId })
-      });
+      return apiRequest('POST', '/api/presentations/import-hubspot', { hubspotDealId: dealId });
     },
     onSuccess: () => {
       toast({
@@ -82,9 +76,7 @@ export function useAiPresentationBuilder() {
   // Generate presentation mutation
   const generatePresentationMutation = useMutation({
     mutationFn: async (presentationId: string) => {
-      return apiRequest(`/api/presentations/${presentationId}/generate`, {
-        method: 'POST'
-      });
+      return apiRequest('POST', `/api/presentations/${presentationId}/generate`);
     },
     onSuccess: () => {
       toast({
@@ -98,9 +90,7 @@ export function useAiPresentationBuilder() {
   // Delete presentation mutation
   const deletePresentationMutation = useMutation({
     mutationFn: async (presentationId: string) => {
-      return apiRequest(`/api/presentations/${presentationId}`, {
-        method: 'DELETE'
-      });
+      return apiRequest('DELETE', `/api/presentations/${presentationId}`);
     },
     onSuccess: () => {
       toast({

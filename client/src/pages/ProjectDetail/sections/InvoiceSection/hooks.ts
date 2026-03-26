@@ -188,7 +188,7 @@ export function useInvoiceSection({ orderId, data }: InvoiceSectionProps) {
   };
 
   const handleDeleteDocument = (docId: number | string) => {
-    deleteDocument(docId);
+    return deleteDocument(String(docId));
   };
 
   // Formatted contacts for SendInvoiceDialog

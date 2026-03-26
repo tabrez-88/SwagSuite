@@ -46,6 +46,7 @@ export function useTwoFactorSettings() {
       setBackupCodes(data.backupCodes);
       setSetupStep("backup");
       queryClient.setQueryData(["/api/auth/2fa/status"], { enabled: true });
+      queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
       toast({ title: "2FA Enabled", description: "Two-factor authentication has been enabled." });
     },
     onError: (error: Error) => {
@@ -62,6 +63,7 @@ export function useTwoFactorSettings() {
       setDisableDialogOpen(false);
       setPasswordInput("");
       queryClient.setQueryData(["/api/auth/2fa/status"], { enabled: false });
+      queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
       toast({ title: "2FA Disabled", description: "Two-factor authentication has been disabled." });
     },
     onError: (error: Error) => {

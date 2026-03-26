@@ -17,19 +17,19 @@ export function useReports() {
     query: "",
   });
 
-  const { data: stats, isLoading: statsLoading } = useQuery({
+  const { data: stats, isLoading: statsLoading } = useQuery<any>({
     queryKey: ["/api/dashboard/stats"],
   });
 
-  const { data: orders } = useQuery({
+  const { data: orders } = useQuery<any>({
     queryKey: ["/api/orders"],
   });
 
-  const { data: companies } = useQuery({
+  const { data: companies } = useQuery<any>({
     queryKey: ["/api/companies"],
   });
 
-  const { data: products } = useQuery({
+  const { data: products } = useQuery<any>({
     queryKey: ["/api/products"],
   });
 

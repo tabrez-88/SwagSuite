@@ -435,6 +435,16 @@ export class ProductionController {
       in_hands_date: 'o.in_hands_date',
       po_stage: "gd.metadata->>'poStage'",
       total: 'gd.metadata->>\'totalCost\'',
+      assigned_user: "COALESCE(u_assigned.first_name || ' ' || u_assigned.last_name, u_assigned.username)",
+      next_action_date: 'o.next_action_date',
+      next_action_type: 'o.next_action_type',
+      total_cost: `COALESCE((
+        SELECT SUM(oil.quantity * oil.cost)
+        FROM order_items oi2
+        INNER JOIN order_item_lines oil ON oil.order_item_id = oi2.id
+        WHERE oi2.order_id = gd.order_id
+        AND (oi2.supplier_id = gd.vendor_id OR gd.vendor_id IS NULL)
+      ), 0)`,
     };
     const sortCol = sortMap[sortBy] || 'gd.created_at';
     const order = sortOrder === 'asc' ? 'ASC' : 'DESC';

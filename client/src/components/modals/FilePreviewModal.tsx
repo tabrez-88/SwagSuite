@@ -5,7 +5,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Download, ExternalLink } from "lucide-react";
+import { Download } from "lucide-react";
 
 interface FilePreviewModalProps {
   open: boolean;
@@ -21,15 +21,26 @@ interface FilePreviewModalProps {
 export function FilePreviewModal({ open, onClose, file }: FilePreviewModalProps) {
   if (!file) return null;
 
-  const handleDownload = () => {
-    if (file.filePath && file.filePath.includes('cloudinary.com')) {
-      window.open(file.filePath, "_blank");
-    } else {
-      window.open(`/api/files/download/${file.fileName}`, "_blank");
+  const handleDownload = async () => {
+    const url = file.filePath?.includes('cloudinary.com')
+      ? file.filePath
+      : `/api/files/download/${file.fileName}`;
+    try {
+      const response = await fetch(url);
+      const blob = await response.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = blobUrl;
+      a.download = file.originalName || file.fileName || "download";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(blobUrl);
+    } catch {
+      // Fallback: open in new tab if fetch fails
+      window.open(url, "_blank");
     }
   };
-
-  const isCloudinaryPdf = file.filePath?.includes('cloudinary.com') && file.mimeType === 'application/pdf';
 
   const getFileUrl = () => {
     if (file.filePath && file.filePath.includes('cloudinary.com')) {
@@ -48,16 +59,10 @@ export function FilePreviewModal({ open, onClose, file }: FilePreviewModalProps)
         <DialogHeader>
           <DialogTitle className="flex items-center justify-between pr-8">
             <span className="truncate">{file.originalName}</span>
-            <div className="flex gap-2">
-              <Button variant="outline" size="sm" onClick={handleDownload}>
-                <Download className="w-4 h-4 mr-2" />
-                Download
-              </Button>
-              <Button variant="outline" size="sm" onClick={() => window.open(isCloudinaryPdf ? file.filePath : getFileUrl(), "_blank")}>
-                <ExternalLink className="w-4 h-4 mr-2" />
-                Open in New Tab
-              </Button>
-            </div>
+            <Button variant="outline" size="sm" onClick={handleDownload}>
+              <Download className="w-4 h-4 mr-2" />
+              Download
+            </Button>
           </DialogTitle>
         </DialogHeader>
 

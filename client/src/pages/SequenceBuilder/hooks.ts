@@ -17,24 +17,24 @@ export function useSequenceBuilder() {
   const queryClient = useQueryClient();
 
   // Fetch sequences
-  const { data: sequences, isLoading: sequencesLoading } = useQuery({
+  const { data: sequences, isLoading: sequencesLoading } = useQuery<any>({
     queryKey: ["/api/sequences"],
   });
 
   // Fetch steps for selected sequence
-  const { data: steps } = useQuery({
+  const { data: steps } = useQuery<any>({
     queryKey: ["/api/sequences", selectedSequence?.id, "steps"],
     enabled: !!selectedSequence?.id,
   });
 
   // Fetch enrollments for selected sequence
-  const { data: enrollments } = useQuery({
+  const { data: enrollments } = useQuery<any>({
     queryKey: ["/api/sequence-enrollments"],
     enabled: !!selectedSequence?.id,
   });
 
   // Fetch analytics for selected sequence
-  const { data: analytics } = useQuery({
+  const { data: analytics } = useQuery<any>({
     queryKey: ["/api/sequences", selectedSequence?.id, "analytics"],
     enabled: !!selectedSequence?.id,
   });
@@ -42,10 +42,7 @@ export function useSequenceBuilder() {
   // Mutations
   const createSequenceMutation = useMutation({
     mutationFn: (data: SequenceFormData) =>
-      apiRequest("/api/sequences", {
-        method: "POST",
-        body: JSON.stringify(data),
-      }),
+      apiRequest("POST", "/api/sequences", data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/sequences"] });
       setShowCreateDialog(false);
@@ -58,10 +55,7 @@ export function useSequenceBuilder() {
 
   const updateSequenceMutation = useMutation({
     mutationFn: ({ id, data }: { id: string; data: Partial<Sequence> }) =>
-      apiRequest(`/api/sequences/${id}`, {
-        method: "PUT",
-        body: JSON.stringify(data),
-      }),
+      apiRequest("PUT", `/api/sequences/${id}`, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/sequences"] });
       toast({
@@ -73,7 +67,7 @@ export function useSequenceBuilder() {
 
   const deleteSequenceMutation = useMutation({
     mutationFn: (id: string) =>
-      apiRequest(`/api/sequences/${id}`, { method: "DELETE" }),
+      apiRequest("DELETE", `/api/sequences/${id}`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/sequences"] });
       setSelectedSequence(null);
@@ -86,10 +80,7 @@ export function useSequenceBuilder() {
 
   const createStepMutation = useMutation({
     mutationFn: (data: StepFormData) =>
-      apiRequest(`/api/sequences/${selectedSequence?.id}/steps`, {
-        method: "POST",
-        body: JSON.stringify(data),
-      }),
+      apiRequest("POST", `/api/sequences/${selectedSequence?.id}/steps`, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/sequences", selectedSequence?.id, "steps"] });
       setShowStepDialog(false);

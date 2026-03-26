@@ -293,10 +293,25 @@ export default function ProductionReport() {
                     >
                       <span className="flex items-center">Vendor / Company <SortIcon column="vendor_name" sortBy={sortBy} sortOrder={sortOrder} /></span>
                     </TableHead>
-                    <TableHead className="text-xs py-3">Assigned</TableHead>
-                    <TableHead className="text-xs py-3">Stage / Status</TableHead>
+                    <TableHead
+                      className="cursor-pointer hover:bg-muted/50 text-xs py-3"
+                      onClick={() => handleSort("assigned_user")}
+                    >
+                      <span className="flex items-center">Assigned <SortIcon column="assigned_user" sortBy={sortBy} sortOrder={sortOrder} /></span>
+                    </TableHead>
+                    <TableHead
+                      className="cursor-pointer hover:bg-muted/50 text-xs py-3"
+                      onClick={() => handleSort("po_stage")}
+                    >
+                      <span className="flex items-center">Stage / Status <SortIcon column="po_stage" sortBy={sortBy} sortOrder={sortOrder} /></span>
+                    </TableHead>
                     <TableHead className="text-xs py-3">Proof</TableHead>
-                    <TableHead className="text-xs py-3">Next Action</TableHead>
+                    <TableHead
+                      className="cursor-pointer hover:bg-muted/50 text-xs py-3"
+                      onClick={() => handleSort("next_action_date")}
+                    >
+                      <span className="flex items-center">Next Action <SortIcon column="next_action_date" sortBy={sortBy} sortOrder={sortOrder} /></span>
+                    </TableHead>
                     <TableHead
                       className="cursor-pointer hover:bg-muted/50 text-xs py-3"
                       onClick={() => handleSort("in_hands_date")}
@@ -304,7 +319,12 @@ export default function ProductionReport() {
                       <span className="flex items-center">In-Hands <SortIcon column="in_hands_date" sortBy={sortBy} sortOrder={sortOrder} /></span>
                     </TableHead>
                     <TableHead className="text-xs py-3">Shipping</TableHead>
-                    <TableHead className="text-xs py-3 text-right pr-4">Total</TableHead>
+                    <TableHead
+                      className="cursor-pointer hover:bg-muted/50 text-xs py-3 text-right pr-4"
+                      onClick={() => handleSort("total_cost")}
+                    >
+                      <span className="flex items-center justify-end">Total <SortIcon column="total_cost" sortBy={sortBy} sortOrder={sortOrder} /></span>
+                    </TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>

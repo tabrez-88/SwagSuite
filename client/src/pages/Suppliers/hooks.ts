@@ -26,7 +26,7 @@ export function useSuppliers() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const { data: suppliers, isLoading } = useQuery({
+  const { data: suppliers, isLoading } = useQuery<any>({
     queryKey: ["/api/suppliers"],
   });
 

@@ -27,7 +27,7 @@ function getStatusColor(status: string): string {
 }
 
 export function useTeamPerformance() {
-  const { data: teamData, isLoading } = useQuery({
+  const { data: teamData, isLoading } = useQuery<any>({
     queryKey: ["/api/dashboard/team-performance"],
   });
 

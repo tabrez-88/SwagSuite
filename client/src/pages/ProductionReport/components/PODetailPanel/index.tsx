@@ -63,6 +63,7 @@ export default function PODetailPanel({ documentId, open, onOpenChange }: PODeta
   } = usePODetailPanel(documentId, open);
 
   return (
+    <>
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="w-[600px] sm:max-w-[600px] overflow-y-auto">
         {isLoading ? (
@@ -557,14 +558,15 @@ export default function PODetailPanel({ documentId, open, onOpenChange }: PODeta
           </>
         )}
       </SheetContent>
-
-      {/* File Preview Modal */}
-      <FilePreviewModal
-        open={!!previewFile}
-        onClose={() => setPreviewFile(null)}
-        file={previewFile}
-      />
     </Sheet>
+
+    {/* File Preview Modal — rendered outside Sheet to avoid z-index conflicts */}
+    <FilePreviewModal
+      open={!!previewFile}
+      onClose={() => setPreviewFile(null)}
+      file={previewFile}
+    />
+    </>
   );
 }
 

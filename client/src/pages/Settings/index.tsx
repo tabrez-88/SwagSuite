@@ -93,7 +93,7 @@ export default function Settings() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid grid-cols-2 md:flex justify-start flex-wrap gap-2">
+        <TabsList className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 justify-start flex-wrap gap-2">
           <TabsTrigger value="features" className="flex items-center gap-2">
             <ToggleRight className="w-4 h-4" />
             Features
@@ -142,7 +142,7 @@ export default function Settings() {
           </TabsTrigger>
           <TabsTrigger value="production-stages" className="flex items-center gap-2">
             <Factory className="w-4 h-4" />
-            Production
+            Production Stages
           </TabsTrigger>
           <TabsTrigger value="import" className="flex items-center gap-2">
             <Brain className="w-4 h-4" />

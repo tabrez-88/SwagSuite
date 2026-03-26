@@ -26,6 +26,7 @@ export function useProductionStagesTab() {
     createStage,
     updateStage,
     deleteStage,
+    reorderStages,
     resetStages,
     isCreating: stageCreating,
     isDeleting: stageDeleting,
@@ -47,6 +48,7 @@ export function useProductionStagesTab() {
     createType: createActionType,
     updateType: updateActionType,
     deleteType: deleteActionType,
+    reorderTypes: reorderActionTypes,
     resetTypes: resetActionTypes,
     isCreating: actionTypeCreating,
     isDeleting: actionTypeDeleting,
@@ -73,7 +75,7 @@ export function useProductionStagesTab() {
     setEditStageOpen(true);
   };
 
-  const handleDeleteStage = async (stageId: number) => {
+  const handleDeleteStage = async (stageId: string) => {
     try {
       await deleteStage(stageId);
       toast({ title: "Stage deleted" });
@@ -113,6 +115,17 @@ export function useProductionStagesTab() {
     }
   };
 
+  const handleReorderStages = async (sourceIndex: number, destIndex: number) => {
+    const reordered = [...productionStages];
+    const [moved] = reordered.splice(sourceIndex, 1);
+    reordered.splice(destIndex, 0, moved);
+    try {
+      await reorderStages(reordered.map((s: any) => s.id));
+    } catch {
+      toast({ title: "Failed to reorder stages", variant: "destructive" });
+    }
+  };
+
   const handleResetStages = async () => {
     try {
       await resetStages();
@@ -135,7 +148,7 @@ export function useProductionStagesTab() {
     setEditActionTypeOpen(true);
   };
 
-  const handleDeleteActionType = async (actionTypeId: number) => {
+  const handleDeleteActionType = async (actionTypeId: string) => {
     try {
       await deleteActionType(actionTypeId);
       toast({ title: "Action type removed" });
@@ -172,6 +185,17 @@ export function useProductionStagesTab() {
       setEditActionTypeOpen(false);
     } catch {
       toast({ title: "Failed to update action type", variant: "destructive" });
+    }
+  };
+
+  const handleReorderActionTypes = async (sourceIndex: number, destIndex: number) => {
+    const reordered = [...actionTypes];
+    const [moved] = reordered.splice(sourceIndex, 1);
+    reordered.splice(destIndex, 0, moved);
+    try {
+      await reorderActionTypes(reordered.map((t: any) => t.id));
+    } catch {
+      toast({ title: "Failed to reorder action types", variant: "destructive" });
     }
   };
 
@@ -213,6 +237,7 @@ export function useProductionStagesTab() {
     handleDeleteStage,
     handleCreateStage,
     handleUpdateStage,
+    handleReorderStages,
     handleResetStages,
 
     // Next Action Types data
@@ -243,6 +268,7 @@ export function useProductionStagesTab() {
     handleDeleteActionType,
     handleCreateActionType,
     handleUpdateActionType,
+    handleReorderActionTypes,
     handleResetActionTypes,
   };
 }

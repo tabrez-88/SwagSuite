@@ -1,6 +1,7 @@
 import { forwardRef } from "react";
 import { format } from "date-fns";
 import { proxyImg } from "@/lib/imageUtils";
+import { getRenderableImageUrl } from "@/lib/media-library";
 
 interface QuoteTemplateProps {
   order: any;
@@ -250,13 +251,25 @@ const QuoteTemplate = forwardRef<HTMLDivElement, QuoteTemplateProps>(
                             </table>
                           </div>
                           {/* Artwork thumbnail - larger */}
-                          {(art.filePath || art.fileUrl) && (
-                            <div style={{ width: "120px", flexShrink: 0 }}>
-                              <div style={{ width: "110px", height: "110px" }} className="border rounded bg-white overflow-hidden">
-                                <img src={proxyImg(art.filePath || art.fileUrl)} alt={art.name || "Artwork"} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+                          {(() => {
+                            const artUrl = art.filePath || art.fileUrl;
+                            const renderUrl = getRenderableImageUrl(artUrl);
+                            if (!artUrl) return null;
+                            return (
+                              <div style={{ width: "120px", flexShrink: 0 }}>
+                                <div style={{ width: "110px", height: "110px" }} className="border rounded bg-white overflow-hidden flex items-center justify-center">
+                                  {renderUrl ? (
+                                    <img src={proxyImg(renderUrl)} alt={art.name || "Artwork"} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+                                  ) : (
+                                    <div className="text-center p-2">
+                                      <div style={{ fontSize: "24px" }}>📎</div>
+                                      <p style={{ fontSize: "7px" }} className="text-gray-500 mt-1 break-all">{artUrl.split('/').pop()?.split('?')[0] || art.name}</p>
+                                    </div>
+                                  )}
+                                </div>
                               </div>
-                            </div>
-                          )}
+                            );
+                          })()}
                         </div>
                       ))}
                     </div>

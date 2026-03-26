@@ -334,6 +334,7 @@ ${body}
     }
 
     console.log(`SanMar: no results for "${trimmed}". Try a style number (e.g., PC54, G500) or brand name (e.g., Nike, OGIO).`);
+    return [];
   }
 
   /**

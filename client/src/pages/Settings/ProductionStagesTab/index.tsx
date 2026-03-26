@@ -35,6 +35,7 @@ import {
   Plus,
   Trash2,
 } from "lucide-react";
+import { DragDropContext, Droppable, Draggable, type DropResult } from "react-beautiful-dnd";
 import { useProductionStagesTab, STAGE_COLORS } from "./hooks";
 
 export function ProductionStagesTab() {
@@ -67,6 +68,7 @@ export function ProductionStagesTab() {
     handleDeleteStage,
     handleCreateStage,
     handleUpdateStage,
+    handleReorderStages,
     handleResetStages,
 
     // Next Action Types data
@@ -97,6 +99,7 @@ export function ProductionStagesTab() {
     handleDeleteActionType,
     handleCreateActionType,
     handleUpdateActionType,
+    handleReorderActionTypes,
     handleResetActionTypes,
   } = useProductionStagesTab();
 
@@ -117,46 +120,65 @@ export function ProductionStagesTab() {
           {stagesLoading ? (
             <div className="text-center py-8 text-muted-foreground">Loading stages...</div>
           ) : (
-            <div className="space-y-2">
-              {productionStages.map((stage: any, index: number) => (
-                <div
-                  key={stage.id}
-                  className="flex items-center gap-3 p-3 bg-muted/30 rounded-lg border"
-                >
-                  <GripVertical className="w-4 h-4 text-muted-foreground cursor-grab" />
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <Badge className={stage.color || "bg-gray-100 text-gray-800"}>
-                        {stage.name}
-                      </Badge>
-                      <span className="text-xs text-muted-foreground">
-                        Step {index + 1}
-                      </span>
-                    </div>
-                    {stage.description && (
-                      <p className="text-xs text-muted-foreground mt-1">{stage.description}</p>
-                    )}
+            <DragDropContext onDragEnd={(result: DropResult) => {
+              if (!result.destination || result.source.index === result.destination.index) return;
+              handleReorderStages(result.source.index, result.destination.index);
+            }}>
+              <Droppable droppableId="production-stages">
+                {(provided) => (
+                  <div className="space-y-2" ref={provided.innerRef} {...provided.droppableProps}>
+                    {productionStages.map((stage: any, index: number) => (
+                      <Draggable key={stage.id} draggableId={String(stage.id)} index={index}>
+                        {(provided, snapshot) => (
+                          <div
+                            ref={provided.innerRef}
+                            {...provided.draggableProps}
+                            className={`flex items-center gap-3 p-3 bg-muted/30 rounded-lg border ${
+                              snapshot.isDragging ? "shadow-lg ring-2 ring-primary/20" : ""
+                            }`}
+                          >
+                            <div {...provided.dragHandleProps}>
+                              <GripVertical className="w-4 h-4 text-muted-foreground cursor-grab" />
+                            </div>
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2">
+                                <Badge className={stage.color || "bg-gray-100 text-gray-800"}>
+                                  {stage.name}
+                                </Badge>
+                                <span className="text-xs text-muted-foreground">
+                                  Step {index + 1}
+                                </span>
+                              </div>
+                              {stage.description && (
+                                <p className="text-xs text-muted-foreground mt-1">{stage.description}</p>
+                              )}
+                            </div>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 w-8 p-0"
+                              onClick={() => handleOpenEditStage(stage)}
+                            >
+                              <Pencil className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 w-8 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
+                              onClick={() => handleDeleteStage(stage.id)}
+                              disabled={stageDeleting}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        )}
+                      </Draggable>
+                    ))}
+                    {provided.placeholder}
                   </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-8 w-8 p-0"
-                    onClick={() => handleOpenEditStage(stage)}
-                  >
-                    <Pencil className="w-4 h-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-8 w-8 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
-                    onClick={() => handleDeleteStage(stage.id)}
-                    disabled={stageDeleting}
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
-                </div>
-              ))}
-            </div>
+                )}
+              </Droppable>
+            </DragDropContext>
           )}
 
           <Separator />
@@ -329,45 +351,65 @@ export function ProductionStagesTab() {
           {actionTypesLoading ? (
             <div className="text-center py-8 text-muted-foreground">Loading action types...</div>
           ) : (
-            <div className="space-y-2">
-              {actionTypes.map((actionType: any, index: number) => (
-                <div
-                  key={actionType.id}
-                  className="flex items-center gap-3 p-3 bg-muted/30 rounded-lg border"
-                >
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <Badge className={actionType.color || "bg-gray-100 text-gray-800"}>
-                        {actionType.name}
-                      </Badge>
-                      <span className="text-xs text-muted-foreground">
-                        #{index + 1}
-                      </span>
-                    </div>
-                    {actionType.description && (
-                      <p className="text-xs text-muted-foreground mt-1">{actionType.description}</p>
-                    )}
+            <DragDropContext onDragEnd={(result: DropResult) => {
+              if (!result.destination || result.source.index === result.destination.index) return;
+              handleReorderActionTypes(result.source.index, result.destination.index);
+            }}>
+              <Droppable droppableId="next-action-types">
+                {(provided) => (
+                  <div className="space-y-2" ref={provided.innerRef} {...provided.droppableProps}>
+                    {actionTypes.map((actionType: any, index: number) => (
+                      <Draggable key={actionType.id} draggableId={String(actionType.id)} index={index}>
+                        {(provided, snapshot) => (
+                          <div
+                            ref={provided.innerRef}
+                            {...provided.draggableProps}
+                            className={`flex items-center gap-3 p-3 bg-muted/30 rounded-lg border ${
+                              snapshot.isDragging ? "shadow-lg ring-2 ring-primary/20" : ""
+                            }`}
+                          >
+                            <div {...provided.dragHandleProps}>
+                              <GripVertical className="w-4 h-4 text-muted-foreground cursor-grab" />
+                            </div>
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2">
+                                <Badge className={actionType.color || "bg-gray-100 text-gray-800"}>
+                                  {actionType.name}
+                                </Badge>
+                                <span className="text-xs text-muted-foreground">
+                                  #{index + 1}
+                                </span>
+                              </div>
+                              {actionType.description && (
+                                <p className="text-xs text-muted-foreground mt-1">{actionType.description}</p>
+                              )}
+                            </div>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              onClick={() => handleOpenEditActionType(actionType)}
+                            >
+                              <Pencil className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-destructive hover:text-destructive"
+                              onClick={() => handleDeleteActionType(actionType.id)}
+                              disabled={actionTypeDeleting}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        )}
+                      </Draggable>
+                    ))}
+                    {provided.placeholder}
                   </div>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8"
-                    onClick={() => handleOpenEditActionType(actionType)}
-                  >
-                    <Pencil className="w-4 h-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 text-destructive hover:text-destructive"
-                    onClick={() => handleDeleteActionType(actionType.id)}
-                    disabled={actionTypeDeleting}
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
-                </div>
-              ))}
-            </div>
+                )}
+              </Droppable>
+            </DragDropContext>
           )}
 
           <Separator />

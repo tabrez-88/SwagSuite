@@ -315,6 +315,9 @@ export default function QuoteSection(props: QuoteSectionProps) {
         </div>
       )}
 
+      {/* Quote Products */}
+      <ProductsSection orderId={props.orderId} data={data} isLocked={isLocked} />
+
       {/* Quote Document Section */}
       <Card>
         <CardHeader className="py-3">
@@ -376,9 +379,6 @@ export default function QuoteSection(props: QuoteSectionProps) {
           )}
         </CardContent>
       </Card>
-
-      {/* Quote Products */}
-      <ProductsSection orderId={props.orderId} data={data} isLocked={isLocked} />
 
       {/* Pricing Breakdown */}
       {/* <Card>
