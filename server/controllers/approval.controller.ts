@@ -154,7 +154,7 @@ export class ApprovalController {
 
     const { db } = await import("../db");
     const { artworkApprovals } = await import("@shared/schema");
-    const { projectActivities } = await import("@shared/project-schema");
+    const { projectActivities } = await import("@shared/schema");
     const { eq } = await import("drizzle-orm");
 
     // Get approval
@@ -313,7 +313,7 @@ export class ApprovalController {
 
     const { db } = await import("../db");
     const { artworkApprovals } = await import("@shared/schema");
-    const { projectActivities } = await import("@shared/project-schema");
+    const { projectActivities } = await import("@shared/schema");
     const { eq } = await import("drizzle-orm");
 
     // Get approval
@@ -741,7 +741,7 @@ export class ApprovalController {
 
       // Log activity — use order's assigned user or CSR as the activity userId (public endpoint has no req.user)
       try {
-        const { projectActivities } = await import("@shared/project-schema");
+        const { projectActivities } = await import("@shared/schema");
         const systemUserId = order.assignedUserId || order.csrUserId;
         if (systemUserId) {
           await db.insert(projectActivities).values({
@@ -891,7 +891,7 @@ export class ApprovalController {
 
       // Log activity — use order's assigned user (public endpoint has no req.user)
       try {
-        const { projectActivities } = await import("@shared/project-schema");
+        const { projectActivities } = await import("@shared/schema");
         const systemUserId = order.assignedUserId || order.csrUserId;
         if (systemUserId) {
           await db.insert(projectActivities).values({
@@ -1185,7 +1185,7 @@ export class ApprovalController {
     }
 
     // Log activity
-    const { projectActivities } = await import("@shared/project-schema");
+    const { projectActivities } = await import("@shared/schema");
     await db.insert(projectActivities).values({
       orderId: confirmation.order_id,
       activityType: "system_action",
@@ -1234,7 +1234,7 @@ export class ApprovalController {
     `));
 
     // Log activity
-    const { projectActivities } = await import("@shared/project-schema");
+    const { projectActivities } = await import("@shared/schema");
     await db.insert(projectActivities).values({
       orderId: confirmation.order_id,
       activityType: "system_action",

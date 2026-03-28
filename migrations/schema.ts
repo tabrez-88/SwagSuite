@@ -8,7 +8,7 @@ export const responsibleParty = pgEnum("responsible_party", ['customer', 'vendor
 
 
 export const activities = pgTable("activities", {
-	id: varchar().default(gen_random_uuid()).primaryKey().notNull(),
+	id: varchar().default(sql`gen_random_uuid()`).primaryKey().notNull(),
 	userId: varchar("user_id"),
 	entityType: varchar("entity_type").notNull(),
 	entityId: varchar("entity_id").notNull(),
@@ -25,7 +25,7 @@ export const activities = pgTable("activities", {
 ]);
 
 export const contacts = pgTable("contacts", {
-	id: varchar().default(gen_random_uuid()).primaryKey().notNull(),
+	id: varchar().default(sql`gen_random_uuid()`).primaryKey().notNull(),
 	companyId: varchar("company_id"),
 	firstName: varchar("first_name").notNull(),
 	lastName: varchar("last_name").notNull(),
@@ -53,7 +53,7 @@ export const contacts = pgTable("contacts", {
 ]);
 
 export const artworkCards = pgTable("artwork_cards", {
-	id: varchar().default(gen_random_uuid()).primaryKey().notNull(),
+	id: varchar().default(sql`gen_random_uuid()`).primaryKey().notNull(),
 	title: varchar().notNull(),
 	description: text(),
 	columnId: varchar("column_id").notNull(),
@@ -93,7 +93,7 @@ export const artworkCards = pgTable("artwork_cards", {
 ]);
 
 export const companies = pgTable("companies", {
-	id: varchar().default(gen_random_uuid()).primaryKey().notNull(),
+	id: varchar().default(sql`gen_random_uuid()`).primaryKey().notNull(),
 	name: varchar().notNull(),
 	email: varchar(),
 	phone: varchar(),
@@ -123,7 +123,7 @@ export const companies = pgTable("companies", {
 });
 
 export const artworkFiles = pgTable("artwork_files", {
-	id: varchar().default(gen_random_uuid()).primaryKey().notNull(),
+	id: varchar().default(sql`gen_random_uuid()`).primaryKey().notNull(),
 	orderId: varchar("order_id"),
 	companyId: varchar("company_id"),
 	fileName: varchar("file_name").notNull(),
@@ -153,7 +153,7 @@ export const artworkFiles = pgTable("artwork_files", {
 ]);
 
 export const dataUploads = pgTable("data_uploads", {
-	id: varchar().default(gen_random_uuid()).primaryKey().notNull(),
+	id: varchar().default(sql`gen_random_uuid()`).primaryKey().notNull(),
 	fileName: varchar("file_name").notNull(),
 	originalName: varchar("original_name").notNull(),
 	fileSize: integer("file_size").notNull(),
@@ -175,7 +175,7 @@ export const dataUploads = pgTable("data_uploads", {
 ]);
 
 export const clients = pgTable("clients", {
-	id: varchar().default(gen_random_uuid()).primaryKey().notNull(),
+	id: varchar().default(sql`gen_random_uuid()`).primaryKey().notNull(),
 	firstName: varchar("first_name").notNull(),
 	lastName: varchar("last_name").notNull(),
 	email: varchar(),
@@ -206,7 +206,7 @@ export const clients = pgTable("clients", {
 });
 
 export const automationTasks = pgTable("automation_tasks", {
-	id: varchar().default(gen_random_uuid()).primaryKey().notNull(),
+	id: varchar().default(sql`gen_random_uuid()`).primaryKey().notNull(),
 	taskType: varchar("task_type").notNull(),
 	entityType: varchar("entity_type").notNull(),
 	entityId: varchar("entity_id").notNull(),
@@ -226,7 +226,7 @@ export const automationTasks = pgTable("automation_tasks", {
 ]);
 
 export const systemBranding = pgTable("system_branding", {
-	id: varchar().default(gen_random_uuid()).primaryKey().notNull(),
+	id: varchar().default(sql`gen_random_uuid()`).primaryKey().notNull(),
 	logoUrl: text("logo_url"),
 	logoSize: varchar("logo_size").default('medium'),
 	logoPosition: varchar("logo_position").default('left'),
@@ -260,7 +260,7 @@ export const systemBranding = pgTable("system_branding", {
 ]);
 
 export const artworkColumns = pgTable("artwork_columns", {
-	id: varchar().default(gen_random_uuid()).primaryKey().notNull(),
+	id: varchar().default(sql`gen_random_uuid()`).primaryKey().notNull(),
 	name: varchar().notNull(),
 	position: integer().notNull(),
 	color: varchar().default('#6B7280').notNull(),
@@ -270,7 +270,7 @@ export const artworkColumns = pgTable("artwork_columns", {
 });
 
 export const errors = pgTable("errors", {
-	id: varchar().default(gen_random_uuid()).primaryKey().notNull(),
+	id: varchar().default(sql`gen_random_uuid()`).primaryKey().notNull(),
 	orderId: varchar("order_id"),
 	date: timestamp({ mode: 'string' }).defaultNow().notNull(),
 	projectNumber: varchar("project_number"),
@@ -309,7 +309,7 @@ export const errors = pgTable("errors", {
 ]);
 
 export const espProducts = pgTable("esp_products", {
-	id: varchar().default(gen_random_uuid()).primaryKey().notNull(),
+	id: varchar().default(sql`gen_random_uuid()`).primaryKey().notNull(),
 	asiNumber: varchar("asi_number").notNull(),
 	productName: varchar("product_name").notNull(),
 	supplierId: varchar("supplier_id"),
@@ -344,7 +344,7 @@ export const espProducts = pgTable("esp_products", {
 ]);
 
 export const distributorCentralProducts = pgTable("distributor_central_products", {
-	id: varchar().default(gen_random_uuid()).primaryKey().notNull(),
+	id: varchar().default(sql`gen_random_uuid()`).primaryKey().notNull(),
 	dcProductId: varchar("dc_product_id").notNull(),
 	productName: varchar("product_name").notNull(),
 	supplierId: varchar("supplier_id"),
@@ -376,7 +376,7 @@ export const distributorCentralProducts = pgTable("distributor_central_products"
 ]);
 
 export const integrationConfigurations = pgTable("integration_configurations", {
-	id: varchar().default(gen_random_uuid()).primaryKey().notNull(),
+	id: varchar().default(sql`gen_random_uuid()`).primaryKey().notNull(),
 	integration: varchar().notNull(),
 	displayName: varchar("display_name").notNull(),
 	apiEndpoint: varchar("api_endpoint"),
@@ -399,7 +399,7 @@ export const integrationConfigurations = pgTable("integration_configurations", {
 ]);
 
 export const integrationSyncs = pgTable("integration_syncs", {
-	id: varchar().default(gen_random_uuid()).primaryKey().notNull(),
+	id: varchar().default(sql`gen_random_uuid()`).primaryKey().notNull(),
 	integrationType: varchar("integration_type").notNull(),
 	syncType: varchar("sync_type").notNull(),
 	status: varchar().notNull(),
@@ -411,7 +411,7 @@ export const integrationSyncs = pgTable("integration_syncs", {
 });
 
 export const kpiMetrics = pgTable("kpi_metrics", {
-	id: varchar().default(gen_random_uuid()).primaryKey().notNull(),
+	id: varchar().default(sql`gen_random_uuid()`).primaryKey().notNull(),
 	userId: varchar("user_id"),
 	metricType: varchar("metric_type").notNull(),
 	period: varchar().notNull(),
@@ -429,7 +429,7 @@ export const kpiMetrics = pgTable("kpi_metrics", {
 ]);
 
 export const marketingSequences = pgTable("marketing_sequences", {
-	id: varchar().default(gen_random_uuid()).primaryKey().notNull(),
+	id: varchar().default(sql`gen_random_uuid()`).primaryKey().notNull(),
 	name: varchar().notNull(),
 	description: text(),
 	targetAudience: varchar("target_audience"),
@@ -448,7 +448,7 @@ export const marketingSequences = pgTable("marketing_sequences", {
 ]);
 
 export const newsletterCampaigns = pgTable("newsletter_campaigns", {
-	id: varchar().default(gen_random_uuid()).primaryKey().notNull(),
+	id: varchar().default(sql`gen_random_uuid()`).primaryKey().notNull(),
 	name: varchar().notNull(),
 	subject: varchar().notNull(),
 	previewText: varchar("preview_text"),
@@ -492,7 +492,7 @@ export const newsletterCampaigns = pgTable("newsletter_campaigns", {
 ]);
 
 export const newsTracking = pgTable("news_tracking", {
-	id: varchar().default(gen_random_uuid()).primaryKey().notNull(),
+	id: varchar().default(sql`gen_random_uuid()`).primaryKey().notNull(),
 	entityType: varchar("entity_type").notNull(),
 	entityId: varchar("entity_id"),
 	headline: varchar().notNull(),
@@ -506,7 +506,7 @@ export const newsTracking = pgTable("news_tracking", {
 });
 
 export const newsletterAutomations = pgTable("newsletter_automations", {
-	id: varchar().default(gen_random_uuid()).primaryKey().notNull(),
+	id: varchar().default(sql`gen_random_uuid()`).primaryKey().notNull(),
 	name: varchar().notNull(),
 	description: text(),
 	trigger: varchar().notNull(),
@@ -532,7 +532,7 @@ export const newsletterAutomations = pgTable("newsletter_automations", {
 ]);
 
 export const vendorApprovalRequests = pgTable("vendor_approval_requests", {
-	id: varchar().default(gen_random_uuid()).primaryKey().notNull(),
+	id: varchar().default(sql`gen_random_uuid()`).primaryKey().notNull(),
 	supplierId: varchar("supplier_id").notNull(),
 	productId: varchar("product_id"),
 	orderId: varchar("order_id"),
@@ -573,7 +573,7 @@ export const vendorApprovalRequests = pgTable("vendor_approval_requests", {
 ]);
 
 export const knowledgeBase = pgTable("knowledge_base", {
-	id: varchar().default(gen_random_uuid()).primaryKey().notNull(),
+	id: varchar().default(sql`gen_random_uuid()`).primaryKey().notNull(),
 	title: varchar().notNull(),
 	content: text().notNull(),
 	category: varchar(),
@@ -593,7 +593,7 @@ export const knowledgeBase = pgTable("knowledge_base", {
 ]);
 
 export const newsletterTemplates = pgTable("newsletter_templates", {
-	id: varchar().default(gen_random_uuid()).primaryKey().notNull(),
+	id: varchar().default(sql`gen_random_uuid()`).primaryKey().notNull(),
 	name: varchar().notNull(),
 	subject: varchar(),
 	previewText: varchar("preview_text"),
@@ -614,7 +614,7 @@ export const newsletterTemplates = pgTable("newsletter_templates", {
 ]);
 
 export const newsletterLists = pgTable("newsletter_lists", {
-	id: varchar().default(gen_random_uuid()).primaryKey().notNull(),
+	id: varchar().default(sql`gen_random_uuid()`).primaryKey().notNull(),
 	name: varchar().notNull(),
 	description: text(),
 	subscriberCount: integer("subscriber_count").default(0),
@@ -631,7 +631,7 @@ export const newsletterLists = pgTable("newsletter_lists", {
 ]);
 
 export const newsletterForms = pgTable("newsletter_forms", {
-	id: varchar().default(gen_random_uuid()).primaryKey().notNull(),
+	id: varchar().default(sql`gen_random_uuid()`).primaryKey().notNull(),
 	name: varchar().notNull(),
 	title: varchar(),
 	description: text(),
@@ -659,7 +659,7 @@ export const newsletterForms = pgTable("newsletter_forms", {
 ]);
 
 export const presentationFiles = pgTable("presentation_files", {
-	id: varchar().default(gen_random_uuid()).primaryKey().notNull(),
+	id: varchar().default(sql`gen_random_uuid()`).primaryKey().notNull(),
 	presentationId: varchar("presentation_id").notNull(),
 	fileName: varchar("file_name").notNull(),
 	fileType: varchar("file_type").notNull(),
@@ -675,7 +675,7 @@ export const presentationFiles = pgTable("presentation_files", {
 ]);
 
 export const newsletterSubscribers = pgTable("newsletter_subscribers", {
-	id: varchar().default(gen_random_uuid()).primaryKey().notNull(),
+	id: varchar().default(sql`gen_random_uuid()`).primaryKey().notNull(),
 	email: varchar().notNull(),
 	firstName: varchar("first_name"),
 	lastName: varchar("last_name"),
@@ -692,7 +692,7 @@ export const newsletterSubscribers = pgTable("newsletter_subscribers", {
 });
 
 export const quoteApprovals = pgTable("quote_approvals", {
-	id: varchar().default(gen_random_uuid()).primaryKey().notNull(),
+	id: varchar().default(sql`gen_random_uuid()`).primaryKey().notNull(),
 	orderId: varchar("order_id").notNull(),
 	documentId: varchar("document_id"),
 	approvalToken: varchar("approval_token", { length: 255 }).notNull(),
@@ -720,7 +720,7 @@ export const quoteApprovals = pgTable("quote_approvals", {
 ]);
 
 export const orders = pgTable("orders", {
-	id: varchar().default(gen_random_uuid()).primaryKey().notNull(),
+	id: varchar().default(sql`gen_random_uuid()`).primaryKey().notNull(),
 	orderNumber: varchar("order_number").notNull(),
 	companyId: varchar("company_id"),
 	contactId: varchar("contact_id"),
@@ -789,7 +789,7 @@ export const orders = pgTable("orders", {
 ]);
 
 export const orderItems = pgTable("order_items", {
-	id: varchar().default(gen_random_uuid()).primaryKey().notNull(),
+	id: varchar().default(sql`gen_random_uuid()`).primaryKey().notNull(),
 	orderId: varchar("order_id"),
 	productId: varchar("product_id"),
 	quantity: integer().notNull(),
@@ -826,7 +826,7 @@ export const orderItems = pgTable("order_items", {
 ]);
 
 export const productSearchIndex = pgTable("product_search_index", {
-	id: varchar().default(gen_random_uuid()).primaryKey().notNull(),
+	id: varchar().default(sql`gen_random_uuid()`).primaryKey().notNull(),
 	sourceSystem: varchar("source_system").notNull(),
 	sourceProductId: varchar("source_product_id").notNull(),
 	productName: varchar("product_name").notNull(),
@@ -851,14 +851,14 @@ export const productSearchIndex = pgTable("product_search_index", {
 });
 
 export const productCategories = pgTable("product_categories", {
-	id: varchar().default(gen_random_uuid()).primaryKey().notNull(),
+	id: varchar().default(sql`gen_random_uuid()`).primaryKey().notNull(),
 	name: varchar().notNull(),
 	description: text(),
 	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
 });
 
 export const productionNotifications = pgTable("production_notifications", {
-	id: varchar().default(gen_random_uuid()).primaryKey().notNull(),
+	id: varchar().default(sql`gen_random_uuid()`).primaryKey().notNull(),
 	trackingId: varchar("tracking_id").notNull(),
 	assignedTo: varchar("assigned_to").notNull(),
 	notificationDate: timestamp("notification_date", { mode: 'string' }).notNull(),
@@ -875,7 +875,7 @@ export const productionNotifications = pgTable("production_notifications", {
 ]);
 
 export const reportTemplates = pgTable("report_templates", {
-	id: varchar().default(gen_random_uuid()).primaryKey().notNull(),
+	id: varchar().default(sql`gen_random_uuid()`).primaryKey().notNull(),
 	name: varchar().notNull(),
 	description: text(),
 	query: text().notNull(),
@@ -896,7 +896,7 @@ export const reportTemplates = pgTable("report_templates", {
 ]);
 
 export const userEmailSettings = pgTable("user_email_settings", {
-	id: varchar().default(gen_random_uuid()).primaryKey().notNull(),
+	id: varchar().default(sql`gen_random_uuid()`).primaryKey().notNull(),
 	userId: varchar("user_id").notNull(),
 	smtpHost: varchar("smtp_host"),
 	smtpPort: integer("smtp_port"),
@@ -932,7 +932,7 @@ export const productionStages = pgTable("production_stages", {
 });
 
 export const productionTracking = pgTable("production_tracking", {
-	id: varchar().default(gen_random_uuid()).primaryKey().notNull(),
+	id: varchar().default(sql`gen_random_uuid()`).primaryKey().notNull(),
 	orderId: varchar("order_id").notNull(),
 	currentStageId: varchar("current_stage_id"),
 	assignedTo: varchar("assigned_to"),
@@ -958,7 +958,7 @@ export const productionTracking = pgTable("production_tracking", {
 ]);
 
 export const sageProducts = pgTable("sage_products", {
-	id: varchar().default(gen_random_uuid()).primaryKey().notNull(),
+	id: varchar().default(sql`gen_random_uuid()`).primaryKey().notNull(),
 	sageId: varchar("sage_id").notNull(),
 	productName: varchar("product_name").notNull(),
 	productNumber: varchar("product_number"),
@@ -994,7 +994,7 @@ export const sageProducts = pgTable("sage_products", {
 ]);
 
 export const sequenceAnalytics = pgTable("sequence_analytics", {
-	id: varchar().default(gen_random_uuid()).primaryKey().notNull(),
+	id: varchar().default(sql`gen_random_uuid()`).primaryKey().notNull(),
 	sequenceId: varchar("sequence_id").notNull(),
 	date: varchar().notNull(),
 	totalEnrollments: integer("total_enrollments").default(0),
@@ -1015,7 +1015,7 @@ export const sequenceAnalytics = pgTable("sequence_analytics", {
 ]);
 
 export const sequenceEnrollments = pgTable("sequence_enrollments", {
-	id: varchar().default(gen_random_uuid()).primaryKey().notNull(),
+	id: varchar().default(sql`gen_random_uuid()`).primaryKey().notNull(),
 	sequenceId: varchar("sequence_id").notNull(),
 	contactId: varchar("contact_id").notNull(),
 	contactType: varchar("contact_type").notNull(),
@@ -1035,7 +1035,7 @@ export const sequenceEnrollments = pgTable("sequence_enrollments", {
 ]);
 
 export const sequenceStepExecutions = pgTable("sequence_step_executions", {
-	id: varchar().default(gen_random_uuid()).primaryKey().notNull(),
+	id: varchar().default(sql`gen_random_uuid()`).primaryKey().notNull(),
 	enrollmentId: varchar("enrollment_id").notNull(),
 	stepId: varchar("step_id").notNull(),
 	status: varchar().default('pending').notNull(),
@@ -1060,7 +1060,7 @@ export const sequenceStepExecutions = pgTable("sequence_step_executions", {
 ]);
 
 export const sequenceSteps = pgTable("sequence_steps", {
-	id: varchar().default(gen_random_uuid()).primaryKey().notNull(),
+	id: varchar().default(sql`gen_random_uuid()`).primaryKey().notNull(),
 	sequenceId: varchar("sequence_id").notNull(),
 	type: varchar().notNull(),
 	position: integer().notNull(),
@@ -1081,7 +1081,7 @@ export const sequenceSteps = pgTable("sequence_steps", {
 ]);
 
 export const sequenceTemplates = pgTable("sequence_templates", {
-	id: varchar().default(gen_random_uuid()).primaryKey().notNull(),
+	id: varchar().default(sql`gen_random_uuid()`).primaryKey().notNull(),
 	name: varchar().notNull(),
 	description: text(),
 	category: varchar().notNull(),
@@ -1092,7 +1092,7 @@ export const sequenceTemplates = pgTable("sequence_templates", {
 });
 
 export const products = pgTable("products", {
-	id: varchar().default(gen_random_uuid()).primaryKey().notNull(),
+	id: varchar().default(sql`gen_random_uuid()`).primaryKey().notNull(),
 	supplierId: varchar("supplier_id"),
 	categoryId: varchar("category_id"),
 	name: varchar().notNull(),
@@ -1125,7 +1125,7 @@ export const products = pgTable("products", {
 ]);
 
 export const slackMessages = pgTable("slack_messages", {
-	id: varchar().default(gen_random_uuid()).primaryKey().notNull(),
+	id: varchar().default(sql`gen_random_uuid()`).primaryKey().notNull(),
 	channelId: varchar("channel_id").notNull(),
 	messageId: varchar("message_id").notNull(),
 	userId: varchar("user_id"),
@@ -1136,7 +1136,7 @@ export const slackMessages = pgTable("slack_messages", {
 });
 
 export const ssActivewearImportJobs = pgTable("ss_activewear_import_jobs", {
-	id: varchar().default(gen_random_uuid()).primaryKey().notNull(),
+	id: varchar().default(sql`gen_random_uuid()`).primaryKey().notNull(),
 	userId: varchar("user_id").notNull(),
 	status: varchar().default('pending').notNull(),
 	totalProducts: integer("total_products").default(0),
@@ -1151,7 +1151,7 @@ export const ssActivewearImportJobs = pgTable("ss_activewear_import_jobs", {
 });
 
 export const ssActivewearProducts = pgTable("ss_activewear_products", {
-	id: varchar().default(gen_random_uuid()).primaryKey().notNull(),
+	id: varchar().default(sql`gen_random_uuid()`).primaryKey().notNull(),
 	sku: varchar().notNull(),
 	gtin: varchar(),
 	styleId: integer("style_id"),
@@ -1182,7 +1182,7 @@ export const ssActivewearProducts = pgTable("ss_activewear_products", {
 ]);
 
 export const weeklyReportConfig = pgTable("weekly_report_config", {
-	id: varchar().default(gen_random_uuid()).primaryKey().notNull(),
+	id: varchar().default(sql`gen_random_uuid()`).primaryKey().notNull(),
 	metricName: varchar("metric_name").notNull(),
 	displayName: varchar("display_name").notNull(),
 	description: text(),
@@ -1195,7 +1195,7 @@ export const weeklyReportConfig = pgTable("weekly_report_config", {
 });
 
 export const weeklyReportLogs = pgTable("weekly_report_logs", {
-	id: varchar().default(gen_random_uuid()).primaryKey().notNull(),
+	id: varchar().default(sql`gen_random_uuid()`).primaryKey().notNull(),
 	userId: varchar("user_id").notNull(),
 	reportWeekStart: timestamp("report_week_start", { mode: 'string' }).notNull(),
 	reportWeekEnd: timestamp("report_week_end", { mode: 'string' }).notNull(),
@@ -1207,7 +1207,7 @@ export const weeklyReportLogs = pgTable("weekly_report_logs", {
 });
 
 export const users = pgTable("users", {
-	id: varchar().default(gen_random_uuid()).primaryKey().notNull(),
+	id: varchar().default(sql`gen_random_uuid()`).primaryKey().notNull(),
 	email: varchar(),
 	firstName: varchar("first_name"),
 	lastName: varchar("last_name"),
@@ -1236,7 +1236,7 @@ export const sessions = pgTable("sessions", {
 ]);
 
 export const sequences = pgTable("sequences", {
-	id: varchar().default(gen_random_uuid()).primaryKey().notNull(),
+	id: varchar().default(sql`gen_random_uuid()`).primaryKey().notNull(),
 	name: varchar().notNull(),
 	description: text(),
 	userId: varchar("user_id").notNull(),
@@ -1250,7 +1250,7 @@ export const sequences = pgTable("sequences", {
 });
 
 export const suppliers = pgTable("suppliers", {
-	id: varchar().default(gen_random_uuid()).primaryKey().notNull(),
+	id: varchar().default(sql`gen_random_uuid()`).primaryKey().notNull(),
 	name: varchar().notNull(),
 	email: varchar(),
 	phone: varchar(),
@@ -1280,7 +1280,7 @@ export const suppliers = pgTable("suppliers", {
 });
 
 export const newsletterAnalytics = pgTable("newsletter_analytics", {
-	id: varchar().default(gen_random_uuid()).primaryKey().notNull(),
+	id: varchar().default(sql`gen_random_uuid()`).primaryKey().notNull(),
 	campaignId: varchar("campaign_id"),
 	subscriberId: varchar("subscriber_id"),
 	eventType: varchar("event_type").notNull(),
@@ -1302,7 +1302,7 @@ export const newsletterAnalytics = pgTable("newsletter_analytics", {
 ]);
 
 export const presentations = pgTable("presentations", {
-	id: varchar().default(gen_random_uuid()).primaryKey().notNull(),
+	id: varchar().default(sql`gen_random_uuid()`).primaryKey().notNull(),
 	title: varchar().notNull(),
 	description: text(),
 	dealNotes: text("deal_notes"),
@@ -1316,7 +1316,7 @@ export const presentations = pgTable("presentations", {
 });
 
 export const integrationSettings = pgTable("integration_settings", {
-	id: varchar().default(gen_random_uuid()).primaryKey().notNull(),
+	id: varchar().default(sql`gen_random_uuid()`).primaryKey().notNull(),
 	ssActivewearAccount: varchar("ss_activewear_account"),
 	ssActivewearApiKey: text("ss_activewear_api_key"),
 	slackBotToken: text("slack_bot_token"),
@@ -1352,7 +1352,7 @@ export const integrationSettings = pgTable("integration_settings", {
 ]);
 
 export const communications = pgTable("communications", {
-	id: varchar().default(gen_random_uuid()).primaryKey().notNull(),
+	id: varchar().default(sql`gen_random_uuid()`).primaryKey().notNull(),
 	orderId: varchar("order_id").notNull(),
 	userId: varchar("user_id").notNull(),
 	communicationType: varchar("communication_type").notNull(),
@@ -1378,7 +1378,7 @@ export const communications = pgTable("communications", {
 ]);
 
 export const notifications = pgTable("notifications", {
-	id: varchar().default(gen_random_uuid()).primaryKey().notNull(),
+	id: varchar().default(sql`gen_random_uuid()`).primaryKey().notNull(),
 	recipientId: varchar("recipient_id").notNull(),
 	senderId: varchar("sender_id"),
 	orderId: varchar("order_id"),
@@ -1412,7 +1412,7 @@ export const notifications = pgTable("notifications", {
 ]);
 
 export const projectActivities = pgTable("project_activities", {
-	id: varchar().default(gen_random_uuid()).primaryKey().notNull(),
+	id: varchar().default(sql`gen_random_uuid()`).primaryKey().notNull(),
 	orderId: varchar("order_id").notNull(),
 	userId: varchar("user_id").notNull(),
 	activityType: varchar("activity_type").notNull(),
@@ -1435,7 +1435,7 @@ export const projectActivities = pgTable("project_activities", {
 ]);
 
 export const artworkApprovals = pgTable("artwork_approvals", {
-	id: varchar().default(gen_random_uuid()).primaryKey().notNull(),
+	id: varchar().default(sql`gen_random_uuid()`).primaryKey().notNull(),
 	orderId: varchar("order_id").notNull(),
 	orderItemId: varchar("order_item_id"),
 	artworkFileId: varchar("artwork_file_id"),
@@ -1471,7 +1471,7 @@ export const artworkApprovals = pgTable("artwork_approvals", {
 ]);
 
 export const attachments = pgTable("attachments", {
-	id: varchar().default(gen_random_uuid()).primaryKey().notNull(),
+	id: varchar().default(sql`gen_random_uuid()`).primaryKey().notNull(),
 	orderId: varchar("order_id"),
 	communicationId: varchar("communication_id"),
 	filename: varchar().notNull(),
@@ -1502,7 +1502,7 @@ export const attachments = pgTable("attachments", {
 ]);
 
 export const presentationProducts = pgTable("presentation_products", {
-	id: varchar().default(gen_random_uuid()).primaryKey().notNull(),
+	id: varchar().default(sql`gen_random_uuid()`).primaryKey().notNull(),
 	presentationId: varchar("presentation_id").notNull(),
 	productId: varchar("product_id"),
 	productName: varchar("product_name").notNull(),
@@ -1525,7 +1525,7 @@ export const presentationProducts = pgTable("presentation_products", {
 ]);
 
 export const orderFiles = pgTable("order_files", {
-	id: varchar().default(gen_random_uuid()).primaryKey().notNull(),
+	id: varchar().default(sql`gen_random_uuid()`).primaryKey().notNull(),
 	orderId: varchar("order_id").notNull(),
 	orderItemId: varchar("order_item_id"),
 	fileName: varchar("file_name").notNull(),
@@ -1559,7 +1559,7 @@ export const orderFiles = pgTable("order_files", {
 ]);
 
 export const passwordResets = pgTable("password_resets", {
-	id: varchar().default(gen_random_uuid()).primaryKey().notNull(),
+	id: varchar().default(sql`gen_random_uuid()`).primaryKey().notNull(),
 	userId: varchar("user_id").notNull(),
 	token: varchar().notNull(),
 	expiresAt: timestamp("expires_at", { mode: 'string' }).notNull(),
@@ -1575,7 +1575,7 @@ export const passwordResets = pgTable("password_resets", {
 ]);
 
 export const userInvitations = pgTable("user_invitations", {
-	id: varchar().default(gen_random_uuid()).primaryKey().notNull(),
+	id: varchar().default(sql`gen_random_uuid()`).primaryKey().notNull(),
 	email: varchar().notNull(),
 	role: varchar().default('user').notNull(),
 	token: varchar().notNull(),
@@ -1593,7 +1593,7 @@ export const userInvitations = pgTable("user_invitations", {
 ]);
 
 export const artworkItems = pgTable("artwork_items", {
-	id: varchar().default(gen_random_uuid()).primaryKey().notNull(),
+	id: varchar().default(sql`gen_random_uuid()`).primaryKey().notNull(),
 	orderItemId: varchar("order_item_id").notNull(),
 	name: varchar({ length: 255 }).notNull(),
 	artworkType: varchar("artwork_type", { length: 100 }),
@@ -1615,7 +1615,7 @@ export const artworkItems = pgTable("artwork_items", {
 ]);
 
 export const generatedDocuments = pgTable("generated_documents", {
-	id: varchar().default(gen_random_uuid()).primaryKey().notNull(),
+	id: varchar().default(sql`gen_random_uuid()`).primaryKey().notNull(),
 	orderId: varchar("order_id").notNull(),
 	documentType: varchar("document_type").notNull(),
 	documentNumber: varchar("document_number").notNull(),

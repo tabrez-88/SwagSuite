@@ -4,7 +4,7 @@ import { db } from "../db";
 export class ActivityRepository {
   async getByOrderId(orderId: string) {
     const { users } = await import("@shared/schema");
-    const { projectActivities } = await import("@shared/project-schema");
+    const { projectActivities } = await import("@shared/schema");
 
     return db
       .select({
@@ -31,7 +31,7 @@ export class ActivityRepository {
   }
 
   async create(data: any) {
-    const { projectActivities, insertProjectActivitySchema } = await import("@shared/project-schema");
+    const { projectActivities, insertProjectActivitySchema } = await import("@shared/schema");
     const validatedData = insertProjectActivitySchema.parse(data);
     const [newActivity] = await db
       .insert(projectActivities)
@@ -42,7 +42,7 @@ export class ActivityRepository {
 
   async getWithUser(activityId: string) {
     const { users } = await import("@shared/schema");
-    const { projectActivities } = await import("@shared/project-schema");
+    const { projectActivities } = await import("@shared/schema");
 
     const [activity] = await db
       .select({
@@ -97,7 +97,7 @@ export class ActivityRepository {
   // ---- Project activities helpers ----
 
   async getFileActivity(orderId: string, activityId: string) {
-    const { projectActivities } = await import("@shared/project-schema");
+    const { projectActivities } = await import("@shared/schema");
 
     const [activity] = await db
       .select()

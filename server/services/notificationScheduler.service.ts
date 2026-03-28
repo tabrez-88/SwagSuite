@@ -1,6 +1,6 @@
 import { db } from '../db';
 import { orders, invoices, quoteApprovals, artworkApprovals } from '@shared/schema';
-import { notifications, projectActivities } from '@shared/project-schema';
+import { notifications, projectActivities } from '@shared/schema';
 import { and, isNotNull, isNull, sql, eq, lt, or } from 'drizzle-orm';
 import { orderRepository } from '../repositories/order.repository';
 import { invoiceRepository } from '../repositories/invoice.repository';

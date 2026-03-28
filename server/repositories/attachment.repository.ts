@@ -3,7 +3,7 @@ import { db } from "../db";
 
 export class AttachmentRepository {
   async getByOrderId(orderId: string, category?: string) {
-    const { attachments } = await import("@shared/project-schema");
+    const { attachments } = await import("@shared/schema");
 
     const conditions = [eq(attachments.orderId, orderId)];
     if (category) {
@@ -17,7 +17,7 @@ export class AttachmentRepository {
   }
 
   async getById(id: string) {
-    const { attachments } = await import("@shared/project-schema");
+    const { attachments } = await import("@shared/schema");
     const [attachment] = await db
       .select()
       .from(attachments)
@@ -26,7 +26,7 @@ export class AttachmentRepository {
   }
 
   async create(data: any) {
-    const { attachments } = await import("@shared/project-schema");
+    const { attachments } = await import("@shared/schema");
     const [attachment] = await db
       .insert(attachments)
       .values(data)
@@ -35,7 +35,7 @@ export class AttachmentRepository {
   }
 
   async delete(id: string) {
-    const { attachments } = await import("@shared/project-schema");
+    const { attachments } = await import("@shared/schema");
     await db.delete(attachments).where(eq(attachments.id, id));
   }
 }

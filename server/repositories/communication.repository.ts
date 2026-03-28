@@ -4,7 +4,7 @@ import { db } from "../db";
 export class CommunicationRepository {
   async getByOrderId(orderId: string, type?: string) {
     const { users } = await import("@shared/schema");
-    const { communications } = await import("@shared/project-schema");
+    const { communications } = await import("@shared/schema");
 
     let query = db
       .select({
@@ -46,7 +46,7 @@ export class CommunicationRepository {
   }
 
   async create(data: any) {
-    const { communications, insertCommunicationSchema } = await import("@shared/project-schema");
+    const { communications, insertCommunicationSchema } = await import("@shared/schema");
     const validatedData = insertCommunicationSchema.parse(data);
     const [newCommunication] = await db
       .insert(communications)
@@ -57,7 +57,7 @@ export class CommunicationRepository {
 
   async getWithUser(communicationId: string) {
     const { users } = await import("@shared/schema");
-    const { communications } = await import("@shared/project-schema");
+    const { communications } = await import("@shared/schema");
 
     const [result] = await db
       .select({
@@ -88,7 +88,7 @@ export class CommunicationRepository {
   }
 
   async linkAttachments(communicationId: string, attachmentIds: string[]) {
-    const { attachments } = await import("@shared/project-schema");
+    const { attachments } = await import("@shared/schema");
     await db
       .update(attachments)
       .set({ communicationId })
@@ -96,7 +96,7 @@ export class CommunicationRepository {
   }
 
   async getAttachmentsByIds(attachmentIds: string[]) {
-    const { attachments } = await import("@shared/project-schema");
+    const { attachments } = await import("@shared/schema");
     return db
       .select()
       .from(attachments)

@@ -7,7 +7,7 @@
 import "dotenv/config";
 import { db } from "../db";
 import { mediaLibrary, orderFiles, artworkFiles } from "@shared/schema";
-import { projectActivities } from "@shared/project-schema";
+import { projectActivities } from "@shared/schema";
 import { eq, and, sql } from "drizzle-orm";
 
 const IMAGE_EXTS = ["jpg", "jpeg", "png", "gif", "webp"];

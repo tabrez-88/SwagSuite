@@ -4,7 +4,7 @@ import {
   notifications,
   type Notification,
   type InsertNotification,
-} from "@shared/project-schema";
+} from "@shared/schema";
 
 export class NotificationRepository {
   async getByUserId(userId: string, limit?: number): Promise<Notification[]> {

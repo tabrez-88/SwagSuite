@@ -51,7 +51,7 @@ export class VendorInvoiceService {
               .where(eq(generatedDocuments.id, data.documentId));
 
             // Log activity
-            const { projectActivities } = await import("@shared/project-schema");
+            const { projectActivities } = await import("@shared/schema");
             await db.insert(projectActivities).values({
               orderId,
               userId: 'system',

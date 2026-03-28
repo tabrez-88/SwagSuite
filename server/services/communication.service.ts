@@ -226,7 +226,7 @@ export class CommunicationService {
 
       const poNumber = poMatch[1];
       const { generatedDocuments, orders: ordersTable } = await import("@shared/schema");
-      const { projectActivities } = await import("@shared/project-schema");
+      const { projectActivities } = await import("@shared/schema");
       const { eq, and } = await import("drizzle-orm");
 
       const [updatedDoc] = await db

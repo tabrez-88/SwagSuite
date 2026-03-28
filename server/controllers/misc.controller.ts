@@ -390,7 +390,7 @@ export class PresentationController {
 
 export class ProductCommentController {
   static async list(req: Request, res: Response) {
-    const { projectActivities } = await import("@shared/project-schema");
+    const { projectActivities } = await import("@shared/schema");
     const actDb = await import("../db").then(m => m.db);
     const { eq: eqOp, and: andOp } = await import("drizzle-orm");
 
@@ -430,7 +430,7 @@ export class ProductCommentController {
       return res.status(400).json({ message: "orderItemId and content are required" });
     }
 
-    const { projectActivities } = await import("@shared/project-schema");
+    const { projectActivities } = await import("@shared/schema");
     const actDb = await import("../db").then(m => m.db);
     const currentUserId = getUserId(req);
 
@@ -492,7 +492,7 @@ export class PresentationShareController {
     if ((order as any).presentationStatus === "open") {
       await orderRepository.updateOrder(orderId, { presentationStatus: "client_review" } as any);
       // Log activity
-      const { projectActivities } = await import("@shared/project-schema");
+      const { projectActivities } = await import("@shared/schema");
       const actDb = await import("../db").then(m => m.db);
       await actDb.insert(projectActivities).values({
         orderId, userId: (req.user as any)?.claims?.sub || "system",
@@ -595,7 +595,7 @@ export class PresentationShareController {
     }
 
     // Get product comments
-    const { projectActivities } = await import("@shared/project-schema");
+    const { projectActivities } = await import("@shared/schema");
     const actDb = await import("../db").then(m => m.db);
     const { eq: eqOp, and: andOp } = await import("drizzle-orm");
     const comments = await actDb
@@ -669,7 +669,7 @@ export class PresentationShareController {
       return res.status(400).json({ message: "orderItemId and content are required" });
     }
 
-    const { projectActivities } = await import("@shared/project-schema");
+    const { projectActivities } = await import("@shared/schema");
     const actDb = await import("../db").then(m => m.db);
 
     // Get order to use assignedUserId (FK requires valid user)

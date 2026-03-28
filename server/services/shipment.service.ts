@@ -44,7 +44,7 @@ export class ShipmentService {
           .set({ salesOrderStatus: 'shipped', updatedAt: new Date() })
           .where(eq(orders.id, orderId));
 
-        const { projectActivities } = await import("@shared/project-schema");
+        const { projectActivities } = await import("@shared/schema");
         await db.insert(projectActivities).values({
           orderId,
           userId: 'system',

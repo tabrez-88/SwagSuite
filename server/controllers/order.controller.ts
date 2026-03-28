@@ -404,7 +404,7 @@ export class OrderController {
       // Log project activity for key changes (status, assignments)
       const currentUserId = (req.user as any)?.claims?.sub || "system-user";
       try {
-        const { projectActivities } = await import("@shared/project-schema");
+        const { projectActivities } = await import("@shared/schema");
         const { db: actDb } = await import("../db");
 
         const statusDisplayMap: Record<string, string> = {
@@ -742,7 +742,7 @@ export class OrderController {
       }
 
       // Log activity
-      const { projectActivities } = await import("@shared/project-schema");
+      const { projectActivities } = await import("@shared/schema");
       await db.insert(projectActivities).values({
         orderId: newOrder.id,
         userId: (req.user as any)?.claims?.sub || (req.user as any)?.id,
