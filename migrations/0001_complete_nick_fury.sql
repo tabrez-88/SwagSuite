@@ -1,1 +1,0 @@
-ALTER TABLE "suppliers" ADD COLUMN "product_count" integer DEFAULT 0;
