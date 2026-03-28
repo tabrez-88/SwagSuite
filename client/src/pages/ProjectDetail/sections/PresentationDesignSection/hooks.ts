@@ -2,11 +2,11 @@ import { useState } from "react";
 import type { useProjectData } from "../../hooks";
 
 interface UsePresentationDesignSectionParams {
-  orderId: string;
+  projectId: string;
   data: ReturnType<typeof useProjectData>;
 }
 
-export function usePresentationDesignSection({ orderId, data }: UsePresentationDesignSectionParams) {
+export function usePresentationDesignSection({ projectId, data }: UsePresentationDesignSectionParams) {
   const { companyName, companyData } = data;
   const [primaryColor, setPrimaryColor] = useState("#2563eb");
   const [headerStyle, setHeaderStyle] = useState("banner");
@@ -15,7 +15,7 @@ export function usePresentationDesignSection({ orderId, data }: UsePresentationD
   const displayName = companyData?.name || companyName;
 
   return {
-    orderId,
+    projectId,
     displayName,
     companyData,
     companyName,

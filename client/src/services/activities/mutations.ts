@@ -3,13 +3,13 @@ import { useToast } from "@/hooks/use-toast";
 import { activityKeys } from "./keys";
 import * as requests from "./requests";
 
-export function usePostActivity(orderId: string | number) {
+export function usePostActivity(projectId: string | number) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   return useMutation({
-    mutationFn: (data: Record<string, any>) => requests.postActivity(orderId, data),
+    mutationFn: (data: Record<string, any>) => requests.postActivity(projectId, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: activityKeys.byOrder(orderId) });
+      queryClient.invalidateQueries({ queryKey: activityKeys.byOrder(projectId) });
       toast({ title: "Note sent" });
     },
     onError: () => toast({ title: "Failed to post note", variant: "destructive" }),

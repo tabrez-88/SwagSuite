@@ -13,7 +13,7 @@ import { useSendSO } from "./hooks";
 interface SendSODialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  orderId: string;
+  projectId: string;
   recipientEmail: string;
   recipientName: string;
   companyName: string;
@@ -26,11 +26,11 @@ interface SendSODialogProps {
 }
 
 export default function SendSODialog({
-  open, onOpenChange, orderId, recipientEmail, recipientName, companyName, orderNumber,
+  open, onOpenChange, projectId, recipientEmail, recipientName, companyName, orderNumber,
   soDocument, soTotal, quoteApprovals, createQuoteApproval, contacts,
 }: SendSODialogProps) {
   const { sendMutation } = useSendSO({
-    orderId, recipientName, soDocument, soTotal, quoteApprovals, createQuoteApproval, onOpenChange,
+    projectId, recipientName, soDocument, soTotal, quoteApprovals, createQuoteApproval, onOpenChange,
   });
 
   return (

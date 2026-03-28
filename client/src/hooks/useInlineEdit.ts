@@ -3,22 +3,22 @@ import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
 interface UseInlineEditOptions {
-  orderId: string;
+  projectId: string;
   isLocked?: boolean;
 }
 
-export function useInlineEdit({ orderId, isLocked = false }: UseInlineEditOptions) {
+export function useInlineEdit({ projectId, isLocked = false }: UseInlineEditOptions) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
   const updateFieldMutation = useMutation({
     mutationFn: async (fields: Record<string, any>) => {
       if (isLocked) throw new Error("Section is locked");
-      const res = await apiRequest("PATCH", `/api/orders/${orderId}`, fields);
+      const res = await apiRequest("PATCH", `/api/projects/${projectId}`, fields);
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/orders/${orderId}`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}`] });
     },
     onError: (error: Error) => {
       toast({ title: "Failed to save", description: error.message, variant: "destructive" });

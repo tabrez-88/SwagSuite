@@ -4,7 +4,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { presentationRepository } from "../repositories/presentation.repository";
 import { companyRepository } from "../repositories/company.repository";
 import { productRepository } from "../repositories/product.repository";
-import { orderRepository } from "../repositories/order.repository";
+import { projectRepository } from "../repositories/project.repository";
 import { portalRepository } from "../repositories/portal.repository";
 import { getUserId } from "../utils/getUserId";
 import { registerInMediaLibrary } from "../utils/registerInMediaLibrary";
@@ -399,7 +399,7 @@ export class ProductCommentController {
       .from(projectActivities)
       .where(
         andOp(
-          eqOp(projectActivities.orderId, req.params.orderId),
+          eqOp(projectActivities.orderId, req.params.projectId),
           eqOp(projectActivities.activityType, "product_comment"),
         )
       );
@@ -435,7 +435,7 @@ export class ProductCommentController {
     const currentUserId = getUserId(req);
 
     const [comment] = await actDb.insert(projectActivities).values({
-      orderId: req.params.orderId,
+      orderId: req.params.projectId,
       userId: currentUserId,
       activityType: "product_comment",
       content: content.substring(0, 2000),
@@ -459,12 +459,12 @@ export class ProductCommentController {
 
 export class PresentationShareController {
   static async createShareLink(req: Request, res: Response) {
-    const orderId = req.params.orderId;
-    const order = await orderRepository.getOrder(orderId);
+    const projectId = req.params.projectId;
+    const order = await projectRepository.getOrder(projectId);
     if (!order) return res.status(404).json({ message: "Order not found" });
 
     // Check if an active presentation token already exists
-    const existing = await portalRepository.getActivePortalTokenByType(orderId, "presentation");
+    const existing = await portalRepository.getActivePortalTokenByType(projectId, "presentation");
     if (existing) {
       return res.json({
         token: existing.token,
@@ -480,7 +480,7 @@ export class PresentationShareController {
     const expiryDate = (order as any)?.stageData?.presentation?.expiryDate;
 
     const portalToken = await portalRepository.createCustomerPortalToken({
-      orderId,
+      orderId: projectId,
       token: tokenValue,
       clientEmail: (order as any)?.stageData?.presentation?.clientContactId || null,
       isActive: true,
@@ -490,12 +490,12 @@ export class PresentationShareController {
 
     // Auto-transition status to client_review if currently open
     if ((order as any).presentationStatus === "open") {
-      await orderRepository.updateOrder(orderId, { presentationStatus: "client_review" } as any);
+      await projectRepository.updateOrder(projectId, { presentationStatus: "client_review" } as any);
       // Log activity
       const { projectActivities } = await import("@shared/schema");
       const actDb = await import("../db").then(m => m.db);
       await actDb.insert(projectActivities).values({
-        orderId, userId: (req.user as any)?.claims?.sub || "system",
+        orderId: projectId, userId: (req.user as any)?.claims?.sub || "system",
         activityType: "status_change",
         content: "Presentation status changed from Open to Client Review",
         metadata: { section: "presentation", oldStatus: "open", newStatus: "client_review" },
@@ -528,19 +528,19 @@ export class PresentationShareController {
     await portalRepository.incrementPortalTokenAccess(portalToken.id);
 
     // Fetch order + items + company
-    const order = await orderRepository.getOrder(portalToken.orderId);
+    const order = await projectRepository.getOrder(portalToken.orderId);
     if (!order) return res.status(404).json({ message: "Order not found" });
 
-    const items = await orderRepository.getOrderItems(portalToken.orderId);
+    const items = await projectRepository.getOrderItems(portalToken.orderId);
     const company = (order as any).companyId ? await companyRepository.getById((order as any).companyId) : null;
 
     // Get item lines for pricing tiers + charges
     const allItemLines: Record<string, any[]> = {};
     const allItemCharges: Record<string, any[]> = {};
     for (const item of items) {
-      const lines = await orderRepository.getOrderItemLines(item.id);
+      const lines = await projectRepository.getOrderItemLines(item.id);
       allItemLines[item.id] = lines;
-      const charges = await orderRepository.getOrderAdditionalCharges(item.id);
+      const charges = await projectRepository.getOrderAdditionalCharges(item.id);
       allItemCharges[item.id] = charges;
     }
 
@@ -673,7 +673,7 @@ export class PresentationShareController {
     const actDb = await import("../db").then(m => m.db);
 
     // Get order to use assignedUserId (FK requires valid user)
-    const order = await orderRepository.getOrder(portalToken.orderId);
+    const order = await projectRepository.getOrder(portalToken.orderId);
     if (!order?.assignedUserId) {
       return res.status(500).json({ message: "Unable to post comment" });
     }

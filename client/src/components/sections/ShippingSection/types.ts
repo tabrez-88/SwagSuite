@@ -24,7 +24,7 @@ export interface BulkEditData {
 }
 
 export interface ShippingSectionProps {
-  orderId: string;
+  projectId: string;
   data: ProjectData;
   isLocked?: boolean;
 }

@@ -20,7 +20,7 @@ router.post("/api/media-library/upload", isAuthenticated, (req, res, next) => {
 router.patch("/api/media-library/:id", isAuthenticated, asyncHandler(MediaLibraryController.update));
 router.delete("/api/media-library/:id", isAuthenticated, asyncHandler(MediaLibraryController.delete));
 
-// Link library files to order
-router.post("/api/orders/:orderId/files/from-library", isAuthenticated, asyncHandler(MediaLibraryController.linkToOrder));
+// Link library files to project
+router.post("/api/projects/:projectId/files/from-library", isAuthenticated, asyncHandler(MediaLibraryController.linkToOrder));
 
 export default router;

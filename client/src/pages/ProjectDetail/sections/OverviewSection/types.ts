@@ -1,7 +1,7 @@
 import type { useProjectData } from "../../hooks";
 
 export interface OverviewSectionProps {
-  orderId: string;
+  projectId: string;
   data: ReturnType<typeof useProjectData>;
   isLocked?: boolean;
 }

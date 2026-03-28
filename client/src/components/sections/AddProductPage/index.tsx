@@ -27,8 +27,8 @@ import { marginColorClass, isBelowMinimum, calcMarginPercent } from "@/hooks/use
 import type { AddProductPageProps, ProductResult } from "./types";
 import { useAddProductPage } from "./hooks";
 
-export default function AddProductPage({ orderId, data }: AddProductPageProps) {
-  const h = useAddProductPage({ orderId, data });
+export default function AddProductPage({ projectId, data }: AddProductPageProps) {
+  const h = useAddProductPage({ projectId, data });
 
   // ── Shared search input renderer ──
   function renderSearchInput(placeholder: string, hint: string) {

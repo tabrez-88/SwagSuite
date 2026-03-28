@@ -1,6 +1,6 @@
 import { activityRepository } from "../repositories/activity.repository";
 import { notificationRepository } from "../repositories/notification.repository";
-import { orderRepository } from "../repositories/order.repository";
+import { projectRepository } from "../repositories/project.repository";
 import { userRepository } from "../repositories/user.repository";
 import { registerInMediaLibrary } from "../utils/registerInMediaLibrary";
 
@@ -40,7 +40,7 @@ export class ActivityService {
       try {
         const usersToNotify = data.mentionedUsers.filter((uid: string) => uid !== userId);
         if (usersToNotify.length > 0) {
-          const order = await orderRepository.getOrder(orderId);
+          const order = await projectRepository.getOrder(orderId);
           const orderNumber = order?.orderNumber || orderId;
           const senderUser = await userRepository.getUser(userId);
           const senderName = senderUser ? `${senderUser.firstName} ${senderUser.lastName}`.trim() : "Someone";

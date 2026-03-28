@@ -50,7 +50,7 @@ export default function OverviewSection(props: OverviewSectionProps) {
     csrUser,
     teamMembers,
     data,
-    orderId,
+    projectId,
     isLocked,
     updateField,
     isPending,
@@ -151,7 +151,7 @@ export default function OverviewSection(props: OverviewSectionProps) {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
 
         {/* Internal Notes & Activities */}
-        <ActivitiesSection orderId={orderId} data={data} />
+        <ActivitiesSection projectId={projectId} data={data} />
 
         {/* Tabs */}
         <Tabs defaultValue="summary" className="w-full">
@@ -474,12 +474,12 @@ export default function OverviewSection(props: OverviewSectionProps) {
 
           {/* Client Communication Tab */}
           <TabsContent value="client-email" className="mt-4">
-            <EmailSection orderId={orderId} data={data} />
+            <EmailSection projectId={projectId} data={data} />
           </TabsContent>
 
           {/* Vendor Communication Tab */}
           <TabsContent value="vendor-email" className="mt-4">
-            <VendorSection orderId={orderId} data={data} />
+            <VendorSection projectId={projectId} data={data} />
           </TabsContent>
 
         </Tabs>

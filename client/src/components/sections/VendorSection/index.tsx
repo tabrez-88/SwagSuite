@@ -16,8 +16,8 @@ import EmailComposer from "@/components/email/EmailComposer";
 import { useVendorSection, stripHtml } from "./hooks";
 import type { VendorSectionProps } from "./types";
 
-export default function VendorSection({ orderId, data }: VendorSectionProps) {
-  const h = useVendorSection(orderId, data);
+export default function VendorSection({ projectId, data }: VendorSectionProps) {
+  const h = useVendorSection(projectId, data);
 
   return (
     <div className="space-y-6">

@@ -30,8 +30,8 @@ import { EditableDate } from "@/components/shared/InlineEditable";
 import type { PurchaseOrdersSectionProps } from "./types";
 import { usePurchaseOrdersSection } from "./hooks";
 
-export default function PurchaseOrdersSection({ orderId, data, isLocked }: PurchaseOrdersSectionProps) {
-  const h = usePurchaseOrdersSection({ orderId, data, isLocked });
+export default function PurchaseOrdersSection({ projectId, data, isLocked }: PurchaseOrdersSectionProps) {
+  const h = usePurchaseOrdersSection({ projectId, data, isLocked });
 
   return (
     <div className="space-y-5">
@@ -605,7 +605,7 @@ export default function PurchaseOrdersSection({ orderId, data, isLocked }: Purch
 
       {/* Hidden PO templates for PDF generation */}
       {h.vendorPOs.map((po) => {
-        const poNumber = `${(h.order as any)?.orderNumber || h.orderId}-${po.vendor.id.substring(0, 4).toUpperCase()}`;
+        const poNumber = `${(h.order as any)?.orderNumber || h.projectId}-${po.vendor.id.substring(0, 4).toUpperCase()}`;
         return (
           <PurchaseOrderTemplate
             key={po.vendor.id}
@@ -671,7 +671,7 @@ export default function PurchaseOrdersSection({ orderId, data, isLocked }: Purch
         onClose={() => h.setUploadProofArt(null)}
         onSelect={h.handleProofUploaded}
         multiple={false}
-        contextOrderId={h.orderId}
+        contextProjectId={h.projectId}
         title="Upload Vendor Proof"
       />
 
@@ -766,7 +766,7 @@ export default function PurchaseOrdersSection({ orderId, data, isLocked }: Purch
                 <div className="flex justify-between">
                   <div>
                     <h3 className="font-bold text-lg">PURCHASE ORDER</h3>
-                    <p className="text-sm text-gray-600">Order: {(h.order as any)?.orderNumber || h.orderId}</p>
+                    <p className="text-sm text-gray-600">Order: {(h.order as any)?.orderNumber || h.projectId}</p>
                     <p className="text-sm text-gray-600">Date: {new Date().toLocaleDateString()}</p>
                   </div>
                   <div className="text-right">

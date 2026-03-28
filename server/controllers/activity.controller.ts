@@ -5,16 +5,16 @@ import { cloudinary } from "../config/cloudinary";
 
 export class ActivityController {
   static async list(req: Request, res: Response) {
-    const activities = await activityService.getByOrderId(req.params.orderId);
+    const activities = await activityService.getByOrderId(req.params.projectId);
     res.json(activities);
   }
 
   static async create(req: Request, res: Response) {
-    const { orderId } = req.params;
+    const { projectId } = req.params;
     const userId = req.user?.claims?.sub || "system-user";
     const { activityType, content, mentionedUsers, attachments } = req.body;
 
-    const activity = await activityService.create(orderId, userId, {
+    const activity = await activityService.create(projectId, userId, {
       activityType,
       content,
       mentionedUsers,
@@ -25,7 +25,7 @@ export class ActivityController {
   }
 
   static async uploadFile(req: Request, res: Response) {
-    const { orderId } = req.params;
+    const { projectId } = req.params;
     const file = req.file;
 
     if (!file) {
@@ -33,13 +33,13 @@ export class ActivityController {
     }
 
     const userId = req.user?.claims?.sub || "system-user";
-    const activity = await activityService.uploadFile(orderId, userId, file);
+    const activity = await activityService.uploadFile(projectId, userId, file);
     res.json(activity);
   }
 
   static async downloadFile(req: Request, res: Response) {
-    const { orderId, activityId } = req.params;
-    const result = await activityService.getFileDownloadInfo(orderId, activityId);
+    const { projectId, activityId } = req.params;
+    const result = await activityService.getFileDownloadInfo(projectId, activityId);
 
     if (!result) {
       return res.status(404).json({ error: "File not found" });

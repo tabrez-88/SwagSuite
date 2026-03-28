@@ -13,7 +13,7 @@ import { useSendQuote } from "./hooks";
 interface SendQuoteDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  orderId: string;
+  projectId: string;
   recipientEmail: string;
   recipientName: string;
   companyName: string;
@@ -27,11 +27,11 @@ interface SendQuoteDialogProps {
 }
 
 export default function SendQuoteDialog({
-  open, onOpenChange, orderId, recipientEmail, recipientName, companyName, orderNumber,
+  open, onOpenChange, projectId, recipientEmail, recipientName, companyName, orderNumber,
   quoteDocument, primaryContact, quoteTotal, quoteApprovals, createQuoteApproval, contacts,
 }: SendQuoteDialogProps) {
   const { sendMutation } = useSendQuote({
-    orderId, recipientName, quoteDocument, quoteTotal, quoteApprovals, createQuoteApproval, onOpenChange,
+    projectId, recipientName, quoteDocument, quoteTotal, quoteApprovals, createQuoteApproval, onOpenChange,
   });
 
   return (

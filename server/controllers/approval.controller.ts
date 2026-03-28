@@ -1,5 +1,5 @@
 import type { Request, Response } from "express";
-import { orderRepository } from "../repositories/order.repository";
+import { projectRepository } from "../repositories/project.repository";
 import { userRepository } from "../repositories/user.repository";
 import { productionRepository } from "../repositories/production.repository";
 import { notificationRepository } from "../repositories/notification.repository";
@@ -215,7 +215,7 @@ export class ApprovalController {
     // Create activity log and handle notifications + stage progression
     if (approval.orderId) {
       try {
-        const approvalOrder = await orderRepository.getOrder(approval.orderId);
+        const approvalOrder = await projectRepository.getOrder(approval.orderId);
         if (approvalOrder?.assignedUserId) {
           await db.insert(projectActivities).values({
             orderId: approval.orderId,
@@ -288,7 +288,7 @@ export class ApprovalController {
             const proofApprovedStage = allStages.find(s => s.id === 'in_production');
             const nextStage = proofApprovedStage ? allStages.find(s => s.order === proofApprovedStage.order + 1) : null;
 
-            await orderRepository.updateOrder(order.id, {
+            await projectRepository.updateOrder(order.id, {
               currentStage: nextStage ? nextStage.id : 'in_production',
               stagesCompleted: updatedCompleted,
             } as any);
@@ -374,7 +374,7 @@ export class ApprovalController {
     // Create activity log and notify team
     if (approval.orderId) {
       try {
-        const declineOrder = await orderRepository.getOrder(approval.orderId);
+        const declineOrder = await projectRepository.getOrder(approval.orderId);
         if (declineOrder?.assignedUserId) {
           await db.insert(projectActivities).values({
             orderId: approval.orderId,
@@ -445,9 +445,9 @@ export class ApprovalController {
     res.json({ success: true, approval: updated });
   }
 
-  /** POST /api/orders/:orderId/generate-approval — Generate approval link (AUTHENTICATED) */
+  /** POST /api/projects/:projectId/generate-approval — Generate approval link (AUTHENTICATED) */
   static async generateApproval(req: Request, res: Response) {
-    const { orderId } = req.params;
+    const { projectId } = req.params;
     const { orderItemId, artworkFileId, artworkItemId, clientEmail, clientName } = req.body;
 
     if (!clientEmail) {
@@ -463,7 +463,7 @@ export class ApprovalController {
     const [order] = await db
       .select()
       .from(orders)
-      .where(eq(orders.id, orderId));
+      .where(eq(orders.id, projectId));
 
     if (!order) {
       return res.status(404).json({ message: "Order not found" });
@@ -474,7 +474,7 @@ export class ApprovalController {
 
     // Check if approval already exists for this combination
     let conditions = [
-      eq(artworkApprovals.orderId, orderId),
+      eq(artworkApprovals.orderId, projectId),
       eq(artworkApprovals.clientEmail, clientEmail),
     ];
 
@@ -505,7 +505,7 @@ export class ApprovalController {
     const [newApproval] = await db
       .insert(artworkApprovals)
       .values({
-        orderId,
+        orderId: projectId,
         orderItemId: orderItemId || null,
         artworkFileId: artworkFileId || null,
         artworkItemId: artworkItemId || null,
@@ -522,7 +522,7 @@ export class ApprovalController {
       await db
         .update(orders)
         .set({ status: 'pending_approval', updatedAt: new Date() })
-        .where(eq(orders.id, orderId));
+        .where(eq(orders.id, projectId));
     }
 
     res.json({
@@ -531,9 +531,9 @@ export class ApprovalController {
     });
   }
 
-  /** GET /api/orders/:orderId/approvals — List all approvals for an order (AUTHENTICATED) */
+  /** GET /api/projects/:projectId/approvals — List all approvals for an order (AUTHENTICATED) */
   static async listOrderApprovals(req: Request, res: Response) {
-    const { orderId } = req.params;
+    const { projectId } = req.params;
 
     const { db } = await import("../db");
     const { artworkApprovals, orderItems, products, artworkFiles } = await import("@shared/schema");
@@ -564,7 +564,7 @@ export class ApprovalController {
       .leftJoin(orderItems, eq(artworkApprovals.orderItemId, orderItems.id))
       .leftJoin(products, eq(orderItems.productId, products.id))
       .leftJoin(artworkFiles, eq(artworkApprovals.artworkFileId, artworkFiles.id))
-      .where(eq(artworkApprovals.orderId, orderId));
+      .where(eq(artworkApprovals.orderId, projectId));
 
     res.json(approvals);
   }
@@ -980,9 +980,9 @@ export class ApprovalController {
   // GROUP 3: QUOTE APPROVALS (authenticated, order-scoped)
   // =====================================================
 
-  /** POST /api/orders/:orderId/quote-approvals — Create quote approval (AUTHENTICATED) */
+  /** POST /api/projects/:projectId/quote-approvals — Create quote approval (AUTHENTICATED) */
   static async createQuoteApproval(req: Request, res: Response) {
-    const { orderId } = req.params;
+    const { projectId } = req.params;
     const { clientEmail, clientName, documentId, pdfPath, quoteTotal } = req.body;
 
     const { db } = await import("../db");
@@ -991,7 +991,7 @@ export class ApprovalController {
     const crypto = await import("crypto");
 
     // Verify order exists
-    const [order] = await db.select().from(orders).where(eq(orders.id, orderId));
+    const [order] = await db.select().from(orders).where(eq(orders.id, projectId));
     if (!order) {
       return res.status(404).json({ message: "Order not found" });
     }
@@ -1001,7 +1001,7 @@ export class ApprovalController {
 
     // Create quote approval record
     const [approval] = await db.insert(quoteApprovals).values({
-      orderId,
+      orderId: projectId,
       documentId: documentId || null,
       approvalToken,
       status: "pending",
@@ -1021,9 +1021,9 @@ export class ApprovalController {
     });
   }
 
-  /** GET /api/orders/:orderId/quote-approvals — List quote approvals for an order (AUTHENTICATED) */
+  /** GET /api/projects/:projectId/quote-approvals — List quote approvals for an order (AUTHENTICATED) */
   static async listQuoteApprovals(req: Request, res: Response) {
-    const { orderId } = req.params;
+    const { projectId } = req.params;
     const { db } = await import("../db");
     const { quoteApprovals } = await import("@shared/schema");
     const { eq, desc } = await import("drizzle-orm");
@@ -1031,13 +1031,13 @@ export class ApprovalController {
     const approvals = await db
       .select()
       .from(quoteApprovals)
-      .where(eq(quoteApprovals.orderId, orderId))
+      .where(eq(quoteApprovals.orderId, projectId))
       .orderBy(desc(quoteApprovals.createdAt));
 
     res.json(approvals);
   }
 
-  /** PATCH /api/orders/:orderId/quote-approvals/:approvalId — Update a quote approval (AUTHENTICATED) */
+  /** PATCH /api/projects/:projectId/quote-approvals/:approvalId — Update a quote approval (AUTHENTICATED) */
   static async updateQuoteApproval(req: Request, res: Response) {
     const { approvalId } = req.params;
     const { documentId, pdfPath, quoteTotal } = req.body;
@@ -1064,9 +1064,9 @@ export class ApprovalController {
   // GROUP 4: PO CONFIRMATIONS
   // =====================================================
 
-  /** POST /api/orders/:orderId/po-confirmations — Create PO confirmation (AUTHENTICATED) */
+  /** POST /api/projects/:projectId/po-confirmations — Create PO confirmation (AUTHENTICATED) */
   static async createPoConfirmation(req: Request, res: Response) {
-    const { orderId } = req.params;
+    const { projectId } = req.params;
     const { documentId, vendorEmail, vendorName, vendorId, poTotal, pdfPath } = req.body;
     const { db } = await import("../db");
     const { poConfirmations } = await import("@shared/schema");
@@ -1074,7 +1074,7 @@ export class ApprovalController {
 
     const token = crypto.randomBytes(32).toString("hex");
     const [confirmation] = await db.insert(poConfirmations).values({
-      orderId,
+      orderId: projectId,
       documentId,
       confirmationToken: token,
       vendorEmail,

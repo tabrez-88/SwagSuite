@@ -29,7 +29,7 @@ function getEditedItem(_id: string, item: any) {
   };
 }
 
-export function useInvoiceSection({ orderId, data }: InvoiceSectionProps) {
+export function useInvoiceSection({ projectId, data }: InvoiceSectionProps) {
   const { order, invoice, invoiceLoading, orderItems, companyName, primaryContact, contacts, serviceCharges } = data;
   const { toast } = useToast();
 
@@ -46,7 +46,7 @@ export function useInvoiceSection({ orderId, data }: InvoiceSectionProps) {
   const templateRef = useRef<HTMLDivElement>(null);
 
   // Document generation hook
-  const { invoiceDocuments, isGenerating, generateDocument, deleteDocument, isDeleting } = useDocumentGeneration(orderId);
+  const { invoiceDocuments, isGenerating, generateDocument, deleteDocument, isDeleting } = useDocumentGeneration(projectId);
 
   // Initialize notes from invoice data
   if (invoice && !notesInitialized) {
@@ -88,11 +88,11 @@ export function useInvoiceSection({ orderId, data }: InvoiceSectionProps) {
   }, [invoice?.dueDate, invoice?.status]);
 
   // Mutations
-  const createInvoiceMutation = useCreateInvoice(orderId);
-  const updateDueDateMutation = useUpdateInvoiceDueDate(orderId);
-  const updateNotesMutation = useUpdateInvoiceNotes(orderId);
-  const manualPaymentMutation = useRecordManualPayment(orderId);
-  const stripePaymentMutation = useCreateStripePayment(orderId);
+  const createInvoiceMutation = useCreateInvoice(projectId);
+  const updateDueDateMutation = useUpdateInvoiceDueDate(projectId);
+  const updateNotesMutation = useUpdateInvoiceNotes(projectId);
+  const manualPaymentMutation = useRecordManualPayment(projectId);
+  const stripePaymentMutation = useCreateStripePayment(projectId);
 
   // Generate local PDF
   const handleGeneratePdf = async () => {

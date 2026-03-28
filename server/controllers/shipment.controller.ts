@@ -3,7 +3,7 @@ import { shipmentService } from "../services/shipment.service";
 
 export class ShipmentController {
   static async list(req: Request, res: Response) {
-    const shipments = await shipmentService.getByOrderId(req.params.orderId);
+    const shipments = await shipmentService.getByOrderId(req.params.projectId);
     res.json(shipments);
   }
 
@@ -17,7 +17,7 @@ export class ShipmentController {
 
   static async create(req: Request, res: Response) {
     const { insertOrderShipmentSchema } = await import("@shared/schema");
-    const body = { ...req.body, orderId: req.params.orderId };
+    const body = { ...req.body, orderId: req.params.projectId };
 
     // Coerce date strings to Date objects for timestamp fields
     if (body.shipDate) body.shipDate = new Date(body.shipDate);
@@ -29,7 +29,7 @@ export class ShipmentController {
 
     // Auto-transition SO when shipment is created with shipped/delivered status
     if (body.status) {
-      await shipmentService.checkShipmentAutoTransition(req.params.orderId, body.status);
+      await shipmentService.checkShipmentAutoTransition(req.params.projectId, body.status);
     }
 
     res.status(201).json(shipment);
@@ -40,7 +40,7 @@ export class ShipmentController {
 
     // Auto-transition SO when shipment status changes to shipped/delivered
     if (req.body.status) {
-      await shipmentService.checkShipmentAutoTransition(req.params.orderId, req.body.status);
+      await shipmentService.checkShipmentAutoTransition(req.params.projectId, req.body.status);
     }
 
     res.json(shipment);

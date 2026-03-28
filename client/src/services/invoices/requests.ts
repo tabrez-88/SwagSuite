@@ -1,12 +1,12 @@
 import { apiRequest } from "@/lib/queryClient";
 
-export async function createInvoice(orderId: string | number) {
-  const res = await apiRequest("POST", `/api/orders/${orderId}/invoice`);
+export async function createInvoice(projectId: string | number) {
+  const res = await apiRequest("POST", `/api/projects/${projectId}/invoice`);
   return res.json();
 }
 
-export async function updateInvoice(orderId: string | number, data: Record<string, any>) {
-  const res = await apiRequest("PATCH", `/api/orders/${orderId}/invoice`, data);
+export async function updateInvoice(projectId: string | number, data: Record<string, any>) {
+  const res = await apiRequest("PATCH", `/api/projects/${projectId}/invoice`, data);
   return res.json();
 }
 

@@ -115,7 +115,7 @@ export default function PODetailPanel({ documentId, open, onOpenChange }: PODeta
                 <Button
                   size="sm"
                   variant="outline"
-                  onClick={() => setLocation(`/project/${po.order_id}`)}
+                  onClick={() => setLocation(`/projects/${po.order_id}`)}
                 >
                   <ExternalLink className="h-3.5 w-3.5 mr-1" />
                   View Project
@@ -387,7 +387,7 @@ export default function PODetailPanel({ documentId, open, onOpenChange }: PODeta
                   Full proofing actions available in the{" "}
                   <button
                     className="text-primary underline"
-                    onClick={() => setLocation(`/project/${po.order_id}`)}
+                    onClick={() => setLocation(`/projects/${po.order_id}`)}
                   >
                     PO section
                   </button>

@@ -1,3 +1,3 @@
 export const invoiceKeys = {
-  byOrder: (orderId: string | number) => [`/api/orders/${orderId}/invoice`] as const,
+  byOrder: (projectId: string | number) => [`/api/projects/${projectId}/invoice`] as const,
 };

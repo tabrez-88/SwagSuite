@@ -8,8 +8,8 @@ const router = Router();
 // Production orders
 router.get("/api/production/orders", isAuthenticated, asyncHandler(ProductionController.listOrders));
 
-// Production update on order
-router.patch("/api/orders/:id/production", isAuthenticated, asyncHandler(ProductionController.updateProduction));
+// Production update on project
+router.patch("/api/projects/:id/production", isAuthenticated, asyncHandler(ProductionController.updateProduction));
 
 // Production stages CRUD
 router.get("/api/production/stages", isAuthenticated, asyncHandler(ProductionController.listStages));

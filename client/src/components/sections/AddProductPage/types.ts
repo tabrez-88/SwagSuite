@@ -1,7 +1,7 @@
 import type { ProjectData } from "@/types/project-types";
 
 export interface AddProductPageProps {
-  orderId: string;
+  projectId: string;
   data: ProjectData;
 }
 

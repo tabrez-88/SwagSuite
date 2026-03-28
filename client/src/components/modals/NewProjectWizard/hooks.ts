@@ -167,17 +167,17 @@ export function useNewProjectWizard({ open, onOpenChange, initialCompanyId }: Ne
 
   const createMutation = useMutation({
     mutationFn: async (payload: any) => {
-      const res = await apiRequest("POST", "/api/orders", payload);
+      const res = await apiRequest("POST", "/api/projects", payload);
       return res.json();
     },
     onSuccess: (newOrder) => {
       toast({ title: "Project created", description: `Project #${newOrder.orderNumber} has been created.` });
-      queryClient.invalidateQueries({ queryKey: ["/api/orders"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
       queryClient.invalidateQueries({ queryKey: ["/api/dashboard/recent-orders"] });
       queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
       onOpenChange(false);
       if (newOrder.id) {
-        setLocation(`/project/${newOrder.id}`);
+        setLocation(`/projects/${newOrder.id}`);
       }
     },
     onError: (error: Error) => {

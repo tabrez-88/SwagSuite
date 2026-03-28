@@ -2,14 +2,14 @@ import { useToast } from "@/hooks/use-toast";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import type { FeedbackSectionProps } from "./types";
 
-export function useFeedbackSection({ orderId, data }: FeedbackSectionProps) {
+export function useFeedbackSection({ projectId, data }: FeedbackSectionProps) {
   const { portalTokens, approvals, quoteApprovals, companyName, primaryContact } = data;
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
   const createPortalTokenMutation = useMutation({
     mutationFn: async () => {
-      const response = await fetch(`/api/orders/${orderId}/portal-tokens`, {
+      const response = await fetch(`/api/projects/${projectId}/portal-tokens`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -18,7 +18,7 @@ export function useFeedbackSection({ orderId, data }: FeedbackSectionProps) {
       return response.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/orders/${orderId}/portal-tokens`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/portal-tokens`] });
       toast({ title: "Portal link created" });
     },
     onError: () => {

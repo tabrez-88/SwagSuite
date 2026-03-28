@@ -1,6 +1,6 @@
 import { companyRepository } from "../repositories/company.repository";
 import { productRepository } from "../repositories/product.repository";
-import { orderRepository } from "../repositories/order.repository";
+import { projectRepository } from "../repositories/project.repository";
 
 export interface SearchResult {
   id: string;
@@ -20,7 +20,7 @@ export class SearchService {
     const companyMap = new Map(companies.map(c => [c.id, c.name]));
 
     // Search orders
-    const orders = await orderRepository.getOrders();
+    const orders = await projectRepository.getOrders();
     const matchingOrders = orders.filter(order => {
       const customerName = order.companyId ? companyMap.get(order.companyId) : '';
       return customerName?.toLowerCase().includes(searchTerm) ||

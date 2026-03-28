@@ -47,7 +47,7 @@ export function usePODetailPanel(documentId: string | null, open: boolean) {
 
   const updateNextActionMutation = useMutation({
     mutationFn: async (data: { nextActionType?: string; nextActionDate?: string | null; nextActionNotes?: string }) => {
-      const response = await apiRequest("PATCH", `/api/orders/${po?.order_id}/production`, data);
+      const response = await apiRequest("PATCH", `/api/projects/${po?.order_id}/production`, data);
       return response.json();
     },
     onSuccess: () => {

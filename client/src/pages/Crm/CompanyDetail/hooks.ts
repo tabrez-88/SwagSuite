@@ -19,7 +19,7 @@ export function useCompanyDetail() {
   const params = useParams();
   const [, setLocation] = useLocation();
   const [activeTab, setActiveTab] = useState("overview");
-  const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
+  const [isProjectModalOpen, setIsProjectModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isEmailDialogOpen, setIsEmailDialogOpen] = useState(false);
   const [editCustomFields, setEditCustomFields] = useState<Record<string, string>>({});
@@ -152,7 +152,7 @@ export function useCompanyDetail() {
   };
 
   const handleCreateQuote = () => {
-    setIsOrderModalOpen(true);
+    setIsProjectModalOpen(true);
   };
 
   const updateCustomFieldValue = (key: string, value: string) => {
@@ -188,8 +188,8 @@ export function useCompanyDetail() {
     // State
     activeTab,
     setActiveTab,
-    isOrderModalOpen,
-    setIsOrderModalOpen,
+    isProjectModalOpen,
+    setIsProjectModalOpen,
     isEditModalOpen,
     setIsEditModalOpen,
     isEmailDialogOpen,

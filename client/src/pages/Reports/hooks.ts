@@ -22,7 +22,7 @@ export function useReports() {
   });
 
   const { data: orders } = useQuery<any>({
-    queryKey: ["/api/orders"],
+    queryKey: ["/api/projects"],
   });
 
   const { data: companies } = useQuery<any>({

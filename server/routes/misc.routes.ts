@@ -29,11 +29,11 @@ router.post("/api/presentations/:id/generate", isAuthenticated, asyncHandler(Pre
 router.delete("/api/presentations/:id", isAuthenticated, asyncHandler(PresentationController.delete));
 
 // ── Product Comments ──
-router.get("/api/orders/:orderId/product-comments", isAuthenticated, asyncHandler(ProductCommentController.list));
-router.post("/api/orders/:orderId/product-comments", isAuthenticated, asyncHandler(ProductCommentController.create));
+router.get("/api/projects/:projectId/product-comments", isAuthenticated, asyncHandler(ProductCommentController.list));
+router.post("/api/projects/:projectId/product-comments", isAuthenticated, asyncHandler(ProductCommentController.create));
 
 // ── Presentation Share Link (authenticated) ──
-router.post("/api/orders/:orderId/presentation/share-link", isAuthenticated, asyncHandler(PresentationShareController.createShareLink));
+router.post("/api/projects/:projectId/presentation/share-link", isAuthenticated, asyncHandler(PresentationShareController.createShareLink));
 
 // ── Public Presentation (NO AUTH) ──
 router.get("/api/presentation/:token", asyncHandler(PresentationShareController.getPublicPresentation));

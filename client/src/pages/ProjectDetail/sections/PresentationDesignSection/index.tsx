@@ -21,11 +21,11 @@ import type { useProjectData } from "../../hooks";
 import { usePresentationDesignSection } from "./hooks";
 
 interface PresentationDesignSectionProps {
-  orderId: string;
+  projectId: string;
   data: ReturnType<typeof useProjectData>;
 }
 
-export default function PresentationDesignSection({ orderId, data }: PresentationDesignSectionProps) {
+export default function PresentationDesignSection({ projectId, data }: PresentationDesignSectionProps) {
   const {
     displayName,
     companyData,
@@ -36,7 +36,7 @@ export default function PresentationDesignSection({ orderId, data }: Presentatio
     setHeaderStyle,
     fontFamily,
     setFontFamily,
-  } = usePresentationDesignSection({ orderId, data });
+  } = usePresentationDesignSection({ projectId, data });
 
   return (
     <div className="space-y-6">

@@ -13,7 +13,7 @@ const emptyForm: BillFormData = {
   notes: "",
 };
 
-export function useBillsSection({ orderId, data }: BillsSectionProps) {
+export function useBillsSection({ projectId, data }: BillsSectionProps) {
   const { vendorInvoices, orderVendors, companyName, primaryContact } = data;
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -23,8 +23,8 @@ export function useBillsSection({ orderId, data }: BillsSectionProps) {
 
   // Fetch PO documents for linking
   const { data: allDocuments = [] } = useQuery<any[]>({
-    queryKey: [`/api/orders/${orderId}/documents`],
-    enabled: !!orderId,
+    queryKey: [`/api/projects/${projectId}/documents`],
+    enabled: !!projectId,
   });
   const poDocuments = allDocuments.filter((d: any) => d.documentType === "purchase_order");
 
@@ -38,7 +38,7 @@ export function useBillsSection({ orderId, data }: BillsSectionProps) {
 
   const createBillMutation = useMutation({
     mutationFn: async (formData: BillFormData) => {
-      return apiRequest("POST", `/api/orders/${orderId}/vendor-invoices`, {
+      return apiRequest("POST", `/api/projects/${projectId}/vendor-invoices`, {
         supplierId: formData.supplierId || null,
         documentId: formData.documentId || null,
         invoiceNumber: formData.invoiceNumber,
@@ -49,10 +49,10 @@ export function useBillsSection({ orderId, data }: BillsSectionProps) {
     },
     onSuccess: () => {
       toast({ title: "Vendor bill created" });
-      queryClient.invalidateQueries({ queryKey: [`/api/orders/${orderId}`] });
-      queryClient.invalidateQueries({ queryKey: [`/api/orders/${orderId}/vendor-invoices`] });
-      queryClient.invalidateQueries({ queryKey: [`/api/orders/${orderId}/documents`] });
-      queryClient.invalidateQueries({ queryKey: [`/api/projects/${orderId}/activities`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/vendor-invoices`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/documents`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/activities`] });
       setShowCreate(false);
       setBillForm({ ...emptyForm });
     },

@@ -6,8 +6,8 @@ import EmailComposer from "@/components/email/EmailComposer";
 import { useEmailSection, stripHtml } from "./hooks";
 import type { EmailSectionProps } from "./types";
 
-export default function EmailSection({ orderId, data }: EmailSectionProps) {
-  const h = useEmailSection(orderId, data);
+export default function EmailSection({ projectId, data }: EmailSectionProps) {
+  const h = useEmailSection(projectId, data);
 
   return (
     <div className="space-y-6">

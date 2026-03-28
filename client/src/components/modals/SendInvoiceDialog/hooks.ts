@@ -5,7 +5,7 @@ import { useToast } from "@/hooks/use-toast";
 import type { EmailFormData } from "@/components/email/types";
 
 interface UseSendInvoiceParams {
-  orderId: string;
+  projectId: string;
   recipientName: string;
   invoiceNumber: string;
   invoiceDocument: any;
@@ -13,7 +13,7 @@ interface UseSendInvoiceParams {
 }
 
 export function useSendInvoice({
-  orderId,
+  projectId,
   recipientName,
   invoiceNumber,
   invoiceDocument,
@@ -26,7 +26,7 @@ export function useSendInvoice({
 
   const sendMutation = useMutation({
     mutationFn: async (formData: EmailFormData & { adHocEmails: string[] }) => {
-      await apiRequest("POST", `/api/orders/${orderId}/communications`, {
+      await apiRequest("POST", `/api/projects/${projectId}/communications`, {
         communicationType: "client_email",
         direction: "sent",
         recipientEmail: formData.to,
@@ -47,7 +47,7 @@ export function useSendInvoice({
         },
       });
 
-      await apiRequest("PATCH", `/api/orders/${orderId}/invoice`, {
+      await apiRequest("PATCH", `/api/projects/${projectId}/invoice`, {
         status: "sent",
         sentAt: new Date().toISOString(),
         ...(reminderEnabled ? {
@@ -59,8 +59,8 @@ export function useSendInvoice({
     },
     onSuccess: () => {
       toast({ title: "Invoice sent!", description: "Email sent successfully." });
-      queryClient.invalidateQueries({ queryKey: [`/api/orders/${orderId}`] });
-      queryClient.invalidateQueries({ queryKey: [`/api/orders/${orderId}/invoice`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/invoice`] });
       onOpenChange(false);
     },
     onError: () => {

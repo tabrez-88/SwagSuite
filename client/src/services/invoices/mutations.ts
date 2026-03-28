@@ -1,50 +1,50 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
-import { orderKeys } from "@/services/orders/keys";
+import { projectKeys } from "@/services/projects/keys";
 import { invoiceKeys } from "./keys";
 import * as requests from "./requests";
 
-function useInvalidateInvoice(orderId: string | number) {
+function useInvalidateInvoice(projectId: string | number) {
   const queryClient = useQueryClient();
   return () => {
-    queryClient.invalidateQueries({ queryKey: invoiceKeys.byOrder(orderId) });
-    queryClient.invalidateQueries({ queryKey: orderKeys.detail(orderId) });
+    queryClient.invalidateQueries({ queryKey: invoiceKeys.byOrder(projectId) });
+    queryClient.invalidateQueries({ queryKey: projectKeys.detail(projectId) });
   };
 }
 
-export function useCreateInvoice(orderId: string | number) {
+export function useCreateInvoice(projectId: string | number) {
   const { toast } = useToast();
-  const invalidate = useInvalidateInvoice(orderId);
+  const invalidate = useInvalidateInvoice(projectId);
   return useMutation({
-    mutationFn: () => requests.createInvoice(orderId),
+    mutationFn: () => requests.createInvoice(projectId),
     onSuccess: () => { invalidate(); toast({ title: "Invoice created successfully" }); },
     onError: () => toast({ title: "Failed to create invoice", variant: "destructive" }),
   });
 }
 
-export function useUpdateInvoiceDueDate(orderId: string | number) {
+export function useUpdateInvoiceDueDate(projectId: string | number) {
   const { toast } = useToast();
-  const invalidate = useInvalidateInvoice(orderId);
+  const invalidate = useInvalidateInvoice(projectId);
   return useMutation({
-    mutationFn: (dueDate: string) => requests.updateInvoice(orderId, { dueDate }),
+    mutationFn: (dueDate: string) => requests.updateInvoice(projectId, { dueDate }),
     onSuccess: () => { invalidate(); toast({ title: "Due date updated" }); },
     onError: () => toast({ title: "Failed to update due date", variant: "destructive" }),
   });
 }
 
-export function useUpdateInvoiceNotes(orderId: string | number) {
+export function useUpdateInvoiceNotes(projectId: string | number) {
   const { toast } = useToast();
-  const invalidate = useInvalidateInvoice(orderId);
+  const invalidate = useInvalidateInvoice(projectId);
   return useMutation({
-    mutationFn: (notes: string) => requests.updateInvoice(orderId, { notes }),
+    mutationFn: (notes: string) => requests.updateInvoice(projectId, { notes }),
     onSuccess: () => { invalidate(); toast({ title: "Notes updated" }); },
     onError: () => toast({ title: "Failed to update notes", variant: "destructive" }),
   });
 }
 
-export function useRecordManualPayment(orderId: string | number) {
+export function useRecordManualPayment(projectId: string | number) {
   const { toast } = useToast();
-  const invalidate = useInvalidateInvoice(orderId);
+  const invalidate = useInvalidateInvoice(projectId);
   return useMutation({
     mutationFn: ({ invoiceId, data }: { invoiceId: string | number; data: Record<string, any> }) =>
       requests.recordManualPayment(invoiceId, data),
@@ -53,9 +53,9 @@ export function useRecordManualPayment(orderId: string | number) {
   });
 }
 
-export function useCreateStripePayment(orderId: string | number) {
+export function useCreateStripePayment(projectId: string | number) {
   const { toast } = useToast();
-  const invalidate = useInvalidateInvoice(orderId);
+  const invalidate = useInvalidateInvoice(projectId);
   return useMutation({
     mutationFn: (invoiceId: string | number) => requests.createStripePayment(invoiceId),
     onSuccess: () => { invalidate(); toast({ title: "Stripe invoice created!" }); },

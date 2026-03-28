@@ -4,7 +4,7 @@ import { useToast } from "@/hooks/use-toast";
 import type { OrderFile } from "./types";
 import { FILE_TYPE_OPTIONS } from "./types";
 
-export function useFilesTab(orderId: string) {
+export function useFilesTab(projectId: string) {
     const { toast } = useToast();
     const queryClient = useQueryClient();
 
@@ -19,7 +19,7 @@ export function useFilesTab(orderId: string) {
 
     // Fetch files
     const { data: files = [], isLoading } = useQuery<OrderFile[]>({
-        queryKey: [`/api/orders/${orderId}/files`],
+        queryKey: [`/api/projects/${projectId}/files`],
     });
 
     // Get products that don't have pending/approved customer proofs
@@ -64,7 +64,7 @@ export function useFilesTab(orderId: string) {
                 formData.append("notes", data.notes);
             }
 
-            const res = await fetch(`/api/orders/${orderId}/files`, {
+            const res = await fetch(`/api/projects/${projectId}/files`, {
                 method: "POST",
                 body: formData,
                 credentials: "include",
@@ -77,7 +77,7 @@ export function useFilesTab(orderId: string) {
             return res.json();
         },
         onSuccess: (data) => {
-            queryClient.invalidateQueries({ queryKey: [`/api/orders/${orderId}/files`] });
+            queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/files`] });
 
             // Show approval links if generated
             if (selectedFileType === "customer_proof" && data.approvalLinks && data.approvalLinks.length > 0) {
@@ -112,7 +112,7 @@ export function useFilesTab(orderId: string) {
     // Link from media library mutation
     const linkFromLibraryMutation = useMutation({
         mutationFn: async (mediaLibraryIds: string[]) => {
-            const res = await fetch(`/api/orders/${orderId}/files/from-library`, {
+            const res = await fetch(`/api/projects/${projectId}/files/from-library`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
@@ -125,7 +125,7 @@ export function useFilesTab(orderId: string) {
             return res.json();
         },
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: [`/api/orders/${orderId}/files`] });
+            queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/files`] });
             toast({
                 title: "Files added",
                 description: "Files from library have been linked to this order.",
@@ -143,7 +143,7 @@ export function useFilesTab(orderId: string) {
     // Delete mutation
     const deleteMutation = useMutation({
         mutationFn: async (fileId: string) => {
-            const res = await fetch(`/api/orders/${orderId}/files/${fileId}`, {
+            const res = await fetch(`/api/projects/${projectId}/files/${fileId}`, {
                 method: "DELETE",
                 credentials: "include",
             });
@@ -153,7 +153,7 @@ export function useFilesTab(orderId: string) {
             }
         },
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: [`/api/orders/${orderId}/files`] });
+            queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/files`] });
             toast({
                 title: "File deleted",
                 description: "File has been deleted successfully",

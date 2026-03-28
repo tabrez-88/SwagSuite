@@ -1,12 +1,12 @@
 import type { Request, Response } from "express";
 import crypto from "crypto";
-import { orderRepository } from "../repositories/order.repository";
+import { projectRepository } from "../repositories/project.repository";
 import { portalRepository } from "../repositories/portal.repository";
 import { shipmentRepository } from "../repositories/shipment.repository";
 
 export class PortalController {
   static async listTokens(req: Request, res: Response) {
-    const tokens = await portalRepository.getCustomerPortalTokensByOrder(req.params.orderId);
+    const tokens = await portalRepository.getCustomerPortalTokensByOrder(req.params.projectId);
     res.json(tokens);
   }
 
@@ -14,7 +14,7 @@ export class PortalController {
     const { insertCustomerPortalTokenSchema } = await import("@shared/schema");
     const validatedData = insertCustomerPortalTokenSchema.parse({
       ...req.body,
-      orderId: req.params.orderId,
+      orderId: req.params.projectId,
       token: crypto.randomUUID(),
     });
     const portalToken = await portalRepository.createCustomerPortalToken(validatedData);
@@ -46,12 +46,12 @@ export class PortalController {
     await portalRepository.incrementPortalTokenAccess(portalToken.id);
 
     // Fetch order details without sensitive cost/margin/vendor information
-    const order = await orderRepository.getOrder(portalToken.orderId);
+    const order = await projectRepository.getOrder(portalToken.orderId);
     if (!order) {
       return res.status(404).json({ message: "Order not found" });
     }
 
-    const items = await orderRepository.getOrderItems(portalToken.orderId);
+    const items = await projectRepository.getOrderItems(portalToken.orderId);
     const shipments = await shipmentRepository.getOrderShipments(portalToken.orderId);
 
     // Strip sensitive fields from order

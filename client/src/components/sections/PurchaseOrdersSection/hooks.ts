@@ -21,12 +21,12 @@ function getEditedItem(_id: string, item: any) {
   };
 }
 
-export function usePurchaseOrdersSection({ orderId, data, isLocked }: PurchaseOrdersSectionProps) {
+export function usePurchaseOrdersSection({ projectId, data, isLocked }: PurchaseOrdersSectionProps) {
   const { order, orderVendors, orderItems, allItemLines, allItemCharges, allArtworkItems, suppliers } = data;
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { stages: productionStages } = useProductionStages();
-  const { updateField, isPending: isFieldPending } = useInlineEdit({ orderId, isLocked });
+  const { updateField, isPending: isFieldPending } = useInlineEdit({ projectId, isLocked });
 
   // Build a lookup map from stage ID → { label, color } for PO stage display
   const PO_STAGES: Record<string, { label: string; color: string }> = useMemo(() => {
@@ -95,7 +95,7 @@ export function usePurchaseOrdersSection({ orderId, data, isLocked }: PurchaseOr
     generateDocument,
     deleteDocument,
     isDeleting,
-  } = useDocumentGeneration(orderId);
+  } = useDocumentGeneration(projectId);
 
   const toggleVendor = useCallback((vendorId: string) => {
     setExpandedVendors(prev => {
@@ -219,7 +219,7 @@ export function usePurchaseOrdersSection({ orderId, data, isLocked }: PurchaseOr
     }
     const ref = poRefs.current[vendorId];
     if (!ref) return;
-    const poNumber = `${(order as any)?.orderNumber || orderId}-${vendorId.substring(0, 4).toUpperCase()}`;
+    const poNumber = `${(order as any)?.orderNumber || projectId}-${vendorId.substring(0, 4).toUpperCase()}`;
     setGeneratingVendorId(vendorId);
     try {
       const newDoc = await generateDocument({
@@ -267,7 +267,7 @@ export function usePurchaseOrdersSection({ orderId, data, isLocked }: PurchaseOr
         const stageLabel = PO_STAGES[newStage as keyof typeof PO_STAGES]?.label || newStage;
         const docNum = result.documentNumber || docId;
         try {
-          await apiRequest("POST", `/api/projects/${orderId}/activities`, {
+          await apiRequest("POST", `/api/projects/${projectId}/activities`, {
             activityType: "system_action",
             content: `PO #${docNum} stage changed to "${stageLabel}"`,
           });
@@ -277,10 +277,10 @@ export function usePurchaseOrdersSection({ orderId, data, isLocked }: PurchaseOr
       return result;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/orders/${orderId}/documents`] });
-      queryClient.invalidateQueries({ queryKey: [`/api/projects/${orderId}/activities`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/documents`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/activities`] });
       // PO stage change may auto-transition SO status
-      queryClient.invalidateQueries({ queryKey: [`/api/orders/${orderId}`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}`] });
     },
     onError: () => toast({ title: "Failed to update PO", variant: "destructive" }),
   });
@@ -292,7 +292,7 @@ export function usePurchaseOrdersSection({ orderId, data, isLocked }: PurchaseOr
         ? `${formData.body}\n\n---\nView Purchase Order PDF: ${doc.fileUrl}`
         : formData.body;
 
-      await apiRequest("POST", `/api/orders/${orderId}/communications`, {
+      await apiRequest("POST", `/api/projects/${projectId}/communications`, {
         communicationType: "vendor_email",
         direction: "sent",
         recipientEmail: formData.to,
@@ -325,7 +325,7 @@ export function usePurchaseOrdersSection({ orderId, data, isLocked }: PurchaseOr
   // Update artwork (for proofing) with activity logging
   const updateArtworkMutation = useMutation({
     mutationFn: async ({ artworkId, orderItemId, updates }: { artworkId: string; orderItemId: string; updates: any }) => {
-      const res = await fetch(`/api/order-items/${orderItemId}/artworks/${artworkId}`, {
+      const res = await fetch(`/api/project-items/${orderItemId}/artworks/${artworkId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -335,17 +335,17 @@ export function usePurchaseOrdersSection({ orderId, data, isLocked }: PurchaseOr
       return res.json();
     },
     onSuccess: (_data, vars) => {
-      queryClient.invalidateQueries({ queryKey: [`/api/orders/${orderId}/all-artworks`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/all-artworks`] });
       // Log proofing status changes
       const newStatus = vars.updates.status;
       if (newStatus) {
         const statusLabel = PROOF_STATUSES[newStatus as keyof typeof PROOF_STATUSES]?.label || newStatus;
         const artName = vars.updates.name || "Artwork";
-        apiRequest("POST", `/api/projects/${orderId}/activities`, {
+        apiRequest("POST", `/api/projects/${projectId}/activities`, {
           activityType: "system_action",
           content: `Proof status for "${artName}" changed to "${statusLabel}"`,
         }).catch(() => { /* best-effort */ });
-        queryClient.invalidateQueries({ queryKey: [`/api/projects/${orderId}/activities`] });
+        queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/activities`] });
       }
     },
     onError: () => toast({ title: "Failed to update artwork", variant: "destructive" }),
@@ -356,7 +356,7 @@ export function usePurchaseOrdersSection({ orderId, data, isLocked }: PurchaseOr
     mutationFn: async ({ artworks, formData }: { artworks: any[]; formData: EmailFormData & { adHocEmails: string[] } }) => {
       const approvalLinks: { art: any; url: string }[] = [];
       for (const art of artworks) {
-        const approvalRes = await apiRequest("POST", `/api/orders/${orderId}/generate-approval`, {
+        const approvalRes = await apiRequest("POST", `/api/projects/${projectId}/generate-approval`, {
           orderItemId: art.orderItemId, artworkItemId: art.id, clientEmail: formData.to, clientName: formData.toName,
         });
         const approval = await approvalRes.json();
@@ -371,7 +371,7 @@ export function usePurchaseOrdersSection({ orderId, data, isLocked }: PurchaseOr
 
       const emailBodyFull = `${formData.body}\n\n---\nArtwork Proofs for Approval:\n\n${linksList}`;
 
-      await apiRequest("POST", `/api/orders/${orderId}/communications`, {
+      await apiRequest("POST", `/api/projects/${projectId}/communications`, {
         communicationType: "client_email", direction: "sent",
         recipientEmail: formData.to, recipientName: formData.toName,
         subject: `Artwork Proofs for Approval - Order #${(order as any)?.orderNumber || ""} (${artworks.length} item${artworks.length > 1 ? "s" : ""})`,
@@ -435,7 +435,7 @@ export function usePurchaseOrdersSection({ orderId, data, isLocked }: PurchaseOr
 
   // Copy PO text
   const copyPOToClipboard = useCallback((po: VendorPO) => {
-    const lns: string[] = [`PURCHASE ORDER`, `Order: ${(order as any)?.orderNumber || orderId}`, `Vendor: ${po.vendor.name}`];
+    const lns: string[] = [`PURCHASE ORDER`, `Order: ${(order as any)?.orderNumber || projectId}`, `Vendor: ${po.vendor.name}`];
     if (po.vendor.email) lns.push(`Email: ${po.vendor.email}`);
     lns.push(`Date: ${new Date().toLocaleDateString()}`, `${"─".repeat(50)}`);
     po.items.forEach((item: any) => {
@@ -455,7 +455,7 @@ export function usePurchaseOrdersSection({ orderId, data, isLocked }: PurchaseOr
     });
     lns.push(`\n${"─".repeat(50)}`, `TOTAL: ${po.totalQty} units  |  $${po.totalCost.toFixed(2)}`);
     navigator.clipboard.writeText(lns.join("\n")).then(() => toast({ title: "PO copied to clipboard" }));
-  }, [order, orderId, toast]);
+  }, [order, projectId, toast]);
 
   // Handle proof upload from file picker
   const handleProofUploaded = (files: any[]) => {
@@ -485,7 +485,7 @@ export function usePurchaseOrdersSection({ orderId, data, isLocked }: PurchaseOr
     suppliers,
     data,
     isLocked,
-    orderId,
+    projectId,
     // Production stages
     PO_STAGES,
     PO_STATUSES,

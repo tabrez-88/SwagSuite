@@ -93,8 +93,8 @@ function getActivityBg(activityType: string) {
   }
 }
 
-export default function ActivitiesSection({ orderId, data }: ActivitiesSectionProps) {
-  const h = useActivitiesSection(orderId, data);
+export default function ActivitiesSection({ projectId, data }: ActivitiesSectionProps) {
+  const h = useActivitiesSection(projectId, data);
 
   return (
     <div className="space-y-6">
@@ -204,7 +204,7 @@ export default function ActivitiesSection({ orderId, data }: ActivitiesSectionPr
               h.setShowFilePicker(false);
             }}
             multiple={true}
-            contextOrderId={orderId}
+            contextProjectId={projectId}
             title="Attach Files to Note"
           />
 

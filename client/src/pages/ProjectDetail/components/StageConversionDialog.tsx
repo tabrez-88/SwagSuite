@@ -21,7 +21,7 @@ interface StageConversionDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   targetStage: "quote" | "sales_order";
-  orderId: string;
+  projectId: string;
   enrichedItems: any[];
   onSuccess: () => void;
 }
@@ -35,7 +35,7 @@ export default function StageConversionDialog({
   open,
   onOpenChange,
   targetStage,
-  orderId,
+  projectId,
   enrichedItems,
   onSuccess,
 }: StageConversionDialogProps) {
@@ -63,9 +63,9 @@ export default function StageConversionDialog({
         if (!originalItem) return;
 
         if (!sel.selected) {
-          await apiRequest("PATCH", `/api/orders/${orderId}/items/${itemId}`, { quantity: 0 });
+          await apiRequest("PATCH", `/api/projects/${projectId}/items/${itemId}`, { quantity: 0 });
         } else if (sel.quantity !== originalItem.quantity) {
-          await apiRequest("PATCH", `/api/orders/${orderId}/items/${itemId}`, { quantity: sel.quantity });
+          await apiRequest("PATCH", `/api/projects/${projectId}/items/${itemId}`, { quantity: sel.quantity });
         }
       });
       await Promise.all(updatePromises);
@@ -76,7 +76,7 @@ export default function StageConversionDialog({
       if (targetStage === "quote" || targetStage === "sales_order") {
         (payload as any).presentationStatus = "converted";
       }
-      await apiRequest("PATCH", `/api/orders/${orderId}`, payload);
+      await apiRequest("PATCH", `/api/projects/${projectId}`, payload);
     },
     onSuccess: () => {
       toast({

@@ -1,5 +1,5 @@
 import type { Request, Response } from "express";
-import { orderRepository } from "../repositories/order.repository";
+import { projectRepository } from "../repositories/project.repository";
 import { invoiceRepository } from "../repositories/invoice.repository";
 import { companyRepository } from "../repositories/company.repository";
 import { settingsRepository } from "../repositories/settings.repository";
@@ -64,7 +64,7 @@ export class InvoiceController {
 
   static async createInvoice(req: Request, res: Response) {
     try {
-      const order = await orderRepository.getOrder(req.params.id);
+      const order = await projectRepository.getOrder(req.params.id);
       if (!order) return res.status(404).json({ message: "Order not found" });
 
       // Check if invoice already exists
@@ -199,7 +199,7 @@ export class InvoiceController {
       }
 
       // Get order and company details
-      const order = await orderRepository.getOrder(invoice.orderId);
+      const order = await projectRepository.getOrder(invoice.orderId);
       if (!order || !order.companyId) {
         return res.status(400).json({ message: "Order or company not found" });
       }

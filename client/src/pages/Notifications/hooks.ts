@@ -76,7 +76,7 @@ export function useNotifications() {
       markAsReadMutation.mutate(notification.id);
     }
     if (notification.orderId) {
-      navigate(`/orders/${notification.orderId}`);
+      navigate(`/projects/${notification.orderId}`);
     }
   };
 
@@ -97,8 +97,8 @@ export function useNotifications() {
     setNotificationToDelete(null);
   };
 
-  const handleNavigateToOrder = (orderId: string) => {
-    navigate(`/orders/${orderId}`);
+  const handleNavigateToOrder = (projectId: string) => {
+    navigate(`/projects/${projectId}`);
   };
 
   const filteredNotifications = notifications.filter((n) => {

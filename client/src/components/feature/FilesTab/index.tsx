@@ -52,7 +52,7 @@ import type { FilesTabProps } from "./types";
 import { FILE_TYPE_OPTIONS } from "./types";
 import { useFilesTab } from "./hooks";
 
-export function FilesTab({ orderId, products, artworkItems, onSwitchToEmail }: FilesTabProps) {
+export function FilesTab({ projectId, products, artworkItems, onSwitchToEmail }: FilesTabProps) {
     const {
         showUploadModal,
         setShowUploadModal,
@@ -85,7 +85,7 @@ export function FilesTab({ orderId, products, artworkItems, onSwitchToEmail }: F
         handleSelectAll,
         handleSelectFile,
         handleEmailProofs,
-    } = useFilesTab(orderId);
+    } = useFilesTab(projectId);
 
     const availableProductsForProof = products.filter(
         p => !productsWithActiveProofs.has(p.id)
@@ -410,7 +410,7 @@ export function FilesTab({ orderId, products, artworkItems, onSwitchToEmail }: F
                     setShowLibraryPicker(false);
                 }}
                 multiple={true}
-                contextOrderId={orderId}
+                contextProjectId={projectId}
                 title="Add Files from Library"
             />
 

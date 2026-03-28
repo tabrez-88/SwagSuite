@@ -18,14 +18,14 @@ import type { OrderItemLine } from "@shared/schema";
 
 interface ProductPreviewLightboxProps {
   item: any;
-  orderId: string;
+  projectId: string;
   companyName: string;
   hidePricing: boolean;
   comments: any[];
   onClose: () => void;
 }
 
-export default function ProductPreviewLightbox({ item, orderId, companyName, hidePricing, comments, onClose }: ProductPreviewLightboxProps) {
+export default function ProductPreviewLightbox({ item, projectId, companyName, hidePricing, comments, onClose }: ProductPreviewLightboxProps) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const lines: OrderItemLine[] = item.lines || [];
@@ -35,14 +35,14 @@ export default function ProductPreviewLightbox({ item, orderId, companyName, hid
 
   const postCommentMutation = useMutation({
     mutationFn: async () => {
-      await apiRequest("POST", `/api/orders/${orderId}/product-comments`, {
+      await apiRequest("POST", `/api/projects/${projectId}/product-comments`, {
         orderItemId: item.id,
         content: commentText,
       });
     },
     onSuccess: () => {
       setCommentText("");
-      queryClient.invalidateQueries({ queryKey: [`/api/orders/${orderId}/product-comments`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/product-comments`] });
       toast({ title: "Comment posted" });
     },
     onError: () => toast({ title: "Failed to post comment", variant: "destructive" }),

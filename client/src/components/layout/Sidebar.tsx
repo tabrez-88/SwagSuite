@@ -99,7 +99,7 @@ export default function Sidebar() {
                 {navigation.map((item) => {
                   const isActive = location === item.href
                     || (item.href !== "/" && location.startsWith(item.href + "/"))
-                    || (item.href === "/projects" && location.startsWith("/project/"));
+                    || (item.href === "/projects" && location.startsWith("/projects/"));
                   return (
                     <SidebarMenuItem key={item.name}>
                       <SidebarMenuButton

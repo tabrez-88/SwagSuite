@@ -2,7 +2,7 @@ import type { ProjectData } from "@/types/project-types";
 import type { OrderItemLine } from "@shared/schema";
 
 export interface PurchaseOrdersSectionProps {
-  orderId: string;
+  projectId: string;
   data: ProjectData;
   isLocked?: boolean;
 }

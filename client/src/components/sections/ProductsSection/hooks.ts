@@ -3,8 +3,8 @@ import { useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import {
-  useDeleteOrderItem,
-  useUpdateOrderItem,
+  useDeleteProjectItem,
+  useUpdateProjectItem,
   useUpdateLine,
   useDeleteLine,
   useAddLine,
@@ -13,24 +13,20 @@ import {
   useToggleChargeDisplay,
   useCreateArtwork,
   useDeleteArtwork,
-} from "@/services/order-items";
-import * as orderItemRequests from "@/services/order-items/requests";
-import { orderKeys } from "@/services/orders/keys";
+} from "@/services/project-items";
+import * as orderItemRequests from "@/services/project-items/requests";
+import { projectKeys } from "@/services/projects/keys";
 import type { OrderItemLine, OrderAdditionalCharge } from "@shared/schema";
 import { useMarginSettings, marginColorClass, marginBgClass, isBelowMinimum, calcMarginPercent, applyMargin } from "@/hooks/useMarginSettings";
 import type { ProductsSectionProps } from "./types";
 
-export function useProductsSection({ orderId, data, isLocked }: ProductsSectionProps) {
+export function useProductsSection({ projectId, data, isLocked }: ProductsSectionProps) {
   const marginSettings = useMarginSettings();
-  // Detect context: project vs order
   const [currentLocation] = useLocation();
-  const isProjectContext = currentLocation.startsWith(`/project/`);
   const isQuoteContext = currentLocation.includes("/quote");
-  const addProductPath = isProjectContext
-    ? isQuoteContext
-      ? `/project/${orderId}/quote/add`
-      : `/project/${orderId}/sales-order/add`
-    : `/orders/${orderId}/products/add`;
+  const addProductPath = isQuoteContext
+    ? `/projects/${projectId}/quote/add`
+    : `/projects/${projectId}/sales-order/add`;
   const {
     orderItems, allProducts, allArtworkItems, suppliers,
     allItemLines, allItemCharges,
@@ -89,16 +85,16 @@ export function useProductsSection({ orderId, data, isLocked }: ProductsSectionP
   };
 
   // ── Service mutations ──
-  const deleteOrderItemMutation = useDeleteOrderItem(orderId);
-  const updateOrderItemMutation = useUpdateOrderItem(orderId);
-  const updateLineMutation = useUpdateLine(orderId);
-  const deleteLineMutation = useDeleteLine(orderId);
-  const addLineMutation = useAddLine(orderId);
-  const addChargeMutation = useAddCharge(orderId);
-  const deleteChargeMutation = useDeleteCharge(orderId);
-  const toggleChargeDisplayMutation = useToggleChargeDisplay(orderId);
-  const createArtworkMutation = useCreateArtwork(orderId);
-  const deleteArtworkMutation = useDeleteArtwork(orderId);
+  const deleteOrderItemMutation = useDeleteProjectItem(projectId);
+  const updateOrderItemMutation = useUpdateProjectItem(projectId);
+  const updateLineMutation = useUpdateLine(projectId);
+  const deleteLineMutation = useDeleteLine(projectId);
+  const addLineMutation = useAddLine(projectId);
+  const addChargeMutation = useAddCharge(projectId);
+  const deleteChargeMutation = useDeleteCharge(projectId);
+  const toggleChargeDisplayMutation = useToggleChargeDisplay(projectId);
+  const createArtworkMutation = useCreateArtwork(projectId);
+  const deleteArtworkMutation = useDeleteArtwork(projectId);
 
   // ── Helpers ──
 
@@ -268,7 +264,7 @@ export function useProductsSection({ orderId, data, isLocked }: ProductsSectionP
     const avgPrice = totalQty > 0 ? totalRevenue / totalQty : 0;
     const avgCost = totalQty > 0 ? totalCost / totalQty : 0;
 
-    await orderItemRequests.updateOrderItem(orderId, editingItem.id, {
+    await orderItemRequests.updateProjectItem(projectId, editingItem.id, {
       imprintMethod: editItemData.imprintMethod,
       imprintLocation: editItemData.imprintLocation,
       notes: editItemData.notes,
@@ -316,11 +312,11 @@ export function useProductsSection({ orderId, data, isLocked }: ProductsSectionP
     }
 
     // Invalidate all order item caches
-    queryClient.invalidateQueries({ queryKey: orderKeys.items(orderId) });
-    queryClient.invalidateQueries({ queryKey: orderKeys.detail(orderId) });
-    queryClient.invalidateQueries({ queryKey: orderKeys.itemLines(orderId) });
-    queryClient.invalidateQueries({ queryKey: orderKeys.itemCharges(orderId) });
-    queryClient.invalidateQueries({ queryKey: orderKeys.artworks(orderId) });
+    queryClient.invalidateQueries({ queryKey: projectKeys.items(projectId) });
+    queryClient.invalidateQueries({ queryKey: projectKeys.detail(projectId) });
+    queryClient.invalidateQueries({ queryKey: projectKeys.itemLines(projectId) });
+    queryClient.invalidateQueries({ queryKey: projectKeys.itemCharges(projectId) });
+    queryClient.invalidateQueries({ queryKey: projectKeys.artworks(projectId) });
     setEditingItem(null);
     toast({ title: "Product updated", description: "All changes have been saved." });
   };
@@ -526,6 +522,6 @@ export function useProductsSection({ orderId, data, isLocked }: ProductsSectionP
     marginBg,
     orderTotals,
     orderMargin,
-    orderId,
+    projectId,
   };
 }

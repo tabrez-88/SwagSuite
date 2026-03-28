@@ -1,3 +1,3 @@
 export const documentKeys = {
-  byOrder: (orderId: string | number) => [`/api/orders/${orderId}/documents`] as const,
+  byOrder: (projectId: string | number) => [`/api/projects/${projectId}/documents`] as const,
 };

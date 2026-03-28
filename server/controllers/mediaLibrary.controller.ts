@@ -56,14 +56,14 @@ export class MediaLibraryController {
   }
 
   static async linkToOrder(req: Request, res: Response) {
-    const { orderId } = req.params;
+    const { projectId } = req.params;
     const { mediaLibraryIds, fileType = "other_document", notes } = req.body;
 
     if (!mediaLibraryIds || !Array.isArray(mediaLibraryIds) || mediaLibraryIds.length === 0) {
       return res.status(400).json({ error: "No file IDs provided" });
     }
 
-    const files = await mediaLibraryService.linkToOrder(orderId, mediaLibraryIds, fileType, notes);
+    const files = await mediaLibraryService.linkToOrder(projectId, mediaLibraryIds, fileType, notes);
     res.json({ files });
   }
 }

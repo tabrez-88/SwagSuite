@@ -365,7 +365,7 @@ export default function ProductionReport() {
                                   className="text-xs text-muted-foreground hover:text-primary hover:underline"
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    setLocation(`/project/${row.orderId}`);
+                                    setLocation(`/projects/${row.orderId}`);
                                   }}
                                 >
                                   #{row.orderNumber}

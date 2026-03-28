@@ -1,16 +1,16 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
-import { orderKeys } from "@/services/orders/keys";
+import { projectKeys } from "@/services/projects/keys";
 import { communicationKeys } from "./keys";
 import * as requests from "./requests";
 
-export function useSendCommunication(orderId: string | number) {
+export function useSendCommunication(projectId: string | number) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (data: Record<string, any>) => requests.sendCommunication(orderId, data),
+    mutationFn: (data: Record<string, any>) => requests.sendCommunication(projectId, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: orderKeys.detail(orderId) });
-      queryClient.invalidateQueries({ queryKey: communicationKeys.byOrder(orderId) });
+      queryClient.invalidateQueries({ queryKey: projectKeys.detail(projectId) });
+      queryClient.invalidateQueries({ queryKey: communicationKeys.byOrder(projectId) });
     },
   });
 }

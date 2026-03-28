@@ -1,7 +1,7 @@
 import type { useProjectData } from "../../hooks";
 
 export interface PresentationPreviewPageProps {
-  orderId: string;
+  projectId: string;
   data: ReturnType<typeof useProjectData>;
 }
 

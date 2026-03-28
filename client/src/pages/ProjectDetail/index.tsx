@@ -21,16 +21,16 @@ import AddProductPage from "@/components/sections/AddProductPage";
 
 export default function ProjectDetailPage() {
   const params = useParams();
-  const orderId = params.orderId || params[0];
+  const projectId = params.projectId || params[0];
   const [location, setLocation] = useLocation();
 
   const queryClient = useQueryClient();
-  const data = useProjectData(orderId);
+  const data = useProjectData(projectId);
   const lockStatus = useLockStatus(data);
 
   const getActiveSection = () => {
-    if (!orderId) return "overview";
-    const prefix = `/project/${orderId}/`;
+    if (!projectId) return "overview";
+    const prefix = `/projects/${projectId}/`;
     if (location.startsWith(prefix)) {
       const rest = location.slice(prefix.length);
       if (rest.startsWith("sales-order/add")) return "sales-order/add";
@@ -47,26 +47,26 @@ export default function ProjectDetailPage() {
 
   const activeSection = getActiveSection();
 
-  // Redirect bare /project/:orderId to /project/:orderId/overview
+  // Redirect bare /project/:projectId to /project/:projectId/overview
   useEffect(() => {
-    if (orderId && location === `/project/${orderId}`) {
-      setLocation(`/project/${orderId}/overview`, { replace: true });
+    if (projectId && location === `/projects/${projectId}`) {
+      setLocation(`/projects/${projectId}/overview`, { replace: true });
     }
-  }, [orderId, location, setLocation]);
+  }, [projectId, location, setLocation]);
 
   // Auto-recalculate totals once when order loads (ensures DB totals are in sync)
   const hasRecalculated = useRef(false);
   useEffect(() => {
-    if (data.order && orderId && !hasRecalculated.current) {
+    if (data.order && projectId && !hasRecalculated.current) {
       hasRecalculated.current = true;
-      fetch(`/api/orders/${orderId}/recalculate-total`, {
+      fetch(`/api/projects/${projectId}/recalculate-total`, {
         method: "POST",
         credentials: "include",
       }).then(res => {
-        if (res.ok) queryClient.invalidateQueries({ queryKey: [`/api/orders/${orderId}`] });
+        if (res.ok) queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}`] });
       }).catch(() => {});
     }
-  }, [data.order, orderId, queryClient]);
+  }, [data.order, projectId, queryClient]);
 
   if (data.orderLoading) {
     return (
@@ -95,31 +95,31 @@ export default function ProjectDetailPage() {
   const renderSection = () => {
     switch (activeSection) {
       case "overview":
-        return <OverviewSection orderId={orderId!} data={data} isLocked={overviewLocked} />;
+        return <OverviewSection projectId={projectId!} data={data} isLocked={overviewLocked} />;
       case "presentation":
-        return <PresentationSection orderId={orderId!} data={data} />;
+        return <PresentationSection projectId={projectId!} data={data} />;
       case "presentation/preview":
-        return <PresentationPreviewPage orderId={orderId!} data={data} />;
+        return <PresentationPreviewPage projectId={projectId!} data={data} />;
       case "quote":
-        return <QuoteSection orderId={orderId!} data={data} lockStatus={lockStatus.quote} />;
+        return <QuoteSection projectId={projectId!} data={data} lockStatus={lockStatus.quote} />;
       case "sales-order":
-        return <SalesOrderSection orderId={orderId!} data={data} lockStatus={lockStatus.salesOrder} />;
+        return <SalesOrderSection projectId={projectId!} data={data} lockStatus={lockStatus.salesOrder} />;
       case "presentation/add":
       case "quote/add":
       case "sales-order/add":
-        return <AddProductPage orderId={orderId!} data={data} />;
+        return <AddProductPage projectId={projectId!} data={data} />;
       case "shipping":
-        return <ShippingSection orderId={orderId!} data={data} isLocked={lockStatus.shipping.isLocked} />;
+        return <ShippingSection projectId={projectId!} data={data} isLocked={lockStatus.shipping.isLocked} />;
       case "pos":
-        return <PurchaseOrdersSection orderId={orderId!} data={data} isLocked={lockStatus.pos.isLocked} />;
+        return <PurchaseOrdersSection projectId={projectId!} data={data} isLocked={lockStatus.pos.isLocked} />;
       case "invoice":
-        return <InvoiceSection orderId={orderId!} data={data} lockStatus={lockStatus.invoice} />;
+        return <InvoiceSection projectId={projectId!} data={data} lockStatus={lockStatus.invoice} />;
       case "bills":
-        return <BillsSection orderId={orderId!} data={data} />;
+        return <BillsSection projectId={projectId!} data={data} />;
       case "feedback":
-        return <FeedbackSection orderId={orderId!} data={data} />;
+        return <FeedbackSection projectId={projectId!} data={data} />;
       default:
-        return <OverviewSection orderId={orderId!} data={data} isLocked={overviewLocked} />;
+        return <OverviewSection projectId={projectId!} data={data} isLocked={overviewLocked} />;
     }
   };
 
@@ -127,7 +127,7 @@ export default function ProjectDetailPage() {
   if (activeSection === "presentation/preview") {
     return (
       <div className="h-full overflow-y-auto">
-        <PresentationPreviewPage orderId={orderId!} data={data} />
+        <PresentationPreviewPage projectId={projectId!} data={data} />
       </div>
     );
   }
@@ -142,7 +142,7 @@ export default function ProjectDetailPage() {
 
       <div className="flex flex-1 overflow-hidden">
         <ProjectNestedSidebar
-          orderId={orderId!}
+          projectId={projectId!}
           orderItemsCount={data.orderItems.length}
           currentStage={data.businessStage?.stage.id}
           salesOrderStatus={data.order?.salesOrderStatus ?? undefined}

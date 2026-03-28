@@ -6,7 +6,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { isUnauthorizedError } from "@/lib/authUtils";
 import type { Company } from "@shared/schema";
 import { useCompanyAddresses } from "@/services/company-addresses";
-import type { OrderModalProps, OrderFormData } from "./types";
+import type { ProjectModalProps, ProjectFormData } from "./types";
 
 // Normalize various country name/code formats to standard 2-letter codes
 export function normalizeCountryCode(country: string): string {
@@ -22,7 +22,7 @@ export function normalizeCountryCode(country: string): string {
   return mapping[c] || "US";
 }
 
-const INITIAL_FORM_DATA: OrderFormData = {
+const INITIAL_FORM_DATA: ProjectFormData = {
   companyId: "",
   contactId: "",
   assignedUserId: "",
@@ -57,9 +57,9 @@ const INITIAL_FORM_DATA: OrderFormData = {
   shippingPhone: "",
 };
 
-export function useOrderModal({ open, onOpenChange, order, initialCompanyId, businessStageId }: OrderModalProps) {
+export function useProjectModal({ open, onOpenChange, order, initialCompanyId, businessStageId }: ProjectModalProps) {
   const [, setLocation] = useLocation();
-  const [formData, setFormData] = useState<OrderFormData>(INITIAL_FORM_DATA);
+  const [formData, setFormData] = useState<ProjectFormData>(INITIAL_FORM_DATA);
   const [openCustomerCombo, setOpenCustomerCombo] = useState(false);
   const [sameAsBilling, setSameAsBilling] = useState(false);
   const [showMoreSections, setShowMoreSections] = useState(false);
@@ -250,7 +250,7 @@ export function useOrderModal({ open, onOpenChange, order, initialCompanyId, bus
     }
   }, [formData.companyId, companyAddresses]);
 
-  const updateOrderMutation = useMutation({
+  const updateProjectMutation = useMutation({
     mutationFn: async (data: any) => {
       const payload: any = { ...data };
       if (payload.inHandsDate) payload.inHandsDate = new Date(payload.inHandsDate);
@@ -260,13 +260,13 @@ export function useOrderModal({ open, onOpenChange, order, initialCompanyId, bus
       if (payload.supplierInHandsDate) payload.supplierInHandsDate = new Date(payload.supplierInHandsDate);
       else if (payload.supplierInHandsDate === "") payload.supplierInHandsDate = null;
       payload.isFirm = payload.isFirm || false;
-      const response = await apiRequest("PATCH", `/api/orders/${order?.id}`, payload);
+      const response = await apiRequest("PATCH", `/api/projects/${order?.id}`, payload);
       return response.json();
     },
     onSuccess: () => {
       toast({ title: "Project updated" });
-      queryClient.invalidateQueries({ queryKey: ["/api/orders"] });
-      queryClient.invalidateQueries({ queryKey: [`/api/orders/${order?.id}`] });
+      queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
+      queryClient.invalidateQueries({ queryKey: [`/api/projects/${order?.id}`] });
       onOpenChange(false);
     },
     onError: () => {
@@ -274,16 +274,16 @@ export function useOrderModal({ open, onOpenChange, order, initialCompanyId, bus
     },
   });
 
-  const createOrderMutation = useMutation({
+  const createProjectMutation = useMutation({
     mutationFn: async (data: any) => {
-      const response = await apiRequest("POST", "/api/orders", data);
+      const response = await apiRequest("POST", "/api/projects", data);
       return response.json();
     },
-    onSuccess: (newOrder) => {
-      toast({ title: "Order created" });
-      queryClient.invalidateQueries({ queryKey: ["/api/orders"] });
+    onSuccess: (newProject) => {
+      toast({ title: "Project created" });
+      queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
       onOpenChange(false);
-      if (newOrder.id) setLocation(`/project/${newOrder.id}`);
+      if (newProject.id) setLocation(`/projects/${newProject.id}`);
     },
     onError: (error: Error) => {
       if (isUnauthorizedError(error)) {
@@ -291,7 +291,7 @@ export function useOrderModal({ open, onOpenChange, order, initialCompanyId, bus
         setTimeout(() => { window.location.href = "/api/login"; }, 500);
         return;
       }
-      toast({ title: "Failed to create order", variant: "destructive" });
+      toast({ title: "Failed to create project", variant: "destructive" });
     },
   });
 
@@ -329,9 +329,9 @@ export function useOrderModal({ open, onOpenChange, order, initialCompanyId, bus
     const addressFields = ["billingContact", "billingEmail", "billingStreet", "billingCity", "billingState", "billingZipCode", "billingCountry", "billingPhone", "shippingContact", "shippingEmail", "shippingStreet", "shippingCity", "shippingState", "shippingZipCode", "shippingCountry", "shippingPhone"];
     addressFields.forEach((f) => delete payload[f]);
     if (order) {
-      updateOrderMutation.mutate(payload);
+      updateProjectMutation.mutate(payload);
     } else {
-      createOrderMutation.mutate(payload);
+      createProjectMutation.mutate(payload);
     }
   };
 
@@ -357,8 +357,8 @@ export function useOrderModal({ open, onOpenChange, order, initialCompanyId, bus
     contacts,
     users,
     handleSubmit,
-    createIsPending: createOrderMutation.isPending,
-    updateIsPending: updateOrderMutation.isPending,
+    createIsPending: createProjectMutation.isPending,
+    updateIsPending: updateProjectMutation.isPending,
     normalizeCountryCode,
   };
 }

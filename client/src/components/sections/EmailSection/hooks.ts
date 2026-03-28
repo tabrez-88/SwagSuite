@@ -10,7 +10,7 @@ export function stripHtml(html: string): string {
   return doc.body.textContent || "";
 }
 
-export function useEmailSection(orderId: string, data: ProjectData) {
+export function useEmailSection(projectId: string, data: ProjectData) {
   const { order, primaryContact, clientCommunications, contacts } = data;
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -28,7 +28,7 @@ export function useEmailSection(orderId: string, data: ProjectData) {
 
   const sendEmailMutation = useMutation({
     mutationFn: async (formData: EmailFormData & { adHocEmails: string[] }) => {
-      const response = await fetch(`/api/orders/${order?.id}/communications`, {
+      const response = await fetch(`/api/projects/${order?.id}/communications`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -53,7 +53,7 @@ export function useEmailSection(orderId: string, data: ProjectData) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
-        queryKey: [`/api/orders/${orderId}/communications`, { type: "client_email" }],
+        queryKey: [`/api/projects/${projectId}/communications`, { type: "client_email" }],
       });
       toast({ title: "Email sent", description: "Client email has been sent successfully." });
       composerRef.current?.reset({

@@ -4,14 +4,14 @@ import { getUserId } from "../utils/getUserId";
 
 export class CommunicationController {
   static async list(req: Request, res: Response) {
-    const { orderId } = req.params;
+    const { projectId } = req.params;
     const type = req.query.type as string | undefined;
-    const result = await communicationService.getByOrderId(orderId, type);
+    const result = await communicationService.getByOrderId(projectId, type);
     res.json(result);
   }
 
   static async create(req: Request, res: Response) {
-    const { orderId } = req.params;
+    const { projectId } = req.params;
     const userId = req.user?.claims?.sub || "system-user";
     const {
       communicationType, direction, fromEmail, fromName,
@@ -20,7 +20,7 @@ export class CommunicationController {
       cc, bcc,
     } = req.body;
 
-    const result = await communicationService.create(orderId, userId, {
+    const result = await communicationService.create(projectId, userId, {
       communicationType, direction, fromEmail, fromName,
       recipientEmail, recipientName, subject, body, metadata,
       cc, bcc, attachmentIds, autoAttachArtworkForVendor, autoAttachDocumentFile,

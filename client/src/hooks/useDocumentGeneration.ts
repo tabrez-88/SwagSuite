@@ -32,21 +32,21 @@ interface GenerateDocumentParams {
   itemsHash?: string;
 }
 
-export function useDocumentGeneration(orderId: string) {
+export function useDocumentGeneration(projectId: string) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [isGenerating, setIsGenerating] = useState(false);
 
   // Fetch generated documents
   const { data: documents = [] } = useQuery<any[]>({
-    queryKey: [`/api/orders/${orderId}/documents`],
-    enabled: !!orderId,
+    queryKey: [`/api/projects/${projectId}/documents`],
+    enabled: !!projectId,
   });
 
   // Fetch quote approvals
   const { data: quoteApprovals = [] } = useQuery<any[]>({
-    queryKey: [`/api/orders/${orderId}/quote-approvals`],
-    enabled: !!orderId,
+    queryKey: [`/api/projects/${projectId}/quote-approvals`],
+    enabled: !!projectId,
   });
 
   const quoteDocuments = documents.filter((d: any) => d.documentType === "quote");
@@ -146,7 +146,7 @@ export function useDocumentGeneration(orderId: string) {
       };
       formData.append("metadata", JSON.stringify(metadata));
 
-      const response = await fetch(`/api/orders/${orderId}/documents`, {
+      const response = await fetch(`/api/projects/${projectId}/documents`, {
         method: "POST",
         credentials: "include",
         body: formData,
@@ -156,7 +156,7 @@ export function useDocumentGeneration(orderId: string) {
       return response.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/orders/${orderId}/documents`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/documents`] });
       setIsGenerating(false);
     },
     onError: (error: Error) => {
@@ -176,7 +176,7 @@ export function useDocumentGeneration(orderId: string) {
       return response.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/orders/${orderId}/documents`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/documents`] });
     },
     onError: (error: Error) => {
       toast({ title: "Error", description: error.message, variant: "destructive" });
@@ -186,7 +186,7 @@ export function useDocumentGeneration(orderId: string) {
   // Create quote approval
   const createQuoteApprovalMutation = useMutation({
     mutationFn: async (data: { clientEmail: string; clientName: string; documentId?: string; pdfPath?: string; quoteTotal?: string }) => {
-      const response = await fetch(`/api/orders/${orderId}/quote-approvals`, {
+      const response = await fetch(`/api/projects/${projectId}/quote-approvals`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -196,7 +196,7 @@ export function useDocumentGeneration(orderId: string) {
       return response.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/orders/${orderId}/quote-approvals`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/quote-approvals`] });
     },
   });
 

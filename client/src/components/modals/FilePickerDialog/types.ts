@@ -6,7 +6,7 @@ export interface FilePickerDialogProps {
   onSelect: (files: MediaLibraryItem[]) => void;
   multiple?: boolean;
   maxFiles?: number;
-  contextOrderId?: string;
+  contextProjectId?: string;
   contextCompanyId?: string;
   title?: string;
 }

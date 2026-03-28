@@ -6,7 +6,7 @@ import { useInlineEdit } from "@/hooks/useInlineEdit";
 import { getDateStatus } from "@/lib/dateUtils";
 import type { OverviewSectionProps } from "./types";
 
-export function useOverviewSection({ orderId, data, isLocked = false }: OverviewSectionProps) {
+export function useOverviewSection({ projectId, data, isLocked = false }: OverviewSectionProps) {
   const {
     order,
     orderItems,
@@ -22,16 +22,16 @@ export function useOverviewSection({ orderId, data, isLocked = false }: Overview
   const queryClient = useQueryClient();
   const [openPopover, setOpenPopover] = useState<"salesRep" | "csr" | null>(null);
 
-  const { updateField, isPending } = useInlineEdit({ orderId, isLocked });
+  const { updateField, isPending } = useInlineEdit({ projectId, isLocked });
 
   const reassignMutation = useMutation({
     mutationFn: async ({ field, userId }: { field: "assignedUserId" | "csrUserId"; userId: string | null }) => {
       const { apiRequest } = await import("@/lib/queryClient");
-      const res = await apiRequest("PATCH", `/api/orders/${orderId}`, { [field]: userId });
+      const res = await apiRequest("PATCH", `/api/projects/${projectId}`, { [field]: userId });
       return res.json();
     },
     onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({ queryKey: [`/api/orders/${orderId}`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}`] });
       const label = variables.field === "assignedUserId" ? "Sales Rep" : "CSR";
       toast({ title: `${label} updated` });
       setOpenPopover(null);
@@ -77,7 +77,7 @@ export function useOverviewSection({ orderId, data, isLocked = false }: Overview
     csrUser,
     teamMembers,
     data,
-    orderId,
+    projectId,
     isLocked,
 
     // Hooks

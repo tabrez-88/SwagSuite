@@ -2,15 +2,15 @@ import type { Request, Response } from "express";
 import { orderFileService } from "../services/orderFile.service";
 import { getUserId } from "../utils/getUserId";
 
-export class OrderFileController {
+export class ProjectFileController {
   static async list(req: Request, res: Response) {
-    const { orderId } = req.params;
-    const files = await orderFileService.getByOrderId(orderId);
+    const { projectId } = req.params;
+    const files = await orderFileService.getByOrderId(projectId);
     res.json(files);
   }
 
   static async upload(req: Request, res: Response) {
-    const { orderId } = req.params;
+    const { projectId } = req.params;
     const { fileType = "customer_proof", notes, autoGenerateApproval } = req.body;
     const files = req.files as Express.Multer.File[];
     const userId = getUserId(req);
@@ -40,7 +40,7 @@ export class OrderFileController {
       }
     }
 
-    const result = await orderFileService.upload(orderId, userId, {
+    const result = await orderFileService.upload(projectId, userId, {
       files,
       fileType,
       notes,
@@ -58,8 +58,8 @@ export class OrderFileController {
   }
 
   static async delete(req: Request, res: Response) {
-    const { orderId, fileId } = req.params;
-    const result = await orderFileService.deleteFile(orderId, fileId);
+    const { projectId, fileId } = req.params;
+    const result = await orderFileService.deleteFile(projectId, fileId);
 
     if ("error" in result) {
       return res.status(404).json({ message: "File not found" });
@@ -69,7 +69,7 @@ export class OrderFileController {
   }
 
   static async sendProof(req: Request, res: Response) {
-    const { orderId } = req.params;
+    const { projectId } = req.params;
     const { fileId, orderItemId, clientEmail, clientName, message } = req.body;
     const userId = getUserId(req);
 
@@ -77,7 +77,7 @@ export class OrderFileController {
       return res.status(400).json({ message: "Client email is required" });
     }
 
-    const result = await orderFileService.sendProof(orderId, userId, req, {
+    const result = await orderFileService.sendProof(projectId, userId, req, {
       fileId,
       orderItemId,
       clientEmail,

@@ -1,7 +1,7 @@
 import { eq, and } from "drizzle-orm";
 import { db } from "../db";
 
-export class OrderFileRepository {
+export class ProjectFileRepository {
   async getByOrderId(orderId: string) {
     const { orderFiles, orderItems, products, artworkApprovals, artworkFiles } = await import("@shared/schema");
 
@@ -227,4 +227,4 @@ export class OrderFileRepository {
   }
 }
 
-export const orderFileRepository = new OrderFileRepository();
+export const projectFileRepository = new ProjectFileRepository();

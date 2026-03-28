@@ -35,8 +35,8 @@ function getStatusBadge(status: string | null) {
 const fmtDate = (d: string | Date | null) =>
   d ? new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "--";
 
-export default function ShippingSection({ orderId, data, isLocked }: ShippingSectionProps) {
-  const h = useShippingSection(orderId, data);
+export default function ShippingSection({ projectId, data, isLocked }: ShippingSectionProps) {
+  const h = useShippingSection(projectId, data);
 
   return (
     <div className="space-y-5">

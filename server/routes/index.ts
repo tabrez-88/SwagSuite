@@ -15,7 +15,7 @@ import mediaLibraryRoutes from "./mediaLibrary.routes";
 import userRoutes from "./user.routes";
 import communicationRoutes from "./communication.routes";
 import documentRoutes from "./document.routes";
-import orderFileRoutes from "./orderFile.routes";
+import projectFileRoutes from "./projectFile.routes";
 import artworkKanbanRoutes from "./artworkKanban.routes";
 import shipmentRoutes from "./shipment.routes";
 import vendorInvoiceRoutes from "./vendorInvoice.routes";
@@ -26,7 +26,7 @@ import dashboardExtendedRoutes from "./dashboardExtended.routes";
 import invoiceRoutes from "./invoice.routes";
 import vendorApprovalRoutes from "./vendorApproval.routes";
 import miscRoutes from "./misc.routes";
-import orderRoutes from "./order.routes";
+import projectRoutes from "./project.routes";
 
 /**
  * Register all modular route files.
@@ -35,8 +35,8 @@ import orderRoutes from "./order.routes";
  * As routes are extracted from routes.ts, add them here.
  */
 export function registerModularRoutes(app: Express) {
-  // Orders & Items
-  app.use(orderRoutes);
+  // Projects & Items
+  app.use(projectRoutes);
 
   // Auth & Users
   app.use(authRoutes);
@@ -76,8 +76,8 @@ export function registerModularRoutes(app: Express) {
   // Documents
   app.use(documentRoutes);
 
-  // Order Files & Proofs
-  app.use(orderFileRoutes);
+  // Project Files & Proofs
+  app.use(projectFileRoutes);
 
   // Artwork Kanban
   app.use(artworkKanbanRoutes);

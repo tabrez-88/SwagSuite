@@ -4,13 +4,13 @@ import { getUserId } from "../utils/getUserId";
 
 export class DocumentController {
   static async list(req: Request, res: Response) {
-    const { orderId } = req.params;
-    const documents = await documentService.getByOrderId(orderId);
+    const { projectId } = req.params;
+    const documents = await documentService.getByOrderId(projectId);
     res.json(documents);
   }
 
   static async create(req: Request, res: Response) {
-    const { orderId } = req.params;
+    const { projectId } = req.params;
     const { documentType, documentNumber, vendorId, vendorName, status } = req.body;
     const userId = getUserId(req);
 
@@ -25,7 +25,7 @@ export class DocumentController {
       metadata = {};
     }
 
-    const document = await documentService.create(orderId, userId, {
+    const document = await documentService.create(projectId, userId, {
       documentType,
       documentNumber,
       vendorId,

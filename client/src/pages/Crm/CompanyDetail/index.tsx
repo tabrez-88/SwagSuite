@@ -44,8 +44,8 @@ export default function CompanyDetail() {
     form,
     activeTab,
     setActiveTab,
-    isOrderModalOpen,
-    setIsOrderModalOpen,
+    isProjectModalOpen,
+    setIsProjectModalOpen,
     isEditModalOpen,
     setIsEditModalOpen,
     isEmailDialogOpen,
@@ -474,8 +474,8 @@ export default function CompanyDetail() {
 
       {/* Order Modal for Creating Quote */}
       <NewProjectWizard
-        open={isOrderModalOpen}
-        onOpenChange={setIsOrderModalOpen}
+        open={isProjectModalOpen}
+        onOpenChange={setIsProjectModalOpen}
         initialCompanyId={company.id}
       />
 

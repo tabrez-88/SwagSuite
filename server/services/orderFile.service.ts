@@ -1,10 +1,10 @@
-import { orderFileRepository } from "../repositories/orderFile.repository";
+import { projectFileRepository } from "../repositories/projectFile.repository";
 import { registerInMediaLibrary } from "../utils/registerInMediaLibrary";
 import { activityRepository } from "../repositories/activity.repository";
 
 export class OrderFileService {
   async getByOrderId(orderId: string) {
-    return orderFileRepository.getByOrderId(orderId);
+    return projectFileRepository.getByOrderId(orderId);
   }
 
   async upload(orderId: string, userId: string, data: {
@@ -14,7 +14,7 @@ export class OrderFileService {
     autoGenerateApproval?: string;
     productIds: (string | undefined)[];
   }) {
-    const order = await orderFileRepository.getOrder(orderId);
+    const order = await projectFileRepository.getOrder(orderId);
     if (!order) return { error: "order_not_found" };
 
     const uploadedFiles = await Promise.all(
@@ -26,7 +26,7 @@ export class OrderFileService {
           ? data.productIds[index]
           : null;
 
-        const fileRecord = await orderFileRepository.create({
+        const fileRecord = await projectFileRepository.create({
           orderId,
           orderItemId: orderItemId || null,
           fileName: publicId,
@@ -73,9 +73,9 @@ export class OrderFileService {
       for (const { fileRecord, orderItemId } of uploadedFiles) {
         if (!orderItemId) continue;
 
-        const orderItem = await orderFileRepository.getOrderItemWithProduct(orderItemId);
+        const orderItem = await projectFileRepository.getOrderItemWithProduct(orderItemId);
 
-        const newArtworkFile = await orderFileRepository.createArtworkFile({
+        const newArtworkFile = await projectFileRepository.createArtworkFile({
           orderId,
           fileName: fileRecord.fileName,
           filePath: fileRecord.filePath,
@@ -87,7 +87,7 @@ export class OrderFileService {
 
         const approvalToken = crypto.randomBytes(32).toString("hex");
 
-        await orderFileRepository.createArtworkApproval({
+        await projectFileRepository.createArtworkApproval({
           orderId,
           orderItemId,
           artworkFileId: newArtworkFile.id,
@@ -111,7 +111,7 @@ export class OrderFileService {
   }
 
   async deleteFile(orderId: string, fileId: string) {
-    const file = await orderFileRepository.getById(fileId, orderId);
+    const file = await projectFileRepository.getById(fileId, orderId);
     if (!file) return { error: "not_found" };
 
     // Delete from Cloudinary
@@ -136,7 +136,7 @@ export class OrderFileService {
       }
     }
 
-    await orderFileRepository.delete(fileId);
+    await projectFileRepository.delete(fileId);
     return { success: true };
   }
 
@@ -147,15 +147,15 @@ export class OrderFileService {
     clientName?: string;
     message?: string;
   }) {
-    const order = await orderFileRepository.getOrder(orderId);
+    const order = await projectFileRepository.getOrder(orderId);
     if (!order) return { error: "order_not_found" };
 
     let artworkFileId = null;
     if (data.fileId) {
-      const orderFile = await orderFileRepository.getById(data.fileId);
+      const orderFile = await projectFileRepository.getById(data.fileId);
       if (!orderFile) return { error: "file_not_found" };
 
-      const newArtworkFile = await orderFileRepository.createArtworkFile({
+      const newArtworkFile = await projectFileRepository.createArtworkFile({
         orderId,
         fileName: orderFile.fileName,
         filePath: orderFile.filePath,
@@ -170,7 +170,7 @@ export class OrderFileService {
     const crypto = await import("crypto");
     const token = crypto.randomBytes(32).toString("hex");
 
-    const approval = await orderFileRepository.createArtworkApproval({
+    const approval = await projectFileRepository.createArtworkApproval({
       orderId,
       orderItemId: data.orderItemId || null,
       artworkFileId: artworkFileId!,
@@ -231,7 +231,7 @@ export class OrderFileService {
 
     // Update order status
     if (emailSent && order.status !== "pending_approval" && order.status !== "approved") {
-      await orderFileRepository.updateOrderStatus(orderId, "pending_approval");
+      await projectFileRepository.updateOrderStatus(orderId, "pending_approval");
     }
 
     // Auto-advance production stage
@@ -243,7 +243,7 @@ export class OrderFileService {
 
       if (!stagesArr.includes("confirmed")) {
         const updatedCompleted = Array.from(new Set([...stagesArr, "confirmed"]));
-        await orderFileRepository.updateOrderStage(orderId, "confirmed", updatedCompleted);
+        await projectFileRepository.updateOrderStage(orderId, "confirmed", updatedCompleted);
 
         await activityRepository.createActivity({
           userId,

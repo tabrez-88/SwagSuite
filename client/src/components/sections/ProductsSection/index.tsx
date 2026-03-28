@@ -52,8 +52,8 @@ import type { ProductsSectionProps } from "./types";
 import { useProductsSection } from "./hooks";
 import { getCloudinaryThumbnail } from "@/lib/media-library";
 
-export default function ProductsSection({ orderId, data, isLocked }: ProductsSectionProps) {
-  const h = useProductsSection({ orderId, data, isLocked });
+export default function ProductsSection({ projectId, data, isLocked }: ProductsSectionProps) {
+  const h = useProductsSection({ projectId, data, isLocked });
 
   return (
     <div className="space-y-4">
@@ -1022,7 +1022,7 @@ export default function ProductsSection({ orderId, data, isLocked }: ProductsSec
         onClose={() => h.setPickingArtworkForItem(null)}
         onSelect={h.handleArtworkFilePicked}
         multiple={false}
-        contextOrderId={h.orderId}
+        contextProjectId={h.projectId}
         title="Select Artwork File"
       />
 

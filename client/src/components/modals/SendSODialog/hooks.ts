@@ -4,7 +4,7 @@ import { useToast } from "@/hooks/use-toast";
 import type { EmailFormData } from "@/components/email/types";
 
 interface UseSendSOParams {
-  orderId: string;
+  projectId: string;
   recipientName: string;
   soDocument: any;
   soTotal: number;
@@ -14,7 +14,7 @@ interface UseSendSOParams {
 }
 
 export function useSendSO({
-  orderId,
+  projectId,
   recipientName,
   soDocument,
   soTotal,
@@ -32,7 +32,7 @@ export function useSendSO({
 
       if (existingApproval) {
         approvalToken = existingApproval.approvalToken;
-        await apiRequest("PATCH", `/api/orders/${orderId}/quote-approvals/${existingApproval.id}`, {
+        await apiRequest("PATCH", `/api/projects/${projectId}/quote-approvals/${existingApproval.id}`, {
           documentId: soDocument.id,
           pdfPath: soDocument.fileUrl,
           quoteTotal: soTotal,
@@ -50,7 +50,7 @@ export function useSendSO({
       const approvalUrl = `${window.location.origin}/client-approval/${approvalToken}`;
       const emailBody = `${formData.body}\n\n---\nView & Approve Sales Order: ${approvalUrl}`;
 
-      await apiRequest("POST", `/api/orders/${orderId}/communications`, {
+      await apiRequest("POST", `/api/projects/${projectId}/communications`, {
         communicationType: "client_email",
         direction: "sent",
         recipientEmail: formData.to,
@@ -62,14 +62,14 @@ export function useSendSO({
         metadata: { type: "sales_order", approvalUrl },
       });
 
-      await apiRequest("PATCH", `/api/orders/${orderId}`, {
+      await apiRequest("PATCH", `/api/projects/${projectId}`, {
         salesOrderStatus: "pending_client_approval",
       });
     },
     onSuccess: () => {
       toast({ title: "Sales Order sent!", description: "Email sent successfully." });
-      queryClient.invalidateQueries({ queryKey: [`/api/orders/${orderId}`] });
-      queryClient.invalidateQueries({ queryKey: [`/api/orders/${orderId}/quote-approvals`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/quote-approvals`] });
       onOpenChange(false);
     },
     onError: () => {

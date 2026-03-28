@@ -10,7 +10,7 @@ export function stripHtml(html: string): string {
   return doc.body.textContent || "";
 }
 
-export function useVendorSection(orderId: string, data: ProjectData) {
+export function useVendorSection(projectId: string, data: ProjectData) {
   const { order, orderVendors, vendorCommunications, orderItems } = data;
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -64,7 +64,7 @@ export function useVendorSection(orderId: string, data: ProjectData) {
 
   const sendVendorEmailMutation = useMutation({
     mutationFn: async (formData: EmailFormData & { adHocEmails: string[] }) => {
-      const response = await fetch(`/api/orders/${order?.id}/communications`, {
+      const response = await fetch(`/api/projects/${order?.id}/communications`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -90,7 +90,7 @@ export function useVendorSection(orderId: string, data: ProjectData) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
-        queryKey: [`/api/orders/${orderId}/communications`, { type: "vendor_email" }],
+        queryKey: [`/api/projects/${projectId}/communications`, { type: "vendor_email" }],
       });
       toast({ title: "Email sent", description: "Vendor email has been sent successfully." });
       composerRef.current?.reset({

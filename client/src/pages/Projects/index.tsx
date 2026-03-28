@@ -18,7 +18,7 @@ export default function ProjectsPage() {
   const [, setLocation] = useLocation();
 
   const { data: orders = [], isLoading } = useQuery<Order[]>({
-    queryKey: ["/api/orders"],
+    queryKey: ["/api/projects"],
   });
 
   const { data: companies = [] } = useQuery<any[]>({
@@ -164,15 +164,15 @@ export default function ProjectsPage() {
           columns={columns}
           data={ordersWithRelations}
           meta={{
-            onViewOrder: (order: Order) => setLocation(`/project/${order.id}`),
-            onViewProject: (orderId: string) => setLocation(`/project/${orderId}`),
+            onViewOrder: (order: Order) => setLocation(`/projects/${order.id}`),
+            onViewProject: (projectId: string) => setLocation(`/projects/${projectId}`),
           }}
         />
       ) : (
         <KanbanBoard
           data={ordersWithRelations}
-          onViewOrder={(order) => setLocation(`/project/${order.id}`)}
-          onViewProject={(orderId) => setLocation(`/project/${orderId}`)}
+          onViewOrder={(order) => setLocation(`/projects/${order.id}`)}
+          onViewProject={(projectId) => setLocation(`/projects/${projectId}`)}
         />
       )}
 

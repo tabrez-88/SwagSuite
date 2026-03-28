@@ -34,11 +34,11 @@ import type { useProjectData } from "../../hooks";
 
 interface ArtworkGridProps {
   data: ReturnType<typeof useProjectData>;
-  orderId: string;
+  projectId: string;
   enrichedItems: any[];
 }
 
-export default function ArtworkGrid({ data, orderId, enrichedItems }: ArtworkGridProps) {
+export default function ArtworkGrid({ data, projectId, enrichedItems }: ArtworkGridProps) {
   const { allArtworkItems } = data;
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -60,11 +60,11 @@ export default function ArtworkGrid({ data, orderId, enrichedItems }: ArtworkGri
 
   const createArtworkMutation = useMutation({
     mutationFn: async (payload: { orderItemId: string; name: string; filePath: string; fileName: string; location?: string; artworkType?: string }) => {
-      const res = await apiRequest("POST", `/api/order-items/${payload.orderItemId}/artworks`, payload);
+      const res = await apiRequest("POST", `/api/project-items/${payload.orderItemId}/artworks`, payload);
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/orders/${orderId}/all-artworks`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/all-artworks`] });
       resetForm();
       toast({ title: "Artwork added" });
     },
@@ -73,11 +73,11 @@ export default function ArtworkGrid({ data, orderId, enrichedItems }: ArtworkGri
 
   const deleteArtworkMutation = useMutation({
     mutationFn: async ({ artworkId, orderItemId }: { artworkId: string; orderItemId: string }) => {
-      const res = await fetch(`/api/order-items/${orderItemId}/artworks/${artworkId}`, { method: "DELETE", credentials: "include" });
+      const res = await fetch(`/api/project-items/${orderItemId}/artworks/${artworkId}`, { method: "DELETE", credentials: "include" });
       if (!res.ok) throw new Error("Failed to delete artwork");
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/orders/${orderId}/all-artworks`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/all-artworks`] });
       toast({ title: "Artwork removed" });
     },
     onError: () => toast({ title: "Failed to remove artwork", variant: "destructive" }),
@@ -192,7 +192,7 @@ export default function ArtworkGrid({ data, orderId, enrichedItems }: ArtworkGri
           setPickingForItem(null);
         }}
         multiple={false}
-        contextOrderId={orderId}
+        contextProjectId={projectId}
         title="Select Artwork File"
       />
 

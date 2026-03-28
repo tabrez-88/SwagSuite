@@ -1,4 +1,4 @@
-import { Switch, Route, Redirect, useLocation, useParams } from "wouter";
+import { Switch, Route, Redirect, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -45,12 +45,6 @@ import { SidebarProvider, SidebarInset, useSidebar } from "@/components/ui/sideb
 import { ThemeProvider } from "@/providers/ThemeProvider";
 import { useState, useEffect, useRef } from 'react';
 
-// Legacy /orders/:id redirect to /project/:id
-function OrderDetailRedirect() {
-  const params = useParams<{ orderId: string }>();
-  return <Redirect to={`/project/${params.orderId}`} replace />;
-}
-
 // Auto-collapse sidebar on project detail pages (they have their own nested sidebar)
 function SidebarAutoCollapse() {
   const [location] = useLocation();
@@ -58,7 +52,7 @@ function SidebarAutoCollapse() {
   const prevOpenRef = useRef(open);
   const wasAutoCollapsed = useRef(false);
 
-  const isProjectDetail = /^\/project\/[^/]+/.test(location);
+  const isProjectDetail = /^\/projects\/[^/]+/.test(location);
 
   useEffect(() => {
     if (isProjectDetail && open) {
@@ -163,12 +157,8 @@ function Router() {
             <Route path="/crm/contacts/:id" component={ContactDetail} />
             <Route path="/crm/companies/:id" component={CompanyDetail} />
             <Route path="/projects" component={ProjectsPage} />
-            <Route path="/project/:orderId/*" component={ProjectDetailPage} />
-            <Route path="/project/:orderId" component={ProjectDetailPage} />
-            {/* Legacy /orders redirects */}
-            <Route path="/orders/:orderId/*" component={OrderDetailRedirect} />
-            <Route path="/orders/:orderId" component={OrderDetailRedirect} />
-            <Route path="/orders"><Redirect to="/projects" replace /></Route>
+            <Route path="/projects/:projectId/*" component={ProjectDetailPage} />
+            <Route path="/projects/:projectId" component={ProjectDetailPage} />
             <Route path="/production-report" component={ProductionReport} />
             <Route path="/products" component={Products} />
             <Route path="/media-library" component={MediaLibraryPage} />

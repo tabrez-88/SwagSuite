@@ -15,8 +15,8 @@ router.post("/api/approvals/:token/approve", asyncHandler(ApprovalController.app
 router.post("/api/approvals/:token/reject", asyncHandler(ApprovalController.rejectArtwork));
 
 // Authenticated endpoints — used by internal users
-router.post("/api/orders/:orderId/generate-approval", isAuthenticated, asyncHandler(ApprovalController.generateApproval));
-router.get("/api/orders/:orderId/approvals", isAuthenticated, asyncHandler(ApprovalController.listOrderApprovals));
+router.post("/api/projects/:projectId/generate-approval", isAuthenticated, asyncHandler(ApprovalController.generateApproval));
+router.get("/api/projects/:projectId/approvals", isAuthenticated, asyncHandler(ApprovalController.listOrderApprovals));
 
 // =====================================================
 // GROUP 2: CLIENT APPROVALS (quote/SO approval, public)
@@ -36,18 +36,18 @@ router.post("/api/client-approvals/:token/approve", asyncHandler(ApprovalControl
 router.post("/api/client-approvals/:token/decline", asyncHandler(ApprovalController.declineClientApproval));
 
 // =====================================================
-// GROUP 3: QUOTE APPROVALS (authenticated, order-scoped)
+// GROUP 3: QUOTE APPROVALS (authenticated, project-scoped)
 // =====================================================
 
-router.post("/api/orders/:orderId/quote-approvals", isAuthenticated, asyncHandler(ApprovalController.createQuoteApproval));
-router.get("/api/orders/:orderId/quote-approvals", isAuthenticated, asyncHandler(ApprovalController.listQuoteApprovals));
-router.patch("/api/orders/:orderId/quote-approvals/:approvalId", isAuthenticated, asyncHandler(ApprovalController.updateQuoteApproval));
+router.post("/api/projects/:projectId/quote-approvals", isAuthenticated, asyncHandler(ApprovalController.createQuoteApproval));
+router.get("/api/projects/:projectId/quote-approvals", isAuthenticated, asyncHandler(ApprovalController.listQuoteApprovals));
+router.patch("/api/projects/:projectId/quote-approvals/:approvalId", isAuthenticated, asyncHandler(ApprovalController.updateQuoteApproval));
 
 // =====================================================
 // GROUP 4: PO CONFIRMATIONS
 // =====================================================
 
-router.post("/api/orders/:orderId/po-confirmations", isAuthenticated, asyncHandler(ApprovalController.createPoConfirmation));
+router.post("/api/projects/:projectId/po-confirmations", isAuthenticated, asyncHandler(ApprovalController.createPoConfirmation));
 router.get("/api/po-confirmations/:token", asyncHandler(ApprovalController.getPoConfirmation));
 router.post("/api/po-confirmations/:token/confirm", asyncHandler(ApprovalController.confirmPo));
 router.post("/api/po-confirmations/:token/decline", asyncHandler(ApprovalController.declinePo));

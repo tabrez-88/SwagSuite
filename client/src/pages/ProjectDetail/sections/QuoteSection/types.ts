@@ -2,7 +2,7 @@ import type { useProjectData } from "../../hooks";
 import type { SectionLockStatus } from "@/hooks/useLockStatus";
 
 export interface QuoteSectionProps {
-  orderId: string;
+  projectId: string;
   data: ReturnType<typeof useProjectData>;
   lockStatus?: SectionLockStatus;
 }

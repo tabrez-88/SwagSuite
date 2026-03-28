@@ -6,11 +6,11 @@ import { generatedDocsUpload } from "../config/cloudinary";
 
 const router = Router();
 
-// List documents for an order
-router.get("/api/orders/:orderId/documents", isAuthenticated, asyncHandler(DocumentController.list));
+// List documents for a project
+router.get("/api/projects/:projectId/documents", isAuthenticated, asyncHandler(DocumentController.list));
 
 // Upload/create a new document
-router.post("/api/orders/:orderId/documents", isAuthenticated, (req, res, next) => {
+router.post("/api/projects/:projectId/documents", isAuthenticated, (req, res, next) => {
   generatedDocsUpload.single("pdf")(req, res, (err) => {
     if (err) {
       console.error("Multer upload error:", err);

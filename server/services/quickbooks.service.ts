@@ -1,5 +1,5 @@
 import { integrationRepository } from "../repositories/integration.repository";
-import { orderRepository } from "../repositories/order.repository";
+import { projectRepository } from "../repositories/project.repository";
 import { companyRepository } from "../repositories/company.repository";
 import { InsertOrder, Order } from "@shared/schema";
 
@@ -192,7 +192,7 @@ export class QuickBooksService {
     // --- High Level Workflows ---
 
     async syncOrderToInvoice(orderId: string): Promise<string> {
-        const order = await orderRepository.getOrder(orderId);
+        const order = await projectRepository.getOrder(orderId);
         if (!order) throw new Error("Order not found");
 
         if (!order.companyId) throw new Error("Order has no company assigned");
@@ -226,7 +226,7 @@ export class QuickBooksService {
 
         // 2. Build Invoice
         const lines: QBInvoiceLine[] = [];
-        const items = await orderRepository.getOrderItems(orderId);
+        const items = await projectRepository.getOrderItems(orderId);
 
         for (const item of items) {
             lines.push({
@@ -249,7 +249,7 @@ export class QuickBooksService {
         const invoice = await this.createInvoice(invoicePayload);
 
         // 4. Update Order
-        await orderRepository.updateOrder(orderId, { qbInvoiceId: invoice.Id });
+        await projectRepository.updateOrder(orderId, { qbInvoiceId: invoice.Id });
 
         return invoice.Id;
     }

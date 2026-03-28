@@ -22,14 +22,14 @@ interface LockBannerProps {
   lockStatus: SectionLockStatus;
   sectionName: string;
   sectionKey: SectionKey;
-  orderId: string;
+  projectId: string;
 }
 
 export default function LockBanner({
   lockStatus,
   sectionName,
   sectionKey,
-  orderId,
+  projectId,
 }: LockBannerProps) {
   const [showConfirm, setShowConfirm] = useState(false);
   const queryClient = useQueryClient();
@@ -38,7 +38,7 @@ export default function LockBanner({
   const unlockMutation = useMutation({
     mutationFn: async () => {
       // Fetch current order to get existing stageData
-      const res = await fetch(`/api/orders/${orderId}`, {
+      const res = await fetch(`/api/projects/${projectId}`, {
         credentials: "include",
       });
       const order = await res.json();
@@ -54,13 +54,13 @@ export default function LockBanner({
         },
       };
 
-      await apiRequest("PATCH", `/api/orders/${orderId}`, {
+      await apiRequest("PATCH", `/api/projects/${projectId}`, {
         stageData: updatedStageData,
       });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
-        queryKey: [`/api/orders/${orderId}`],
+        queryKey: [`/api/projects/${projectId}`],
       });
       toast({
         title: `${sectionName} Unlocked`,

@@ -22,7 +22,7 @@ function inferMimeType(fileName: string | null, url: string | null): string | nu
   return ext ? mimeMap[ext] || null : null;
 }
 
-/** Map an order file (from GET /api/orders/:id/files) to MediaLibraryItem shape */
+/** Map an order file (from GET /api/projects/:id/files) to MediaLibraryItem shape */
 function orderFileToMediaItem(file: any): MediaLibraryItem {
   const mimeType = file.mimeType || inferMimeType(file.originalName, file.filePath);
   return {
@@ -57,12 +57,12 @@ export function useFilePickerDialog({
   onSelect,
   multiple = false,
   maxFiles = 10,
-  contextOrderId,
+  contextProjectId,
   contextCompanyId,
 }: FilePickerDialogProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const hasOrderContext = !!contextOrderId;
+  const hasOrderContext = !!contextProjectId;
 
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -99,9 +99,9 @@ export function useFilePickerDialog({
 
   // Project files query
   const { data: projectFilesRaw, isLoading: projectFilesLoading } = useQuery<any[]>({
-    queryKey: [`/api/orders/${contextOrderId}/files`],
+    queryKey: [`/api/projects/${contextProjectId}/files`],
     queryFn: async () => {
-      const res = await fetch(`/api/orders/${contextOrderId}/files`, { credentials: "include" });
+      const res = await fetch(`/api/projects/${contextProjectId}/files`, { credentials: "include" });
       if (!res.ok) return [];
       return res.json();
     },
@@ -127,14 +127,14 @@ export function useFilePickerDialog({
   const libraryUploadMutation = useUploadToMediaLibrary();
 
   const handleProjectUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!e.target.files?.length || !contextOrderId) return;
+    if (!e.target.files?.length || !contextProjectId) return;
     const files = Array.from(e.target.files);
     setIsUploading(true);
     try {
       const formData = new FormData();
       files.forEach((f) => formData.append("files", f));
       formData.append("fileType", "other_document");
-      const res = await fetch(`/api/orders/${contextOrderId}/files`, {
+      const res = await fetch(`/api/projects/${contextProjectId}/files`, {
         method: "POST",
         body: formData,
         credentials: "include",
@@ -146,7 +146,7 @@ export function useFilePickerDialog({
         throw new Error(msg);
       }
       toast({ title: "Uploaded", description: `${files.length} file(s) uploaded to project.` });
-      queryClient.invalidateQueries({ queryKey: [`/api/orders/${contextOrderId}/files`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/projects/${contextProjectId}/files`] });
       queryClient.invalidateQueries({ queryKey: ["/api/media-library"] });
     } catch (err: any) {
       toast({ title: "Upload failed", description: err?.message || "Could not upload files.", variant: "destructive" });
@@ -161,7 +161,7 @@ export function useFilePickerDialog({
     try {
       await libraryUploadMutation.mutateAsync({
         files,
-        orderId: contextOrderId,
+        orderId: contextProjectId,
         companyId: contextCompanyId,
       });
       toast({ title: "Uploaded", description: `${files.length} file(s) uploaded.` });

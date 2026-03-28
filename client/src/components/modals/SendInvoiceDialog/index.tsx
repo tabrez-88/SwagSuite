@@ -21,7 +21,7 @@ import { useSendInvoice } from "./hooks";
 interface SendInvoiceDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  orderId: string;
+  projectId: string;
   recipientEmail: string;
   recipientName: string;
   companyName: string;
@@ -34,7 +34,7 @@ interface SendInvoiceDialogProps {
 }
 
 export default function SendInvoiceDialog({
-  open, onOpenChange, orderId, recipientEmail, recipientName, companyName, orderNumber,
+  open, onOpenChange, projectId, recipientEmail, recipientName, companyName, orderNumber,
   invoiceNumber, invoiceDocument, totalAmount, dueDate, contacts,
 }: SendInvoiceDialogProps) {
   const {
@@ -43,7 +43,7 @@ export default function SendInvoiceDialog({
     reminderFrequency,
     setReminderFrequency,
     sendMutation,
-  } = useSendInvoice({ orderId, recipientName, invoiceNumber, invoiceDocument, onOpenChange });
+  } = useSendInvoice({ projectId, recipientName, invoiceNumber, invoiceDocument, onOpenChange });
 
   const dueDateFormatted = dueDate
     ? new Date(dueDate).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })

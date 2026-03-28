@@ -1,5 +1,5 @@
 import type { Request, Response } from "express";
-import { orderRepository } from "../repositories/order.repository";
+import { projectRepository } from "../repositories/project.repository";
 import { userRepository } from "../repositories/user.repository";
 import { productionRepository } from "../repositories/production.repository";
 import { companyRepository } from "../repositories/company.repository";
@@ -9,11 +9,11 @@ import { activityRepository } from "../repositories/activity.repository";
 export class ProductionController {
   // GET /api/production/orders
   static async listOrders(req: Request, res: Response) {
-    const orders = await orderRepository.getOrders();
+    const orders = await projectRepository.getOrders();
 
     const productionOrders = await Promise.all(orders.map(async (order) => {
       const company = order.companyId ? await companyRepository.getById(order.companyId) : null;
-      const items = await orderRepository.getOrderItems(order.id);
+      const items = await projectRepository.getOrderItems(order.id);
       const user = order.assignedUserId ? await userRepository.getUser(order.assignedUserId) : null;
 
       // Calculate total quantity and primary product
@@ -45,7 +45,7 @@ export class ProductionController {
     res.json(productionOrders);
   }
 
-  // PATCH /api/orders/:id/production
+  // PATCH /api/projects/:id/production
   static async updateProduction(req: Request, res: Response) {
     const { currentStage, stagesCompleted, stageData, status, trackingNumber, customNotes, nextActionDate, nextActionType, nextActionNotes } = req.body;
 
@@ -61,7 +61,7 @@ export class ProductionController {
     if (nextActionType !== undefined) updateData.nextActionType = nextActionType || null;
     if (nextActionNotes !== undefined) updateData.nextActionNotes = nextActionNotes || null;
 
-    const order = await orderRepository.updateOrder(req.params.id, updateData);
+    const order = await projectRepository.updateOrder(req.params.id, updateData);
 
     // Log activity
     await activityRepository.createActivity({

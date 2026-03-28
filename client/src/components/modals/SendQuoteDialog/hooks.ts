@@ -4,7 +4,7 @@ import { useToast } from "@/hooks/use-toast";
 import type { EmailFormData } from "@/components/email/types";
 
 interface UseSendQuoteParams {
-  orderId: string;
+  projectId: string;
   recipientName: string;
   quoteDocument: any;
   quoteTotal: number;
@@ -14,7 +14,7 @@ interface UseSendQuoteParams {
 }
 
 export function useSendQuote({
-  orderId,
+  projectId,
   recipientName,
   quoteDocument,
   quoteTotal,
@@ -45,7 +45,7 @@ export function useSendQuote({
       const approvalUrl = `${window.location.origin}/client-approval/${approvalToken}`;
       const emailBody = `${formData.body}\n\n---\nView & Approve Quote: ${approvalUrl}`;
 
-      await apiRequest("POST", `/api/orders/${orderId}/communications`, {
+      await apiRequest("POST", `/api/projects/${projectId}/communications`, {
         communicationType: "client_email",
         direction: "sent",
         recipientEmail: formData.to,
@@ -57,14 +57,14 @@ export function useSendQuote({
         metadata: { type: "quote", approvalUrl },
       });
 
-      await apiRequest("PATCH", `/api/orders/${orderId}`, {
+      await apiRequest("PATCH", `/api/projects/${projectId}`, {
         quoteStatus: "sent",
       });
     },
     onSuccess: () => {
       toast({ title: "Quote sent!", description: "Email sent successfully." });
-      queryClient.invalidateQueries({ queryKey: [`/api/orders/${orderId}`] });
-      queryClient.invalidateQueries({ queryKey: [`/api/orders/${orderId}/quote-approvals`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/quote-approvals`] });
       onOpenChange(false);
     },
     onError: () => {

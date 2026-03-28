@@ -2,7 +2,7 @@ import { DocumentsTab } from "@/components/feature/DocumentsTab";
 import type { ProjectData } from "@/types/project-types";
 
 interface DocumentsSectionProps {
-  orderId: string;
+  projectId: string;
   data: ProjectData;
 }
 
@@ -43,11 +43,11 @@ function calculateItemTotals(item: any) {
   return { productTotal, decorationTotal, chargesTotal, total, productMargin, totalMargin, factoryQuantity };
 }
 
-export default function DocumentsSection({ orderId, data }: DocumentsSectionProps) {
+export default function DocumentsSection({ projectId, data }: DocumentsSectionProps) {
   return (
     <div className="space-y-6">
       <DocumentsTab
-        orderId={orderId}
+        projectId={projectId}
         order={data.order as any}
         orderItems={data.orderItems}
         companyName={data.companyName}

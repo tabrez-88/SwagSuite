@@ -15,7 +15,7 @@ import type { EmailContact, EmailFormData } from "@/components/email/types";
 interface SendPresentationDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  orderId: string;
+  projectId: string;
   recipientEmail: string;
   recipientName: string;
   companyName: string;
@@ -24,20 +24,20 @@ interface SendPresentationDialogProps {
 }
 
 export default function SendPresentationDialog({
-  open, onOpenChange, orderId, recipientEmail, recipientName, companyName, orderNumber, contacts,
+  open, onOpenChange, projectId, recipientEmail, recipientName, companyName, orderNumber, contacts,
 }: SendPresentationDialogProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
   const sendMutation = useMutation({
     mutationFn: async (formData: EmailFormData & { adHocEmails: string[] }) => {
-      const linkRes = await apiRequest("POST", `/api/orders/${orderId}/presentation/share-link`);
+      const linkRes = await apiRequest("POST", `/api/projects/${projectId}/presentation/share-link`);
       const linkData = await linkRes.json();
       const presentationUrl = linkData.url;
 
       const emailBody = `${formData.body}\n\n---\nView Presentation: ${presentationUrl}`;
 
-      await apiRequest("POST", `/api/orders/${orderId}/communications`, {
+      await apiRequest("POST", `/api/projects/${projectId}/communications`, {
         communicationType: "client_email",
         direction: "sent",
         recipientEmail: formData.to,
@@ -49,13 +49,13 @@ export default function SendPresentationDialog({
         metadata: { type: "presentation", presentationUrl },
       });
 
-      await apiRequest("PATCH", `/api/orders/${orderId}`, {
+      await apiRequest("PATCH", `/api/projects/${projectId}`, {
         presentationStatus: "client_review",
       });
     },
     onSuccess: () => {
       toast({ title: "Presentation sent!", description: "Email sent successfully." });
-      queryClient.invalidateQueries({ queryKey: [`/api/orders/${orderId}`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}`] });
       onOpenChange(false);
     },
     onError: () => {

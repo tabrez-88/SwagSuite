@@ -1,5 +1,5 @@
 import type { Request, Response } from "express";
-import { orderRepository } from "../repositories/order.repository";
+import { projectRepository } from "../repositories/project.repository";
 import { userRepository } from "../repositories/user.repository";
 import { activityRepository } from "../repositories/activity.repository";
 import { notificationRepository } from "../repositories/notification.repository";
@@ -22,7 +22,7 @@ async function recalculateOrderTotals(orderId: string) {
   const { eq } = await import("drizzle-orm");
   const { getTaxJarCredentials } = await import("../services/taxjar.service");
 
-  const allItems = await orderRepository.getOrderItems(orderId);
+  const allItems = await projectRepository.getOrderItems(orderId);
   const itemsSubtotal = allItems.reduce((sum, item) => sum + parseFloat(item.totalPrice), 0);
 
   // Sum per-item additional charges (client-visible)
@@ -49,7 +49,7 @@ async function recalculateOrderTotals(orderId: string) {
   const shippingTotal = shipments.reduce((sum: number, s: any) => sum + parseFloat(s.shippingCost || "0"), 0);
 
   const subtotal = itemsSubtotal + additionalChargesTotal + serviceChargesTotal;
-  const existingOrder = await orderRepository.getOrder(orderId);
+  const existingOrder = await projectRepository.getOrder(orderId);
 
   // Discount disabled for now — kept in schema but not applied
   const discountedSubtotal = subtotal;
@@ -121,7 +121,7 @@ async function recalculateOrderTotals(orderId: string) {
     total: total.toFixed(2),
   });
 
-  const updatedOrder = await orderRepository.updateOrder(orderId, {
+  const updatedOrder = await projectRepository.updateOrder(orderId, {
     subtotal: subtotal.toFixed(2),
     shipping: shippingTotal.toFixed(2),
     tax: tax.toFixed(2),
@@ -133,7 +133,7 @@ async function recalculateOrderTotals(orderId: string) {
   if (updatedOrder.companyId) {
     await updateCompanyYtdSpending(updatedOrder.companyId);
   }
-  const items = await orderRepository.getOrderItems(updatedOrder.id);
+  const items = await projectRepository.getOrderItems(updatedOrder.id);
   const supplierIds = Array.from(new Set(items.map(item => item.supplierId).filter(Boolean)));
   for (const supplierId of supplierIds) {
     if (supplierId) {
@@ -146,7 +146,7 @@ async function recalculateOrderTotals(orderId: string) {
 
 // ── Helper: recalculate parent item totalPrice/quantity from its lines ──
 async function recalculateItemFromLines(orderItemId: string) {
-  const lines = await orderRepository.getOrderItemLines(orderItemId);
+  const lines = await projectRepository.getOrderItemLines(orderItemId);
   if (lines.length === 0) return;
   const totalQty = lines.reduce((sum, l) => sum + (l.quantity || 0), 0);
   const totalPrice = lines.reduce((sum, l) => {
@@ -154,7 +154,7 @@ async function recalculateItemFromLines(orderItemId: string) {
     const price = parseFloat(l.unitPrice || "0");
     return sum + qty * price;
   }, 0);
-  await orderRepository.updateOrderItem(orderItemId, {
+  await projectRepository.updateOrderItem(orderItemId, {
     quantity: totalQty,
     totalPrice: totalPrice.toFixed(2),
   } as any);
@@ -170,7 +170,7 @@ async function recalculateItemFromLines(orderItemId: string) {
 
 // ── Helper: check service charge lock by orderId ──
 async function checkServiceChargeLock(orderId: string, res: Response): Promise<boolean> {
-  const order = await orderRepository.getOrder(orderId);
+  const order = await projectRepository.getOrder(orderId);
   if (order && isSectionLocked(order, 'salesOrder')) {
     res.status(403).json({ message: "Sales Order is locked. Unlock it first to make changes." });
     return true;
@@ -178,9 +178,9 @@ async function checkServiceChargeLock(orderId: string, res: Response): Promise<b
   return false;
 }
 
-export class OrderController {
+export class ProjectController {
 
-  // ── Orders CRUD ──
+  // ── Projects CRUD ──
 
   static async list(req: Request, res: Response) {
     try {
@@ -189,11 +189,11 @@ export class OrderController {
 
       let orders;
       if (status) {
-        orders = await orderRepository.getOrdersByStatus(status);
+        orders = await projectRepository.getOrdersByStatus(status);
       } else if (companyId) {
-        orders = await orderRepository.getOrdersByCompany(companyId);
+        orders = await projectRepository.getOrdersByCompany(companyId);
       } else {
-        orders = await orderRepository.getOrders();
+        orders = await projectRepository.getOrders();
       }
 
       res.json(orders);
@@ -205,7 +205,7 @@ export class OrderController {
 
   static async getById(req: Request, res: Response) {
     try {
-      const order = await orderRepository.getOrder(req.params.id);
+      const order = await projectRepository.getOrder(req.params.id);
       if (!order) {
         return res.status(404).json({ message: "Order not found" });
       }
@@ -245,12 +245,12 @@ export class OrderController {
 
       const validatedData = insertOrderSchema.parse(dataToValidate);
 
-      const order = await orderRepository.createOrder(validatedData);
+      const order = await projectRepository.createOrder(validatedData);
 
       // Create order items if provided
       if (items && Array.isArray(items) && items.length > 0) {
         for (const item of items) {
-          await orderRepository.createOrderItem({
+          await projectRepository.createOrderItem({
             orderId: order.id,
             productId: item.productId,
             quantity: item.quantity,
@@ -321,7 +321,7 @@ export class OrderController {
       const validatedData = insertOrderSchema.partial().parse(dataToValidate);
 
       // Get old order to check if company/supplier changed
-      const oldOrder = await orderRepository.getOrder(req.params.id);
+      const oldOrder = await projectRepository.getOrder(req.params.id);
 
       // ── Lock validation (allow stageData updates for unlock operations) ──
       if (oldOrder && !req.body.stageData) {
@@ -338,19 +338,19 @@ export class OrderController {
         }
       }
 
-      const order = await orderRepository.updateOrder(req.params.id, validatedData);
+      const order = await projectRepository.updateOrder(req.params.id, validatedData);
 
       // Handle order items if provided
       if (items && Array.isArray(items)) {
         // Get existing order items
-        const existingItems = await orderRepository.getOrderItems(order.id);
+        const existingItems = await projectRepository.getOrderItems(order.id);
         const existingItemIds = new Set(existingItems.map(item => item.id));
 
         // Process each item from the request
         for (const item of items) {
           // If item has an ID and exists in database, update it
           if (item.id && !item.id.toString().startsWith('temp-') && existingItemIds.has(item.id)) {
-            await orderRepository.updateOrderItem(item.id, {
+            await projectRepository.updateOrderItem(item.id, {
               quantity: item.quantity,
               cost: item.cost,
               unitPrice: item.unitPrice,
@@ -367,7 +367,7 @@ export class OrderController {
             });
           } else if (!item.id || item.id.toString().startsWith('temp-')) {
             // New item (temp ID or no ID), create it
-            await orderRepository.createOrderItem({
+            await projectRepository.createOrderItem({
               orderId: order.id,
               productId: item.productId,
               supplierId: item.supplierId,
@@ -494,7 +494,7 @@ export class OrderController {
           if (currentStageData.unlocks?.salesOrder) {
             const updatedStageData = { ...currentStageData, unlocks: { ...(currentStageData.unlocks || {}) } };
             delete updatedStageData.unlocks.salesOrder;
-            await orderRepository.updateOrder(order.id, { stageData: updatedStageData } as any);
+            await projectRepository.updateOrder(order.id, { stageData: updatedStageData } as any);
           }
         }
 
@@ -568,7 +568,7 @@ export class OrderController {
       }
 
       // Update YTD spending for all suppliers from order items
-      const currentItems = await orderRepository.getOrderItems(order.id);
+      const currentItems = await projectRepository.getOrderItems(order.id);
       const currentSupplierIds = Array.from(new Set(currentItems.map(item => item.supplierId).filter(Boolean)));
       for (const supplierId of currentSupplierIds) {
         if (supplierId) {
@@ -602,17 +602,17 @@ export class OrderController {
 
   static async duplicate(req: Request, res: Response) {
     try {
-      const { orderId } = req.params;
+      const { projectId } = req.params;
       const { db } = await import("../db");
       const { orders, orderItems, artworkItems, orderAdditionalCharges, orderServiceCharges } = await import("@shared/schema");
       const { eq, sql } = await import("drizzle-orm");
 
       // Get source order
-      const [sourceOrder] = await db.select().from(orders).where(eq(orders.id, orderId));
+      const [sourceOrder] = await db.select().from(orders).where(eq(orders.id, projectId));
       if (!sourceOrder) return res.status(404).json({ message: "Order not found" });
 
       // Get source items
-      const sourceItems = await db.select().from(orderItems).where(eq(orderItems.orderId, orderId));
+      const sourceItems = await db.select().from(orderItems).where(eq(orderItems.orderId, projectId));
 
       // Generate new order number
       const year = new Date().getFullYear();
@@ -724,7 +724,7 @@ export class OrderController {
       }
 
       // Copy service charges
-      const sourceServiceCharges = await db.select().from(orderServiceCharges).where(eq(orderServiceCharges.orderId, orderId));
+      const sourceServiceCharges = await db.select().from(orderServiceCharges).where(eq(orderServiceCharges.orderId, projectId));
       for (const sc of sourceServiceCharges) {
         await db.insert(orderServiceCharges).values({
           orderId: newOrder.id,
@@ -748,7 +748,7 @@ export class OrderController {
         userId: (req.user as any)?.claims?.sub || (req.user as any)?.id,
         activityType: "system_action",
         content: `Order duplicated from #${sourceOrder.orderNumber}`,
-        metadata: { action: "order_duplicated", sourceOrderId: orderId, sourceOrderNumber: sourceOrder.orderNumber },
+        metadata: { action: "order_duplicated", sourceOrderId: projectId, sourceOrderNumber: sourceOrder.orderNumber },
       } as any);
 
       res.json({ success: true, order: newOrder });
@@ -768,11 +768,11 @@ export class OrderController {
     }
   }
 
-  // ── Order Items ──
+  // ── Project Items ──
 
   static async listItems(req: Request, res: Response) {
     try {
-      const items = await orderRepository.getOrderItems(req.params.orderId);
+      const items = await projectRepository.getOrderItems(req.params.projectId);
       res.json(items);
     } catch (error) {
       console.error("Error fetching order items:", error);
@@ -783,7 +783,7 @@ export class OrderController {
   static async createItem(req: Request, res: Response) {
     try {
       // Lock check
-      const parentOrder = await orderRepository.getOrder(req.params.orderId);
+      const parentOrder = await projectRepository.getOrder(req.params.projectId);
       if (parentOrder && isSectionLocked(parentOrder, 'salesOrder')) {
         return res.status(403).json({ message: "Sales Order is locked. Unlock it first to make changes." });
       }
@@ -791,7 +791,7 @@ export class OrderController {
       // If supplierId is not provided, get it from the product
       let dataToInsert = {
         ...req.body,
-        orderId: req.params.orderId,
+        orderId: req.params.projectId,
       };
 
       if (!dataToInsert.supplierId && dataToInsert.productId) {
@@ -826,7 +826,7 @@ export class OrderController {
             .where(
               and(
                 eq(vendorApprovalRequests.supplierId, dataToInsert.supplierId),
-                eq(vendorApprovalRequests.orderId, req.params.orderId),
+                eq(vendorApprovalRequests.orderId, req.params.projectId),
                 eq(vendorApprovalRequests.status, "approved")
               )
             )
@@ -845,10 +845,10 @@ export class OrderController {
 
       const validatedData = insertOrderItemSchema.parse(dataToInsert);
 
-      const item = await orderRepository.createOrderItem(validatedData);
+      const item = await projectRepository.createOrderItem(validatedData);
 
       // Recalculate order totals (includes discount, tax, shipping)
-      await recalculateOrderTotals(req.params.orderId);
+      await recalculateOrderTotals(req.params.projectId);
 
       res.status(201).json(item);
     } catch (error) {
@@ -860,7 +860,7 @@ export class OrderController {
   static async deleteItem(req: Request, res: Response) {
     try {
       // Lock check
-      const parentOrder = await orderRepository.getOrder(req.params.orderId);
+      const parentOrder = await projectRepository.getOrder(req.params.projectId);
       if (parentOrder && isSectionLocked(parentOrder, 'salesOrder')) {
         return res.status(403).json({ message: "Sales Order is locked. Unlock it first to make changes." });
       }
@@ -874,10 +874,10 @@ export class OrderController {
       await db.delete(artworkApprovals).where(eq(artworkApprovals.orderItemId, req.params.itemId));
 
       // Now safe to delete the order item
-      await orderRepository.deleteOrderItem(req.params.itemId);
+      await projectRepository.deleteOrderItem(req.params.itemId);
 
       // Recalculate order totals (includes discount, tax, shipping)
-      await recalculateOrderTotals(req.params.orderId);
+      await recalculateOrderTotals(req.params.projectId);
 
       res.json({ message: "Order item deleted successfully" });
     } catch (error) {
@@ -889,7 +889,7 @@ export class OrderController {
   static async updateItem(req: Request, res: Response) {
     try {
       // Lock check
-      const parentOrder = await orderRepository.getOrder(req.params.orderId);
+      const parentOrder = await projectRepository.getOrder(req.params.projectId);
       if (parentOrder && isSectionLocked(parentOrder, 'salesOrder')) {
         return res.status(403).json({ message: "Sales Order is locked. Unlock it first to make changes." });
       }
@@ -904,22 +904,22 @@ export class OrderController {
           const minMargin = parseFloat(settings?.minimumMargin || "15");
           if (margin > 0 && margin < minMargin) {
             // Include warning in response but allow save (client handles confirmation)
-            const updatedItem = await orderRepository.updateOrderItem(req.params.itemId, req.body);
+            const updatedItem = await projectRepository.updateOrderItem(req.params.itemId, req.body);
             const pricingFields = ['quantity', 'unitPrice', 'totalPrice', 'cost', 'decorationCost', 'charges'];
             if (pricingFields.some(f => req.body[f] !== undefined)) {
-              await recalculateOrderTotals(req.params.orderId);
+              await recalculateOrderTotals(req.params.projectId);
             }
             return res.json({ ...updatedItem, _marginWarning: { margin: margin.toFixed(1), minimumMargin: minMargin } });
           }
         }
       }
 
-      const updatedItem = await orderRepository.updateOrderItem(req.params.itemId, req.body);
+      const updatedItem = await projectRepository.updateOrderItem(req.params.itemId, req.body);
 
       // Recalculate order totals if pricing fields changed
       const pricingFields = ['quantity', 'unitPrice', 'totalPrice', 'cost', 'decorationCost', 'charges'];
       if (pricingFields.some(f => req.body[f] !== undefined)) {
-        await recalculateOrderTotals(req.params.orderId);
+        await recalculateOrderTotals(req.params.projectId);
       }
 
       res.json(updatedItem);
@@ -940,7 +940,7 @@ export class OrderController {
       const artworks = await db
         .select()
         .from(artworkItems)
-        .where(eq(artworkItems.orderItemId, req.params.orderItemId));
+        .where(eq(artworkItems.orderItemId, req.params.itemId));
 
       res.json(artworks);
     } catch (error) {
@@ -968,7 +968,7 @@ export class OrderController {
       }
 
       const artworkData = {
-        orderItemId: req.params.orderItemId,
+        orderItemId: req.params.itemId,
         name: req.body.name,
         artworkType: req.body.artworkType || null,
         location: req.body.location || null,
@@ -998,7 +998,7 @@ export class OrderController {
             fileSize: req.file?.size,
             mimeType: req.file?.mimetype,
             category: "artwork",
-            orderItemId: req.params.orderItemId,
+            orderItemId: req.params.itemId,
             sourceTable: "artwork_items",
             sourceId: artwork.id,
             uploadedBy: userId,
@@ -1050,7 +1050,7 @@ export class OrderController {
         .where(
           and(
             eq(artworkItems.id, req.params.artworkId),
-            eq(artworkItems.orderItemId, req.params.orderItemId)
+            eq(artworkItems.orderItemId, req.params.itemId)
           )
         )
         .returning();
@@ -1077,7 +1077,7 @@ export class OrderController {
         .where(
           and(
             eq(artworkItems.id, req.params.artworkId),
-            eq(artworkItems.orderItemId, req.params.orderItemId)
+            eq(artworkItems.orderItemId, req.params.itemId)
           )
         );
 
@@ -1088,11 +1088,11 @@ export class OrderController {
     }
   }
 
-  // ── Order Item Lines ──
+  // ── Item Lines ──
 
   static async listLines(req: Request, res: Response) {
     try {
-      const lines = await orderRepository.getOrderItemLines(req.params.orderItemId);
+      const lines = await projectRepository.getOrderItemLines(req.params.itemId);
       res.json(lines);
     } catch (error) {
       console.error("Error fetching order item lines:", error);
@@ -1102,13 +1102,13 @@ export class OrderController {
 
   static async createLine(req: Request, res: Response) {
     try {
-      if (await checkLockByOrderItemId(req.params.orderItemId, res)) return;
+      if (await checkLockByOrderItemId(req.params.itemId, res)) return;
       const validatedData = insertOrderItemLineSchema.parse({
         ...req.body,
-        orderItemId: req.params.orderItemId,
+        orderItemId: req.params.itemId,
       });
-      const line = await orderRepository.createOrderItemLine(validatedData);
-      await recalculateItemFromLines(req.params.orderItemId);
+      const line = await projectRepository.createOrderItemLine(validatedData);
+      await recalculateItemFromLines(req.params.itemId);
       res.status(201).json(line);
     } catch (error) {
       console.error("Error creating order item line:", error);
@@ -1118,7 +1118,7 @@ export class OrderController {
 
   static async updateLine(req: Request, res: Response) {
     try {
-      if (await checkLockByOrderItemId(req.params.orderItemId, res)) return;
+      if (await checkLockByOrderItemId(req.params.itemId, res)) return;
 
       // Minimum margin check on line pricing updates
       if (req.body.unitPrice !== undefined && req.body.cost !== undefined) {
@@ -1129,15 +1129,15 @@ export class OrderController {
           const settings = await settingsRepository.getCompanySettings();
           const minMargin = parseFloat(settings?.minimumMargin || "15");
           if (margin > 0 && margin < minMargin) {
-            const line = await orderRepository.updateOrderItemLine(req.params.lineId, req.body);
-            await recalculateItemFromLines(req.params.orderItemId);
+            const line = await projectRepository.updateOrderItemLine(req.params.lineId, req.body);
+            await recalculateItemFromLines(req.params.itemId);
             return res.json({ ...line, _marginWarning: { margin: margin.toFixed(1), minimumMargin: minMargin } });
           }
         }
       }
 
-      const line = await orderRepository.updateOrderItemLine(req.params.lineId, req.body);
-      await recalculateItemFromLines(req.params.orderItemId);
+      const line = await projectRepository.updateOrderItemLine(req.params.lineId, req.body);
+      await recalculateItemFromLines(req.params.itemId);
       res.json(line);
     } catch (error) {
       console.error("Error updating order item line:", error);
@@ -1147,9 +1147,9 @@ export class OrderController {
 
   static async deleteLine(req: Request, res: Response) {
     try {
-      if (await checkLockByOrderItemId(req.params.orderItemId, res)) return;
-      await orderRepository.deleteOrderItemLine(req.params.lineId);
-      await recalculateItemFromLines(req.params.orderItemId);
+      if (await checkLockByOrderItemId(req.params.itemId, res)) return;
+      await projectRepository.deleteOrderItemLine(req.params.lineId);
+      await recalculateItemFromLines(req.params.itemId);
       res.status(204).send();
     } catch (error) {
       console.error("Error deleting order item line:", error);
@@ -1157,11 +1157,11 @@ export class OrderController {
     }
   }
 
-  // ── Order Additional Charges ──
+  // ── Additional Charges ──
 
   static async listCharges(req: Request, res: Response) {
     try {
-      const charges = await orderRepository.getOrderAdditionalCharges(req.params.orderItemId);
+      const charges = await projectRepository.getOrderAdditionalCharges(req.params.itemId);
       res.json(charges);
     } catch (error) {
       console.error("Error fetching order additional charges:", error);
@@ -1171,12 +1171,12 @@ export class OrderController {
 
   static async createCharge(req: Request, res: Response) {
     try {
-      if (await checkLockByOrderItemId(req.params.orderItemId, res)) return;
+      if (await checkLockByOrderItemId(req.params.itemId, res)) return;
       const validatedData = insertOrderAdditionalChargeSchema.parse({
         ...req.body,
-        orderItemId: req.params.orderItemId,
+        orderItemId: req.params.itemId,
       });
-      const charge = await orderRepository.createOrderAdditionalCharge(validatedData);
+      const charge = await projectRepository.createOrderAdditionalCharge(validatedData);
       res.status(201).json(charge);
     } catch (error) {
       console.error("Error creating order additional charge:", error);
@@ -1186,8 +1186,8 @@ export class OrderController {
 
   static async updateCharge(req: Request, res: Response) {
     try {
-      if (await checkLockByOrderItemId(req.params.orderItemId, res)) return;
-      const charge = await orderRepository.updateOrderAdditionalCharge(req.params.chargeId, req.body);
+      if (await checkLockByOrderItemId(req.params.itemId, res)) return;
+      const charge = await projectRepository.updateOrderAdditionalCharge(req.params.chargeId, req.body);
       res.json(charge);
     } catch (error) {
       console.error("Error updating order additional charge:", error);
@@ -1197,8 +1197,8 @@ export class OrderController {
 
   static async deleteCharge(req: Request, res: Response) {
     try {
-      if (await checkLockByOrderItemId(req.params.orderItemId, res)) return;
-      await orderRepository.deleteOrderAdditionalCharge(req.params.chargeId);
+      if (await checkLockByOrderItemId(req.params.itemId, res)) return;
+      await projectRepository.deleteOrderAdditionalCharge(req.params.chargeId);
       res.status(204).send();
     } catch (error) {
       console.error("Error deleting order additional charge:", error);
@@ -1206,14 +1206,14 @@ export class OrderController {
     }
   }
 
-  // ── Order Service Charges ──
+  // ── Service Charges ──
 
   static async listServiceCharges(req: Request, res: Response) {
     try {
       const { db } = await import("../db");
       const { orderServiceCharges } = await import("@shared/schema");
       const { eq } = await import("drizzle-orm");
-      const charges = await db.select().from(orderServiceCharges).where(eq(orderServiceCharges.orderId, req.params.orderId));
+      const charges = await db.select().from(orderServiceCharges).where(eq(orderServiceCharges.orderId, req.params.projectId));
       res.json(charges);
     } catch (error) {
       console.error("Error fetching service charges:", error);
@@ -1223,11 +1223,11 @@ export class OrderController {
 
   static async createServiceCharge(req: Request, res: Response) {
     try {
-      if (await checkServiceChargeLock(req.params.orderId, res)) return;
+      if (await checkServiceChargeLock(req.params.projectId, res)) return;
       const { db } = await import("../db");
       const { orderServiceCharges } = await import("@shared/schema");
       const [charge] = await db.insert(orderServiceCharges).values({
-        orderId: req.params.orderId,
+        orderId: req.params.projectId,
         chargeType: req.body.chargeType,
         description: req.body.description,
         quantity: req.body.quantity || 1,
@@ -1248,7 +1248,7 @@ export class OrderController {
 
   static async updateServiceCharge(req: Request, res: Response) {
     try {
-      if (await checkServiceChargeLock(req.params.orderId, res)) return;
+      if (await checkServiceChargeLock(req.params.projectId, res)) return;
       const { db } = await import("../db");
       const { orderServiceCharges } = await import("@shared/schema");
       const { eq } = await import("drizzle-orm");
@@ -1267,7 +1267,7 @@ export class OrderController {
 
   static async deleteServiceCharge(req: Request, res: Response) {
     try {
-      if (await checkServiceChargeLock(req.params.orderId, res)) return;
+      if (await checkServiceChargeLock(req.params.projectId, res)) return;
       const { db } = await import("../db");
       const { orderServiceCharges } = await import("@shared/schema");
       const { eq } = await import("drizzle-orm");

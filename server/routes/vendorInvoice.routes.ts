@@ -5,10 +5,10 @@ import { asyncHandler } from "../utils/asyncHandler";
 
 const router = Router();
 
-// List vendor invoices (bills) for an order
-router.get("/api/orders/:orderId/vendor-invoices", isAuthenticated, asyncHandler(VendorInvoiceController.list));
+// List vendor invoices (bills) for a project
+router.get("/api/projects/:projectId/vendor-invoices", isAuthenticated, asyncHandler(VendorInvoiceController.list));
 
-// Create vendor invoice (bill) for an order — with optional PO auto-vouch
-router.post("/api/orders/:orderId/vendor-invoices", isAuthenticated, asyncHandler(VendorInvoiceController.create));
+// Create vendor invoice (bill) for a project — with optional PO auto-vouch
+router.post("/api/projects/:projectId/vendor-invoices", isAuthenticated, asyncHandler(VendorInvoiceController.create));
 
 export default router;

@@ -23,7 +23,7 @@ const kanbanStages = STAGE_ORDER.map((id) => BUSINESS_STAGES[id]);
 interface KanbanBoardProps {
   data: OrderWithRelations[];
   onViewOrder: (order: Order) => void;
-  onViewProject: (orderId: string) => void;
+  onViewProject: (projectId: string) => void;
 }
 
 export function KanbanBoard({ data, onViewOrder, onViewProject }: KanbanBoardProps) {
@@ -34,9 +34,9 @@ export function KanbanBoard({ data, onViewOrder, onViewProject }: KanbanBoardPro
   const dragCounterRef = useRef<Record<string, number>>({});
 
   const updateStageMutation = useMutation({
-    mutationFn: async ({ orderId, targetStage }: { orderId: string; targetStage: BusinessStage }) => {
+    mutationFn: async ({ projectId, targetStage }: { projectId: string; targetStage: BusinessStage }) => {
       const payload = getStageTransitionPayload(targetStage);
-      const response = await fetch(`/api/orders/${orderId}`, {
+      const response = await fetch(`/api/projects/${projectId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -46,7 +46,7 @@ export function KanbanBoard({ data, onViewOrder, onViewProject }: KanbanBoardPro
       return response.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/orders"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
       queryClient.invalidateQueries({ queryKey: ["/api/dashboard/recent-orders"] });
       toast({ title: "Stage updated successfully" });
     },
@@ -113,7 +113,7 @@ export function KanbanBoard({ data, onViewOrder, onViewProject }: KanbanBoardPro
 
     if (draggedOrder && getOrderStageId(draggedOrder) !== columnId) {
       updateStageMutation.mutate({
-        orderId: draggedOrder.id,
+        projectId: draggedOrder.id,
         targetStage: columnId as BusinessStage,
       });
     }

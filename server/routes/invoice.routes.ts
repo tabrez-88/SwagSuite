@@ -12,15 +12,15 @@ const router = Router();
 
 router.get("/api/integrations/quickbooks/auth", isAuthenticated, asyncHandler(InvoiceController.quickbooksAuth));
 router.get("/api/integrations/quickbooks/callback", asyncHandler(InvoiceController.quickbooksCallback));
-router.post("/api/orders/:id/quickbooks/sync", isAuthenticated, asyncHandler(InvoiceController.quickbooksSync));
+router.post("/api/projects/:id/quickbooks/sync", isAuthenticated, asyncHandler(InvoiceController.quickbooksSync));
 
 // =====================================================
 // INVOICE CRUD
 // =====================================================
 
-router.post("/api/orders/:id/invoice", isAuthenticated, asyncHandler(InvoiceController.createInvoice));
-router.get("/api/orders/:id/invoice", isAuthenticated, asyncHandler(InvoiceController.getInvoice));
-router.patch("/api/orders/:id/invoice", isAuthenticated, asyncHandler(InvoiceController.updateInvoice));
+router.post("/api/projects/:id/invoice", isAuthenticated, asyncHandler(InvoiceController.createInvoice));
+router.get("/api/projects/:id/invoice", isAuthenticated, asyncHandler(InvoiceController.getInvoice));
+router.patch("/api/projects/:id/invoice", isAuthenticated, asyncHandler(InvoiceController.updateInvoice));
 
 // =====================================================
 // STRIPE PAYMENTS

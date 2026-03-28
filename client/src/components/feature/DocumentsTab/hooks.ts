@@ -22,7 +22,7 @@ function buildItemsHash(items: any[], type: 'quote' | 'po', order?: any): string
 }
 
 export function useDocumentsTab({
-  orderId,
+  projectId,
   order,
   orderItems,
   orderVendors,
@@ -46,14 +46,14 @@ export function useDocumentsTab({
 
   // Fetch generated documents
   const { data: documents = [] } = useQuery<any[]>({
-    queryKey: [`/api/orders/${orderId}/documents`],
-    enabled: !!orderId,
+    queryKey: [`/api/projects/${projectId}/documents`],
+    enabled: !!projectId,
   });
 
   // Fetch quote approvals for this order
   const { data: quoteApprovals = [] } = useQuery<any[]>({
-    queryKey: [`/api/orders/${orderId}/quote-approvals`],
-    enabled: !!orderId,
+    queryKey: [`/api/projects/${projectId}/quote-approvals`],
+    enabled: !!projectId,
   });
 
   // Create quote approval mutation
@@ -65,7 +65,7 @@ export function useDocumentsTab({
       pdfPath?: string;
       quoteTotal?: string;
     }) => {
-      const response = await fetch(`/api/orders/${orderId}/quote-approvals`, {
+      const response = await fetch(`/api/projects/${projectId}/quote-approvals`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -80,7 +80,7 @@ export function useDocumentsTab({
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
-        queryKey: [`/api/orders/${orderId}/quote-approvals`]
+        queryKey: [`/api/projects/${projectId}/quote-approvals`]
       });
     },
   });
@@ -177,7 +177,7 @@ export function useDocumentsTab({
       };
       formData.append('metadata', JSON.stringify(metadata));
 
-      const response = await fetch(`/api/orders/${orderId}/documents`, {
+      const response = await fetch(`/api/projects/${projectId}/documents`, {
         method: 'POST',
         credentials: 'include',
         body: formData,
@@ -190,7 +190,7 @@ export function useDocumentsTab({
       return response.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/orders/${orderId}/documents`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/documents`] });
       setIsGenerating(false);
     },
     onError: (error: Error) => {
@@ -218,7 +218,7 @@ export function useDocumentsTab({
       return response.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/orders/${orderId}/documents`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/documents`] });
     },
     onError: (error: Error) => {
       toast({

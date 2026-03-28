@@ -19,7 +19,7 @@ export const calcMargin = (cost: number, price: number) =>
 export const marginColor = (m: number) =>
   m >= 30 ? "text-green-600" : m >= 15 ? "text-yellow-600" : "text-red-600";
 
-export function usePresentationSection({ orderId, data }: PresentationSectionProps) {
+export function usePresentationSection({ projectId, data }: PresentationSectionProps) {
   const [, setLocation] = useLocation();
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -30,9 +30,9 @@ export function usePresentationSection({ orderId, data }: PresentationSectionPro
 
   const updateStatusMutation = useMutation({
     mutationFn: async (newStatus: string) => {
-      await apiRequest("PATCH", `/api/orders/${orderId}`, { presentationStatus: newStatus });
+      await apiRequest("PATCH", `/api/projects/${projectId}`, { presentationStatus: newStatus });
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: [`/api/orders/${orderId}`] }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}`] }),
     onError: () => toast({ title: "Failed to update status", variant: "destructive" }),
   });
 
@@ -63,14 +63,14 @@ export function usePresentationSection({ orderId, data }: PresentationSectionPro
     mutationFn: async (updates: Record<string, any>) => {
       const currentStageData = (order as any)?.stageData || {};
       const currentPresentation = currentStageData.presentation || {};
-      await apiRequest("PATCH", `/api/orders/${orderId}`, {
+      await apiRequest("PATCH", `/api/projects/${projectId}`, {
         stageData: {
           ...currentStageData,
           presentation: { ...currentPresentation, ...updates },
         },
       });
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: [`/api/orders/${orderId}`] }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}`] }),
     onError: () => toast({ title: "Failed to save settings", variant: "destructive" }),
   });
 
@@ -81,7 +81,7 @@ export function usePresentationSection({ orderId, data }: PresentationSectionPro
   const [shareLink, setShareLink] = useState<string | null>(null);
   const shareLinkMutation = useMutation({
     mutationFn: async () => {
-      const res = await apiRequest("POST", `/api/orders/${orderId}/presentation/share-link`);
+      const res = await apiRequest("POST", `/api/projects/${projectId}/presentation/share-link`);
       return await res.json();
     },
     onSuccess: (data: any) => {
@@ -90,7 +90,7 @@ export function usePresentationSection({ orderId, data }: PresentationSectionPro
       navigator.clipboard.writeText(url).then(() => {
         toast({ title: "Link copied!", description: data.existingToken ? "Existing link copied to clipboard." : "New presentation link created and copied." });
       });
-      queryClient.invalidateQueries({ queryKey: [`/api/orders/${orderId}`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}`] });
     },
     onError: () => toast({ title: "Failed to generate link", variant: "destructive" }),
   });
@@ -153,23 +153,23 @@ export function usePresentationSection({ orderId, data }: PresentationSectionPro
 
   // Product comments
   const { data: productComments = {} } = useQuery<Record<string, any[]>>({
-    queryKey: [`/api/orders/${orderId}/product-comments`],
-    enabled: !!orderId,
+    queryKey: [`/api/projects/${projectId}/product-comments`],
+    enabled: !!projectId,
   });
 
   const contactEmail = contacts?.find((c: any) => c.id === selectedContact)?.email || primaryContact?.email || "";
 
   const handleInHandsDateBlur = (e: React.FocusEvent<HTMLInputElement>) => {
     if (e.target.value !== (order?.inHandsDate ? format(new Date(order.inHandsDate), "yyyy-MM-dd") : "")) {
-      apiRequest("PATCH", `/api/orders/${orderId}`, { inHandsDate: e.target.value || null })
-        .then(() => queryClient.invalidateQueries({ queryKey: [`/api/orders/${orderId}`] }));
+      apiRequest("PATCH", `/api/projects/${projectId}`, { inHandsDate: e.target.value || null })
+        .then(() => queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}`] }));
     }
   };
 
   const handleConversionSuccess = () => {
     setConversionTarget(null);
-    queryClient.invalidateQueries({ queryKey: [`/api/orders/${orderId}`] });
-    queryClient.invalidateQueries({ queryKey: [`/api/orders/${orderId}/items`] });
+    queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}`] });
+    queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/items`] });
   };
 
   const recipientName = contacts?.find((c: any) => c.id === selectedContact)

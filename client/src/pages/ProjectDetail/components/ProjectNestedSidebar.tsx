@@ -18,7 +18,7 @@ import { type BusinessStage, STAGE_ORDER } from "@/constants/businessStages";
 const PO_UNLOCK_STATUSES = ["client_approved", "in_production", "shipped", "ready_to_invoice"];
 
 interface ProjectNestedSidebarProps {
-  orderId: string;
+  projectId: string;
   orderItemsCount?: number;
   currentStage?: BusinessStage;
   salesOrderStatus?: string;
@@ -53,11 +53,11 @@ function isStageUnlocked(stageGate: BusinessStage | undefined, currentStage: Bus
   return currentIndex >= gateIndex;
 }
 
-export default function ProjectNestedSidebar({ orderId, orderItemsCount, currentStage, salesOrderStatus }: ProjectNestedSidebarProps) {
+export default function ProjectNestedSidebar({ projectId, orderItemsCount, currentStage, salesOrderStatus }: ProjectNestedSidebarProps) {
   const [location] = useLocation();
 
   const getActiveSection = () => {
-    const prefix = `/project/${orderId}/`;
+    const prefix = `/projects/${projectId}/`;
     if (location.startsWith(prefix)) {
       const rest = location.slice(prefix.length);
       if (rest.startsWith("sales-order")) return "sales-order";
@@ -65,7 +65,7 @@ export default function ProjectNestedSidebar({ orderId, orderItemsCount, current
       const section = rest.split("/")[0];
       return section || "overview";
     }
-    if (location === `/project/${orderId}`) {
+    if (location === `/projects/${projectId}`) {
       return "overview";
     }
     return "overview";
@@ -104,7 +104,7 @@ export default function ProjectNestedSidebar({ orderId, orderItemsCount, current
           return (
             <Link
               key={item.href}
-              href={`/project/${orderId}/${item.href}`}
+              href={`/projects/${projectId}/${item.href}`}
               className={cn(
                 "flex items-center justify-between gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors",
                 isActive

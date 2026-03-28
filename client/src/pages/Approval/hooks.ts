@@ -38,8 +38,8 @@ export function useApproval() {
     },
     onSuccess: () => {
       if (approval?.orderId) {
-        queryClient.invalidateQueries({ queryKey: [`/api/orders/${approval.orderId}/approvals`] });
-        queryClient.invalidateQueries({ queryKey: [`/api/orders/${approval.orderId}`] });
+        queryClient.invalidateQueries({ queryKey: [`/api/projects/${approval.orderId}/approvals`] });
+        queryClient.invalidateQueries({ queryKey: [`/api/projects/${approval.orderId}`] });
       }
       queryClient.invalidateQueries({ queryKey: [`/api/approvals/${token}`] });
       toast({
@@ -64,8 +64,8 @@ export function useApproval() {
     },
     onSuccess: () => {
       if (approval?.orderId) {
-        queryClient.invalidateQueries({ queryKey: [`/api/orders/${approval.orderId}/approvals`] });
-        queryClient.invalidateQueries({ queryKey: [`/api/orders/${approval.orderId}`] });
+        queryClient.invalidateQueries({ queryKey: [`/api/projects/${approval.orderId}/approvals`] });
+        queryClient.invalidateQueries({ queryKey: [`/api/projects/${approval.orderId}`] });
       }
       queryClient.invalidateQueries({ queryKey: [`/api/approvals/${token}`] });
       toast({

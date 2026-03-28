@@ -30,7 +30,7 @@ import type { DocumentsTabProps } from "./types";
 import { useDocumentsTab } from "./hooks";
 
 export function DocumentsTab({
-  orderId,
+  projectId,
   order,
   orderItems,
   orderVendors,
@@ -65,7 +65,7 @@ export function DocumentsTab({
     handleDeleteDocClick,
     handleConfirmDelete,
   } = useDocumentsTab({
-    orderId,
+    projectId,
     order,
     orderItems,
     orderVendors,

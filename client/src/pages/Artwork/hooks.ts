@@ -82,7 +82,7 @@ export function useArtwork() {
   });
 
   const { data: orders = [] } = useQuery({
-    queryKey: ["/api/orders"],
+    queryKey: ["/api/projects"],
   });
 
   // Initialize columns if empty

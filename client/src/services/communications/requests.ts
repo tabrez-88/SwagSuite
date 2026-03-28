@@ -1,7 +1,7 @@
 import { apiRequest } from "@/lib/queryClient";
 
-export async function sendCommunication(orderId: string | number, data: Record<string, any>) {
-  const res = await apiRequest("POST", `/api/orders/${orderId}/communications`, data);
+export async function sendCommunication(projectId: string | number, data: Record<string, any>) {
+  const res = await apiRequest("POST", `/api/projects/${projectId}/communications`, data);
   return res.json();
 }
 

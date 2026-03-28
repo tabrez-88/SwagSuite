@@ -40,14 +40,14 @@ import { invoiceStatusColors } from "./types";
 import type { InvoiceSectionProps } from "./types";
 
 export default function InvoiceSection(props: InvoiceSectionProps) {
-  const { orderId, lockStatus } = props;
+  const { projectId, lockStatus } = props;
   const h = useInvoiceSection(props);
 
   if (!h.order) return null;
 
   return (
     <div className="space-y-6">
-      {lockStatus && <LockBanner lockStatus={lockStatus} sectionName="Invoice" sectionKey="invoice" orderId={orderId} />}
+      {lockStatus && <LockBanner lockStatus={lockStatus} sectionName="Invoice" sectionKey="invoice" projectId={projectId} />}
 
       <ProjectInfoBar companyName={h.companyName} primaryContact={h.primaryContact} />
 
@@ -452,7 +452,7 @@ export default function InvoiceSection(props: InvoiceSectionProps) {
         <SendInvoiceDialog
           open={h.showSendDialog}
           onOpenChange={h.setShowSendDialog}
-          orderId={orderId}
+          projectId={projectId}
           recipientEmail={h.primaryContact?.email || ""}
           recipientName={h.primaryContact ? `${h.primaryContact.firstName} ${h.primaryContact.lastName}` : h.companyName}
           companyName={h.companyName}

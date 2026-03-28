@@ -1,7 +1,7 @@
 import type { Company, Order } from "@shared/schema";
 import type { BusinessStage } from "@/constants/businessStages";
 
-export interface OrderModalProps {
+export interface ProjectModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   order?: Order | null;
@@ -9,7 +9,7 @@ export interface OrderModalProps {
   businessStageId?: BusinessStage;
 }
 
-export interface OrderFormData {
+export interface ProjectFormData {
   companyId: string;
   contactId: string;
   assignedUserId: string;

@@ -1,7 +1,7 @@
 import { communicationRepository } from "../repositories/communication.repository";
 import { companyRepository } from "../repositories/company.repository";
 import { supplierRepository } from "../repositories/supplier.repository";
-import { orderRepository } from "../repositories/order.repository";
+import { projectRepository } from "../repositories/project.repository";
 import { db } from "../db";
 
 export class CommunicationService {
@@ -79,7 +79,7 @@ export class CommunicationService {
 
       try {
         const { emailService } = await import("./email.service");
-        const order = await orderRepository.getOrder(orderId);
+        const order = await projectRepository.getOrder(orderId);
         const company = order?.companyId ? await companyRepository.getById(order.companyId) : null;
         const supplier = (order as any)?.supplierId ? await supplierRepository.getById((order as any).supplierId) : null;
 

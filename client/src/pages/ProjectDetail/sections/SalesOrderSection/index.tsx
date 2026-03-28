@@ -41,14 +41,14 @@ import type { SalesOrderSectionProps } from "./types";
 import { useSalesOrderSection } from "./hooks";
 
 export default function SalesOrderSection(props: SalesOrderSectionProps) {
-  const { orderId, lockStatus } = props;
+  const { projectId, lockStatus } = props;
   const hook = useSalesOrderSection(props);
 
   if (!hook.order) return null;
 
   return (
     <div className="space-y-6">
-      {lockStatus && <LockBanner lockStatus={lockStatus} sectionName="Sales Order" sectionKey="salesOrder" orderId={orderId} />}
+      {lockStatus && <LockBanner lockStatus={lockStatus} sectionName="Sales Order" sectionKey="salesOrder" projectId={projectId} />}
       <TimelineWarningBanner conflicts={hook.timelineConflicts} />
 
       <ProjectInfoBar companyName={hook.companyName} primaryContact={hook.primaryContact} />
@@ -397,7 +397,7 @@ export default function SalesOrderSection(props: SalesOrderSectionProps) {
         </TabsList>
 
         <TabsContent value="products" className="mt-4">
-          <ProductsSection orderId={orderId} data={hook.data} isLocked={hook.isLocked} />
+          <ProductsSection projectId={projectId} data={hook.data} isLocked={hook.isLocked} />
         </TabsContent>
 
         <TabsContent value="artwork" className="mt-4">
@@ -436,7 +436,7 @@ export default function SalesOrderSection(props: SalesOrderSectionProps) {
         <SendSODialog
           open={hook.showSendDialog}
           onOpenChange={hook.setShowSendDialog}
-          orderId={orderId}
+          projectId={projectId}
           recipientEmail={hook.primaryContact?.email || ""}
           recipientName={hook.primaryContact ? `${hook.primaryContact.firstName} ${hook.primaryContact.lastName}` : hook.companyName}
           companyName={hook.companyName}

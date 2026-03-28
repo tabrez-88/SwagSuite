@@ -1,4 +1,4 @@
-import { orderRepository } from "../repositories/order.repository";
+import { projectRepository } from "../repositories/project.repository";
 
 /**
  * Checks if a section is locked based on order status and unlock overrides.
@@ -41,7 +41,7 @@ export async function checkLockByOrderItemId(
   if (!item) return false;
 
   if (!item.orderId) return false;
-  const order = await orderRepository.getOrder(item.orderId);
+  const order = await projectRepository.getOrder(item.orderId);
   if (order && isSectionLocked(order, 'salesOrder')) {
     res.status(403).json({ message: "Sales Order is locked. Unlock it first to make changes." });
     return true;

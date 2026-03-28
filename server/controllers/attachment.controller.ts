@@ -3,14 +3,14 @@ import { attachmentRepository } from "../repositories/attachment.repository";
 
 export class AttachmentController {
   static async list(req: Request, res: Response) {
-    const { orderId } = req.params;
+    const { projectId } = req.params;
     const category = req.query.category as string | undefined;
-    const attachments = await attachmentRepository.getByOrderId(orderId, category);
+    const attachments = await attachmentRepository.getByOrderId(projectId, category);
     res.json(attachments);
   }
 
   static async upload(req: Request, res: Response) {
-    const { orderId } = req.params;
+    const { projectId } = req.params;
     const files = req.files as Express.Multer.File[];
     const { category = 'attachment' } = req.body;
     const userId = req.user?.claims?.sub;
@@ -32,7 +32,7 @@ export class AttachmentController {
         fileSize: file.size || null,
         category: category || 'attachment',
         uploadedBy: userId || null,
-        orderId,
+        orderId: projectId,
       });
 
       uploadedAttachments.push(attachment);

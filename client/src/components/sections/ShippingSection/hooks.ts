@@ -8,7 +8,7 @@ import type { ProjectData } from "@/types/project-types";
 import { EMPTY_FORM, EMPTY_BULK } from "./types";
 import type { ShipmentFormData, BulkEditData } from "./types";
 
-export function useShippingSection(orderId: string, data: ProjectData) {
+export function useShippingSection(projectId: string, data: ProjectData) {
   const { order, orderItems, orderVendors, shipments, shipmentsLoading } = data;
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -72,9 +72,9 @@ export function useShippingSection(orderId: string, data: ProjectData) {
     return { total, configured };
   }, [orderItems, localOverrides]);
 
-  const createMutation = useCreateShipment(orderId);
-  const updateMutation = useUpdateShipment(orderId);
-  const deleteMutation = useDeleteShipment(orderId);
+  const createMutation = useCreateShipment(projectId);
+  const updateMutation = useUpdateShipment(projectId);
+  const deleteMutation = useDeleteShipment(projectId);
 
   const setField = useCallback((key: keyof ShipmentFormData, value: string) => {
     setForm(prev => ({ ...prev, [key]: value }));
@@ -83,7 +83,7 @@ export function useShippingSection(orderId: string, data: ProjectData) {
   // Shipping Details Mutations
   const updateItemShippingMutation = useMutation({
     mutationFn: async ({ itemId, fields }: { itemId: string; fields: Record<string, any> }) => {
-      const res = await fetch(`/api/orders/${orderId}/items/${itemId}`, {
+      const res = await fetch(`/api/projects/${projectId}/items/${itemId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -93,9 +93,9 @@ export function useShippingSection(orderId: string, data: ProjectData) {
       return res.json();
     },
     onMutate: async ({ itemId, fields }) => {
-      await queryClient.cancelQueries({ queryKey: [`/api/orders/${orderId}/items`] });
-      const previousItems = queryClient.getQueryData([`/api/orders/${orderId}/items`]);
-      queryClient.setQueryData([`/api/orders/${orderId}/items`], (old: any[] | undefined) => {
+      await queryClient.cancelQueries({ queryKey: [`/api/projects/${projectId}/items`] });
+      const previousItems = queryClient.getQueryData([`/api/projects/${projectId}/items`]);
+      queryClient.setQueryData([`/api/projects/${projectId}/items`], (old: any[] | undefined) => {
         if (!old) return old;
         return old.map((item: any) =>
           item.id === itemId ? { ...item, ...fields } : item
@@ -104,12 +104,12 @@ export function useShippingSection(orderId: string, data: ProjectData) {
       return { previousItems };
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/orders/${orderId}/items`] });
-      queryClient.invalidateQueries({ queryKey: [`/api/orders/${orderId}`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/items`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}`] });
     },
     onError: (_err, variables, context) => {
       if (context?.previousItems) {
-        queryClient.setQueryData([`/api/orders/${orderId}/items`], context.previousItems);
+        queryClient.setQueryData([`/api/projects/${projectId}/items`], context.previousItems);
       }
       setLocalOverrides(prev => {
         const next = { ...prev };

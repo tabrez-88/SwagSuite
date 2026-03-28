@@ -6,12 +6,12 @@ import ActivitiesSection from "@/components/sections/ActivitiesSection";
 import { useCollaborateSection } from "./hooks";
 
 interface CollaborateSectionProps {
-  orderId: string;
+  projectId: string;
   data: ReturnType<typeof useProjectData>;
 }
 
-export default function CollaborateSection({ orderId, data }: CollaborateSectionProps) {
-  const { assignedUser, csrUser } = useCollaborateSection({ orderId, data });
+export default function CollaborateSection({ projectId, data }: CollaborateSectionProps) {
+  const { assignedUser, csrUser } = useCollaborateSection({ projectId, data });
 
   return (
     <div className="space-y-6">
@@ -56,7 +56,7 @@ export default function CollaborateSection({ orderId, data }: CollaborateSection
       </Card>
 
       {/* Activities & Internal Notes */}
-      <ActivitiesSection orderId={orderId} data={data} />
+      <ActivitiesSection projectId={projectId} data={data} />
     </div>
   );
 }

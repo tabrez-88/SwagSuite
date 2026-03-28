@@ -32,19 +32,19 @@ import { cn } from "@/lib/utils";
 import { Separator } from "@/components/ui/separator";
 import { Checkbox } from "@/components/ui/checkbox";
 import { AddressAutocomplete } from "@/components/ui/address-autocomplete";
-import type { OrderModalProps } from "./types";
-import { useOrderModal } from "./hooks";
+import type { ProjectModalProps } from "./types";
+import { useProjectModal } from "./hooks";
 
-export default function OrderModal(props: OrderModalProps) {
+export default function ProjectModal(props: ProjectModalProps) {
   const { open, onOpenChange } = props;
-  const h = useOrderModal(props);
+  const h = useProjectModal(props);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-5xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
-            {h.isEditing ? `Edit Project \u2014 ${h.stageLabel} Stage` : "Create New Order"}
+            {h.isEditing ? `Edit Project \u2014 ${h.stageLabel} Stage` : "Create New Project"}
           </DialogTitle>
         </DialogHeader>
         <Separator />
@@ -331,7 +331,7 @@ export default function OrderModal(props: OrderModalProps) {
             <Button type="submit" disabled={h.createIsPending || h.updateIsPending || h.isLocked}>
               {h.isEditing
                 ? (h.updateIsPending ? "Updating..." : "Update Project")
-                : (h.createIsPending ? "Creating..." : "Create Order")
+                : (h.createIsPending ? "Creating..." : "Create Project")
               }
             </Button>
           </div>

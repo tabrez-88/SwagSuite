@@ -40,7 +40,7 @@ import ArtworkGrid from "./ArtworkGrid";
 import type { PresentationSectionProps } from "./types";
 
 export default function PresentationSection(props: PresentationSectionProps) {
-  const { orderId } = props;
+  const { projectId } = props;
   const hook = usePresentationSection(props);
 
   if (!hook.order) return null;
@@ -94,7 +94,7 @@ export default function PresentationSection(props: PresentationSectionProps) {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" className="gap-1" onClick={() => hook.setLocation(`/project/${orderId}/presentation/preview`)}>
+          <Button variant="outline" size="sm" className="gap-1" onClick={() => hook.setLocation(`/projects/${projectId}/presentation/preview`)}>
             <Eye className="w-4 h-4" />
             Preview
           </Button>
@@ -220,7 +220,7 @@ export default function PresentationSection(props: PresentationSectionProps) {
         {/* Action Buttons */}
         <div className="flex items-center justify-between mt-4">
           <div className="flex items-center gap-3">
-            <Button onClick={() => { hook.setLocation(`/project/${orderId}/presentation/add`); }} size="sm" className="gap-1 text-white" style={{ backgroundColor: hook.primaryColor }}>
+            <Button onClick={() => { hook.setLocation(`/projects/${projectId}/presentation/add`); }} size="sm" className="gap-1 text-white" style={{ backgroundColor: hook.primaryColor }}>
               <Plus className="w-4 h-4" />Product From Database
             </Button>
           </div>
@@ -245,7 +245,7 @@ export default function PresentationSection(props: PresentationSectionProps) {
                 <Package className="w-12 h-12 mx-auto text-gray-300 mb-4" />
                 <h3 className="text-lg font-medium text-gray-900 mb-2">No products yet</h3>
                 <p className="text-gray-500 mb-4">Add products from the database or get AI recommendations</p>
-                <Button variant="outline" onClick={() => hook.setLocation(`/project/${orderId}/presentation/add`)}>
+                <Button variant="outline" onClick={() => hook.setLocation(`/projects/${projectId}/presentation/add`)}>
                   <Plus className="w-4 h-4 mr-2" />Add Product
                 </Button>
               </CardContent>
@@ -259,7 +259,7 @@ export default function PresentationSection(props: PresentationSectionProps) {
 
         {/* Artwork Tab */}
         <TabsContent value="artwork" className="mt-4">
-          <ArtworkGrid data={hook.data} orderId={orderId} enrichedItems={hook.enrichedItems} />
+          <ArtworkGrid data={hook.data} projectId={projectId} enrichedItems={hook.enrichedItems} />
         </TabsContent>
 
         {/* Design Tab */}
@@ -398,7 +398,7 @@ export default function PresentationSection(props: PresentationSectionProps) {
       {hook.editingItem && (
         <ProductPricingEditor
           item={hook.editingItem}
-          orderId={orderId}
+          projectId={projectId}
           onClose={() => hook.setEditingItem(null)}
         />
       )}
@@ -407,7 +407,7 @@ export default function PresentationSection(props: PresentationSectionProps) {
       {hook.previewItem && (
         <ProductPreviewLightbox
           item={hook.previewItem}
-          orderId={orderId}
+          projectId={projectId}
           companyName={hook.companyName}
           hidePricing={hook.hidePricing}
           comments={hook.productComments[hook.previewItem.id] || []}
@@ -420,7 +420,7 @@ export default function PresentationSection(props: PresentationSectionProps) {
           open={!!hook.conversionTarget}
           onOpenChange={(open) => !open && hook.setConversionTarget(null)}
           targetStage={hook.conversionTarget}
-          orderId={orderId}
+          projectId={projectId}
           enrichedItems={hook.enrichedItems}
           onSuccess={hook.handleConversionSuccess}
         />
@@ -430,7 +430,7 @@ export default function PresentationSection(props: PresentationSectionProps) {
         <SendPresentationDialog
           open={hook.showSendDialog}
           onOpenChange={hook.setShowSendDialog}
-          orderId={orderId}
+          projectId={projectId}
           recipientEmail={hook.contactEmail}
           recipientName={hook.recipientName}
           companyName={hook.companyName}

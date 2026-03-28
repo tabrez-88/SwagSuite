@@ -2,7 +2,7 @@ import { db } from '../db';
 import { orders, invoices, quoteApprovals, artworkApprovals } from '@shared/schema';
 import { notifications, projectActivities } from '@shared/schema';
 import { and, isNotNull, isNull, sql, eq, lt, or } from 'drizzle-orm';
-import { orderRepository } from '../repositories/order.repository';
+import { projectRepository } from '../repositories/project.repository';
 import { invoiceRepository } from '../repositories/invoice.repository';
 import { userRepository } from '../repositories/user.repository';
 import { companyRepository } from '../repositories/company.repository';
@@ -191,7 +191,7 @@ class NotificationScheduler {
 
           // Log activity
           if (invoice.orderId) {
-            const invoiceOrder = await orderRepository.getOrder(invoice.orderId);
+            const invoiceOrder = await projectRepository.getOrder(invoice.orderId);
             if (invoiceOrder?.assignedUserId) {
               await db.insert(projectActivities).values({
                 orderId: invoice.orderId,
@@ -237,7 +237,7 @@ class NotificationScheduler {
       let count = 0;
       for (const order of expiredOrders) {
         try {
-          await orderRepository.updateOrder(order.id, { presentationStatus: 'closed' } as any);
+          await projectRepository.updateOrder(order.id, { presentationStatus: 'closed' } as any);
 
           if (order.assignedUserId) {
             await db.insert(projectActivities).values({
@@ -290,7 +290,7 @@ class NotificationScheduler {
       let quoteReminders = 0;
       for (const approval of pendingQuoteApprovals) {
         try {
-          const order = await orderRepository.getOrder(approval.orderId);
+          const order = await projectRepository.getOrder(approval.orderId);
           if (!order) continue;
 
           const company = order.companyId ? await companyRepository.getById(order.companyId) : null;
@@ -389,7 +389,7 @@ class NotificationScheduler {
       let proofReminders = 0;
       for (const approval of pendingProofApprovals) {
         try {
-          const order = await orderRepository.getOrder(approval.orderId);
+          const order = await projectRepository.getOrder(approval.orderId);
           if (!order) continue;
 
           const clientFirstName = approval.clientName?.split(' ')[0] || 'there';
@@ -497,7 +497,7 @@ class NotificationScheduler {
         try {
           if (!invoice.orderId) continue;
 
-          const order = await orderRepository.getOrder(invoice.orderId);
+          const order = await projectRepository.getOrder(invoice.orderId);
           if (!order) continue;
 
           // Find the client contact email from the order

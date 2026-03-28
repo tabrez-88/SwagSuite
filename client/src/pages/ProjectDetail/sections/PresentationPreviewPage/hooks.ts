@@ -10,7 +10,7 @@ const fontFamilyMap: Record<string, string> = {
   playfair: "'Playfair Display', serif",
 };
 
-export function usePresentationPreviewPage({ orderId, data }: PresentationPreviewPageProps) {
+export function usePresentationPreviewPage({ projectId, data }: PresentationPreviewPageProps) {
   const [, setLocation] = useLocation();
   const { order, orderItems, companyName, companyData, allProducts, allItemLines, allItemCharges } = data;
   const [selectedProduct, setSelectedProduct] = useState<EnrichedItem | null>(null);
@@ -59,8 +59,8 @@ export function usePresentationPreviewPage({ orderId, data }: PresentationPrevie
   }, [orderItems, allProducts, allItemLines, allItemCharges, itemVisibility, itemOrder]);
 
   const handleBackToEditor = useCallback(() => {
-    setLocation(`/project/${orderId}/presentation`);
-  }, [setLocation, orderId]);
+    setLocation(`/projects/${projectId}/presentation`);
+  }, [setLocation, projectId]);
 
   const handleCloseProduct = useCallback(() => {
     setSelectedProduct(null);

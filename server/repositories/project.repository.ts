@@ -20,7 +20,7 @@ import {
   type InsertOrderAdditionalCharge,
 } from "@shared/schema";
 
-export class OrderRepository {
+export class ProjectRepository {
   async getOrders(): Promise<Order[]> {
     const results = await db
       .select({
@@ -297,4 +297,4 @@ export class OrderRepository {
   }
 }
 
-export const orderRepository = new OrderRepository();
+export const projectRepository = new ProjectRepository();

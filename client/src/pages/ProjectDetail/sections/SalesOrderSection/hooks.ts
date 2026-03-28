@@ -27,7 +27,7 @@ function getEditedItem(_id: string, item: any) {
   };
 }
 
-export function useSalesOrderSection({ orderId, data, lockStatus }: SalesOrderSectionProps) {
+export function useSalesOrderSection({ projectId, data, lockStatus }: SalesOrderSectionProps) {
   const { order, orderItems, companyName, primaryContact, contacts, allArtworkItems } = data;
   const [, setLocation] = useLocation();
   const [isInfoCollapsed, setIsInfoCollapsed] = useState(false);
@@ -45,16 +45,16 @@ export function useSalesOrderSection({ orderId, data, lockStatus }: SalesOrderSe
     deleteDocument,
     createQuoteApproval,
     isDeleting,
-  } = useDocumentGeneration(orderId);
+  } = useDocumentGeneration(projectId);
 
   const updateStatusMutation = useMutation({
     mutationFn: async (newStatus: string) => {
-      await apiRequest("PATCH", `/api/orders/${orderId}`, {
+      await apiRequest("PATCH", `/api/projects/${projectId}`, {
         salesOrderStatus: newStatus,
       });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/orders/${orderId}`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}`] });
     },
     onError: () => {
       toast({ title: "Failed to update status", variant: "destructive" });
@@ -63,12 +63,12 @@ export function useSalesOrderSection({ orderId, data, lockStatus }: SalesOrderSe
 
   const duplicateOrderMutation = useMutation({
     mutationFn: async () => {
-      const res = await apiRequest("POST", `/api/orders/${orderId}/duplicate`);
+      const res = await apiRequest("POST", `/api/projects/${projectId}/duplicate`);
       return res;
     },
     onSuccess: (data: any) => {
       toast({ title: "Order duplicated!", description: `New order #${data.order?.orderNumber} created` });
-      setLocation(`/project/${data.order?.id}`);
+      setLocation(`/projects/${data.order?.id}`);
     },
     onError: () => {
       toast({ title: "Failed to duplicate order", variant: "destructive" });
@@ -140,7 +140,7 @@ export function useSalesOrderSection({ orderId, data, lockStatus }: SalesOrderSe
   const statusInfo = salesOrderStatuses.find((s) => s.value === currentStatus) || salesOrderStatuses[0];
 
   const isLocked = lockStatus?.isLocked ?? false;
-  const { updateField, isPending: isFieldPending } = useInlineEdit({ orderId, isLocked });
+  const { updateField, isPending: isFieldPending } = useInlineEdit({ projectId, isLocked });
   const timelineConflicts = hasTimelineConflict(order);
 
   // Artwork sub-component state

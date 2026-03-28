@@ -221,7 +221,7 @@ export function useDocumentEditor({
         credentials: 'include',
       });
 
-      const response = await fetch(`/api/orders/${order.id}/documents`, {
+      const response = await fetch(`/api/projects/${order.id}/documents`, {
         method: 'POST',
         credentials: 'include',
         body: formData,
@@ -234,7 +234,7 @@ export function useDocumentEditor({
       return response.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/orders/${order.id}/documents`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/projects/${order.id}/documents`] });
       toast({
         title: "Document Saved",
         description: "Your changes have been saved and a new PDF has been generated.",

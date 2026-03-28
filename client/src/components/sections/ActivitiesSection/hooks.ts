@@ -11,7 +11,7 @@ const defaultTeamMembers: TeamMember[] = [
   { id: "user4", firstName: "Emily", lastName: "Davis", email: "emily@swag.com" },
 ];
 
-export function useActivitiesSection(orderId: string, data: ProjectData) {
+export function useActivitiesSection(projectId: string, data: ProjectData) {
   const { activities, teamMembers } = data;
 
   const [internalNote, setInternalNote] = useState("");
@@ -22,7 +22,7 @@ export function useActivitiesSection(orderId: string, data: ProjectData) {
   const [previewFile, setPreviewFile] = useState<PreviewFile | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  const createActivityMutation = usePostActivity(orderId);
+  const createActivityMutation = usePostActivity(projectId);
 
   const resolvedTeamMembers = teamMembers.length > 0 ? teamMembers : defaultTeamMembers;
 

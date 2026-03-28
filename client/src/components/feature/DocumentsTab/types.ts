@@ -10,7 +10,7 @@ export interface DocumentEmailData {
 }
 
 export interface DocumentsTabProps {
-  orderId: string;
+  projectId: string;
   order: any;
   orderItems: any[];
   orderVendors: any[];

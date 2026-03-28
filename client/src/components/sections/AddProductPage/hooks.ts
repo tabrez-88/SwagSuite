@@ -13,23 +13,20 @@ function getSsImageUrl(product: any): string | undefined {
   return img.startsWith('http') ? img : `https://www.ssactivewear.com/${img}`;
 }
 
-export function useAddProductPage({ orderId, data }: AddProductPageProps) {
+export function useAddProductPage({ projectId, data }: AddProductPageProps) {
   const marginSettings = useMarginSettings();
   const [currentLocation, setLocation] = useLocation();
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
-  // Detect context: project vs order, and which section we came from
-  const isProjectContext = currentLocation.startsWith(`/project/`);
+  // Detect which section we came from
   const isPresentationContext = currentLocation.includes("/presentation/add");
   const isQuoteContext = currentLocation.includes("/quote/add");
-  const productsPath = isProjectContext
-    ? isPresentationContext
-      ? `/project/${orderId}/presentation`
-      : isQuoteContext
-        ? `/project/${orderId}/quote`
-        : `/project/${orderId}/sales-order`
-    : `/orders/${orderId}/products`;
+  const productsPath = isPresentationContext
+    ? `/projects/${projectId}/presentation`
+    : isQuoteContext
+      ? `/projects/${projectId}/quote`
+      : `/projects/${projectId}/sales-order`;
 
   // Search state
   const [searchQuery, setSearchQuery] = useState("");
@@ -379,7 +376,7 @@ export function useAddProductPage({ orderId, data }: AddProductPageProps) {
       });
 
       // 1. Create the order item
-      const itemRes = await fetch(`/api/orders/${orderId}/items`, {
+      const itemRes = await fetch(`/api/projects/${projectId}/items`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -417,7 +414,7 @@ export function useAddProductPage({ orderId, data }: AddProductPageProps) {
       if (lines.length > 0) {
         await Promise.all(
           lines.map(line =>
-            fetch(`/api/order-items/${createdItem.id}/lines`, {
+            fetch(`/api/project-items/${createdItem.id}/lines`, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
@@ -441,9 +438,9 @@ export function useAddProductPage({ orderId, data }: AddProductPageProps) {
     },
     onSuccess: () => {
       toast({ title: "Product added to order" });
-      queryClient.invalidateQueries({ queryKey: [`/api/orders/${orderId}/items`] });
-      queryClient.invalidateQueries({ queryKey: [`/api/orders/${orderId}`] });
-      queryClient.invalidateQueries({ queryKey: [`/api/orders/${orderId}/all-item-lines`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/items`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/all-item-lines`] });
       setSelectedProduct(null);
       setLocation(productsPath);
     },
@@ -470,7 +467,7 @@ export function useAddProductPage({ orderId, data }: AddProductPageProps) {
         credentials: "include",
         body: JSON.stringify({
           supplierId: vendorBlockDialog.supplierId,
-          orderId,
+          orderId: projectId,
           reason: approvalReason || `Requesting approval to order from ${vendorBlockDialog.supplierName} for this project.`,
         }),
       });
@@ -517,7 +514,7 @@ export function useAddProductPage({ orderId, data }: AddProductPageProps) {
 
       const totalPrice = manualForm.quantity * manualForm.unitPrice;
 
-      const res = await fetch(`/api/orders/${orderId}/items`, {
+      const res = await fetch(`/api/projects/${projectId}/items`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -551,7 +548,7 @@ export function useAddProductPage({ orderId, data }: AddProductPageProps) {
       const createdItem = await res.json();
 
       if (manualForm.color || manualForm.size) {
-        await fetch(`/api/order-items/${createdItem.id}/lines`, {
+        await fetch(`/api/project-items/${createdItem.id}/lines`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -573,8 +570,8 @@ export function useAddProductPage({ orderId, data }: AddProductPageProps) {
     },
     onSuccess: () => {
       toast({ title: "Product added to order" });
-      queryClient.invalidateQueries({ queryKey: [`/api/orders/${orderId}/items`] });
-      queryClient.invalidateQueries({ queryKey: [`/api/orders/${orderId}`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/items`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}`] });
       setLocation(productsPath);
     },
     onError: (err: any) => {

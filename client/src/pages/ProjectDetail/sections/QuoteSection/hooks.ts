@@ -7,7 +7,7 @@ import { useDocumentGeneration, buildItemsHash } from "@/hooks/useDocumentGenera
 import { quoteStatuses } from "./types";
 import type { QuoteSectionProps } from "./types";
 
-export function useQuoteSection({ orderId, data, lockStatus }: QuoteSectionProps) {
+export function useQuoteSection({ projectId, data, lockStatus }: QuoteSectionProps) {
   const { order, orderItems, quoteApprovals, companyName, primaryContact, contacts, allProducts, allArtworkItems } = data;
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -23,7 +23,7 @@ export function useQuoteSection({ orderId, data, lockStatus }: QuoteSectionProps
     deleteDocument,
     createQuoteApproval,
     isDeleting,
-  } = useDocumentGeneration(orderId);
+  } = useDocumentGeneration(projectId);
 
   const enrichedItems = useMemo(() => {
     return orderItems.map((item: any) => {
@@ -37,12 +37,12 @@ export function useQuoteSection({ orderId, data, lockStatus }: QuoteSectionProps
 
   const updateStatusMutation = useMutation({
     mutationFn: async (newStatus: string) => {
-      await apiRequest("PATCH", `/api/orders/${orderId}`, {
+      await apiRequest("PATCH", `/api/projects/${projectId}`, {
         quoteStatus: newStatus,
       });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/orders/${orderId}`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}`] });
     },
     onError: () => {
       toast({ title: "Failed to update status", variant: "destructive" });
@@ -116,12 +116,12 @@ export function useQuoteSection({ orderId, data, lockStatus }: QuoteSectionProps
   const total = subtotal + tax + shipping;
 
   const isLocked = lockStatus?.isLocked ?? false;
-  const { updateField, isPending: isFieldPending } = useInlineEdit({ orderId, isLocked });
+  const { updateField, isPending: isFieldPending } = useInlineEdit({ projectId, isLocked });
 
   const handleConversionSuccess = () => {
     setShowConversionDialog(false);
-    queryClient.invalidateQueries({ queryKey: [`/api/orders/${orderId}`] });
-    queryClient.invalidateQueries({ queryKey: [`/api/orders/${orderId}/items`] });
+    queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}`] });
+    queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/items`] });
   };
 
   const contactsList = (contacts || []).map((c: any) => ({

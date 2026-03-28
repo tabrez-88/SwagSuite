@@ -3,16 +3,16 @@ import { vendorInvoiceService } from "../services/vendorInvoice.service";
 
 export class VendorInvoiceController {
   static async list(req: Request, res: Response) {
-    const { orderId } = req.params;
-    const invoices = await vendorInvoiceService.getByOrderId(orderId);
+    const { projectId } = req.params;
+    const invoices = await vendorInvoiceService.getByOrderId(projectId);
     res.json(invoices);
   }
 
   static async create(req: Request, res: Response) {
-    const { orderId } = req.params;
+    const { projectId } = req.params;
     const { supplierId, documentId, invoiceNumber, amount, dueDate, notes } = req.body;
 
-    const invoice = await vendorInvoiceService.create(orderId, {
+    const invoice = await vendorInvoiceService.create(projectId, {
       supplierId,
       documentId,
       invoiceNumber,

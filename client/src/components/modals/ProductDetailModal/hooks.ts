@@ -37,7 +37,7 @@ export function useProductDetailModal({ product, open, onOpenChange }: Pick<Prod
   });
 
   const handleCreateQuote = () => {
-    setLocation(`/orders?product=${product!.id}`);
+    setLocation(`/projects?product=${product!.id}`);
     onOpenChange(false);
   };
 
@@ -55,8 +55,8 @@ export function useProductDetailModal({ product, open, onOpenChange }: Pick<Prod
     }
   };
 
-  const handleNavigateToOrder = (orderId: string) => {
-    setLocation(`/orders?id=${orderId}`);
+  const handleNavigateToOrder = (projectId: string) => {
+    setLocation(`/projects?id=${projectId}`);
     onOpenChange(false);
   };
 

@@ -31,7 +31,7 @@ export interface OrderFile {
 }
 
 export interface FilesTabProps {
-    orderId: string;
+    projectId: string;
     products: Array<{
         id: string;
         productName: string;

@@ -78,7 +78,7 @@ export default function QuoteSection(props: QuoteSectionProps) {
 
   return (
     <div className="space-y-6">
-      {props.lockStatus && <LockBanner lockStatus={props.lockStatus} sectionName="Quote" sectionKey="quote" orderId={props.orderId} />}
+      {props.lockStatus && <LockBanner lockStatus={props.lockStatus} sectionName="Quote" sectionKey="quote" projectId={props.projectId} />}
 
       <ProjectInfoBar companyName={companyName} primaryContact={primaryContact} />
 
@@ -316,7 +316,7 @@ export default function QuoteSection(props: QuoteSectionProps) {
       )}
 
       {/* Quote Products */}
-      <ProductsSection orderId={props.orderId} data={data} isLocked={isLocked} />
+      <ProductsSection projectId={props.projectId} data={data} isLocked={isLocked} />
 
       {/* Quote Document Section */}
       <Card>
@@ -508,7 +508,7 @@ export default function QuoteSection(props: QuoteSectionProps) {
         <SendQuoteDialog
           open={showSendDialog}
           onOpenChange={setShowSendDialog}
-          orderId={props.orderId}
+          projectId={props.projectId}
           recipientEmail={primaryContact?.email || ""}
           recipientName={primaryContact ? `${primaryContact.firstName} ${primaryContact.lastName}` : companyName}
           companyName={companyName}
@@ -527,7 +527,7 @@ export default function QuoteSection(props: QuoteSectionProps) {
           open={showConversionDialog}
           onOpenChange={setShowConversionDialog}
           targetStage="sales_order"
-          orderId={props.orderId}
+          projectId={props.projectId}
           enrichedItems={enrichedItems}
           onSuccess={handleConversionSuccess}
         />

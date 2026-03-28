@@ -1,6 +1,6 @@
 import type { useProjectData } from "../../hooks";
 
 export interface FeedbackSectionProps {
-  orderId: string;
+  projectId: string;
   data: ReturnType<typeof useProjectData>;
 }

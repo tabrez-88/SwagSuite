@@ -1,3 +1,3 @@
 export const shipmentKeys = {
-  byOrder: (orderId: string | number) => [`/api/orders/${orderId}/shipments`] as const,
+  byOrder: (projectId: string | number) => [`/api/projects/${projectId}/shipments`] as const,
 };

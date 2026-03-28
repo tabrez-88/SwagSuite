@@ -32,11 +32,11 @@ import { calcMargin, marginColor } from "./hooks";
 
 interface ProductPricingEditorProps {
   item: any;
-  orderId: string;
+  projectId: string;
   onClose: () => void;
 }
 
-export default function ProductPricingEditor({ item, orderId, onClose }: ProductPricingEditorProps) {
+export default function ProductPricingEditor({ item, projectId, onClose }: ProductPricingEditorProps) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const lines: OrderItemLine[] = item.lines || [];
@@ -227,11 +227,11 @@ export default function ProductPricingEditor({ item, orderId, onClose }: Product
     mutationFn: async () => {
       // 1. Save pricing tiers (delete old, create new)
       for (const line of lines) {
-        await apiRequest("DELETE", `/api/order-items/${item.id}/lines/${line.id}`);
+        await apiRequest("DELETE", `/api/project-items/${item.id}/lines/${line.id}`);
       }
       for (const tier of tiers) {
         if (tier.quantity > 0) {
-          await apiRequest("POST", `/api/order-items/${item.id}/lines`, {
+          await apiRequest("POST", `/api/project-items/${item.id}/lines`, {
             orderItemId: item.id,
             quantity: tier.quantity,
             cost: tier.cost.toFixed(2),
@@ -250,13 +250,13 @@ export default function ProductPricingEditor({ item, orderId, onClose }: Product
       // Delete removed charges
       for (const id of existingChargeIds) {
         if (!allCurrentIds.includes(id)) {
-          await apiRequest("DELETE", `/api/order-items/${item.id}/charges/${id}`);
+          await apiRequest("DELETE", `/api/project-items/${item.id}/charges/${id}`);
         }
       }
       // Save fixed charges
       for (const charge of charges) {
         if (charge.isNew) {
-          await apiRequest("POST", `/api/order-items/${item.id}/charges`, {
+          await apiRequest("POST", `/api/project-items/${item.id}/charges`, {
             orderItemId: item.id,
             description: charge.description,
             amount: charge.retail.toFixed(2),
@@ -264,7 +264,7 @@ export default function ProductPricingEditor({ item, orderId, onClose }: Product
             isVendorCharge: false,
           });
         } else {
-          await apiRequest("PATCH", `/api/order-items/${item.id}/charges/${charge.id}`, {
+          await apiRequest("PATCH", `/api/project-items/${item.id}/charges/${charge.id}`, {
             description: charge.description,
             amount: charge.retail.toFixed(2),
           });
@@ -273,7 +273,7 @@ export default function ProductPricingEditor({ item, orderId, onClose }: Product
       // Save run charges
       for (const rc of runCharges) {
         if (rc.isNew) {
-          await apiRequest("POST", `/api/order-items/${item.id}/charges`, {
+          await apiRequest("POST", `/api/project-items/${item.id}/charges`, {
             orderItemId: item.id,
             description: rc.description,
             amount: rc.costPerUnit.toFixed(2),
@@ -281,7 +281,7 @@ export default function ProductPricingEditor({ item, orderId, onClose }: Product
             isVendorCharge: false,
           });
         } else {
-          await apiRequest("PATCH", `/api/order-items/${item.id}/charges/${rc.id}`, {
+          await apiRequest("PATCH", `/api/project-items/${item.id}/charges/${rc.id}`, {
             description: rc.description,
             amount: rc.costPerUnit.toFixed(2),
           });
@@ -297,7 +297,7 @@ export default function ProductPricingEditor({ item, orderId, onClose }: Product
       }
 
       // 4. Save order item fields (priceLabel, personalComment, privateNotes, decoration)
-      await apiRequest("PATCH", `/api/orders/${orderId}/items/${item.id}`, {
+      await apiRequest("PATCH", `/api/projects/${projectId}/items/${item.id}`, {
         priceLabel: priceLabel || null,
         personalComment: personalComment || null,
         privateNotes: privateNotes || null,
@@ -307,9 +307,9 @@ export default function ProductPricingEditor({ item, orderId, onClose }: Product
       });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/orders/${orderId}/all-item-lines`] });
-      queryClient.invalidateQueries({ queryKey: [`/api/orders/${orderId}/all-item-charges`] });
-      queryClient.invalidateQueries({ queryKey: [`/api/orders/${orderId}/items`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/all-item-lines`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/all-item-charges`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/items`] });
       toast({ title: "Product pricing updated" });
       onClose();
     },
