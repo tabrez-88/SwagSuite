@@ -1,4 +1,4 @@
-import type { useProjectData } from "../../hooks";
+import type { useProjectData } from "../../../hooks";
 
 export interface PresentationPreviewPageProps {
   projectId: string;

@@ -34,9 +34,9 @@ import type { OrderItemLine } from "@shared/schema";
 import StageConversionDialog from "../../components/StageConversionDialog";
 import SendPresentationDialog from "@/components/modals/SendPresentationDialog";
 import { usePresentationSection, presentationStatuses, calcMargin, marginColor } from "./hooks";
-import ProductPricingEditor from "./ProductPricingEditor";
-import ProductPreviewLightbox from "./ProductPreviewLightbox";
-import ArtworkGrid from "./ArtworkGrid";
+import ProductPricingEditor from "./components/ProductPricingEditor";
+import ProductPreviewLightbox from "./components/ProductPreviewLightbox";
+import ArtworkGrid from "./components/ArtworkGrid";
 import type { PresentationSectionProps } from "./types";
 
 export default function PresentationSection(props: PresentationSectionProps) {

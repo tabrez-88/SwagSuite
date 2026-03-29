@@ -28,7 +28,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import type { OrderItemLine } from "@shared/schema";
 import { IMPRINT_LOCATIONS, IMPRINT_METHODS } from "@/constants/imprintOptions";
-import { calcMargin, marginColor } from "./hooks";
+import { calcMargin, marginColor } from "../hooks";
 
 interface ProductPricingEditorProps {
   item: any;

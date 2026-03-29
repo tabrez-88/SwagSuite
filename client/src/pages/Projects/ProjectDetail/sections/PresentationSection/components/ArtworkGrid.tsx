@@ -30,7 +30,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { IMPRINT_LOCATIONS, IMPRINT_METHODS } from "@/constants/imprintOptions";
 import FilePickerDialog from "@/components/modals/FilePickerDialog";
-import type { useProjectData } from "../../hooks";
+import type { useProjectData } from "../../../hooks";
 
 interface ArtworkGridProps {
   data: ReturnType<typeof useProjectData>;

@@ -31,7 +31,7 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 
-import ActivitiesSection from "@/components/sections/ActivitiesSection";
+import ActivitiesSection from "@/pages/Projects/ProjectDetail/sections/OverviewSection/ActivitiesSection";
 import EmailSection from "@/components/sections/EmailSection";
 import VendorSection from "@/components/sections/VendorSection";
 

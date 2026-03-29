@@ -35,7 +35,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { useIntegrationsTab } from "./hooks";
-import { AddIntegrationModal } from "./AddIntegrationModal";
+import { AddIntegrationModal } from "./components/AddIntegrationModal";
 
 export function IntegrationsTab() {
   const hook = useIntegrationsTab();

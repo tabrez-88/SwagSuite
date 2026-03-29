@@ -7,9 +7,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import type { Order } from "@shared/schema";
 import { DollarSign, FileText, Kanban, List, PlusCircle, ShoppingCart, Receipt } from "lucide-react";
-import { columns, OrderWithRelations } from "./columns";
-import { DataTable } from "./data-table";
-import { KanbanBoard } from "./kanban-board";
+import { columns, OrderWithRelations } from "./components/columns";
+import { DataTable } from "./components/data-table";
+import { KanbanBoard } from "./components/kanban-board";
 import { determineBusinessStage } from "@/constants/businessStages";
 
 export default function ProjectsPage() {

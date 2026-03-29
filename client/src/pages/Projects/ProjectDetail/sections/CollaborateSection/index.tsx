@@ -2,7 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { UserAvatar } from "@/components/shared/UserAvatar";
 import { User } from "lucide-react";
 import type { useProjectData } from "../../hooks";
-import ActivitiesSection from "@/components/sections/ActivitiesSection";
+import ActivitiesSection from "@/pages/Projects/ProjectDetail/sections/OverviewSection/ActivitiesSection";
 import { useCollaborateSection } from "./hooks";
 
 interface CollaborateSectionProps {

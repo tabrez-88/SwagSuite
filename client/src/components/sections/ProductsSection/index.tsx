@@ -1,10 +1,4 @@
-import { Textarea } from "@/components/ui/textarea";
-import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import FilePickerDialog from "@/components/modals/FilePickerDialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -15,42 +9,48 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogFooter,
 } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import { IMPRINT_LOCATIONS, IMPRINT_METHODS } from "@/constants/imprintOptions";
+import { isBelowMinimum } from "@/hooks/useMarginSettings";
+import { getCloudinaryThumbnail } from "@/lib/media-library";
+import type { OrderAdditionalCharge, OrderItemLine } from "@shared/schema";
 import {
-  Package,
-  Plus,
-  Trash2,
   AlertTriangle,
-  Palette,
-  Image,
   ChevronDown,
   ChevronRight,
   DollarSign,
-  Percent,
   Edit2,
-  Save,
-  X,
-  Ruler,
-  FileText,
-  Loader2,
-  TrendingUp,
-  Upload,
   Eye,
   EyeOff,
+  FileText,
+  Image,
+  Loader2,
+  Package,
+  Palette,
+  Percent,
+  Plus,
+  Ruler,
+  Save,
+  Trash2,
+  TrendingUp,
+  Upload,
+  X,
 } from "lucide-react";
-import type { OrderItemLine, OrderAdditionalCharge } from "@shared/schema";
-import { IMPRINT_LOCATIONS, IMPRINT_METHODS } from "@/constants/imprintOptions";
-import FilePickerDialog from "@/components/modals/FilePickerDialog";
-import { isBelowMinimum, calcMarginPercent, applyMargin } from "@/hooks/useMarginSettings";
-import type { ProductsSectionProps } from "./types";
 import { useProductsSection } from "./hooks";
-import { getCloudinaryThumbnail } from "@/lib/media-library";
+import type { ProductsSectionProps } from "./types";
 
 export default function ProductsSection({ projectId, data, isLocked }: ProductsSectionProps) {
   const h = useProductsSection({ projectId, data, isLocked });

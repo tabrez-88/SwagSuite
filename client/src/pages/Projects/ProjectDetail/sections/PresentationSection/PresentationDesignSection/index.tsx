@@ -17,7 +17,7 @@ import {
   Type,
   Upload,
 } from "lucide-react";
-import type { useProjectData } from "../../hooks";
+import type { useProjectData } from "../../../hooks";
 import { usePresentationDesignSection } from "./hooks";
 
 interface PresentationDesignSectionProps {

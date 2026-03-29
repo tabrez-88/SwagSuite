@@ -9,15 +9,15 @@ import { useLockStatus } from "@/hooks/useLockStatus";
 // Sections
 import OverviewSection from "./sections/OverviewSection";
 import PresentationSection from "./sections/PresentationSection";
-import PresentationPreviewPage from "./sections/PresentationPreviewPage";
 import QuoteSection from "./sections/QuoteSection";
 import SalesOrderSection from "./sections/SalesOrderSection";
-import ShippingSection from "@/components/sections/ShippingSection";
-import PurchaseOrdersSection from "@/components/sections/PurchaseOrdersSection";
+import ShippingSection from "./sections/ShippingSection";
+import PurchaseOrdersSection from "./sections/PurchaseOrdersSection";
 import InvoiceSection from "./sections/InvoiceSection";
 import BillsSection from "./sections/BillsSection";
 import FeedbackSection from "./sections/FeedbackSection";
 import AddProductPage from "@/components/sections/AddProductPage";
+import PresentationPreviewPage from "./sections/PresentationSection/PresentationPreviewPage";
 
 export default function ProjectDetailPage() {
   const params = useParams();

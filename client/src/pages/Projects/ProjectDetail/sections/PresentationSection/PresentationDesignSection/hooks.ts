@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { useProjectData } from "../../hooks";
+import type { useProjectData } from "../../../hooks";
 
 interface UsePresentationDesignSectionParams {
   projectId: string;
