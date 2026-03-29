@@ -74,7 +74,7 @@ export default function ProjectNestedSidebar({ projectId, orderItemsCount, curre
   const activeSection = getActiveSection();
 
   return (
-    <div className="w-52 flex-shrink-0 border-r border-gray-200 bg-white min-h-full">
+    <div className="w-52 bg-white h-fit sticky top-0 z-10">
       <div className="p-3 border-b border-gray-100">
         <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
           Project

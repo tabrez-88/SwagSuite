@@ -5,6 +5,7 @@ import { FileText, X, Zap } from "lucide-react";
 import { useLocation } from "wouter";
 import type { Order } from "@shared/schema";
 import type { DeterminedStage } from "@/constants/businessStages";
+import { Separator } from "@/components/ui/separator";
 
 interface ProjectHeaderProps {
   order: Order;
@@ -22,15 +23,23 @@ export default function ProjectHeader({
   return (
     <div className="bg-white border-b px-6 py-4">
       <div className="flex flex-wrap items-center gap-3">
-        <FileText className="w-6 h-6" />
-        <h2 className="text-lg font-semibold">
-          {order.projectName || `Project #${order.orderNumber}`}
-        </h2>
+        <div className="flex gap-2 items-center">
+          <FileText className="size-8" />
+          <div className="flex flex-col">
+            <h2 className="text-lg font-semibold">
+              {order.projectName || `Project #${order.orderNumber}`}
+            </h2>
+            <p className="text-sm text-muted-foreground mt-1">
+              Full project details, communications, and workflow management
+            </p>
+          </div>
+        </div>
+        <Separator orientation="vertical" className="h-12" />
         {order.projectName && (
           <span className="text-sm text-muted-foreground">#{order.orderNumber}</span>
         )}
         {businessStage && (
-          <StageBadge stage={businessStage} size="sm" />
+          <StageBadge stage={businessStage} size="md" />
         )}
         {isRushOrder && (
           <Badge variant="destructive" className="flex items-center gap-1">
@@ -39,7 +48,7 @@ export default function ProjectHeader({
           </Badge>
         )}
         <Button
-          variant="ghost"
+          variant="default"
           size="sm"
           onClick={() => setLocation("/projects")}
           className="ml-auto"
@@ -48,9 +57,7 @@ export default function ProjectHeader({
           Close
         </Button>
       </div>
-      <p className="text-sm text-muted-foreground mt-1">
-        Full project details, communications, and workflow management
-      </p>
+
     </div>
   );
 }

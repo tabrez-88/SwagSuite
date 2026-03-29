@@ -13,6 +13,9 @@ router.patch("/api/projects/:id", isAuthenticated, ProjectController.update);
 router.post("/api/projects/:projectId/duplicate", isAuthenticated, ProjectController.duplicate);
 router.post("/api/projects/:id/recalculate-total", isAuthenticated, ProjectController.recalculateTotal);
 
+// ── Batch: Items with all details (lines, charges, artwork) ──
+router.get("/api/projects/:projectId/items-with-details", isAuthenticated, ProjectController.listItemsWithDetails);
+
 // ── Project Items ──
 router.get("/api/projects/:projectId/items", isAuthenticated, ProjectController.listItems);
 router.post("/api/projects/:projectId/items", isAuthenticated, ProjectController.createItem);

@@ -1,0 +1,20 @@
+CREATE INDEX IF NOT EXISTS "idx_orders_company_id" ON "orders" ("company_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "idx_orders_created_at" ON "orders" ("created_at");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "idx_orders_assigned_user_id" ON "orders" ("assigned_user_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "idx_order_items_order_id" ON "order_items" ("order_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "idx_order_items_supplier_id" ON "order_items" ("supplier_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "idx_order_items_product_id" ON "order_items" ("product_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "idx_order_item_lines_order_item_id" ON "order_item_lines" ("order_item_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "idx_order_additional_charges_order_item_id" ON "order_additional_charges" ("order_item_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "idx_order_service_charges_order_id" ON "order_service_charges" ("order_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "idx_order_shipments_order_id" ON "order_shipments" ("order_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "idx_artwork_items_order_item_id" ON "artwork_items" ("order_item_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "idx_products_supplier_id" ON "products" ("supplier_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "idx_products_category_id" ON "products" ("category_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "idx_project_activities_order_id" ON "project_activities" ("order_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "idx_project_activities_created_at" ON "project_activities" ("created_at");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "idx_contacts_company_id" ON "contacts" ("company_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "idx_media_library_order_id" ON "media_library" ("order_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "idx_media_library_company_id" ON "media_library" ("company_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "idx_generated_documents_order_id" ON "generated_documents" ("order_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "idx_order_files_order_id" ON "order_files" ("order_id");

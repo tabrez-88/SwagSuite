@@ -1,6 +1,5 @@
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 import { useLocation, useParams } from "wouter";
-import { useQueryClient } from "@tanstack/react-query";
 import ProjectHeader from "./components/ProjectHeader";
 import ProjectNestedSidebar from "./components/ProjectNestedSidebar";
 import { useProjectData } from "./hooks";
@@ -17,6 +16,7 @@ import InvoiceSection from "./sections/InvoiceSection";
 import BillsSection from "./sections/BillsSection";
 import FeedbackSection from "./sections/FeedbackSection";
 import AddProductPage from "@/components/sections/AddProductPage";
+import EditProductPage from "@/components/sections/EditProductPage";
 import PresentationPreviewPage from "./sections/PresentationSection/PresentationPreviewPage";
 
 export default function ProjectDetailPage() {
@@ -24,18 +24,16 @@ export default function ProjectDetailPage() {
   const projectId = params.projectId || params[0];
   const [location, setLocation] = useLocation();
 
-  const queryClient = useQueryClient();
-  const data = useProjectData(projectId);
-  const lockStatus = useLockStatus(data);
-
   const getActiveSection = () => {
     if (!projectId) return "overview";
     const prefix = `/projects/${projectId}/`;
     if (location.startsWith(prefix)) {
       const rest = location.slice(prefix.length);
       if (rest.startsWith("sales-order/add")) return "sales-order/add";
+      if (rest.startsWith("sales-order/edit/")) return "sales-order/edit";
       if (rest.startsWith("sales-order")) return "sales-order";
       if (rest.startsWith("quote/add")) return "quote/add";
+      if (rest.startsWith("quote/edit/")) return "quote/edit";
       if (rest.startsWith("presentation/add")) return "presentation/add";
       if (rest.startsWith("presentation/preview")) return "presentation/preview";
       if (rest.startsWith("presentation")) return "presentation";
@@ -47,26 +45,30 @@ export default function ProjectDetailPage() {
 
   const activeSection = getActiveSection();
 
+  // Extract itemId for edit routes
+  const getEditItemId = () => {
+    if (!projectId) return null;
+    const prefix = `/projects/${projectId}/`;
+    if (location.startsWith(prefix)) {
+      const rest = location.slice(prefix.length);
+      const editMatch = rest.match(/(?:sales-order|quote)\/edit\/(.+)/);
+      if (editMatch) return editMatch[1];
+    }
+    return null;
+  };
+  const editItemId = getEditItemId();
+
+  // Map edit sections to their parent for data loading
+  const dataSection = activeSection.includes("/edit") ? activeSection.replace("/edit", "") : activeSection;
+  const data = useProjectData(projectId, dataSection);
+  const lockStatus = useLockStatus(data);
+
   // Redirect bare /project/:projectId to /project/:projectId/overview
   useEffect(() => {
     if (projectId && location === `/projects/${projectId}`) {
       setLocation(`/projects/${projectId}/overview`, { replace: true });
     }
   }, [projectId, location, setLocation]);
-
-  // Auto-recalculate totals once when order loads (ensures DB totals are in sync)
-  const hasRecalculated = useRef(false);
-  useEffect(() => {
-    if (data.order && projectId && !hasRecalculated.current) {
-      hasRecalculated.current = true;
-      fetch(`/api/projects/${projectId}/recalculate-total`, {
-        method: "POST",
-        credentials: "include",
-      }).then(res => {
-        if (res.ok) queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}`] });
-      }).catch(() => {});
-    }
-  }, [data.order, projectId, queryClient]);
 
   if (data.orderLoading) {
     return (
@@ -108,6 +110,9 @@ export default function ProjectDetailPage() {
       case "quote/add":
       case "sales-order/add":
         return <AddProductPage projectId={projectId!} data={data} />;
+      case "quote/edit":
+      case "sales-order/edit":
+        return editItemId ? <EditProductPage projectId={projectId!} itemId={editItemId} data={data} /> : null;
       case "shipping":
         return <ShippingSection projectId={projectId!} data={data} isLocked={lockStatus.shipping.isLocked} />;
       case "pos":
@@ -133,14 +138,14 @@ export default function ProjectDetailPage() {
   }
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col">
       <ProjectHeader
         order={data.order}
         isRushOrder={data.isRushOrder}
         businessStage={data.businessStage}
       />
 
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex relative bg-white h-full">
         <ProjectNestedSidebar
           projectId={projectId!}
           orderItemsCount={data.orderItems.length}
@@ -148,7 +153,7 @@ export default function ProjectDetailPage() {
           salesOrderStatus={data.order?.salesOrderStatus ?? undefined}
         />
 
-        <div className="flex-1 overflow-y-auto p-6 bg-gray-50">
+        <div className="flex-1 p-6 pb-24 bg-gray-50">
           {renderSection()}
         </div>
       </div>

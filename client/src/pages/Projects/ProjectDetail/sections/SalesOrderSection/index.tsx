@@ -104,17 +104,17 @@ export default function SalesOrderSection(props: SalesOrderSectionProps) {
             size="sm"
             onClick={() => hook.setIsInfoCollapsed(!hook.isInfoCollapsed)}
           >
-          {hook.isInfoCollapsed ? (
-            <>
-              <ChevronDown className="w-4 h-4 mr-1" />
-              Expand Info
-            </>
-          ) : (
-            <>
-              <ChevronUp className="w-4 h-4 mr-1" />
-              Collapse Info
-            </>
-          )}
+            {hook.isInfoCollapsed ? (
+              <>
+                <ChevronDown className="w-4 h-4 mr-1" />
+                Expand Info
+              </>
+            ) : (
+              <>
+                <ChevronUp className="w-4 h-4 mr-1" />
+                Collapse Info
+              </>
+            )}
           </Button>
         </div>
       </div>

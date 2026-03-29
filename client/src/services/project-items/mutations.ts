@@ -6,6 +6,7 @@ import * as requests from "./requests";
 function useInvalidateProjectItems(projectId: string | number) {
   const queryClient = useQueryClient();
   return () => {
+    queryClient.invalidateQueries({ queryKey: projectKeys.itemsWithDetails(projectId) });
     queryClient.invalidateQueries({ queryKey: projectKeys.items(projectId) });
     queryClient.invalidateQueries({ queryKey: projectKeys.detail(projectId) });
     queryClient.invalidateQueries({ queryKey: projectKeys.itemLines(projectId) });

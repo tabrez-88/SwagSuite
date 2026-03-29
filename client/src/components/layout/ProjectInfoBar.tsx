@@ -15,7 +15,7 @@ export default function ProjectInfoBar({ companyName, primaryContact }: ProjectI
     : null;
 
   return (
-    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground bg-gray-50 border rounded-md px-3 py-2">
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground bg-white border rounded-md px-3 py-2">
       <span className="inline-flex items-center gap-1.5">
         <Building2 className="w-3.5 h-3.5" />
         <span className="font-medium text-foreground">{companyName}</span>

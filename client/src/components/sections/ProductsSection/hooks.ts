@@ -312,6 +312,7 @@ export function useProductsSection({ projectId, data, isLocked }: ProductsSectio
     }
 
     // Invalidate all order item caches
+    queryClient.invalidateQueries({ queryKey: projectKeys.itemsWithDetails(projectId) });
     queryClient.invalidateQueries({ queryKey: projectKeys.items(projectId) });
     queryClient.invalidateQueries({ queryKey: projectKeys.detail(projectId) });
     queryClient.invalidateQueries({ queryKey: projectKeys.itemLines(projectId) });

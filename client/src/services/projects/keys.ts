@@ -2,6 +2,7 @@ export const projectKeys = {
   all: ["/api/projects"] as const,
   detail: (id: string | number) => [`/api/projects/${id}`] as const,
   items: (id: string | number) => [`/api/projects/${id}/items`] as const,
+  itemsWithDetails: (id: string | number) => [`/api/projects/${id}/items-with-details`] as const,
   documents: (id: string | number) => [`/api/projects/${id}/documents`] as const,
   approvals: (id: string | number) => [`/api/projects/${id}/quote-approvals`] as const,
   invoice: (id: string | number) => [`/api/projects/${id}/invoice`] as const,

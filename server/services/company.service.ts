@@ -6,35 +6,38 @@ import { activityRepository } from "../repositories/activity.repository";
 export class CompanyService {
   async getAllWithYtd() {
     const { db } = await import("../db");
-    const { orders } = await import("@shared/schema");
-    const { eq, and, gte, sql } = await import("drizzle-orm");
+    const { orders, companies } = await import("@shared/schema");
+    const { gte, sql } = await import("drizzle-orm");
 
     const allCompanies = await companyRepository.getAll();
 
     const currentYear = new Date().getFullYear();
     const yearStart = new Date(currentYear, 0, 1);
 
-    return Promise.all(
-      allCompanies.map(async (company) => {
-        const [ytdResult] = await db
-          .select({ total: sql<string>`COALESCE(SUM(${orders.total}), 0)` })
-          .from(orders)
-          .where(
-            and(
-              eq(orders.companyId, company.id),
-              gte(orders.createdAt, yearStart)
-            )
-          );
-
-        const ytdSpend = ytdResult?.total ? parseFloat(ytdResult.total) : 0;
-
-        if (ytdSpend !== parseFloat(company.ytdSpend || '0')) {
-          await companyRepository.updateYtdSpend(company.id, ytdSpend.toFixed(2));
-        }
-
-        return { ...company, ytdSpend: ytdSpend.toFixed(2) };
+    // Single aggregation query instead of N+1
+    const ytdResults = await db
+      .select({
+        companyId: orders.companyId,
+        total: sql<string>`COALESCE(SUM(${orders.total}), 0)`,
       })
-    );
+      .from(orders)
+      .where(gte(orders.createdAt, yearStart))
+      .groupBy(orders.companyId);
+
+    const ytdMap = new Map(ytdResults.map(r => [r.companyId, parseFloat(r.total || '0')]));
+
+    // Batch update companies whose YTD changed
+    const updates: Promise<void>[] = [];
+    const result = allCompanies.map((company) => {
+      const ytdSpend = ytdMap.get(company.id) || 0;
+      if (ytdSpend !== parseFloat(company.ytdSpend || '0')) {
+        updates.push(companyRepository.updateYtdSpend(company.id, ytdSpend.toFixed(2)));
+      }
+      return { ...company, ytdSpend: ytdSpend.toFixed(2) };
+    });
+
+    await Promise.all(updates);
+    return result;
   }
 
   async search(query: string) {

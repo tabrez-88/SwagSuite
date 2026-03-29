@@ -12,8 +12,24 @@ import {
 // Re-export types for backward compatibility
 export { type TeamMember, type ProjectActivity, type Communication, type ProjectData };
 
-export function useProjectData(projectId: string | null | undefined): ProjectData {
+// Sections that need specific data
+const SECTIONS_NEEDING_INVOICE = ["invoice", "overview"];
+const SECTIONS_NEEDING_ACTIVITIES = ["overview", "quote", "sales-order", "pos", "invoice", "feedback"];
+const SECTIONS_NEEDING_COMMUNICATIONS = ["overview", "sales-order", "pos"];
+const SECTIONS_NEEDING_SHIPMENTS = ["shipping", "overview", "sales-order"];
+const SECTIONS_NEEDING_APPROVALS = ["pos", "sales-order"];
+const SECTIONS_NEEDING_VENDOR_INVOICES = ["bills"];
+const SECTIONS_NEEDING_SERVICE_CHARGES = ["quote", "sales-order"];
+const SECTIONS_NEEDING_QUOTE_APPROVALS = ["quote", "sales-order"];
+const SECTIONS_NEEDING_PORTAL_TOKENS = ["presentation", "feedback"];
+const SECTIONS_NEEDING_SUPPLIERS = ["overview", "quote", "sales-order", "pos", "bills"];
+const SECTIONS_NEEDING_PRODUCTS = ["presentation", "quote", "sales-order"];
+
+export function useProjectData(projectId: string | null | undefined, activeSection?: string): ProjectData {
   const enabled = !!projectId;
+  const section = activeSection || "overview";
+
+  // ── Core queries (always needed) ──
 
   const { data: order, isLoading: orderLoading } = useQuery<Order>({
     queryKey: [`/api/projects/${projectId}`],
@@ -24,6 +40,30 @@ export function useProjectData(projectId: string | null | undefined): ProjectDat
     queryKey: ["/api/companies"],
     enabled: enabled && !!order,
   });
+
+  const { data: teamMembers = [] } = useQuery<TeamMember[]>({
+    queryKey: ["/api/users/team"],
+    enabled: enabled && !!order,
+  });
+
+  // ── Batch endpoint: items + lines + charges + artwork in 1 request ──
+
+  const { data: itemsWithDetails } = useQuery<{
+    items: any[];
+    lines: Record<string, OrderItemLine[]>;
+    charges: Record<string, OrderAdditionalCharge[]>;
+    artworks: Record<string, any[]>;
+  }>({
+    queryKey: [`/api/projects/${projectId}/items-with-details`],
+    enabled: enabled && !!order,
+  });
+
+  const orderItems = itemsWithDetails?.items || [];
+  const allItemLines = itemsWithDetails?.lines || {};
+  const allItemCharges = itemsWithDetails?.charges || {};
+  const allArtworkItems = itemsWithDetails?.artworks || {};
+
+  // ── Section-specific queries (lazy loaded) ──
 
   const { data: contacts = [] } = useQuery<any[]>({
     queryKey: [`/api/contacts`, { companyId: order?.companyId }],
@@ -43,61 +83,23 @@ export function useProjectData(projectId: string | null | undefined): ProjectDat
       if (!response.ok) return null;
       return response.json();
     },
-    enabled: enabled && !!order,
+    enabled: enabled && !!order && SECTIONS_NEEDING_INVOICE.includes(section),
     retry: false,
-  });
-
-  const { data: teamMembers = [] } = useQuery<TeamMember[]>({
-    queryKey: ["/api/users/team"],
-    enabled: enabled && !!order,
-  });
-
-  const { data: orderItems = [] } = useQuery<any[]>({
-    queryKey: [`/api/projects/${projectId}/items`],
-    enabled: enabled && !!order,
-    staleTime: 0,
-    gcTime: 0,
-  });
-
-  const { data: allArtworkItems = {} } = useQuery<Record<string, any[]>>({
-    queryKey: [`/api/projects/${projectId}/all-artworks`],
-    queryFn: async () => {
-      if (!orderItems || orderItems.length === 0) return {};
-      const artworksByItem: Record<string, any[]> = {};
-      await Promise.all(
-        orderItems.map(async (item: any) => {
-          try {
-            const response = await fetch(`/api/project-items/${item.id}/artworks`);
-            if (response.ok) {
-              artworksByItem[item.id] = await response.json();
-            } else {
-              artworksByItem[item.id] = [];
-            }
-          } catch {
-            artworksByItem[item.id] = [];
-          }
-        }),
-      );
-      return artworksByItem;
-    },
-    enabled: enabled && !!orderItems && orderItems.length > 0,
   });
 
   const { data: suppliers = [] } = useQuery<any[]>({
     queryKey: ["/api/suppliers"],
-    enabled: enabled && !!order,
-    staleTime: 0,
+    enabled: enabled && !!order && SECTIONS_NEEDING_SUPPLIERS.includes(section),
   });
 
   const { data: allProducts = [] } = useQuery<any[]>({
     queryKey: ["/api/products"],
-    enabled: enabled && !!order,
-    staleTime: 0,
+    enabled: enabled && !!order && SECTIONS_NEEDING_PRODUCTS.includes(section),
   });
 
   const { data: activities = [] } = useQuery<ProjectActivity[]>({
     queryKey: [`/api/projects/${projectId}/activities`],
-    enabled: enabled && !!order,
+    enabled: enabled && !!order && SECTIONS_NEEDING_ACTIVITIES.includes(section),
   });
 
   const { data: clientCommunications = [] } = useQuery<Communication[]>({
@@ -107,7 +109,7 @@ export function useProjectData(projectId: string | null | undefined): ProjectDat
       if (!response.ok) throw new Error("Failed to fetch client communications");
       return response.json();
     },
-    enabled: enabled && !!order,
+    enabled: enabled && !!order && SECTIONS_NEEDING_COMMUNICATIONS.includes(section),
   });
 
   const { data: vendorCommunications = [] } = useQuery<Communication[]>({
@@ -117,94 +119,42 @@ export function useProjectData(projectId: string | null | undefined): ProjectDat
       if (!response.ok) throw new Error("Failed to fetch vendor communications");
       return response.json();
     },
-    enabled: enabled && !!order,
+    enabled: enabled && !!order && SECTIONS_NEEDING_COMMUNICATIONS.includes(section),
   });
 
   const { data: approvals = [] } = useQuery<any[]>({
     queryKey: [`/api/projects/${projectId}/approvals`],
-    enabled: enabled && !!order,
-  });
-
-  // Phase 2: Entity queries
-
-  const { data: allItemLines = {} } = useQuery<Record<string, OrderItemLine[]>>({
-    queryKey: [`/api/projects/${projectId}/all-item-lines`],
-    queryFn: async () => {
-      if (!orderItems || orderItems.length === 0) return {};
-      const linesByItem: Record<string, OrderItemLine[]> = {};
-      await Promise.all(
-        orderItems.map(async (item: any) => {
-          try {
-            const response = await fetch(`/api/project-items/${item.id}/lines`);
-            if (response.ok) {
-              linesByItem[item.id] = await response.json();
-            } else {
-              linesByItem[item.id] = [];
-            }
-          } catch {
-            linesByItem[item.id] = [];
-          }
-        }),
-      );
-      return linesByItem;
-    },
-    enabled: enabled && !!orderItems && orderItems.length > 0,
-  });
-
-  const { data: allItemCharges = {} } = useQuery<Record<string, OrderAdditionalCharge[]>>({
-    queryKey: [`/api/projects/${projectId}/all-item-charges`],
-    queryFn: async () => {
-      if (!orderItems || orderItems.length === 0) return {};
-      const chargesByItem: Record<string, OrderAdditionalCharge[]> = {};
-      await Promise.all(
-        orderItems.map(async (item: any) => {
-          try {
-            const response = await fetch(`/api/project-items/${item.id}/charges`);
-            if (response.ok) {
-              chargesByItem[item.id] = await response.json();
-            } else {
-              chargesByItem[item.id] = [];
-            }
-          } catch {
-            chargesByItem[item.id] = [];
-          }
-        }),
-      );
-      return chargesByItem;
-    },
-    enabled: enabled && !!orderItems && orderItems.length > 0,
+    enabled: enabled && !!order && SECTIONS_NEEDING_APPROVALS.includes(section),
   });
 
   const { data: shipments = [], isLoading: shipmentsLoading } = useQuery<OrderShipment[]>({
     queryKey: [`/api/projects/${projectId}/shipments`],
-    enabled: enabled && !!order,
+    enabled: enabled && !!order && SECTIONS_NEEDING_SHIPMENTS.includes(section),
   });
 
   const { data: portalTokens = [] } = useQuery<CustomerPortalToken[]>({
     queryKey: [`/api/projects/${projectId}/portal-tokens`],
-    enabled: enabled && !!order,
+    enabled: enabled && !!order && SECTIONS_NEEDING_PORTAL_TOKENS.includes(section),
   });
-
-  // Project-specific queries
 
   const { data: quoteApprovals = [] } = useQuery<any[]>({
     queryKey: [`/api/projects/${projectId}/quote-approvals`],
-    enabled: enabled && !!order,
+    enabled: enabled && !!order && SECTIONS_NEEDING_QUOTE_APPROVALS.includes(section),
     retry: false,
   });
 
   const { data: vendorInvoices = [] } = useQuery<any[]>({
     queryKey: [`/api/projects/${projectId}/vendor-invoices`],
-    enabled: enabled && !!order,
+    enabled: enabled && !!order && SECTIONS_NEEDING_VENDOR_INVOICES.includes(section),
     retry: false,
   });
 
   const { data: serviceCharges = [] } = useQuery<any[]>({
     queryKey: [`/api/projects/${projectId}/service-charges`],
-    enabled: enabled && !!order,
+    enabled: enabled && !!order && SECTIONS_NEEDING_SERVICE_CHARGES.includes(section),
   });
 
-  // Computed values
+  // ── Computed values ──
 
   const companyName = order?.companyId
     ? companies.find((c: any) => c.id === order.companyId)?.name || "Unknown Company"

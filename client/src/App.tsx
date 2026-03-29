@@ -39,7 +39,7 @@ import AcceptInvitation from "@/pages/AcceptInvitation";
 import CustomerPortalPage from "@/pages/CustomerPortal";
 import PublicPresentationPage from "@/pages/Projects/ProjectDetail/sections/PresentationSection/PublicPresentation";
 import MediaLibraryPage from "@/pages/MediaLibrary";
-import POConfirmationPage from "@/pages/PoConfirmation";
+import POConfirmationPage from "@/pages/Projects/ProjectDetail/sections/PurchaseOrdersSection/PoConfirmation";
 import { SlackSidebar } from "@/components/feature/SlackSidebar";
 import { SidebarProvider, SidebarInset, useSidebar } from "@/components/ui/sidebar";
 import { ThemeProvider } from "@/providers/ThemeProvider";
@@ -76,9 +76,9 @@ function AuthenticatedLayout({ children }: { children: React.ReactNode }) {
     <SidebarProvider>
       <SidebarAutoCollapse />
       <Sidebar />
-      <SidebarInset className="flex flex-col overflow-hidden">
+      <SidebarInset className="flex flex-col">
         <TopBar />
-        <main className="flex-1 overflow-y-scroll bg-gray-50">
+        <main className="flex-1 relative bg-gray-50">
           {children}
         </main>
       </SidebarInset>

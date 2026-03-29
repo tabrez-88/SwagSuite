@@ -25,14 +25,15 @@ async function recalculateOrderTotals(orderId: string) {
   const allItems = await projectRepository.getOrderItems(orderId);
   const itemsSubtotal = allItems.reduce((sum, item) => sum + parseFloat(item.totalPrice), 0);
 
-  // Sum per-item additional charges (client-visible)
-  let additionalChargesTotal = 0;
-  for (const item of allItems) {
-    const charges = await db.select().from(orderAdditionalCharges).where(eq(orderAdditionalCharges.orderItemId, item.id));
-    additionalChargesTotal += charges
-      .filter((c: any) => c.displayToClient)
-      .reduce((sum: number, c: any) => sum + parseFloat(c.amount || "0"), 0);
-  }
+  // Batch fetch all additional charges for this order's items (instead of N+1)
+  const { inArray } = await import("drizzle-orm");
+  const itemIds = allItems.map(item => item.id);
+  const allCharges = itemIds.length > 0
+    ? await db.select().from(orderAdditionalCharges).where(inArray(orderAdditionalCharges.orderItemId, itemIds))
+    : [];
+  const additionalChargesTotal = allCharges
+    .filter((c: any) => c.displayToClient)
+    .reduce((sum: number, c: any) => sum + parseFloat(c.amount || "0"), 0);
 
   // Sum order-level service charges (client-visible)
   const serviceCharges = await db.select().from(orderServiceCharges).where(eq(orderServiceCharges.orderId, orderId));
@@ -129,12 +130,11 @@ async function recalculateOrderTotals(orderId: string) {
     taxCalculatedAt: taxSource !== "none" ? new Date() : undefined,
   } as any);
 
-  // Update YTD spending
+  // Update YTD spending (reuse allItems already fetched above)
   if (updatedOrder.companyId) {
     await updateCompanyYtdSpending(updatedOrder.companyId);
   }
-  const items = await projectRepository.getOrderItems(updatedOrder.id);
-  const supplierIds = Array.from(new Set(items.map(item => item.supplierId).filter(Boolean)));
+  const supplierIds = Array.from(new Set(allItems.map(item => item.supplierId).filter(Boolean)));
   for (const supplierId of supplierIds) {
     if (supplierId) {
       await updateSupplierYtdSpending(supplierId as string);
@@ -340,10 +340,13 @@ export class ProjectController {
 
       const order = await projectRepository.updateOrder(req.params.id, validatedData);
 
+      // Fetch existing items once — reused for item processing and supplier YTD
+      let existingItems: any[] | undefined;
+
       // Handle order items if provided
       if (items && Array.isArray(items)) {
         // Get existing order items
-        const existingItems = await projectRepository.getOrderItems(order.id);
+        existingItems = await projectRepository.getOrderItems(order.id);
         const existingItemIds = new Set(existingItems.map(item => item.id));
 
         // Process each item from the request
@@ -567,9 +570,9 @@ export class ProjectController {
         await updateCompanyYtdSpending(order.companyId);
       }
 
-      // Update YTD spending for all suppliers from order items
-      const currentItems = await projectRepository.getOrderItems(order.id);
-      const currentSupplierIds = Array.from(new Set(currentItems.map(item => item.supplierId).filter(Boolean)));
+      // Update YTD spending for suppliers — reuse existingItems if available, else fetch once
+      const itemsForSupplierYtd = items ? await projectRepository.getOrderItems(order.id) : (existingItems || []);
+      const currentSupplierIds = Array.from(new Set(itemsForSupplierYtd.map((item: any) => item.supplierId).filter(Boolean)));
       for (const supplierId of currentSupplierIds) {
         if (supplierId) {
           await updateSupplierYtdSpending(supplierId as string);
@@ -765,6 +768,44 @@ export class ProjectController {
     } catch (error) {
       console.error("Error recalculating order total:", error);
       res.status(500).json({ message: "Failed to recalculate order total" });
+    }
+  }
+
+  // ── Batch: Items with lines, charges, and artwork in a single request ──
+
+  static async listItemsWithDetails(req: Request, res: Response) {
+    try {
+      const { db } = await import("../db");
+      const { orderItemLines, orderAdditionalCharges, artworkItems } = await import("@shared/schema");
+      const { inArray } = await import("drizzle-orm");
+
+      const items = await projectRepository.getOrderItems(req.params.projectId);
+      const itemIds = items.map(item => item.id);
+
+      if (itemIds.length === 0) {
+        return res.json({ items, lines: {}, charges: {}, artworks: {} });
+      }
+
+      // 3 queries instead of 3*N
+      const [allLines, allCharges, allArtworks] = await Promise.all([
+        db.select().from(orderItemLines).where(inArray(orderItemLines.orderItemId, itemIds)),
+        db.select().from(orderAdditionalCharges).where(inArray(orderAdditionalCharges.orderItemId, itemIds)),
+        db.select().from(artworkItems).where(inArray(artworkItems.orderItemId, itemIds)),
+      ]);
+
+      // Group by orderItemId
+      const lines: Record<string, any[]> = {};
+      const charges: Record<string, any[]> = {};
+      const artworks: Record<string, any[]> = {};
+
+      for (const line of allLines) { (lines[line.orderItemId] ??= []).push(line); }
+      for (const charge of allCharges) { (charges[charge.orderItemId] ??= []).push(charge); }
+      for (const art of allArtworks) { (artworks[art.orderItemId] ??= []).push(art); }
+
+      res.json({ items, lines, charges, artworks });
+    } catch (error) {
+      console.error("Error fetching items with details:", error);
+      res.status(500).json({ message: "Failed to fetch items with details" });
     }
   }
 
