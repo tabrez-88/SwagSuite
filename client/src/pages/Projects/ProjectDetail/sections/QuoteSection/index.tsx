@@ -486,6 +486,8 @@ export default function QuoteSection(props: QuoteSectionProps) {
         companyName={companyName}
         primaryContact={primaryContact}
         allArtworkItems={allArtworkItems}
+        allItemCharges={data.allItemCharges}
+        allArtworkCharges={data.allArtworkCharges}
         serviceCharges={data.serviceCharges}
         assignedUser={data.assignedUser}
       />

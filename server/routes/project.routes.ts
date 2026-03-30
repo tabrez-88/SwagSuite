@@ -21,12 +21,27 @@ router.get("/api/projects/:projectId/items", isAuthenticated, ProjectController.
 router.post("/api/projects/:projectId/items", isAuthenticated, ProjectController.createItem);
 router.patch("/api/projects/:projectId/items/:itemId", isAuthenticated, ProjectController.updateItem);
 router.delete("/api/projects/:projectId/items/:itemId", isAuthenticated, ProjectController.deleteItem);
+router.post("/api/projects/:projectId/items/:itemId/duplicate", isAuthenticated, ProjectController.duplicateItem);
 
 // ── Artwork Items (per project item) ──
 router.get("/api/project-items/:itemId/artworks", isAuthenticated, ProjectController.listArtworks);
 router.post("/api/project-items/:itemId/artworks", isAuthenticated, upload.single('file'), ProjectController.createArtwork);
 router.put("/api/project-items/:itemId/artworks/:artworkId", isAuthenticated, upload.single('file'), ProjectController.updateArtwork);
 router.delete("/api/project-items/:itemId/artworks/:artworkId", isAuthenticated, ProjectController.deleteArtwork);
+
+// ── Artwork Item Files (multiple files per artwork) ──
+router.get("/api/artworks/:artworkId/files", isAuthenticated, ProjectController.listArtworkFiles);
+router.post("/api/artworks/:artworkId/files", isAuthenticated, ProjectController.addArtworkFile);
+router.delete("/api/artworks/:artworkId/files/:fileId", isAuthenticated, ProjectController.removeArtworkFile);
+
+// ── Copy Artwork Between Products ──
+router.post("/api/project-items/:itemId/artworks/copy-from/:sourceArtworkId", isAuthenticated, ProjectController.copyArtwork);
+
+// ── Artwork Charges ──
+router.get("/api/artworks/:artworkId/charges", isAuthenticated, ProjectController.listArtworkCharges);
+router.post("/api/artworks/:artworkId/charges", isAuthenticated, ProjectController.createArtworkCharge);
+router.patch("/api/artworks/:artworkId/charges/:chargeId", isAuthenticated, ProjectController.updateArtworkCharge);
+router.delete("/api/artworks/:artworkId/charges/:chargeId", isAuthenticated, ProjectController.deleteArtworkCharge);
 
 // ── Item Lines ──
 router.get("/api/project-items/:itemId/lines", isAuthenticated, ProjectController.listLines);

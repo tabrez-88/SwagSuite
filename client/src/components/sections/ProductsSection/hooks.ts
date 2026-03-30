@@ -4,6 +4,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useDeleteProjectItem,
+  useDuplicateProjectItem,
   useUpdateProjectItem,
   useUpdateLine,
   useDeleteLine,
@@ -29,7 +30,7 @@ export function useProductsSection({ projectId, data, isLocked }: ProductsSectio
     : `/projects/${projectId}/sales-order/add`;
   const {
     orderItems, allProducts, allArtworkItems, suppliers,
-    allItemLines, allItemCharges,
+    allItemLines, allItemCharges, allArtworkCharges,
   } = data;
   const [, setLocation] = useLocation();
   const { toast } = useToast();
@@ -86,6 +87,7 @@ export function useProductsSection({ projectId, data, isLocked }: ProductsSectio
 
   // ── Service mutations ──
   const deleteOrderItemMutation = useDeleteProjectItem(projectId);
+  const duplicateOrderItemMutation = useDuplicateProjectItem(projectId);
   const updateOrderItemMutation = useUpdateProjectItem(projectId);
   const updateLineMutation = useUpdateLine(projectId);
   const deleteLineMutation = useDeleteLine(projectId);
@@ -142,7 +144,9 @@ export function useProductsSection({ projectId, data, isLocked }: ProductsSectio
       totalRevenue = totalQty * (parseFloat(item.unitPrice || "0"));
     }
 
-    const totalCharges = charges.reduce((s, c) => s + parseFloat(c.amount || "0"), 0);
+    const totalCharges = charges
+      .filter((c: any) => !c.includeInUnitPrice)
+      .reduce((s, c) => s + parseFloat(c.amount || "0"), 0);
     const margin = (totalRevenue + totalCharges) > 0
       ? (((totalRevenue + totalCharges) - totalCost) / (totalRevenue + totalCharges)) * 100
       : 0;
@@ -441,6 +445,7 @@ export function useProductsSection({ projectId, data, isLocked }: ProductsSectio
     orderItems,
     allProducts,
     allArtworkItems,
+    allArtworkCharges,
     allItemLines,
     allItemCharges,
     suppliers,
@@ -454,6 +459,7 @@ export function useProductsSection({ projectId, data, isLocked }: ProductsSectio
     isDeleteDialogOpen,
     setIsDeleteDialogOpen,
     deleteOrderItemMutation,
+    duplicateOrderItemMutation,
     // Edit line inline
     editingLine,
     setEditingLine,

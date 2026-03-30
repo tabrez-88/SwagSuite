@@ -1,4 +1,5 @@
 export interface UpdateOrderItemInput {
+  description?: string | null;
   imprintMethod?: string;
   imprintLocation?: string;
   notes?: string;
@@ -15,6 +16,7 @@ export interface UpdateOrderItemInput {
   personalComment?: string | null;
   privateNotes?: string | null;
   decoratorType?: string | null;
+  decoratorId?: string | null;
 }
 
 export interface LineItemInput {
@@ -32,9 +34,11 @@ export interface ChargeInput {
   orderItemId: string;
   description: string;
   chargeType: string;
+  chargeCategory?: "run" | "fixed";
   amount: string;
   isVendorCharge: boolean;
   displayToClient?: boolean;
+  includeInUnitPrice?: boolean;
 }
 
 export interface ArtworkInput {
@@ -46,4 +50,16 @@ export interface ArtworkInput {
   artworkType?: string;
   color?: string;
   size?: string;
+  repeatLogo?: boolean;
+}
+
+export interface ArtworkChargeInput {
+  artworkItemId: string;
+  chargeName: string;
+  chargeCategory: "run" | "fixed";
+  netCost: string;
+  margin: string;
+  retailPrice: string;
+  quantity?: number;
+  displayMode: "include_in_price" | "display_to_client" | "subtract_from_margin";
 }

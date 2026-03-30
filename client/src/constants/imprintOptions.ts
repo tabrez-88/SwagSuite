@@ -23,3 +23,14 @@ export const IMPRINT_METHODS = [
   { value: "deboss", label: "Deboss / Emboss" },
   { value: "none", label: "No Decoration" },
 ] as const;
+
+// Lookup helpers: convert snake_case values to display labels
+export function getImprintMethodLabel(value: string | null | undefined): string {
+  if (!value) return "";
+  return IMPRINT_METHODS.find(m => m.value === value)?.label || value.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+}
+
+export function getImprintLocationLabel(value: string | null | undefined): string {
+  if (!value) return "";
+  return IMPRINT_LOCATIONS.find(l => l.value === value)?.label || value.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+}

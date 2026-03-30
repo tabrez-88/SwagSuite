@@ -1,6 +1,7 @@
 import { forwardRef } from "react";
 import { format } from "date-fns";
 import { proxyImg } from "@/lib/imageUtils";
+import { getImprintMethodLabel, getImprintLocationLabel } from "@/constants/imprintOptions";
 import { getRenderableImageUrl } from "@/lib/media-library";
 
 interface VendorAddressData {
@@ -21,12 +22,15 @@ interface PurchaseOrderTemplateProps {
   vendorItems: any[];
   poNumber: string;
   artworkItems?: any[];
-  vendorIHD?: string | null; // Per-vendor Supplier IHD (yyyy-MM-dd), falls back to order.supplierInHandsDate
-  vendorAddress?: VendorAddressData | null; // Structured vendor address from supplier_addresses
+  allArtworkCharges?: Record<string, any[]>;
+  vendorIHD?: string | null;
+  vendorAddress?: VendorAddressData | null;
+  poType?: "supplier" | "decorator"; // supplier = blank goods (or all-in-one), decorator = decoration only
+  decoratorAddress?: VendorAddressData | null; // Ship-to address for blank goods → decorator
 }
 
 const PurchaseOrderTemplate = forwardRef<HTMLDivElement, PurchaseOrderTemplateProps>(
-  ({ order, vendor, vendorItems, poNumber, artworkItems = [], vendorIHD, vendorAddress }, ref) => {
+  ({ order, vendor, vendorItems, poNumber, artworkItems = [], allArtworkCharges = {}, vendorIHD, vendorAddress, poType = "supplier", decoratorAddress }, ref) => {
     // Effective supplier IHD: vendor-specific → order-level fallback
     const effectiveIHD = vendorIHD || order?.supplierInHandsDate;
     const shippingAddr = (() => {
@@ -35,11 +39,56 @@ const PurchaseOrderTemplate = forwardRef<HTMLDivElement, PurchaseOrderTemplatePr
       } catch { return null; }
     })();
 
-    const totalCost = vendorItems.reduce((sum: number, item: any) => {
-      const cost = parseFloat(item.cost) || parseFloat(item.unitPrice) || 0;
-      const quantity = item.quantity || 0;
-      return sum + cost * quantity;
-    }, 0);
+    const isDecoratorPO = poType === "decorator";
+    const hasThirdPartyItems = vendorItems.some((i: any) => i.decoratorType === "third_party");
+
+    const totalCost = isDecoratorPO
+      ? // Decorator PO: sum artwork charges (netCost)
+        artworkItems.reduce((sum: number, art: any) => {
+          const charges = allArtworkCharges[art.id] || [];
+          return sum + charges.reduce((s: number, c: any) => {
+            const cost = parseFloat(c.netCost || "0");
+            const qty = c.chargeCategory === "run"
+              ? (vendorItems.find((i: any) => i.id === art.orderItemId)?.quantity || 1)
+              : (c.quantity || 1);
+            return s + cost * qty;
+          }, 0);
+        }, 0)
+      : // Supplier PO: product costs
+        vendorItems.reduce((sum: number, item: any) => {
+          const cost = parseFloat(item.cost) || parseFloat(item.unitPrice) || 0;
+          const quantity = item.quantity || 0;
+          return sum + cost * quantity;
+        }, 0);
+
+    // Resolve ship-to address: per-item addresses → decorator address → order-level fallback
+    const resolveShipTo = () => {
+      // For decorator POs: use leg2 address (decorator → client)
+      if (isDecoratorPO) {
+        const itemWithLeg2 = vendorItems.find((i: any) => i.leg2Address);
+        return itemWithLeg2?.leg2Address || shippingAddr;
+      }
+      // For supplier POs with third-party items: ship to decorator (item's shipToAddress)
+      if (hasThirdPartyItems) {
+        const itemWithAddr = vendorItems.find((i: any) => i.shipToAddress && i.decoratorType === "third_party");
+        return itemWithAddr?.shipToAddress || decoratorAddress || shippingAddr;
+      }
+      // Standard supplier PO: use per-item ship-to or order-level
+      const itemWithAddr = vendorItems.find((i: any) => i.shipToAddress);
+      return itemWithAddr?.shipToAddress || shippingAddr;
+    };
+    const shipToAddr = resolveShipTo();
+
+    // Per-item in-hands date: use first item's shipInHandsDate or fallback to effectiveIHD
+    const resolvedIHD = (() => {
+      if (isDecoratorPO) {
+        const item = vendorItems.find((i: any) => i.leg2InHandsDate);
+        return item?.leg2InHandsDate || effectiveIHD;
+      }
+      const item = vendorItems.find((i: any) => i.shipInHandsDate);
+      return item?.shipInHandsDate || effectiveIHD;
+    })();
+    const hasFirmDate = vendorItems.some((i: any) => isDecoratorPO ? i.leg2Firm : i.shipFirm);
 
     return (
       <div ref={ref} style={{ position: "absolute", left: "-9999px", top: 0, visibility: "hidden" }}>
@@ -47,20 +96,22 @@ const PurchaseOrderTemplate = forwardRef<HTMLDivElement, PurchaseOrderTemplatePr
           {/* Header */}
           <div className="flex justify-between items-start mb-6 pb-4 border-b-2 border-gray-300">
             <div>
-              <h1 className="text-4xl font-bold text-green-600 mb-2">PURCHASE ORDER</h1>
+              <h1 className="text-4xl font-bold text-green-600 mb-2">
+                {isDecoratorPO ? "DECORATION ORDER" : "PURCHASE ORDER"}
+              </h1>
               <p className="text-sm text-gray-700">PO #{poNumber}</p>
               <p className="text-sm text-gray-700">
                 Date: {order?.createdAt ? format(new Date(order.createdAt), "MMMM dd, yyyy") : "N/A"}
               </p>
-              {effectiveIHD && (
+              {resolvedIHD && (
                 <p className="text-sm font-bold text-red-600">
-                  Required by: {format(new Date(effectiveIHD), "MMMM dd, yyyy")}
+                  Required by: {format(new Date(resolvedIHD), "MMMM dd, yyyy")}
                 </p>
               )}
               {order?.isFirm && (
                 <p className="text-sm font-bold text-blue-700">FIRM ORDER — Date cannot be adjusted</p>
               )}
-              {order?.isRush && !effectiveIHD && (
+              {order?.isRush && !resolvedIHD && (
                 <p className="text-sm font-bold text-red-600">RUSH ORDER — Please prioritize</p>
               )}
             </div>
@@ -91,15 +142,24 @@ const PurchaseOrderTemplate = forwardRef<HTMLDivElement, PurchaseOrderTemplatePr
           </div>
 
           {/* Shipping Address */}
-          {shippingAddr && (
+          {shipToAddr && (
             <div className="mb-6">
-              <h3 className="text-sm font-bold text-gray-800 mb-2">SHIPPING ADDRESS:</h3>
+              <h3 className="text-sm font-bold text-gray-800 mb-2">
+                {!isDecoratorPO && hasThirdPartyItems
+                  ? "SHIP TO DECORATOR:"
+                  : isDecoratorPO
+                    ? "SHIP FINISHED GOODS TO:"
+                    : "SHIPPING ADDRESS:"}
+              </h3>
               <div className="text-sm text-gray-700">
-                {shippingAddr.contactName && <p className="font-semibold">{shippingAddr.contactName}</p>}
-                {(shippingAddr.street || shippingAddr.address) && <p>{shippingAddr.street || shippingAddr.address}</p>}
-                <p>{[shippingAddr.city, shippingAddr.state, shippingAddr.zipCode].filter(Boolean).join(", ")}</p>
-                {shippingAddr.email && <p>{shippingAddr.email}</p>}
-                {shippingAddr.phone && <p>{shippingAddr.phone}</p>}
+                {(shipToAddr.contactName || shipToAddr.companyNameOnDocs || shipToAddr.addressName) && (
+                  <p className="font-semibold">{shipToAddr.contactName || shipToAddr.companyNameOnDocs || shipToAddr.addressName}</p>
+                )}
+                {(shipToAddr.street || shipToAddr.address) && <p>{shipToAddr.street || shipToAddr.address}</p>}
+                {shipToAddr.street2 && <p>{shipToAddr.street2}</p>}
+                <p>{[shipToAddr.city, shipToAddr.state, shipToAddr.zipCode].filter(Boolean).join(", ")}</p>
+                {shipToAddr.email && <p>{shipToAddr.email}</p>}
+                {shipToAddr.phone && <p>{shipToAddr.phone}</p>}
               </div>
             </div>
           )}
@@ -148,21 +208,48 @@ const PurchaseOrderTemplate = forwardRef<HTMLDivElement, PurchaseOrderTemplatePr
                           </tr>
                         </thead>
                         <tbody>
-                          <tr className="border-b border-gray-100">
-                            <td className="py-1.5 text-xs">
-                              {item.color && item.size ? `Size: ${item.size} - Color: ${item.color}` :
-                               item.color ? `Color: ${item.color}` :
-                               item.size ? `Size: ${item.size}` : item.productName}
-                            </td>
-                            <td className="py-1.5 text-xs text-center">{quantity}</td>
-                            <td className="py-1.5 text-xs text-right">${cost.toFixed(2)}</td>
-                            <td className="py-1.5 text-xs text-right font-medium">${itemTotal.toFixed(2)}</td>
-                          </tr>
+                          {isDecoratorPO ? (
+                            <>
+                              {/* Decorator PO: show artwork charges as line items */}
+                              {itemArtworks.map((art: any) => {
+                                const charges = allArtworkCharges[art.id] || [];
+                                return charges.map((c: any) => {
+                                  const chCost = parseFloat(c.netCost || "0");
+                                  const chQty = c.chargeCategory === "run" ? quantity : (c.quantity || 1);
+                                  return (
+                                    <tr key={c.id} className="border-b border-gray-100">
+                                      <td className="py-1.5 text-xs">
+                                        {c.chargeName} — {art.name} ({getImprintLocationLabel(art.location) || "N/A"})
+                                        <span className="text-gray-400 ml-1">({c.chargeCategory === "run" ? "per unit" : "one-time"})</span>
+                                      </td>
+                                      <td className="py-1.5 text-xs text-center">{chQty}</td>
+                                      <td className="py-1.5 text-xs text-right">${chCost.toFixed(2)}</td>
+                                      <td className="py-1.5 text-xs text-right font-medium">${(chCost * chQty).toFixed(2)}</td>
+                                    </tr>
+                                  );
+                                });
+                              })}
+                            </>
+                          ) : (
+                            <>
+                              {/* Supplier PO: show product cost */}
+                              <tr className="border-b border-gray-100">
+                                <td className="py-1.5 text-xs">
+                                  {item.color && item.size ? `Size: ${item.size} - Color: ${item.color}` :
+                                   item.color ? `Color: ${item.color}` :
+                                   item.size ? `Size: ${item.size}` : item.productName}
+                                </td>
+                                <td className="py-1.5 text-xs text-center">{quantity}</td>
+                                <td className="py-1.5 text-xs text-right">${cost.toFixed(2)}</td>
+                                <td className="py-1.5 text-xs text-right font-medium">${itemTotal.toFixed(2)}</td>
+                              </tr>
+                            </>
+                          )}
                           <tr className="border-t border-gray-300">
                             <td className="py-1.5 text-xs font-bold">TOTAL</td>
                             <td></td>
                             <td></td>
-                            <td className="py-1.5 text-xs text-right font-bold">${itemTotal.toFixed(2)}</td>
+                            <td className="py-1.5 text-xs text-right font-bold">${isDecoratorPO ? "—" : `$${itemTotal.toFixed(2)}`}</td>
                           </tr>
                         </tbody>
                       </table>
@@ -188,13 +275,13 @@ const PurchaseOrderTemplate = forwardRef<HTMLDivElement, PurchaseOrderTemplatePr
                                 {(art.artworkType || art.imprintMethod) && (
                                   <tr>
                                     <td className="py-0.5 pr-4 font-bold text-gray-800 whitespace-nowrap">IMPRINT TYPE</td>
-                                    <td className="py-0.5 text-gray-700">{art.artworkType || art.imprintMethod}</td>
+                                    <td className="py-0.5 text-gray-700">{getImprintMethodLabel(art.artworkType || art.imprintMethod)}</td>
                                   </tr>
                                 )}
                                 {art.location && (
                                   <tr>
                                     <td className="py-0.5 pr-4 font-bold text-gray-800 whitespace-nowrap">DESIGN LOCATION</td>
-                                    <td className="py-0.5 text-gray-700">{art.location}</td>
+                                    <td className="py-0.5 text-gray-700">{getImprintLocationLabel(art.location)}</td>
                                   </tr>
                                 )}
                                 {(art.size || art.designSize) && (
@@ -303,13 +390,13 @@ const PurchaseOrderTemplate = forwardRef<HTMLDivElement, PurchaseOrderTemplatePr
                         {(art.artworkType || art.imprintMethod) && (
                           <tr>
                             <td className="py-0.5 pr-4 font-bold text-gray-800 whitespace-nowrap">IMPRINT TYPE</td>
-                            <td className="py-0.5 text-gray-700">{art.artworkType || art.imprintMethod}</td>
+                            <td className="py-0.5 text-gray-700">{getImprintMethodLabel(art.artworkType || art.imprintMethod)}</td>
                           </tr>
                         )}
                         {art.location && (
                           <tr>
                             <td className="py-0.5 pr-4 font-bold text-gray-800 whitespace-nowrap">DESIGN LOCATION</td>
-                            <td className="py-0.5 text-gray-700">{art.location}</td>
+                            <td className="py-0.5 text-gray-700">{getImprintLocationLabel(art.location)}</td>
                           </tr>
                         )}
                         {(art.color || art.colors) && (
@@ -349,9 +436,9 @@ const PurchaseOrderTemplate = forwardRef<HTMLDivElement, PurchaseOrderTemplatePr
           <div className="mb-6 pt-4 border-t">
             <h3 className="text-sm font-bold text-gray-800 mb-2">SPECIAL INSTRUCTIONS:</h3>
             <div className="text-sm text-gray-700 space-y-1">
-              {effectiveIHD && (
+              {resolvedIHD && (
                 <p className="font-bold text-red-600">
-                  ⚠️ RUSH ORDER - Must ship by {format(new Date(effectiveIHD), "MMMM dd, yyyy")}
+                  ⚠️ RUSH ORDER - Must ship by {format(new Date(resolvedIHD), "MMMM dd, yyyy")}
                 </p>
               )}
               {order?.isFirm && (
@@ -359,7 +446,7 @@ const PurchaseOrderTemplate = forwardRef<HTMLDivElement, PurchaseOrderTemplatePr
                   📌 FIRM ORDER — Delivery date is locked and cannot be adjusted.
                 </p>
               )}
-              {order?.isRush && !effectiveIHD && (
+              {order?.isRush && !resolvedIHD && (
                 <p className="font-bold text-red-600">
                   ⚡ RUSH ORDER — Please prioritize this order.
                 </p>

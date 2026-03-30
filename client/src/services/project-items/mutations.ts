@@ -15,6 +15,20 @@ function useInvalidateProjectItems(projectId: string | number) {
   };
 }
 
+export function useDuplicateProjectItem(projectId: string | number) {
+  const { toast } = useToast();
+  const invalidate = useInvalidateProjectItems(projectId);
+  return useMutation({
+    mutationFn: (itemId: string | number) =>
+      requests.duplicateProjectItem(projectId, itemId),
+    onSuccess: () => {
+      invalidate();
+      toast({ title: "Product duplicated", description: "A copy has been added to this project." });
+    },
+    onError: () => toast({ title: "Failed to duplicate product", variant: "destructive" }),
+  });
+}
+
 export function useDeleteProjectItem(projectId: string | number) {
   const { toast } = useToast();
   const invalidate = useInvalidateProjectItems(projectId);
@@ -128,7 +142,7 @@ export function useCreateArtwork(projectId: string | number) {
   const { toast } = useToast();
   const invalidate = useInvalidateProjectItems(projectId);
   return useMutation({
-    mutationFn: ({ orderItemId, ...data }: { orderItemId: string | number; name: string; filePath: string; fileName: string; location?: string; artworkType?: string; color?: string; size?: string }) =>
+    mutationFn: ({ orderItemId, ...data }: { orderItemId: string | number; name: string; filePath: string; fileName: string; location?: string; artworkType?: string; color?: string; size?: string; repeatLogo?: boolean }) =>
       requests.createArtwork(orderItemId, { orderItemId, ...data }),
     onSuccess: () => {
       invalidate();
@@ -149,5 +163,86 @@ export function useDeleteArtwork(projectId: string | number) {
       toast({ title: "Artwork removed" });
     },
     onError: () => toast({ title: "Failed to remove artwork", variant: "destructive" }),
+  });
+}
+
+// Artwork Files
+export function useAddArtworkFile(projectId: string | number) {
+  const { toast } = useToast();
+  const invalidate = useInvalidateProjectItems(projectId);
+  return useMutation({
+    mutationFn: ({ artworkId, file }: { artworkId: string | number; file: Record<string, any> }) =>
+      requests.addArtworkFile(artworkId, file),
+    onSuccess: () => {
+      invalidate();
+      toast({ title: "File added" });
+    },
+    onError: () => toast({ title: "Failed to add file", variant: "destructive" }),
+  });
+}
+
+export function useRemoveArtworkFile(projectId: string | number) {
+  const { toast } = useToast();
+  const invalidate = useInvalidateProjectItems(projectId);
+  return useMutation({
+    mutationFn: ({ artworkId, fileId }: { artworkId: string | number; fileId: string | number }) =>
+      requests.removeArtworkFile(artworkId, fileId),
+    onSuccess: () => invalidate(),
+    onError: () => toast({ title: "Failed to remove file", variant: "destructive" }),
+  });
+}
+
+// Copy Artwork
+export function useCopyArtwork(projectId: string | number) {
+  const { toast } = useToast();
+  const invalidate = useInvalidateProjectItems(projectId);
+  return useMutation({
+    mutationFn: ({ targetItemId, sourceArtworkId, includePricing }: { targetItemId: string | number; sourceArtworkId: string | number; includePricing?: boolean }) =>
+      requests.copyArtwork(targetItemId, sourceArtworkId, includePricing),
+    onSuccess: () => {
+      invalidate();
+      toast({ title: "Artwork copied" });
+    },
+    onError: () => toast({ title: "Failed to copy artwork", variant: "destructive" }),
+  });
+}
+
+// Artwork Charges
+export function useCreateArtworkCharge(projectId: string | number) {
+  const { toast } = useToast();
+  const invalidate = useInvalidateProjectItems(projectId);
+  return useMutation({
+    mutationFn: ({ artworkId, charge }: { artworkId: string | number; charge: Record<string, any> }) =>
+      requests.createArtworkCharge(artworkId, charge),
+    onSuccess: () => {
+      invalidate();
+      toast({ title: "Charge added" });
+    },
+    onError: () => toast({ title: "Failed to add charge", variant: "destructive" }),
+  });
+}
+
+export function useUpdateArtworkCharge(projectId: string | number) {
+  const { toast } = useToast();
+  const invalidate = useInvalidateProjectItems(projectId);
+  return useMutation({
+    mutationFn: ({ artworkId, chargeId, updates }: { artworkId: string | number; chargeId: string | number; updates: Record<string, any> }) =>
+      requests.updateArtworkCharge(artworkId, chargeId, updates),
+    onSuccess: () => invalidate(),
+    onError: () => toast({ title: "Failed to update charge", variant: "destructive" }),
+  });
+}
+
+export function useDeleteArtworkCharge(projectId: string | number) {
+  const { toast } = useToast();
+  const invalidate = useInvalidateProjectItems(projectId);
+  return useMutation({
+    mutationFn: ({ artworkId, chargeId }: { artworkId: string | number; chargeId: string | number }) =>
+      requests.deleteArtworkCharge(artworkId, chargeId),
+    onSuccess: () => {
+      invalidate();
+      toast({ title: "Charge removed" });
+    },
+    onError: () => toast({ title: "Failed to remove charge", variant: "destructive" }),
   });
 }

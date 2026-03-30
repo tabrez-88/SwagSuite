@@ -6,6 +6,7 @@ import {
   text,
   integer,
   boolean,
+  decimal,
 } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -29,12 +30,44 @@ export const artworkItems = pgTable("artwork_items", {
   proofRequired: boolean("proof_required").default(true), // Whether this decoration requires a proof
   proofFilePath: varchar("proof_file_path", { length: 500 }), // Vendor proof file URL
   proofFileName: varchar("proof_file_name", { length: 500 }), // Vendor proof file name
+  repeatLogo: boolean("repeat_logo").default(false),
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
-// Artwork files
+// Artwork charges (per-artwork imprint costs & setup costs — CommonSKU style)
+export const artworkCharges = pgTable("artwork_charges", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  artworkItemId: varchar("artwork_item_id").notNull().references(() => artworkItems.id, { onDelete: 'cascade' }),
+  chargeName: varchar("charge_name", { length: 255 }).notNull(), // e.g., "Imprint Charge", "Screen Setup"
+  chargeCategory: varchar("charge_category", { length: 20 }).notNull().default("run"), // 'run' (per unit) or 'fixed' (one-time)
+  netCost: decimal("net_cost", { precision: 10, scale: 2 }).notNull().default("0"), // Our cost from vendor
+  margin: decimal("margin", { precision: 5, scale: 2 }).default("0"), // Markup percentage
+  retailPrice: decimal("retail_price", { precision: 10, scale: 2 }).notNull().default("0"), // Client price
+  quantity: integer("quantity").default(1), // For fixed charges (usually 1)
+  displayMode: varchar("display_mode", { length: 30 }).notNull().default("display_to_client"),
+  // 'include_in_price' — baked into unit price, hidden
+  // 'display_to_client' — shown as separate line item
+  // 'subtract_from_margin' — absorbed, hidden from client
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Artwork item files — multiple files per artwork location
+export const artworkItemFiles = pgTable("artwork_item_files", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  artworkItemId: varchar("artwork_item_id").notNull().references(() => artworkItems.id, { onDelete: 'cascade' }),
+  fileName: varchar("file_name", { length: 500 }).notNull(),
+  filePath: varchar("file_path", { length: 500 }).notNull(),
+  fileSize: integer("file_size"),
+  mimeType: varchar("mime_type"),
+  sortOrder: integer("sort_order").default(0),
+  isPrimary: boolean("is_primary").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Artwork files (legacy — order-level file registry, separate from per-artwork files)
 export const artworkFiles = pgTable("artwork_files", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   orderId: varchar("order_id").references(() => orders.id),
@@ -76,8 +109,17 @@ export const insertArtworkFileSchema = createInsertSchema(artworkFiles).omit({
   createdAt: true,
 });
 
+export const insertArtworkChargeSchema = createInsertSchema(artworkCharges).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 // Types
 export type ArtworkItem = typeof artworkItems.$inferSelect;
 export type InsertArtworkItem = typeof artworkItems.$inferInsert;
 export type ArtworkFile = typeof artworkFiles.$inferSelect;
 export type InsertArtworkFile = z.infer<typeof insertArtworkFileSchema>;
+export type ArtworkCharge = typeof artworkCharges.$inferSelect;
+export type InsertArtworkCharge = z.infer<typeof insertArtworkChargeSchema>;
+export type ArtworkItemFile = typeof artworkItemFiles.$inferSelect;

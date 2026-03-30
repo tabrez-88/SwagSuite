@@ -11,7 +11,8 @@ import { productCategories } from './product.schema';
 import { products } from './product.schema';
 import { orders, orderItems, orderItemLines, orderAdditionalCharges, orderServiceCharges } from './order.schema';
 import { orderFiles } from './orderFile.schema';
-import { artworkItems, artworkFiles } from './artwork.schema';
+import { artworkItems, artworkFiles, artworkCharges, artworkItemFiles } from './artwork.schema';
+import { decoratorMatrices, decoratorMatrixEntries } from './decoratorMatrix.schema';
 import { artworkColumns, artworkCards } from './artworkKanban.schema';
 import { generatedDocuments } from './document.schema';
 import { invoices } from './invoice.schema';
@@ -157,10 +158,42 @@ export const orderShipmentsRelations = relations(orderShipments, ({ one }) => ({
 }));
 
 // ── Artwork Relations ──
-export const artworkItemsRelations = relations(artworkItems, ({ one }) => ({
+export const artworkItemsRelations = relations(artworkItems, ({ one, many }) => ({
   orderItem: one(orderItems, {
     fields: [artworkItems.orderItemId],
     references: [orderItems.id],
+  }),
+  charges: many(artworkCharges),
+  files: many(artworkItemFiles),
+}));
+
+export const artworkChargesRelations = relations(artworkCharges, ({ one }) => ({
+  artworkItem: one(artworkItems, {
+    fields: [artworkCharges.artworkItemId],
+    references: [artworkItems.id],
+  }),
+}));
+
+export const artworkItemFilesRelations = relations(artworkItemFiles, ({ one }) => ({
+  artworkItem: one(artworkItems, {
+    fields: [artworkItemFiles.artworkItemId],
+    references: [artworkItems.id],
+  }),
+}));
+
+// ── Decorator Matrix Relations ──
+export const decoratorMatricesRelations = relations(decoratorMatrices, ({ one, many }) => ({
+  supplier: one(suppliers, {
+    fields: [decoratorMatrices.supplierId],
+    references: [suppliers.id],
+  }),
+  entries: many(decoratorMatrixEntries),
+}));
+
+export const decoratorMatrixEntriesRelations = relations(decoratorMatrixEntries, ({ one }) => ({
+  matrix: one(decoratorMatrices, {
+    fields: [decoratorMatrixEntries.matrixId],
+    references: [decoratorMatrices.id],
   }),
 }));
 

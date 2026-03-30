@@ -9,6 +9,11 @@ export async function updateProjectItem(projectId: string | number, itemId: stri
   await apiRequest("PATCH", `/api/projects/${projectId}/items/${itemId}`, updates);
 }
 
+export async function duplicateProjectItem(projectId: string | number, itemId: string | number) {
+  const res = await apiRequest("POST", `/api/projects/${projectId}/items/${itemId}/duplicate`);
+  return res.json();
+}
+
 // Line items
 export async function addLine(itemId: string | number, line: Record<string, any>) {
   await apiRequest("POST", `/api/project-items/${itemId}/lines`, { ...line, orderItemId: itemId });
@@ -43,4 +48,35 @@ export async function createArtwork(itemId: string | number, data: Record<string
 
 export async function deleteArtwork(itemId: string | number, artworkId: string | number) {
   await apiRequest("DELETE", `/api/project-items/${itemId}/artworks/${artworkId}`);
+}
+
+// Artwork Files (multiple per artwork)
+export async function addArtworkFile(artworkId: string | number, data: Record<string, any>) {
+  const res = await apiRequest("POST", `/api/artworks/${artworkId}/files`, data);
+  return res.json();
+}
+
+export async function removeArtworkFile(artworkId: string | number, fileId: string | number) {
+  await apiRequest("DELETE", `/api/artworks/${artworkId}/files/${fileId}`);
+}
+
+// Copy Artwork
+export async function copyArtwork(targetItemId: string | number, sourceArtworkId: string | number, includePricing: boolean = false) {
+  const res = await apiRequest("POST", `/api/project-items/${targetItemId}/artworks/copy-from/${sourceArtworkId}?includePricing=${includePricing}`);
+  return res.json();
+}
+
+// Artwork Charges
+export async function createArtworkCharge(artworkId: string | number, data: Record<string, any>) {
+  const res = await apiRequest("POST", `/api/artworks/${artworkId}/charges`, data);
+  return res.json();
+}
+
+export async function updateArtworkCharge(artworkId: string | number, chargeId: string | number, updates: Record<string, any>) {
+  const res = await apiRequest("PATCH", `/api/artworks/${artworkId}/charges/${chargeId}`, updates);
+  return res.json();
+}
+
+export async function deleteArtworkCharge(artworkId: string | number, chargeId: string | number) {
+  await apiRequest("DELETE", `/api/artworks/${artworkId}/charges/${chargeId}`);
 }

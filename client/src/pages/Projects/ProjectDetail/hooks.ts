@@ -53,6 +53,8 @@ export function useProjectData(projectId: string | null | undefined, activeSecti
     lines: Record<string, OrderItemLine[]>;
     charges: Record<string, OrderAdditionalCharge[]>;
     artworks: Record<string, any[]>;
+    artworkCharges: Record<string, any[]>;
+    artworkFiles: Record<string, any[]>;
   }>({
     queryKey: [`/api/projects/${projectId}/items-with-details`],
     enabled: enabled && !!order,
@@ -62,6 +64,8 @@ export function useProjectData(projectId: string | null | undefined, activeSecti
   const allItemLines = itemsWithDetails?.lines || {};
   const allItemCharges = itemsWithDetails?.charges || {};
   const allArtworkItems = itemsWithDetails?.artworks || {};
+  const allArtworkCharges = itemsWithDetails?.artworkCharges || {};
+  const allArtworkFiles = itemsWithDetails?.artworkFiles || {};
 
   // ── Section-specific queries (lazy loaded) ──
 
@@ -171,31 +175,67 @@ export function useProjectData(projectId: string | null | undefined, activeSecti
 
   const orderVendors = useMemo(() => {
     const vendorsMap = new Map();
+
+    // First pass: collect unique suppliers + decorators
     orderItems.forEach((item: any) => {
+      // Product supplier
       if (item.supplierId && !vendorsMap.has(item.supplierId)) {
         const supplierFromArray = suppliers.find((s: any) => s.id === item.supplierId);
         vendorsMap.set(item.supplierId, {
           id: item.supplierId,
+          vendorKey: item.supplierId,
           name: item.supplierName || supplierFromArray?.name || "Unknown Vendor",
           email: item.supplierEmail || supplierFromArray?.email || "",
           phone: item.supplierPhone || supplierFromArray?.phone || "",
           contactPerson: item.supplierContactPerson || supplierFromArray?.contactPerson || "",
+          role: "supplier" as const,
           products: [],
         });
       }
-    });
-    orderItems.forEach((item: any) => {
-      if (item.supplierId && vendorsMap.has(item.supplierId)) {
-        vendorsMap.get(item.supplierId).products.push({
-          id: item.id,
-          productName: item.productName,
-          productSku: item.productSku,
-          quantity: item.quantity,
-          color: item.color,
-          size: item.size,
-        });
+
+      // Third-party decorator as separate vendor entry
+      if (item.decoratorType === "third_party" && item.decoratorId && item.decoratorId !== item.supplierId) {
+        const decoratorKey = `decorator-${item.decoratorId}`;
+        if (!vendorsMap.has(decoratorKey)) {
+          const decoratorFromArray = suppliers.find((s: any) => s.id === item.decoratorId);
+          vendorsMap.set(decoratorKey, {
+            id: item.decoratorId,
+            vendorKey: decoratorKey,
+            name: decoratorFromArray?.name || "Unknown Decorator",
+            email: decoratorFromArray?.email || "",
+            phone: decoratorFromArray?.phone || "",
+            contactPerson: decoratorFromArray?.contactPerson || "",
+            role: "decorator" as const,
+            products: [],
+          });
+        }
       }
     });
+
+    // Second pass: add products to each vendor
+    orderItems.forEach((item: any) => {
+      const product = {
+        id: item.id,
+        productName: item.productName,
+        productSku: item.productSku,
+        quantity: item.quantity,
+        color: item.color,
+        size: item.size,
+      };
+
+      if (item.supplierId && vendorsMap.has(item.supplierId)) {
+        vendorsMap.get(item.supplierId).products.push(product);
+      }
+
+      // Also add to decorator entry
+      if (item.decoratorType === "third_party" && item.decoratorId) {
+        const decoratorKey = `decorator-${item.decoratorId}`;
+        if (vendorsMap.has(decoratorKey)) {
+          vendorsMap.get(decoratorKey).products.push(product);
+        }
+      }
+    });
+
     return Array.from(vendorsMap.values());
   }, [orderItems, suppliers]);
 
@@ -221,6 +261,8 @@ export function useProjectData(projectId: string | null | undefined, activeSecti
     // Phase 2 entities
     allItemLines,
     allItemCharges,
+    allArtworkCharges,
+    allArtworkFiles,
     shipments,
     shipmentsLoading,
     portalTokens,

@@ -23,6 +23,7 @@ export * from './orderFile.schema';
 // Artwork
 export * from './artwork.schema';
 export * from './artworkKanban.schema';
+export * from './decoratorMatrix.schema';
 
 // Documents & Approvals
 export * from './document.schema';

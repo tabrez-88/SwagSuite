@@ -12,7 +12,8 @@ export interface DateStatus {
 }
 
 export interface TimelineConflict {
-  type: "supplier_after_customer" | "event_before_inHands" | "shipment_after_inHands" | "no_shipping_address";
+  type: "supplier_after_customer" | "event_before_inHands" | "shipment_after_inHands" | "no_shipping_address"
+    | "item_after_customer" | "leg2_before_leg1" | "item_no_address";
   message: string;
   severity: "error" | "warning";
 }
@@ -66,6 +67,7 @@ export function getDateStatus(date: string | Date | null | undefined): DateStatu
 export function hasTimelineConflict(
   order: any,
   shipments?: any[],
+  orderItems?: any[],
 ): TimelineConflict[] {
   const conflicts: TimelineConflict[] = [];
   const inHands = order?.inHandsDate ? new Date(order.inHandsDate) : null;
@@ -103,6 +105,36 @@ export function hasTimelineConflict(
           conflicts.push({
             type: "shipment_after_inHands",
             message: `Shipment ETA (${format(eta, "MMM d")}) exceeds customer in-hands date (${format(inHands, "MMM d")})`,
+            severity: "error",
+          });
+        }
+      }
+    }
+  }
+
+  // Per-item conflicts
+  if (orderItems && inHands) {
+    for (const item of orderItems) {
+      // Item in-hands date after customer in-hands date
+      if (item.shipInHandsDate) {
+        const itemDate = new Date(item.shipInHandsDate);
+        if (itemDate > inHands) {
+          conflicts.push({
+            type: "item_after_customer",
+            message: `${item.productName || "Product"}: ship date (${format(itemDate, "MMM d")}) is after customer in-hands (${format(inHands, "MMM d")})`,
+            severity: "warning",
+          });
+        }
+      }
+
+      // Leg 2 date before leg 1 date (impossible chain)
+      if (item.shipInHandsDate && item.leg2InHandsDate) {
+        const leg1 = new Date(item.shipInHandsDate);
+        const leg2 = new Date(item.leg2InHandsDate);
+        if (leg2 < leg1) {
+          conflicts.push({
+            type: "leg2_before_leg1",
+            message: `${item.productName || "Product"}: delivery date (${format(leg2, "MMM d")}) is before decorator date (${format(leg1, "MMM d")})`,
             severity: "error",
           });
         }

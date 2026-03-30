@@ -66,6 +66,8 @@ export interface ProjectData {
   approvals: any[];
   allItemLines: Record<string, OrderItemLine[]>;
   allItemCharges: Record<string, OrderAdditionalCharge[]>;
+  allArtworkCharges: Record<string, any[]>;
+  allArtworkFiles: Record<string, any[]>;
   shipments: OrderShipment[];
   shipmentsLoading: boolean;
   portalTokens: CustomerPortalToken[];

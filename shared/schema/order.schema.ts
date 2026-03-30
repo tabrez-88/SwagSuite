@@ -104,8 +104,10 @@ export const orderItems = pgTable("order_items", {
   imprintLocation: varchar("imprint_location"),
   imprintMethod: varchar("imprint_method"),
   decoratorType: varchar("decorator_type"), // 'supplier' or 'third_party'
+  decoratorId: varchar("decorator_id").references(() => suppliers.id), // Third-party decorator vendor
   priceLabel: varchar("price_label"),
   personalComment: text("personal_comment"),
+  description: text("description"), // Per-order-item description override (from product)
   privateNotes: text("private_notes"),
   notes: text("notes"), // Product-specific notes
   // Per-product shipping config (CommonSKU style)
@@ -113,6 +115,21 @@ export const orderItems = pgTable("order_items", {
   shippingAccountType: varchar("shipping_account_type"), // client, supplier, ours, other
   shippingMethodOverride: varchar("shipping_method_override"), // Override order-level method
   shippingNotes: text("shipping_notes"), // Per-product shipping notes
+  // Leg 1: supplier → destination (address + date)
+  shipToAddressId: varchar("ship_to_address_id"), // Reference to stored address (company_addresses or supplier_addresses)
+  shipToAddress: jsonb("ship_to_address"), // Snapshot: { contactName, companyName, street, street2, city, state, zipCode, country, email, phone }
+  shipInHandsDate: timestamp("ship_in_hands_date"), // Per-product in-hands date
+  shipFirm: boolean("ship_firm").default(false), // Firm date flag
+  shippingQuote: decimal("shipping_quote", { precision: 10, scale: 2 }), // Shipping cost quote
+  // Leg 2: decorator → client (only when shippingDestination = "decorator")
+  leg2ShipTo: varchar("leg2_ship_to"), // Destination type for leg 2 (usually "client")
+  leg2AddressId: varchar("leg2_address_id"), // Stored address reference
+  leg2Address: jsonb("leg2_address"), // Address snapshot
+  leg2InHandsDate: timestamp("leg2_in_hands_date"),
+  leg2Firm: boolean("leg2_firm").default(false),
+  leg2ShippingMethod: varchar("leg2_shipping_method"),
+  leg2ShippingAccountType: varchar("leg2_shipping_account_type"),
+  leg2ShippingQuote: decimal("leg2_shipping_quote", { precision: 10, scale: 2 }),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -138,9 +155,11 @@ export const orderAdditionalCharges = pgTable("order_additional_charges", {
   orderItemId: varchar("order_item_id").notNull().references(() => orderItems.id, { onDelete: 'cascade' }),
   description: varchar("description").notNull(),
   chargeType: varchar("charge_type").default("flat"), // flat, percentage
+  chargeCategory: varchar("charge_category").default("fixed"), // run (per unit) or fixed (one-time)
   amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
   isVendorCharge: boolean("is_vendor_charge").default(false),
   displayToClient: boolean("display_to_client").default(true),
+  includeInUnitPrice: boolean("include_in_unit_price").default(false), // Run: "Include in price", Fixed: "Subtract from margin"
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

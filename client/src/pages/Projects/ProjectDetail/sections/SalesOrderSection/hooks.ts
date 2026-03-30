@@ -64,11 +64,12 @@ export function useSalesOrderSection({ projectId, data, lockStatus }: SalesOrder
   const duplicateOrderMutation = useMutation({
     mutationFn: async () => {
       const res = await apiRequest("POST", `/api/projects/${projectId}/duplicate`);
-      return res;
+      return res.json();
     },
     onSuccess: (data: any) => {
-      toast({ title: "Order duplicated!", description: `New order #${data.order?.orderNumber} created` });
-      setLocation(`/projects/${data.order?.id}`);
+      const newOrder = data.order || data;
+      toast({ title: "Order duplicated!", description: `New order #${newOrder.orderNumber} created` });
+      setLocation(`/projects/${newOrder.id}`);
     },
     onError: () => {
       toast({ title: "Failed to duplicate order", variant: "destructive" });
@@ -131,9 +132,16 @@ export function useSalesOrderSection({ projectId, data, lockStatus }: SalesOrder
     }
   };
 
+  const [showDuplicateConfirm, setShowDuplicateConfirm] = useState(false);
+
   const handleDuplicate = () => {
-    if (!confirm("Duplicate this order? A new project will be created with all items and settings copied.")) return;
-    duplicateOrderMutation.mutate();
+    setShowDuplicateConfirm(true);
+  };
+
+  const confirmDuplicate = () => {
+    duplicateOrderMutation.mutate(undefined, {
+      onSuccess: () => setShowDuplicateConfirm(false),
+    });
   };
 
   const currentStatus = (order as any)?.salesOrderStatus || "new";
@@ -152,12 +160,15 @@ export function useSalesOrderSection({ projectId, data, lockStatus }: SalesOrder
       Object.entries(allArtworkItems).forEach(([itemId, arts]: [string, any[]]) => {
         const item = orderItems.find((i: any) => i.id === itemId);
         const supplier = item?.supplierId ? data.suppliers?.find((s: any) => s.id === item.supplierId) : null;
+        const decorator = item?.decoratorId ? data.suppliers?.find((s: any) => s.id === item.decoratorId) : null;
         arts.forEach((art: any) => {
           result.push({
             ...art,
             productName: item?.productName || "Unknown Product",
             productSku: item?.productSku || "",
             supplierName: supplier?.name || item?.supplierName || "Unknown Vendor",
+            decoratorType: item?.decoratorType || "supplier",
+            decoratorName: decorator?.name || null,
           });
         });
       });
@@ -232,6 +243,9 @@ export function useSalesOrderSection({ projectId, data, lockStatus }: SalesOrder
     handleRegenerateSO,
     handleGetApprovalLink,
     handleDuplicate,
+    showDuplicateConfirm,
+    setShowDuplicateConfirm,
+    confirmDuplicate,
     deleteDocument,
     getEditedItem,
 

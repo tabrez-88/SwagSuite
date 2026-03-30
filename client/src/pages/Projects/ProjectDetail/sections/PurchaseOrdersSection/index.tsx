@@ -121,28 +121,31 @@ export default function PurchaseOrdersSection({ projectId, data, isLocked }: Pur
       ) : (
         <div className="space-y-3">
           {h.vendorPOs.map((po) => {
-            const isExpanded = h.expandedVendors.has(po.vendor.id);
-            const vendorDoc = h.getVendorDoc(po.vendor.id);
-            const isVendorGenerating = h.generatingVendorId === po.vendor.id;
+            const vendorKey = po.vendor.vendorKey || po.vendor.id;
+            const isDecorator = po.vendor.role === "decorator";
+            const isExpanded = h.expandedVendors.has(vendorKey);
+            const vendorDoc = h.getVendorDoc(vendorKey);
+            const isVendorGenerating = h.generatingVendorId === vendorKey;
             const poStage = vendorDoc ? h.getDocStage(vendorDoc) : null;
             const poStatus = vendorDoc ? h.getDocStatus(vendorDoc) : null;
             const stageInfo = poStage ? h.PO_STAGES[poStage] || h.PO_STAGES.created : null;
             const statusInfo = poStatus ? h.PO_STATUSES[poStatus] || h.PO_STATUSES.ok : null;
-            const vendorArtworks = h.getVendorArtworks(po.vendor.id);
+            const vendorArtworks = h.getVendorArtworks(vendorKey);
             const vendorIhdValue = vendorDoc?.metadata?.supplierIHD;
             const effectiveIhd = vendorIhdValue || (h.order as any)?.supplierInHandsDate;
 
             return (
-              <Card key={po.vendor.id} className="overflow-hidden">
+              <Card key={vendorKey} className="overflow-hidden">
                 {/* Vendor header row */}
-                <div className="p-4 cursor-pointer hover:bg-gray-50 transition-colors" onClick={() => h.toggleVendor(po.vendor.id)}>
+                <div className="p-4 cursor-pointer hover:bg-gray-50 transition-colors" onClick={() => h.toggleVendor(vendorKey)}>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       {isExpanded ? <ChevronDown className="w-4 h-4 text-gray-400" /> : <ChevronRight className="w-4 h-4 text-gray-400" />}
-                      <Building2 className="w-5 h-5 text-blue-500" />
+                      <Building2 className={`w-5 h-5 ${isDecorator ? "text-purple-500" : "text-blue-500"}`} />
                       <div>
                         <div className="flex items-center gap-2">
                           <h3 className="font-semibold text-sm">{po.vendor.name}</h3>
+                          {isDecorator && <Badge variant="outline" className="text-[10px] border-purple-200 text-purple-600 bg-purple-50">Decorator</Badge>}
                           {stageInfo && <Badge variant="outline" className={`text-[10px] ${stageInfo.color}`}>{stageInfo.label}</Badge>}
                           {statusInfo && poStatus !== "ok" && <Badge variant="outline" className={`text-[10px] ${statusInfo.color}`}>{statusInfo.label}</Badge>}
                           {effectiveIhd ? (
@@ -188,8 +191,8 @@ export default function PurchaseOrdersSection({ projectId, data, isLocked }: Pur
                       <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
                         {!vendorDoc ? (
                           <Button variant="default" size="sm" className="h-7 text-xs gap-1"
-                            onClick={() => h.handleGeneratePO(po.vendor.id, po.vendor.name)}
-                            disabled={isVendorGenerating || h.isGenerating || h.isLocked || !h.hasSupplierIHD}>
+                            onClick={() => h.handleGeneratePO(vendorKey, po.vendor.name)}
+                            disabled={isVendorGenerating || h.isGenerating || h.isLocked || (!h.hasSupplierIHD && !isDecorator)}>
                             {isVendorGenerating ? <Loader2 className="w-3 h-3 animate-spin" /> : <FileText className="w-3 h-3" />}
                             Generate PO
                           </Button>
@@ -363,7 +366,7 @@ export default function PurchaseOrdersSection({ projectId, data, isLocked }: Pur
                           </h4>
                           {!h.isLocked && vendorArtworks.some((a: any) => a.proofRequired !== false && a.proofFilePath && ["proof_received", "change_requested"].includes(a.status)) && (
                             <Button variant="default" size="sm" className="h-7 text-xs gap-1"
-                              onClick={() => h.openSendAllProofs(po.vendor.id)}>
+                              onClick={() => h.openSendAllProofs(vendorKey)}>
                               <Send className="w-3 h-3" /> Send All Proofs to Client
                             </Button>
                           )}
@@ -605,18 +608,23 @@ export default function PurchaseOrdersSection({ projectId, data, isLocked }: Pur
 
       {/* Hidden PO templates for PDF generation */}
       {h.vendorPOs.map((po) => {
-        const poNumber = `${(h.order as any)?.orderNumber || h.projectId}-${po.vendor.id.substring(0, 4).toUpperCase()}`;
+        const vendorKey = po.vendor.vendorKey || po.vendor.id;
+        const isDecorator = po.vendor.role === "decorator";
+        const suffix = isDecorator ? `DEC-${po.vendor.id.substring(0, 4).toUpperCase()}` : po.vendor.id.substring(0, 4).toUpperCase();
+        const poNumber = `${(h.order as any)?.orderNumber || h.projectId}-${suffix}`;
         return (
           <PurchaseOrderTemplate
-            key={po.vendor.id}
-            ref={(el) => { h.poRefs.current[po.vendor.id] = el; }}
+            key={vendorKey}
+            ref={(el) => { h.poRefs.current[vendorKey] = el; }}
             order={h.order}
             vendor={po.vendor}
             vendorItems={po.items}
             poNumber={poNumber}
-            artworkItems={h.getVendorArtworks(po.vendor.id)}
-            vendorIHD={h.getVendorDoc(po.vendor.id)?.metadata?.supplierIHD || null}
+            artworkItems={h.getVendorArtworks(vendorKey)}
+            allArtworkCharges={data.allArtworkCharges}
+            vendorIHD={h.getVendorDoc(vendorKey)?.metadata?.supplierIHD || null}
             vendorAddress={h.getVendorDefaultAddress(po.vendor.id)}
+            poType={isDecorator ? "decorator" : "supplier"}
           />
         );
       })}

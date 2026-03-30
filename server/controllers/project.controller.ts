@@ -18,7 +18,7 @@ import { registerInMediaLibrary } from "../utils/registerInMediaLibrary";
 // ── Helper: recalculate order totals (items + charges + discount + tax + shipping) ──
 async function recalculateOrderTotals(orderId: string) {
   const { db } = await import("../db");
-  const { orderServiceCharges, orderAdditionalCharges, orderShipments, companies } = await import("@shared/schema");
+  const { orderServiceCharges, orderAdditionalCharges, orderShipments, companies, artworkItems, artworkCharges } = await import("@shared/schema");
   const { eq } = await import("drizzle-orm");
   const { getTaxJarCredentials } = await import("../services/taxjar.service");
 
@@ -32,8 +32,29 @@ async function recalculateOrderTotals(orderId: string) {
     ? await db.select().from(orderAdditionalCharges).where(inArray(orderAdditionalCharges.orderItemId, itemIds))
     : [];
   const additionalChargesTotal = allCharges
-    .filter((c: any) => c.displayToClient)
+    .filter((c: any) => c.displayToClient && !c.includeInUnitPrice)
     .reduce((sum: number, c: any) => sum + parseFloat(c.amount || "0"), 0);
+
+  // Batch fetch artwork charges (per-artwork imprint/setup costs)
+  const allArtworks = itemIds.length > 0
+    ? await db.select().from(artworkItems).where(inArray(artworkItems.orderItemId, itemIds))
+    : [];
+  const artworkIds = allArtworks.map(a => a.id);
+  const allArtCharges = artworkIds.length > 0
+    ? await db.select().from(artworkCharges).where(inArray(artworkCharges.artworkItemId, artworkIds))
+    : [];
+  // Only display_to_client artwork charges add to the visible subtotal
+  const artworkChargesTotal = allArtCharges
+    .filter((c: any) => c.displayMode === "display_to_client")
+    .reduce((sum: number, c: any) => {
+      const retail = parseFloat(c.retailPrice || "0");
+      const qty = c.chargeCategory === "run"
+        ? (allArtworks.find(a => a.id === c.artworkItemId)
+            ? (allItems.find(i => i.id === allArtworks.find(a => a.id === c.artworkItemId)?.orderItemId)?.quantity || 1)
+            : 1)
+        : (c.quantity || 1);
+      return sum + retail * qty;
+    }, 0);
 
   // Sum order-level service charges (client-visible)
   const serviceCharges = await db.select().from(orderServiceCharges).where(eq(orderServiceCharges.orderId, orderId));
@@ -49,7 +70,7 @@ async function recalculateOrderTotals(orderId: string) {
   const shipments = await db.select().from(orderShipments).where(eq(orderShipments.orderId, orderId));
   const shippingTotal = shipments.reduce((sum: number, s: any) => sum + parseFloat(s.shippingCost || "0"), 0);
 
-  const subtotal = itemsSubtotal + additionalChargesTotal + serviceChargesTotal;
+  const subtotal = itemsSubtotal + additionalChargesTotal + serviceChargesTotal + artworkChargesTotal;
   const existingOrder = await projectRepository.getOrder(orderId);
 
   // Discount disabled for now — kept in schema but not applied
@@ -617,11 +638,13 @@ export class ProjectController {
       // Get source items
       const sourceItems = await db.select().from(orderItems).where(eq(orderItems.orderId, projectId));
 
-      // Generate new order number
+      // Generate new order number (find max existing number to avoid collisions)
       const year = new Date().getFullYear();
-      const countResult = await db.execute(sql.raw(`SELECT COUNT(*) as count FROM orders WHERE order_number LIKE 'ORD-${year}-%'`));
-      const countRows = (countResult as any).rows ?? countResult;
-      const nextNum = parseInt(countRows[0]?.count || "0") + 1;
+      const maxResult = await db.execute(sql.raw(
+        `SELECT MAX(CAST(SUBSTRING(order_number FROM 'ORD-${year}-(\\d+)') AS INTEGER)) as max_num FROM orders WHERE order_number LIKE 'ORD-${year}-%'`
+      ));
+      const maxRows = (maxResult as any).rows ?? maxResult;
+      const nextNum = (parseInt(maxRows[0]?.max_num || "0") || 0) + 1;
       const newOrderNumber = `ORD-${year}-${String(nextNum).padStart(3, "0")}`;
 
       // Create duplicate order (reset statuses, keep content)
@@ -776,33 +799,47 @@ export class ProjectController {
   static async listItemsWithDetails(req: Request, res: Response) {
     try {
       const { db } = await import("../db");
-      const { orderItemLines, orderAdditionalCharges, artworkItems } = await import("@shared/schema");
+      const { orderItemLines, orderAdditionalCharges, artworkItems, artworkCharges, artworkItemFiles } = await import("@shared/schema");
       const { inArray } = await import("drizzle-orm");
 
       const items = await projectRepository.getOrderItems(req.params.projectId);
       const itemIds = items.map(item => item.id);
 
       if (itemIds.length === 0) {
-        return res.json({ items, lines: {}, charges: {}, artworks: {} });
+        return res.json({ items, lines: {}, charges: {}, artworks: {}, artworkCharges: {} });
       }
 
-      // 3 queries instead of 3*N
+      // Batch queries
       const [allLines, allCharges, allArtworks] = await Promise.all([
         db.select().from(orderItemLines).where(inArray(orderItemLines.orderItemId, itemIds)),
         db.select().from(orderAdditionalCharges).where(inArray(orderAdditionalCharges.orderItemId, itemIds)),
         db.select().from(artworkItems).where(inArray(artworkItems.orderItemId, itemIds)),
       ]);
 
-      // Group by orderItemId
+      // Fetch artwork charges + files for all artworks
+      const artworkIds = allArtworks.map(a => a.id);
+      const [allArtworkCharges, allArtItemFiles] = artworkIds.length > 0
+        ? await Promise.all([
+            db.select().from(artworkCharges).where(inArray(artworkCharges.artworkItemId, artworkIds)),
+            db.select().from(artworkItemFiles).where(inArray(artworkItemFiles.artworkItemId, artworkIds)),
+          ])
+        : [[], []];
+
+      // Group by keys
       const lines: Record<string, any[]> = {};
       const charges: Record<string, any[]> = {};
       const artworks: Record<string, any[]> = {};
+      const artCharges: Record<string, any[]> = {};
 
       for (const line of allLines) { (lines[line.orderItemId] ??= []).push(line); }
       for (const charge of allCharges) { (charges[charge.orderItemId] ??= []).push(charge); }
       for (const art of allArtworks) { (artworks[art.orderItemId] ??= []).push(art); }
+      for (const ac of allArtworkCharges) { (artCharges[ac.artworkItemId] ??= []).push(ac); }
 
-      res.json({ items, lines, charges, artworks });
+      const artFiles: Record<string, any[]> = {};
+      for (const af of allArtItemFiles) { (artFiles[af.artworkItemId] ??= []).push(af); }
+
+      res.json({ items, lines, charges, artworks, artworkCharges: artCharges, artworkFiles: artFiles });
     } catch (error) {
       console.error("Error fetching items with details:", error);
       res.status(500).json({ message: "Failed to fetch items with details" });
@@ -906,13 +943,13 @@ export class ProjectController {
         return res.status(403).json({ message: "Sales Order is locked. Unlock it first to make changes." });
       }
 
-      // First, delete any artwork approvals associated with this order item
-      // This prevents foreign key constraint violations
+      // Delete dependent records to prevent foreign key constraint violations
       const { db } = await import("../db");
-      const { artworkApprovals } = await import("@shared/schema");
+      const { artworkApprovals, artworkItems } = await import("@shared/schema");
       const { eq } = await import("drizzle-orm");
 
       await db.delete(artworkApprovals).where(eq(artworkApprovals.orderItemId, req.params.itemId));
+      await db.delete(artworkItems).where(eq(artworkItems.orderItemId, req.params.itemId));
 
       // Now safe to delete the order item
       await projectRepository.deleteOrderItem(req.params.itemId);
@@ -955,7 +992,20 @@ export class ProjectController {
         }
       }
 
-      const updatedItem = await projectRepository.updateOrderItem(req.params.itemId, req.body);
+      // Clear leg2 fields when destination changes away from "decorator"
+      const body = { ...req.body };
+      if (body.shippingDestination && body.shippingDestination !== "decorator") {
+        body.leg2ShipTo = null;
+        body.leg2AddressId = null;
+        body.leg2Address = null;
+        body.leg2InHandsDate = null;
+        body.leg2Firm = false;
+        body.leg2ShippingMethod = null;
+        body.leg2ShippingAccountType = null;
+        body.leg2ShippingQuote = null;
+      }
+
+      const updatedItem = await projectRepository.updateOrderItem(req.params.itemId, body);
 
       // Recalculate order totals if pricing fields changed
       const pricingFields = ['quantity', 'unitPrice', 'totalPrice', 'cost', 'decorationCost', 'charges'];
@@ -1018,6 +1068,7 @@ export class ProjectController {
         status: req.body.status || 'pending',
         fileName: fileName,
         filePath: filePath,
+        repeatLogo: req.body.repeatLogo || false,
         notes: req.body.notes || null,
       };
 
@@ -1071,6 +1122,7 @@ export class ProjectController {
         size: req.body.size || null,
         status: req.body.status,
         notes: req.body.notes || null,
+        repeatLogo: req.body.repeatLogo !== undefined ? req.body.repeatLogo : undefined,
         proofRequired: req.body.proofRequired !== undefined ? req.body.proofRequired : undefined,
         proofFilePath: req.body.proofFilePath !== undefined ? req.body.proofFilePath : undefined,
         proofFileName: req.body.proofFileName !== undefined ? req.body.proofFileName : undefined,
@@ -1126,6 +1178,167 @@ export class ProjectController {
     } catch (error) {
       console.error("Error deleting artwork item:", error);
       res.status(500).json({ message: "Failed to delete artwork item" });
+    }
+  }
+
+  // ── Artwork Item Files (multiple files per artwork) ──
+
+  static async listArtworkFiles(req: Request, res: Response) {
+    try {
+      const { db } = await import("../db");
+      const { artworkItemFiles } = await import("@shared/schema");
+      const { eq } = await import("drizzle-orm");
+      const files = await db.select().from(artworkItemFiles)
+        .where(eq(artworkItemFiles.artworkItemId, req.params.artworkId))
+        .orderBy(artworkItemFiles.sortOrder);
+      res.json(files);
+    } catch (error) {
+      console.error("Error listing artwork files:", error);
+      res.status(500).json({ message: "Failed to list artwork files" });
+    }
+  }
+
+  static async addArtworkFile(req: Request, res: Response) {
+    try {
+      const { db } = await import("../db");
+      const { artworkItemFiles } = await import("@shared/schema");
+      const [file] = await db.insert(artworkItemFiles).values({
+        artworkItemId: req.params.artworkId,
+        fileName: req.body.fileName,
+        filePath: req.body.filePath,
+        fileSize: req.body.fileSize || null,
+        mimeType: req.body.mimeType || null,
+        sortOrder: req.body.sortOrder || 0,
+        isPrimary: req.body.isPrimary || false,
+      }).returning();
+      res.status(201).json(file);
+    } catch (error) {
+      console.error("Error adding artwork file:", error);
+      res.status(500).json({ message: "Failed to add artwork file" });
+    }
+  }
+
+  static async removeArtworkFile(req: Request, res: Response) {
+    try {
+      const { db } = await import("../db");
+      const { artworkItemFiles } = await import("@shared/schema");
+      const { eq, and } = await import("drizzle-orm");
+      await db.delete(artworkItemFiles).where(and(
+        eq(artworkItemFiles.id, req.params.fileId),
+        eq(artworkItemFiles.artworkItemId, req.params.artworkId),
+      ));
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error removing artwork file:", error);
+      res.status(500).json({ message: "Failed to remove artwork file" });
+    }
+  }
+
+  // ── Copy Artwork Between Products ──
+
+  static async copyArtwork(req: Request, res: Response) {
+    try {
+      const { itemId, sourceArtworkId } = req.params;
+      const includePricing = req.query.includePricing === "true";
+
+      const { db } = await import("../db");
+      const { artworkItems, artworkCharges, artworkItemFiles } = await import("@shared/schema");
+      const { eq } = await import("drizzle-orm");
+
+      // Fetch source artwork
+      const [source] = await db.select().from(artworkItems).where(eq(artworkItems.id, sourceArtworkId));
+      if (!source) return res.status(404).json({ message: "Source artwork not found" });
+
+      // Clone artwork
+      const { id: _id, orderItemId: _oid, createdAt: _ca, updatedAt: _ua, proofFilePath: _pf, proofFileName: _pfn, ...artData } = source;
+      const [newArt] = await db.insert(artworkItems).values({
+        ...artData,
+        orderItemId: itemId,
+        status: "pending",
+      }).returning();
+
+      // Clone files
+      const sourceFiles = await db.select().from(artworkItemFiles).where(eq(artworkItemFiles.artworkItemId, sourceArtworkId));
+      for (const f of sourceFiles) {
+        const { id: _fid, artworkItemId: _faid, createdAt: _fca, ...fileData } = f;
+        await db.insert(artworkItemFiles).values({ ...fileData, artworkItemId: newArt.id });
+      }
+
+      // Clone charges if requested
+      if (includePricing) {
+        const sourceCharges = await db.select().from(artworkCharges).where(eq(artworkCharges.artworkItemId, sourceArtworkId));
+        for (const c of sourceCharges) {
+          const { id: _cid, artworkItemId: _caid, createdAt: _cca, updatedAt: _cua, ...chargeData } = c;
+          await db.insert(artworkCharges).values({ ...chargeData, artworkItemId: newArt.id });
+        }
+      }
+
+      res.status(201).json(newArt);
+    } catch (error) {
+      console.error("Error copying artwork:", error);
+      res.status(500).json({ message: "Failed to copy artwork" });
+    }
+  }
+
+  // ── Artwork Charges ──
+
+  static async listArtworkCharges(req: Request, res: Response) {
+    try {
+      const { db } = await import("../db");
+      const { artworkCharges } = await import("@shared/schema");
+      const { eq } = await import("drizzle-orm");
+      const charges = await db.select().from(artworkCharges).where(eq(artworkCharges.artworkItemId, req.params.artworkId));
+      res.json(charges);
+    } catch (error) {
+      console.error("Error fetching artwork charges:", error);
+      res.status(500).json({ message: "Failed to fetch artwork charges" });
+    }
+  }
+
+  static async createArtworkCharge(req: Request, res: Response) {
+    try {
+      const { db } = await import("../db");
+      const { insertArtworkChargeSchema } = await import("@shared/schema");
+      const validated = insertArtworkChargeSchema.parse({
+        ...req.body,
+        artworkItemId: req.params.artworkId,
+      });
+      const [charge] = await db.insert((await import("@shared/schema")).artworkCharges).values(validated).returning();
+      res.status(201).json(charge);
+    } catch (error) {
+      console.error("Error creating artwork charge:", error);
+      res.status(500).json({ message: "Failed to create artwork charge" });
+    }
+  }
+
+  static async updateArtworkCharge(req: Request, res: Response) {
+    try {
+      const { db } = await import("../db");
+      const { artworkCharges } = await import("@shared/schema");
+      const { eq, and } = await import("drizzle-orm");
+      const [updated] = await db
+        .update(artworkCharges)
+        .set({ ...req.body, updatedAt: new Date() })
+        .where(and(eq(artworkCharges.id, req.params.chargeId), eq(artworkCharges.artworkItemId, req.params.artworkId)))
+        .returning();
+      if (!updated) return res.status(404).json({ message: "Charge not found" });
+      res.json(updated);
+    } catch (error) {
+      console.error("Error updating artwork charge:", error);
+      res.status(500).json({ message: "Failed to update artwork charge" });
+    }
+  }
+
+  static async deleteArtworkCharge(req: Request, res: Response) {
+    try {
+      const { db } = await import("../db");
+      const { artworkCharges } = await import("@shared/schema");
+      const { eq, and } = await import("drizzle-orm");
+      await db.delete(artworkCharges).where(and(eq(artworkCharges.id, req.params.chargeId), eq(artworkCharges.artworkItemId, req.params.artworkId)));
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting artwork charge:", error);
+      res.status(500).json({ message: "Failed to delete artwork charge" });
     }
   }
 
@@ -1317,6 +1530,69 @@ export class ProjectController {
     } catch (error) {
       console.error("Error deleting service charge:", error);
       res.status(500).json({ message: "Failed to delete service charge" });
+    }
+  }
+
+  // ── Duplicate Item ──
+
+  static async duplicateItem(req: Request, res: Response) {
+    try {
+      const { projectId, itemId } = req.params;
+
+      // Lock check
+      const parentOrder = await projectRepository.getOrder(projectId);
+      if (parentOrder && isSectionLocked(parentOrder, 'salesOrder')) {
+        return res.status(403).json({ message: "Sales Order is locked. Unlock it first to make changes." });
+      }
+
+      const { db } = await import("../db");
+      const { orderItems, orderItemLines, orderAdditionalCharges, artworkItems } = await import("@shared/schema");
+      const { eq, sql } = await import("drizzle-orm");
+
+      // 1. Fetch source item
+      const [sourceItem] = await db.select().from(orderItems).where(eq(orderItems.id, itemId));
+      if (!sourceItem || sourceItem.orderId !== projectId) {
+        return res.status(404).json({ message: "Item not found in this project" });
+      }
+
+      // 2. Create new item (copy all fields except id/createdAt)
+      const { id: _id, createdAt: _ca, ...itemData } = sourceItem;
+      const [newItem] = await db.insert(orderItems).values(itemData).returning();
+
+      // 3. Copy lines
+      const sourceLines = await db.select().from(orderItemLines).where(eq(orderItemLines.orderItemId, itemId));
+      for (const line of sourceLines) {
+        const { id: _lid, orderItemId: _oid, createdAt: _lca, updatedAt: _lua, ...lineData } = line;
+        await db.insert(orderItemLines).values({ ...lineData, orderItemId: newItem.id });
+      }
+
+      // 4. Copy charges
+      const sourceCharges = await db.select().from(orderAdditionalCharges).where(eq(orderAdditionalCharges.orderItemId, itemId));
+      for (const charge of sourceCharges) {
+        const { id: _cid, orderItemId: _coid, createdAt: _cca, updatedAt: _cua, ...chargeData } = charge;
+        await db.insert(orderAdditionalCharges).values({ ...chargeData, orderItemId: newItem.id });
+      }
+
+      // 5. Copy artwork references (reset proof status)
+      const sourceArtworks = await db.select().from(artworkItems).where(eq(artworkItems.orderItemId, itemId));
+      for (const art of sourceArtworks) {
+        const { id: _aid, orderItemId: _aoid, createdAt: _aca, updatedAt: _aua, ...artData } = art;
+        await db.insert(artworkItems).values({
+          ...artData,
+          orderItemId: newItem.id,
+          status: "pending",
+          proofFilePath: null,
+          proofFileName: null,
+        });
+      }
+
+      // 6. Recalculate order totals
+      await recalculateOrderTotals(projectId);
+
+      res.status(201).json(newItem);
+    } catch (error) {
+      console.error("Error duplicating order item:", error);
+      res.status(500).json({ message: "Failed to duplicate order item" });
     }
   }
 }

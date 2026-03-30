@@ -172,8 +172,14 @@ export class CommunicationService {
         .from(orderItemsTable)
         .where(eq(orderItemsTable.orderId, orderId));
 
+      // Support both supplier and decorator vendor keys (decorator-{id})
+      const isDecoratorKey = vendorId.startsWith("decorator-");
+      const actualId = isDecoratorKey ? vendorId.replace("decorator-", "") : vendorId;
+
       const vendorItemIds = orderItemsForVendor
-        .filter((item: any) => item.supplierId === vendorId)
+        .filter((item: any) => isDecoratorKey
+          ? (item.decoratorType === "third_party" && item.decoratorId === actualId)
+          : (item.supplierId === vendorId))
         .map((item: any) => item.id);
 
       if (vendorItemIds.length > 0) {

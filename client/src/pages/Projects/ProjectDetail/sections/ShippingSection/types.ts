@@ -16,11 +16,49 @@ export interface ShipmentFormData {
   notes: string;
 }
 
+export interface ShippingAddressData {
+  contactName?: string;
+  companyName?: string;
+  street?: string;
+  street2?: string;
+  city?: string;
+  state?: string;
+  zipCode?: string;
+  country?: string;
+  email?: string;
+  phone?: string;
+}
+
+export interface ItemShippingFormData {
+  // Leg 1
+  shippingDestination: string;
+  shippingAccountType: string;
+  shippingMethodOverride: string;
+  shippingNotes: string;
+  shipToAddressId: string;
+  shipToAddress: ShippingAddressData | null;
+  shipInHandsDate: string;
+  shipFirm: boolean;
+  shippingQuote: string;
+  // Leg 2 (only when destination = decorator)
+  leg2ShipTo: string;
+  leg2AddressId: string;
+  leg2Address: ShippingAddressData | null;
+  leg2InHandsDate: string;
+  leg2Firm: boolean;
+  leg2ShippingMethod: string;
+  leg2ShippingAccountType: string;
+  leg2ShippingQuote: string;
+}
+
 export interface BulkEditData {
   shippingDestination: string;
   shippingAccountType: string;
   shippingMethodOverride: string;
   shippingNotes: string;
+  shipInHandsDate: string;
+  shipFirm: boolean;
+  shippingQuote: string;
 }
 
 export interface ShippingSectionProps {
@@ -53,6 +91,16 @@ export const ACCOUNT_TYPE_OPTIONS = [
   { value: "other", label: "Other" },
 ];
 
+export const SHIPPING_METHOD_OPTIONS = [
+  { value: "ground", label: "Ground" },
+  { value: "2day", label: "2-Day" },
+  { value: "overnight", label: "Overnight" },
+  { value: "freight", label: "Freight" },
+  { value: "local_delivery", label: "Local Delivery" },
+  { value: "pickup", label: "Pickup" },
+  { value: "other", label: "Other" },
+];
+
 export const EMPTY_FORM: ShipmentFormData = {
   carrier: "", shippingMethod: "", trackingNumber: "", shippingCost: "",
   shipDate: "", estimatedDelivery: "", shipToName: "", shipToCompany: "",
@@ -64,4 +112,27 @@ export const EMPTY_BULK: BulkEditData = {
   shippingAccountType: "",
   shippingMethodOverride: "",
   shippingNotes: "",
+  shipInHandsDate: "",
+  shipFirm: false,
+  shippingQuote: "",
+};
+
+export const EMPTY_ITEM_SHIPPING: ItemShippingFormData = {
+  shippingDestination: "",
+  shippingAccountType: "",
+  shippingMethodOverride: "",
+  shippingNotes: "",
+  shipToAddressId: "",
+  shipToAddress: null,
+  shipInHandsDate: "",
+  shipFirm: false,
+  shippingQuote: "",
+  leg2ShipTo: "client",
+  leg2AddressId: "",
+  leg2Address: null,
+  leg2InHandsDate: "",
+  leg2Firm: false,
+  leg2ShippingMethod: "",
+  leg2ShippingAccountType: "",
+  leg2ShippingQuote: "",
 };

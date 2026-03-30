@@ -105,35 +105,60 @@ export function usePurchaseOrdersSection({ projectId, data, isLocked }: Purchase
     });
   }, []);
 
-  // Build PO data per vendor
+  // Build PO data per vendor (suppliers + decorators)
   const vendorPOs: VendorPO[] = useMemo(() => {
     return orderVendors.map((vendor: any) => {
-      const items = orderItems.filter((item: any) => item.supplierId === vendor.id);
+      const isDecorator = vendor.role === "decorator";
+
+      // For suppliers: filter by supplierId. For decorators: filter by decoratorId.
+      const items = isDecorator
+        ? orderItems.filter((item: any) => item.decoratorType === "third_party" && item.decoratorId === vendor.id)
+        : orderItems.filter((item: any) => item.supplierId === vendor.id);
+
       const lines: Record<string, OrderItemLine[]> = {};
       let totalQty = 0;
       let totalCost = 0;
 
-      items.forEach((item: any) => {
-        const itemLines = allItemLines[item.id] || [];
-        lines[item.id] = itemLines;
-        if (itemLines.length > 0) {
-          itemLines.forEach((l) => {
-            const qty = l.quantity || 0;
-            const cost = parseFloat(l.cost || "0");
+      if (isDecorator) {
+        // Decorator PO: cost = sum of artwork charges (netCost)
+        items.forEach((item: any) => {
+          const itemArts = allArtworkItems[item.id] || [];
+          itemArts.forEach((art: any) => {
+            const artCharges = allItemCharges ? [] : []; // artwork charges from data
+            const charges = (data as any).allArtworkCharges?.[art.id] || [];
+            charges.forEach((c: any) => {
+              const cost = parseFloat(c.netCost || "0");
+              const qty = c.chargeCategory === "run" ? (item.quantity || 1) : (c.quantity || 1);
+              totalCost += cost * qty;
+            });
+          });
+          totalQty += item.quantity || 0;
+          lines[item.id] = allItemLines[item.id] || [];
+        });
+      } else {
+        // Supplier PO: cost = product costs (blank goods)
+        items.forEach((item: any) => {
+          const itemLines = allItemLines[item.id] || [];
+          lines[item.id] = itemLines;
+          if (itemLines.length > 0) {
+            itemLines.forEach((l) => {
+              const qty = l.quantity || 0;
+              const cost = parseFloat(l.cost || "0");
+              totalQty += qty;
+              totalCost += qty * cost;
+            });
+          } else {
+            const qty = item.quantity || 0;
+            const cost = parseFloat(item.cost || item.unitPrice || "0");
             totalQty += qty;
             totalCost += qty * cost;
-          });
-        } else {
-          const qty = item.quantity || 0;
-          const cost = parseFloat(item.cost || item.unitPrice || "0");
-          totalQty += qty;
-          totalCost += qty * cost;
-        }
-      });
+          }
+        });
+      }
 
       return { vendor, items, lines, totalQty, totalCost };
     });
-  }, [orderVendors, orderItems, allItemLines]);
+  }, [orderVendors, orderItems, allItemLines, allArtworkItems, data]);
 
   const grandTotalCost = vendorPOs.reduce((s, po) => s + po.totalCost, 0);
   const grandTotalQty = vendorPOs.reduce((s, po) => s + po.totalQty, 0);
@@ -142,17 +167,27 @@ export function usePurchaseOrdersSection({ projectId, data, isLocked }: Purchase
   const vendorHashes = useMemo(() => {
     const hashes: Record<string, string> = {};
     for (const vendor of orderVendors) {
-      const vendorItems = orderItems.filter((i: any) => i.supplierId === vendor.id);
-      hashes[vendor.id] = buildItemsHash(vendorItems, "po", order);
+      const isDecorator = vendor.role === "decorator";
+      const vendorItems = isDecorator
+        ? orderItems.filter((i: any) => i.decoratorType === "third_party" && i.decoratorId === vendor.id)
+        : orderItems.filter((i: any) => i.supplierId === vendor.id);
+      const key = vendor.vendorKey || vendor.id;
+      hashes[key] = buildItemsHash(vendorItems, "po", order);
     }
     return hashes;
   }, [orderVendors, orderItems, order]);
 
-  const getVendorDoc = (vendorId: string) => poDocuments.find((d: any) => d.vendorId === vendorId);
+  const getVendorDoc = (vendorKey: string) => {
+    // Match by metadata.vendorKey first (supports decorator-{id} keys), fallback to vendorId
+    return poDocuments.find((d: any) => d.metadata?.vendorKey === vendorKey)
+      || poDocuments.find((d: any) => d.vendorId === vendorKey);
+  };
 
   const isVendorDocStale = (doc: any) => {
-    if (!doc?.metadata?.itemsHash || !doc.vendorId) return false;
-    return doc.metadata.itemsHash !== vendorHashes[doc.vendorId];
+    if (!doc?.metadata?.itemsHash) return false;
+    const key = doc.metadata?.vendorKey || doc.vendorId;
+    if (!key) return false;
+    return doc.metadata.itemsHash !== vendorHashes[key];
   };
 
   const getDocStage = (doc: any): string => doc?.metadata?.poStage || "created";
@@ -169,8 +204,12 @@ export function usePurchaseOrdersSection({ projectId, data, isLocked }: Purchase
     !!((order as any)?.shippingCity && (order as any)?.shippingState);
 
   // Check if all vendor items have shipping details configured
-  const getVendorShippingReady = (vendorId: string): { ready: boolean; configured: number; total: number } => {
-    const items = orderItems.filter((i: any) => i.supplierId === vendorId);
+  const getVendorShippingReady = (vendorKey: string): { ready: boolean; configured: number; total: number } => {
+    const vendor = orderVendors.find((v: any) => (v.vendorKey || v.id) === vendorKey);
+    const isDecorator = vendor?.role === "decorator";
+    const items = isDecorator
+      ? orderItems.filter((i: any) => i.decoratorType === "third_party" && i.decoratorId === vendor?.id)
+      : orderItems.filter((i: any) => i.supplierId === vendorKey);
     const configured = items.filter((i: any) => i.shippingDestination).length;
     return { ready: configured === items.length && items.length > 0, configured, total: items.length };
   };
@@ -179,9 +218,14 @@ export function usePurchaseOrdersSection({ projectId, data, isLocked }: Purchase
 
   const hasSupplierIHD = !!(order as any)?.supplierInHandsDate;
 
-  // Get vendor artworks for proofing
-  const getVendorArtworks = (vendorId: string) => {
-    const vendorItems = orderItems.filter((i: any) => i.supplierId === vendorId);
+  // Get vendor artworks for proofing — supports both suppliers and decorators
+  const getVendorArtworks = (vendorKey: string) => {
+    const vendor = orderVendors.find((v: any) => (v.vendorKey || v.id) === vendorKey);
+    const isDecorator = vendor?.role === "decorator";
+    const vendorItems = isDecorator
+      ? orderItems.filter((i: any) => i.decoratorType === "third_party" && i.decoratorId === vendor?.id)
+      : orderItems.filter((i: any) => i.supplierId === vendorKey);
+
     const artworks: any[] = [];
     vendorItems.forEach((item: any) => {
       const arts = allArtworkItems?.[item.id] || [];
@@ -190,7 +234,7 @@ export function usePurchaseOrdersSection({ projectId, data, isLocked }: Purchase
           ...art,
           productName: item.productName || "Unknown Product",
           orderItemId: item.id,
-          supplierName: vendorId,
+          supplierName: vendor?.name || vendorKey,
         });
       });
     });
@@ -199,8 +243,12 @@ export function usePurchaseOrdersSection({ projectId, data, isLocked }: Purchase
 
   // ── Mutations ──
 
-  const handleGeneratePO = async (vendorId: string, vendorNameStr: string) => {
-    if (!hasSupplierIHD) {
+  const handleGeneratePO = async (vendorKey: string, vendorNameStr: string) => {
+    const vendor = orderVendors.find((v: any) => (v.vendorKey || v.id) === vendorKey);
+    const vendorId = vendor?.id || vendorKey;
+    const isDecorator = vendor?.role === "decorator";
+
+    if (!hasSupplierIHD && !isDecorator) {
       toast({ title: "Supplier In-Hands Date required", description: "Please set the default Supplier In-Hands Date above. You can override per vendor after generating.", variant: "destructive" });
       return;
     }
@@ -208,8 +256,8 @@ export function usePurchaseOrdersSection({ projectId, data, isLocked }: Purchase
       toast({ title: "Missing shipping address", description: "Please set a shipping address before generating POs.", variant: "destructive" });
       return;
     }
-    const vendorShipping = getVendorShippingReady(vendorId);
-    if (!vendorShipping.ready) {
+    const vendorShipping = getVendorShippingReady(vendorKey);
+    if (!vendorShipping.ready && !isDecorator) {
       toast({
         title: "Incomplete shipping details",
         description: `${vendorShipping.configured}/${vendorShipping.total} products have shipping details. Configure all in the Shipping tab first.`,
@@ -217,26 +265,30 @@ export function usePurchaseOrdersSection({ projectId, data, isLocked }: Purchase
       });
       return;
     }
-    const ref = poRefs.current[vendorId];
+    const ref = poRefs.current[vendorKey];
     if (!ref) return;
-    const poNumber = `${(order as any)?.orderNumber || projectId}-${vendorId.substring(0, 4).toUpperCase()}`;
-    setGeneratingVendorId(vendorId);
+    const suffix = isDecorator ? `DEC-${vendorId.substring(0, 4).toUpperCase()}` : vendorId.substring(0, 4).toUpperCase();
+    const poNumber = `${(order as any)?.orderNumber || projectId}-${suffix}`;
+    setGeneratingVendorId(vendorKey);
     try {
       const newDoc = await generateDocument({
         elementRef: ref,
         documentType: "purchase_order",
         documentNumber: poNumber,
-        vendorId,
+        vendorId: vendorId, // actual supplier UUID for FK
         vendorName: vendorNameStr,
-        itemsHash: vendorHashes[vendorId],
+        itemsHash: vendorHashes[vendorKey],
       });
-      // Auto-populate vendor IHD from order-level default
+      // Store vendorKey + poType in metadata so we can identify decorator POs
       const orderIHD = (order as any)?.supplierInHandsDate;
-      if (newDoc?.id && orderIHD) {
-        const rawDate = new Date(orderIHD).toISOString().split("T")[0];
+      if (newDoc?.id) {
+        const meta: any = { ...newDoc.metadata, vendorKey, poType: isDecorator ? "decorator" : "supplier" };
+        if (orderIHD && !isDecorator) {
+          meta.supplierIHD = new Date(orderIHD).toISOString().split("T")[0];
+        }
         await updateDocMetaMutation.mutateAsync({
           docId: newDoc.id,
-          updates: { metadata: { ...newDoc.metadata, supplierIHD: rawDate } },
+          updates: { metadata: meta },
         });
       }
       toast({ title: `PO PDF generated for ${vendorNameStr}` });
@@ -246,7 +298,9 @@ export function usePurchaseOrdersSection({ projectId, data, isLocked }: Purchase
   const handleRegeneratePO = async (doc: any) => {
     await deleteDocument(doc.id);
     await new Promise((r) => setTimeout(r, 300));
-    await handleGeneratePO(doc.vendorId, doc.vendorName);
+    // Use vendorId as-is from the document (it stores vendorKey)
+    const vendorName = orderVendors.find((v: any) => (v.vendorKey || v.id) === doc.vendorId)?.name || doc.vendorName;
+    await handleGeneratePO(doc.vendorId, vendorName);
   };
 
   // Update PO document metadata (stage/status) with activity logging

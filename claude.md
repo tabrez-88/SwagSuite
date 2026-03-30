@@ -375,6 +375,31 @@ External product images (e.g., SanMar CDN) are blocked by CORS, preventing html2
 - **Decoration Location** and **Imprint Method** are required fields (red asterisk, button disabled until filled)
 - Auto-populates imprint method/location from product-level defaults when file is picked
 
+## CommonSKU Product Charges (Run/Fixed)
+
+### Charge Categories
+- `orderAdditionalCharges` table has `chargeCategory` (run/fixed) and `includeInUnitPrice` boolean columns
+- **Run Charges** (per unit): "Include in unit price" option bakes cost into unit price
+- **Fixed Charges** (one-time): "Subtract from margin" option absorbs cost silently
+- `displayToClient` controls visibility on client-facing documents
+- `recalculateOrderTotals` excludes `includeInUnitPrice=true` charges from separate charge total
+
+### Product Fields
+- `orderItems.description` — per-order product description override (falls back to `products.description`)
+- `orderItems.privateNotes` — team-only notes, amber UI with lock icon, NEVER on client-facing PDFs
+- `item.notes` — rendered on Quote/SO PDFs (italic, below description)
+
+### UI Features
+- **Price Lock Toggle**: Lock/Unlock button in EditProductPage line items table. When locked, cost changes only affect margin (unit price stays fixed). Ephemeral state per editing session.
+- **Copy/Duplicate Product**: `POST /api/projects/:projectId/items/:itemId/duplicate` — copies item + lines + charges + artwork (resets proof status). Confirmation AlertDialog before duplicating.
+- **Per-item charges on PDFs**: Quote and SO templates render `display_to_client` charges as sub-lines per item via `allItemCharges` prop.
+- **Charge dialog**: Category toggle (Run/Fixed), "Include in unit price" / "Subtract from margin" checkboxes
+
+### Key Files
+- `client/src/components/sections/EditProductPage/` — Product editing with charges, price lock, private notes, description
+- `client/src/components/sections/ProductsSection/OrderItems.tsx/` — Expanded view with Run/Fixed charge groups
+- `client/src/services/project-items/types.ts` — ChargeInput with chargeCategory, includeInUnitPrice
+
 ## Important Notes
 - Routes are fully modularized in `server/routes/*.routes.ts` with corresponding controllers.
 - `storage.ts` is also large (~3200 lines). New methods follow existing patterns.

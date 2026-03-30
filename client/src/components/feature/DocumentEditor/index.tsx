@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { Download, FileText, ImageIcon, Loader2, Paperclip, Save, ShoppingCart } from "lucide-react";
+import { getImprintMethodLabel, getImprintLocationLabel } from "@/constants/imprintOptions";
 import type { DocumentEditorProps } from "./types";
 import { useDocumentEditor } from "./hooks";
 import { getRenderableImageUrl } from "@/lib/media-library";
@@ -502,13 +503,13 @@ export function DocumentEditor(props: DocumentEditorProps) {
                                       {(art.artworkType || art.imprintMethod) && (
                                         <tr>
                                           <td className="py-0.5 pr-4 font-bold text-gray-800 whitespace-nowrap">IMPRINT TYPE</td>
-                                          <td className="py-0.5 text-gray-700">{art.artworkType || art.imprintMethod}</td>
+                                          <td className="py-0.5 text-gray-700">{getImprintMethodLabel(art.artworkType || art.imprintMethod)}</td>
                                         </tr>
                                       )}
                                       {art.location && (
                                         <tr>
                                           <td className="py-0.5 pr-4 font-bold text-gray-800 whitespace-nowrap">DESIGN LOCATION</td>
-                                          <td className="py-0.5 text-gray-700">{art.location}</td>
+                                          <td className="py-0.5 text-gray-700">{getImprintLocationLabel(art.location)}</td>
                                         </tr>
                                       )}
                                       {(art.size || art.designSize) && (

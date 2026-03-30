@@ -1,3 +1,7 @@
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -35,6 +39,7 @@ import SalesOrderTemplate from "@/components/documents/SalesOrderTemplate";
 import GeneratedDocumentCard from "@/components/documents/GeneratedDocumentCard";
 import { DocumentEditor } from "@/components/feature/DocumentEditor";
 import { FilePreviewModal } from "@/components/modals/FilePreviewModal";
+import { getCloudinaryThumbnail } from "@/lib/media-library";
 import SendSODialog from "@/components/modals/SendSODialog";
 import ProductsSection from "@/components/sections/ProductsSection";
 import type { SalesOrderSectionProps } from "./types";
@@ -413,6 +418,8 @@ export default function SalesOrderSection(props: SalesOrderSectionProps) {
         companyName={hook.companyName}
         primaryContact={hook.primaryContact}
         allArtworkItems={hook.allArtworkItems}
+        allItemCharges={hook.data.allItemCharges}
+        allArtworkCharges={hook.data.allArtworkCharges}
         serviceCharges={hook.data.serviceCharges}
         assignedUser={hook.data.assignedUser}
       />
@@ -448,6 +455,28 @@ export default function SalesOrderSection(props: SalesOrderSectionProps) {
           contacts={hook.contactsList}
         />
       )}
+
+      {/* Duplicate Order Confirmation */}
+      <AlertDialog open={hook.showDuplicateConfirm} onOpenChange={hook.setShowDuplicateConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <Copy className="w-5 h-5" />
+              Duplicate Order
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              A new project will be created with all items, line items, charges, artwork, and settings copied from this order. The new project will start as a fresh draft.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <Button onClick={hook.confirmDuplicate} disabled={hook.isDuplicating}>
+              {hook.isDuplicating ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Copy className="w-4 h-4 mr-2" />}
+              Duplicate
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
@@ -503,7 +532,29 @@ function SalesOrderArtwork({ hook }: { hook: ReturnType<typeof useSalesOrderSect
                     }}
                   >
                     {art.fileUrl || art.filePath ? (
-                      <img src={art.fileUrl || art.filePath} alt={art.name || "Artwork"} className="w-full h-full object-contain p-1" />
+                      (() => {
+                        const url = art.fileUrl || art.filePath;
+                        const ext = url.split("?")[0].split(".").pop()?.toLowerCase();
+                        const isDesignFile = ["ai", "eps", "psd"].includes(ext || "");
+                        const imgSrc = isDesignFile && url.includes("cloudinary.com")
+                          ? getCloudinaryThumbnail(url, 160, 160)
+                          : url;
+                        return (
+                          <img
+                            src={imgSrc}
+                            alt={art.name || "Artwork"}
+                            className="w-full h-full object-contain p-1"
+                            onError={(e) => {
+                              const target = e.target as HTMLImageElement;
+                              target.style.display = "none";
+                              target.parentElement?.insertAdjacentHTML(
+                                "afterbegin",
+                                `<div class="w-full h-full flex items-center justify-center"><span class="text-[10px] text-gray-400 uppercase font-medium">.${ext || "file"}</span></div>`
+                              );
+                            }}
+                          />
+                        );
+                      })()
                     ) : (
                       <Palette className="w-8 h-8 text-gray-300" />
                     )}
@@ -521,7 +572,11 @@ function SalesOrderArtwork({ hook }: { hook: ReturnType<typeof useSalesOrderSect
                       <Badge variant="outline" className={`text-xs ${statusInfo.color}`}>
                         {statusInfo.label}
                       </Badge>
-                      <span className="text-xs text-gray-400">Vendor: {art.supplierName}</span>
+                      <span className="text-xs text-gray-400">
+                        {art.decoratorType === "third_party" && art.decoratorName
+                          ? `Decorator: ${art.decoratorName}`
+                          : `Vendor: ${art.supplierName}`}
+                      </span>
                     </div>
                   </div>
 
@@ -559,7 +614,14 @@ function SalesOrderArtwork({ hook }: { hook: ReturnType<typeof useSalesOrderSect
                       className="w-12 h-12 flex-shrink-0 bg-white rounded border overflow-hidden flex items-center justify-center cursor-pointer"
                       onClick={() => setPreviewFile({ url: art.proofFilePath, name: art.proofFileName || "Vendor Proof" })}
                     >
-                      <img src={art.proofFilePath} alt="Proof" className="w-full h-full object-contain p-0.5" />
+                      {(() => {
+                        const pExt = art.proofFilePath.split("?")[0].split(".").pop()?.toLowerCase();
+                        const pIsDesign = ["ai", "eps", "psd"].includes(pExt || "");
+                        const pSrc = pIsDesign && art.proofFilePath.includes("cloudinary.com")
+                          ? getCloudinaryThumbnail(art.proofFilePath, 96, 96)
+                          : art.proofFilePath;
+                        return <img src={pSrc} alt="Proof" className="w-full h-full object-contain p-0.5" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />;
+                      })()}
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-xs font-medium text-blue-800">Vendor Proof</p>

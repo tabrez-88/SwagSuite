@@ -15,6 +15,41 @@
       "when": 1774855200000,
       "tag": "0001_add_performance_indexes",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1774846753454,
+      "tag": "0002_complex_sally_floyd",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1774857716953,
+      "tag": "0003_thick_dagger",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1774859631715,
+      "tag": "0004_spotty_tigra",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1774860458181,
+      "tag": "0005_smiling_vindicator",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1774883441634,
+      "tag": "0006_previous_the_fallen",
+      "breakpoints": true
     }
   ]
 }

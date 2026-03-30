@@ -12,6 +12,11 @@ import {
   useToggleChargeDisplay,
   useCreateArtwork,
   useDeleteArtwork,
+  useCreateArtworkCharge,
+  useDeleteArtworkCharge,
+  useAddArtworkFile,
+  useRemoveArtworkFile,
+  useCopyArtwork,
 } from "@/services/project-items";
 import * as orderItemRequests from "@/services/project-items/requests";
 import { projectKeys } from "@/services/projects/keys";
@@ -32,7 +37,7 @@ export function useEditProductPage(projectId: string, itemId: string, data: Proj
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const { orderItems, allProducts, allArtworkItems, suppliers, allItemLines, allItemCharges } = data;
+  const { orderItems, allProducts, allArtworkItems, suppliers, allItemLines, allItemCharges, allArtworkCharges } = data;
 
   // Find the item being edited
   const item = orderItems.find((i: any) => i.id === itemId) || null;
@@ -80,15 +85,20 @@ export function useEditProductPage(projectId: string, itemId: string, data: Proj
   useEffect(() => {
     if (item) {
       setEditItemData({
-        imprintMethod: item.imprintMethod || "",
-        imprintLocation: item.imprintLocation || "",
+        description: item.description || "",
+        decoratorType: item.decoratorType || "supplier",
+        decoratorId: item.decoratorId || "",
         notes: item.notes || "",
+        privateNotes: item.privateNotes || "",
         shippingDestination: item.shippingDestination || "",
         shippingAccountType: item.shippingAccountType || "",
         shippingNotes: item.shippingNotes || "",
       });
     }
   }, [item]);
+
+  // ── Price lock (CommonSKU-style: lock retail price, cost changes only affect margin) ──
+  const [isPriceLocked, setIsPriceLocked] = useState(false);
 
   // ── Mutations ──
   const updateOrderItemMutation = useUpdateProjectItem(projectId);
@@ -100,6 +110,11 @@ export function useEditProductPage(projectId: string, itemId: string, data: Proj
   const toggleChargeDisplayMutation = useToggleChargeDisplay(projectId);
   const createArtworkMutation = useCreateArtwork(projectId);
   const deleteArtworkMutation = useDeleteArtwork(projectId);
+  const createArtworkChargeMutation = useCreateArtworkCharge(projectId);
+  const deleteArtworkChargeMutation = useDeleteArtworkCharge(projectId);
+  const addArtworkFileMutation = useAddArtworkFile(projectId);
+  const removeArtworkFileMutation = useRemoveArtworkFile(projectId);
+  const copyArtworkMutation = useCopyArtwork(projectId);
 
   // ── Line editing helpers ──
   const updateLine = useCallback((id: string, field: string, value: any) => {
@@ -131,6 +146,11 @@ export function useEditProductPage(projectId: string, itemId: string, data: Proj
   const handleCostChange = useCallback((id: string, e: React.ChangeEvent<HTMLInputElement>) => {
     const newCost = parseFloat(e.target.value) || 0;
     setEditableLines(prev => {
+      // When price is locked, only update cost — margin adjusts naturally
+      if (isPriceLocked) {
+        return prev.map(l => l.id === id ? { ...l, cost: newCost } : l);
+      }
+      // Default: preserve margin, adjust price
       const line = prev.find(l => l.id === id);
       if (line && newCost > 0 && line.unitPrice > 0) {
         const currentMargin = calcMarginPercent(line.cost, line.unitPrice);
@@ -141,7 +161,7 @@ export function useEditProductPage(projectId: string, itemId: string, data: Proj
       }
       return prev.map(l => l.id === id ? { ...l, cost: newCost } : l);
     });
-  }, []);
+  }, [isPriceLocked]);
 
   const handleMarginChange = useCallback((id: string, e: React.ChangeEvent<HTMLInputElement>) => {
     setEditableLines(prev => {
@@ -163,7 +183,9 @@ export function useEditProductPage(projectId: string, itemId: string, data: Proj
     { qty: 0, cost: 0, revenue: 0 }
   );
 
-  const totalCharges = charges.reduce((s, c) => s + parseFloat(c.amount || "0"), 0);
+  const totalCharges = charges
+    .filter((c: any) => !c.includeInUnitPrice)
+    .reduce((s, c) => s + parseFloat(c.amount || "0"), 0);
 
   const margin = (lineTotals.revenue + totalCharges) > 0
     ? (((lineTotals.revenue + totalCharges) - lineTotals.cost) / (lineTotals.revenue + totalCharges)) * 100
@@ -174,9 +196,11 @@ export function useEditProductPage(projectId: string, itemId: string, data: Proj
     if (!item) return false;
 
     // Check item-level fields
-    if ((editItemData.imprintMethod || "") !== (item.imprintMethod || "")) return true;
-    if ((editItemData.imprintLocation || "") !== (item.imprintLocation || "")) return true;
+    if ((editItemData.description || "") !== (item.description || "")) return true;
+    if ((editItemData.decoratorType || "supplier") !== (item.decoratorType || "supplier")) return true;
+    if ((editItemData.decoratorId || "") !== (item.decoratorId || "")) return true;
     if ((editItemData.notes || "") !== (item.notes || "")) return true;
+    if ((editItemData.privateNotes || "") !== (item.privateNotes || "")) return true;
 
     // Check line count changed
     if (editableLines.length !== serverLines.length) return true;
@@ -234,7 +258,25 @@ export function useEditProductPage(projectId: string, itemId: string, data: Proj
 
   // ── Charge dialog ──
   const [showAddCharge, setShowAddCharge] = useState(false);
-  const [newCharge, setNewCharge] = useState({ description: "", chargeType: "flat", amount: 0, isVendorCharge: false, displayToClient: true });
+  const [newCharge, setNewCharge] = useState({ description: "", chargeType: "flat", chargeCategory: "fixed" as "run" | "fixed", amount: 0, isVendorCharge: false, displayToClient: true, includeInUnitPrice: false });
+
+  // ── Artwork file picker (for adding additional files to existing artwork) ──
+  const [addingFileToArtworkId, setAddingFileToArtworkId] = useState<string | null>(null);
+
+  // ── Copy artwork dialog ──
+  const [copyingArtworkId, setCopyingArtworkId] = useState<string | null>(null);
+
+  // ── Artwork Charge dialog ──
+  const [showAddArtworkCharge, setShowAddArtworkCharge] = useState<string | null>(null); // artworkId or null
+  const [newArtworkCharge, setNewArtworkCharge] = useState({
+    chargeName: "",
+    chargeCategory: "run" as "run" | "fixed",
+    netCost: 0,
+    margin: 0,
+    retailPrice: 0,
+    quantity: 1,
+    displayMode: "display_to_client" as "include_in_price" | "display_to_client" | "subtract_from_margin",
+  });
 
   // ── Artwork ──
   const [pickingArtwork, setPickingArtwork] = useState(false);
@@ -244,6 +286,7 @@ export function useEditProductPage(projectId: string, itemId: string, data: Proj
   const [artUploadMethod, setArtUploadMethod] = useState("");
   const [artUploadColor, setArtUploadColor] = useState("");
   const [artUploadSize, setArtUploadSize] = useState("");
+  const [artUploadRepeatLogo, setArtUploadRepeatLogo] = useState(false);
 
   const resetArtForm = () => {
     setArtPickedFile(null);
@@ -252,6 +295,7 @@ export function useEditProductPage(projectId: string, itemId: string, data: Proj
     setArtUploadMethod("");
     setArtUploadColor("");
     setArtUploadSize("");
+    setArtUploadRepeatLogo(false);
   };
 
   const handleArtworkFilePicked = (files: any[]) => {
@@ -280,6 +324,7 @@ export function useEditProductPage(projectId: string, itemId: string, data: Proj
       artworkType: artUploadMethod || undefined,
       color: artUploadColor || undefined,
       size: artUploadSize || undefined,
+      repeatLogo: artUploadRepeatLogo || undefined,
     }, { onSuccess: () => resetArtForm() });
   };
 
@@ -309,9 +354,11 @@ export function useEditProductPage(projectId: string, itemId: string, data: Proj
 
       // 1. Update item-level data
       await orderItemRequests.updateProjectItem(projectId, itemId, {
-        imprintMethod: editItemData.imprintMethod,
-        imprintLocation: editItemData.imprintLocation,
+        description: editItemData.description || null,
+        decoratorType: editItemData.decoratorType || "supplier",
+        decoratorId: editItemData.decoratorId || null,
         notes: editItemData.notes,
+        privateNotes: editItemData.privateNotes || null,
         shippingDestination: editItemData.shippingDestination || null,
         shippingAccountType: editItemData.shippingAccountType || null,
         shippingNotes: editItemData.shippingNotes || null,
@@ -408,6 +455,8 @@ export function useEditProductPage(projectId: string, itemId: string, data: Proj
     toggleChargeDisplayMutation,
     // Artwork
     artworks,
+    allArtworkCharges,
+    suppliers,
     pickingArtwork,
     setPickingArtwork,
     artPickedFile,
@@ -421,11 +470,30 @@ export function useEditProductPage(projectId: string, itemId: string, data: Proj
     setArtUploadColor,
     artUploadSize,
     setArtUploadSize,
+    artUploadRepeatLogo,
+    setArtUploadRepeatLogo,
     resetArtForm,
     handleArtworkFilePicked,
     handleCreateArtwork,
     createArtworkMutation,
     deleteArtworkMutation,
+    // Artwork charges
+    showAddArtworkCharge,
+    setShowAddArtworkCharge,
+    newArtworkCharge,
+    setNewArtworkCharge,
+    createArtworkChargeMutation,
+    deleteArtworkChargeMutation,
+    // Artwork files & copy
+    addArtworkFileMutation,
+    removeArtworkFileMutation,
+    copyArtworkMutation,
+    addingFileToArtworkId,
+    setAddingFileToArtworkId,
+    copyingArtworkId,
+    setCopyingArtworkId,
+    allArtworkFiles: data.allArtworkFiles || {},
+    orderItems,
     // Margin warning
     marginWarningAction,
     marginWarningValue,
@@ -437,6 +505,9 @@ export function useEditProductPage(projectId: string, itemId: string, data: Proj
     calcMargin,
     marginColor,
     marginBg,
+    // Price lock
+    isPriceLocked,
+    setIsPriceLocked,
     // Actions
     handleSave,
     goBack,

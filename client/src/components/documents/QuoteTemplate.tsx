@@ -1,6 +1,7 @@
 import { forwardRef } from "react";
 import { format } from "date-fns";
 import { proxyImg } from "@/lib/imageUtils";
+import { getImprintMethodLabel, getImprintLocationLabel } from "@/constants/imprintOptions";
 import { getRenderableImageUrl } from "@/lib/media-library";
 
 interface QuoteTemplateProps {
@@ -9,12 +10,14 @@ interface QuoteTemplateProps {
   companyName: string;
   primaryContact: any;
   allArtworkItems?: Record<string, any[]>;
+  allItemCharges?: Record<string, any[]>;
+  allArtworkCharges?: Record<string, any[]>;
   serviceCharges?: any[];
   assignedUser?: { firstName?: string; lastName?: string; email?: string; profileImageUrl?: string } | null;
 }
 
 const QuoteTemplate = forwardRef<HTMLDivElement, QuoteTemplateProps>(
-  ({ order, orderItems, companyName, primaryContact, allArtworkItems = {}, serviceCharges = [], assignedUser }, ref) => {
+  ({ order, orderItems, companyName, primaryContact, allArtworkItems = {}, allItemCharges = {}, allArtworkCharges = {}, serviceCharges = [], assignedUser }, ref) => {
     const billingAddr = (() => {
       try {
         return order?.billingAddress ? JSON.parse(order.billingAddress) : null;
@@ -133,6 +136,7 @@ const QuoteTemplate = forwardRef<HTMLDivElement, QuoteTemplateProps>(
               const quantity = item.quantity || 0;
               const itemTotal = parseFloat(item.totalPrice) || (unitPrice * quantity);
               const itemArtworks = allArtworkItems[item.id] || [];
+              const itemCharges = (allItemCharges[item.id] || []).filter((c: any) => c.displayToClient && !c.includeInUnitPrice);
 
               return (
                 <div key={item.id} className="mb-6 pb-4 border-b border-gray-200">
@@ -141,8 +145,11 @@ const QuoteTemplate = forwardRef<HTMLDivElement, QuoteTemplateProps>(
                     {item.productName}
                     {item.productSku && <span className="text-xs font-normal text-gray-500 ml-2">SKU: {item.productSku}</span>}
                   </h3>
-                  {item.description && (
-                    <p className="text-xs text-gray-600 mb-3 leading-relaxed">{item.description}</p>
+                  {(item.description || item.productDescription) && (
+                    <p className="text-xs text-gray-600 mb-2 leading-relaxed">{item.description || item.productDescription}</p>
+                  )}
+                  {item.notes && (
+                    <p className="text-xs text-gray-500 mb-3 italic">{item.notes}</p>
                   )}
 
                   {/* Product image + items table side by side */}
@@ -179,17 +186,23 @@ const QuoteTemplate = forwardRef<HTMLDivElement, QuoteTemplateProps>(
                             <td className="py-1.5 text-xs text-right">${unitPrice.toFixed(2)}</td>
                             <td className="py-1.5 text-xs text-right font-medium">${itemTotal.toFixed(2)}</td>
                           </tr>
-                          {/* Imprint costs if available */}
-                          {item.imprintMethod && item.imprintLocation && (
-                            <tr className="border-b border-gray-100">
-                              <td className="py-1.5 text-xs text-gray-600">
-                                Imprint Cost - {item.imprintLocation}
-                              </td>
-                              <td className="py-1.5 text-xs text-center">{quantity}</td>
-                              <td className="py-1.5 text-xs text-right">—</td>
-                              <td className="py-1.5 text-xs text-right">—</td>
-                            </tr>
-                          )}
+                          {/* Per-item charges (run/fixed) */}
+                          {itemCharges.map((charge: any) => {
+                            const chargeAmt = parseFloat(charge.amount || "0");
+                            return (
+                              <tr key={charge.id} className="border-b border-gray-100">
+                                <td className="py-1.5 text-xs text-gray-600">
+                                  {charge.description}
+                                  {charge.chargeCategory === "run" && <span className="text-gray-400 ml-1">(per unit)</span>}
+                                </td>
+                                <td className="py-1.5 text-xs text-center">{charge.chargeCategory === "run" ? quantity : 1}</td>
+                                <td className="py-1.5 text-xs text-right">${chargeAmt.toFixed(2)}</td>
+                                <td className="py-1.5 text-xs text-right font-medium">
+                                  ${(charge.chargeCategory === "run" ? chargeAmt * quantity : chargeAmt).toFixed(2)}
+                                </td>
+                              </tr>
+                            );
+                          })}
                           <tr className="border-t border-gray-300">
                             <td className="py-1.5 text-xs font-bold">TOTAL</td>
                             <td></td>
@@ -220,13 +233,13 @@ const QuoteTemplate = forwardRef<HTMLDivElement, QuoteTemplateProps>(
                                 {(art.artworkType || art.imprintMethod) && (
                                   <tr>
                                     <td className="py-0.5 pr-4 font-bold text-gray-800 whitespace-nowrap">IMPRINT TYPE</td>
-                                    <td className="py-0.5 text-gray-700">{art.artworkType || art.imprintMethod}</td>
+                                    <td className="py-0.5 text-gray-700">{getImprintMethodLabel(art.artworkType || art.imprintMethod)}</td>
                                   </tr>
                                 )}
                                 {art.location && (
                                   <tr>
                                     <td className="py-0.5 pr-4 font-bold text-gray-800 whitespace-nowrap">DESIGN LOCATION</td>
-                                    <td className="py-0.5 text-gray-700">{art.location}</td>
+                                    <td className="py-0.5 text-gray-700">{getImprintLocationLabel(art.location)}</td>
                                   </tr>
                                 )}
                                 {(art.size || art.designSize) && (
@@ -247,6 +260,21 @@ const QuoteTemplate = forwardRef<HTMLDivElement, QuoteTemplateProps>(
                                     <td className="py-0.5 text-gray-700">{art.notes}</td>
                                   </tr>
                                 )}
+                                {/* Artwork charges visible to client */}
+                                {(() => {
+                                  const artCharges = (allArtworkCharges[art.id] || []).filter((c: any) => c.displayMode === "display_to_client");
+                                  if (artCharges.length === 0) return null;
+                                  return artCharges.map((c: any) => (
+                                    <tr key={c.id}>
+                                      <td className="py-0.5 pr-4 font-bold text-gray-800 whitespace-nowrap">
+                                        {c.chargeCategory === "run" ? "IMPRINT COST" : "SETUP COST"}
+                                      </td>
+                                      <td className="py-0.5 text-gray-700">
+                                        {c.chargeName}: ${parseFloat(c.retailPrice || "0").toFixed(2)}{c.chargeCategory === "run" ? " per unit" : " (one-time)"}
+                                      </td>
+                                    </tr>
+                                  ));
+                                })()}
                               </tbody>
                             </table>
                           </div>
