@@ -16,10 +16,12 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
-  Truck, Plus, MapPin, Edit2, Trash2, ExternalLink,
+  Truck, Plus, MapPin, Edit2, Trash2, ExternalLink, Send,
   Calendar, Clock, Loader2, AlertTriangle, CheckCircle2,
   Package, Pencil, ChevronDown, ChevronUp, Pin, Save,
 } from "lucide-react";
+import EmailComposer from "@/components/email/EmailComposer";
+import { apiRequest } from "@/lib/queryClient";
 import TimelineWarningBanner from "@/components/shared/TimelineWarningBanner";
 import { getDateStatus } from "@/lib/dateUtils";
 import { useShippingSection } from "./hooks";
@@ -163,16 +165,22 @@ export default function ShippingSection({ projectId, data, isLocked }: ShippingS
                         )}
                       </td>
                       <td className="p-2.5">
-                        {item.shipInHandsDate ? (
-                          <div className="flex items-center gap-1">
-                            <span className={`text-[10px] font-medium ${dateStatus?.color || ""}`}>
-                              {fmtDate(item.shipInHandsDate)}
-                            </span>
-                            {item.shipFirm && <Pin className="w-2.5 h-2.5 text-blue-500" />}
-                          </div>
-                        ) : (
-                          <span className="text-[10px] text-gray-400">--</span>
-                        )}
+                        {(() => {
+                          const itemDate = item.shipInHandsDate || (h.order as any)?.inHandsDate;
+                          const isFromOrder = !item.shipInHandsDate && itemDate;
+                          const ds = itemDate ? getDateStatus(itemDate) : null;
+                          return itemDate ? (
+                            <div className="flex items-center gap-1">
+                              <span className={`text-[10px] font-medium ${isFromOrder ? "text-gray-400" : ds?.color || ""}`}>
+                                {fmtDate(itemDate)}
+                              </span>
+                              {isFromOrder && <span className="text-[9px] text-gray-400">(order)</span>}
+                              {item.shipFirm && <Pin className="w-2.5 h-2.5 text-blue-500" />}
+                            </div>
+                          ) : (
+                            <span className="text-[10px] text-gray-400">--</span>
+                          );
+                        })()}
                       </td>
                       <td className="p-2.5">
                         <span className="text-[10px] text-gray-600">{item.shippingMethodOverride || "--"}</span>
@@ -282,6 +290,11 @@ export default function ShippingSection({ projectId, data, isLocked }: ShippingS
                             <div className="flex flex-col items-end gap-2 flex-shrink-0">
                               {s.shippingCost && parseFloat(s.shippingCost) > 0 && (
                                 <span className="text-sm font-semibold">${parseFloat(s.shippingCost).toFixed(2)}</span>
+                              )}
+                              {s.trackingNumber && (
+                                <Button variant="outline" size="sm" className="h-7 text-[10px] gap-1" onClick={() => h.setNotifyShipment(s)}>
+                                  <Send className="w-3 h-3" /> Notify Client
+                                </Button>
                               )}
                               <div className="flex gap-1">
                                 <Button variant="ghost" size="sm" className="h-7 w-7 p-0" disabled={isLocked} onClick={() => h.openEdit(s)}>
@@ -402,7 +415,7 @@ export default function ShippingSection({ projectId, data, isLocked }: ShippingS
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-2 gap-3">
                 <div>
                   <Label>In-Hands Date</Label>
                   <Input type="date" value={h.editShippingForm.shipInHandsDate}
@@ -412,11 +425,6 @@ export default function ShippingSection({ projectId, data, isLocked }: ShippingS
                   <Checkbox checked={h.editShippingForm.shipFirm}
                     onCheckedChange={(c) => h.setEditShippingForm(f => ({ ...f, shipFirm: !!c }))} />
                   <Label className="font-normal text-sm">Firm</Label>
-                </div>
-                <div>
-                  <Label>Quote ($)</Label>
-                  <Input type="number" step="0.01" min={0} value={h.editShippingForm.shippingQuote}
-                    onChange={(e) => h.setEditShippingForm(f => ({ ...f, shippingQuote: e.target.value }))} placeholder="0.00" />
                 </div>
               </div>
 
@@ -572,11 +580,6 @@ export default function ShippingSection({ projectId, data, isLocked }: ShippingS
                 <Input type="date" className="h-8 text-sm" value={h.bulkForm.shipInHandsDate}
                   onChange={(e) => h.setBulkForm(p => ({ ...p, shipInHandsDate: e.target.value }))} />
               </div>
-              <div>
-                <Label className="text-xs">Quote ($)</Label>
-                <Input type="number" step="0.01" className="h-8 text-sm" placeholder="(no change)"
-                  value={h.bulkForm.shippingQuote} onChange={(e) => h.setBulkForm(p => ({ ...p, shippingQuote: e.target.value }))} />
-              </div>
             </div>
             <div>
               <Label className="text-xs">Notes</Label>
@@ -653,6 +656,43 @@ export default function ShippingSection({ projectId, data, isLocked }: ShippingS
               {h.editingShipment ? "Update" : "Create"} Shipment
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* NOTIFY CLIENT EMAIL DIALOG */}
+      <Dialog open={!!h.notifyShipment} onOpenChange={(open) => !open && h.setNotifyShipment(null)}>
+        <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Send className="w-5 h-5" /> Send Tracking Info to Client
+            </DialogTitle>
+          </DialogHeader>
+          {h.notifyShipment && (
+            <EmailComposer
+              defaults={{
+                to: h.primaryContact?.email || "",
+                toName: h.primaryContact ? `${h.primaryContact.firstName} ${h.primaryContact.lastName}` : h.companyName || "",
+                subject: `Shipment Update — Order #${(h.order as any)?.orderNumber || ""}`,
+                body: h.getNotifyEmailBody(h.notifyShipment),
+              }}
+              autoFillSender
+              onSend={async (formData) => {
+                await apiRequest("POST", `/api/projects/${projectId}/communications`, {
+                  communicationType: "client_email",
+                  direction: "sent",
+                  recipientEmail: formData.to,
+                  recipientName: formData.toName,
+                  subject: formData.subject,
+                  body: formData.body,
+                  cc: formData.cc || undefined,
+                  bcc: formData.bcc || undefined,
+                });
+                h.setNotifyShipment(null);
+              }}
+              onCancel={() => h.setNotifyShipment(null)}
+              sendLabel="Send Tracking Email"
+            />
+          )}
         </DialogContent>
       </Dialog>
 

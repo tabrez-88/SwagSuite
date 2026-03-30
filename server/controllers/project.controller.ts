@@ -992,8 +992,16 @@ export class ProjectController {
         }
       }
 
-      // Clear leg2 fields when destination changes away from "decorator"
+      // Convert timestamp strings to Date objects for Drizzle
       const body = { ...req.body };
+      const timestampFields = ['shipInHandsDate', 'leg2InHandsDate'];
+      for (const field of timestampFields) {
+        if (body[field] && typeof body[field] === 'string') {
+          body[field] = new Date(body[field]);
+        }
+      }
+
+      // Clear leg2 fields when destination changes away from "decorator"
       if (body.shippingDestination && body.shippingDestination !== "decorator") {
         body.leg2ShipTo = null;
         body.leg2AddressId = null;

@@ -5,6 +5,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { RichTextEditor } from "@/components/shared/RichTextEditor";
 import { Send, Eye, Edit, Loader2 } from "lucide-react";
+import EmailAutocompleteInput from "./EmailAutocompleteInput";
 import EmailContactPicker from "./EmailContactPicker";
 import EmailPreview from "./EmailPreview";
 import { useEmailForm } from "./useEmailForm";
@@ -151,11 +152,11 @@ const EmailComposer = forwardRef<EmailComposerRef, EmailComposerProps>(function 
 
   const recipientDisplay = hasContacts
     ? (() => {
-        const selected = contactsWithEmail.filter((c) => form.selectedContactIds.has(c.id));
-        const parts = selected.map((c) => `${c.firstName} ${c.lastName} <${c.email}>`);
-        parts.push(...adHocEmails);
-        return parts.join(", ");
-      })()
+      const selected = contactsWithEmail.filter((c) => form.selectedContactIds.has(c.id));
+      const parts = selected.map((c) => `${c.firstName} ${c.lastName} <${c.email}>`);
+      parts.push(...adHocEmails);
+      return parts.join(", ");
+    })()
     : undefined;
 
   return (
@@ -198,10 +199,11 @@ const EmailComposer = forwardRef<EmailComposerRef, EmailComposerProps>(function 
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label>To *</Label>
-                <Input
+                <EmailAutocompleteInput
                   value={form.to}
-                  onChange={(e) => setField("to", e.target.value)}
-                  placeholder="recipient@example.com"
+                  onChange={(v) => setField("to", v)}
+                  placeholder="Search contacts or type email..."
+                  multiple={false}
                 />
               </div>
               <div>
@@ -215,48 +217,48 @@ const EmailComposer = forwardRef<EmailComposerRef, EmailComposerProps>(function 
             </div>
           )}
 
-          {/* From fields */}
+
+
+          {/* From fields — optional */}
           {showAdvancedFields && (
-            <>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label>From</Label>
-                  <Input
-                    value={form.from}
-                    onChange={(e) => setField("from", e.target.value)}
-                  />
-                </div>
-                <div>
-                  <Label>From Name</Label>
-                  <Input
-                    value={form.fromName}
-                    onChange={(e) => setField("fromName", e.target.value)}
-                  />
-                </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>From</Label>
+                <EmailAutocompleteInput
+                  value={form.from}
+                  onChange={(v) => setField("from", v)}
+                  placeholder="Your email..."
+                  multiple={false}
+                />
               </div>
-
-              {/* CC / BCC */}
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label>CC</Label>
-                  <Input
-                    value={form.cc}
-                    onChange={(e) => setField("cc", e.target.value)}
-                    placeholder="Optional"
-                  />
-                </div>
-                <div>
-                  <Label>BCC</Label>
-                  <Input
-                    value={form.bcc}
-                    onChange={(e) => setField("bcc", e.target.value)}
-                    placeholder="Optional"
-                  />
-                </div>
+              <div>
+                <Label>From Name</Label>
+                <Input
+                  value={form.fromName}
+                  onChange={(e) => setField("fromName", e.target.value)}
+                />
               </div>
-            </>
+            </div>
           )}
-
+          {/* CC / BCC — always visible */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label>CC</Label>
+              <EmailAutocompleteInput
+                value={form.cc}
+                onChange={(v) => setField("cc", v)}
+                placeholder="Search contacts..."
+              />
+            </div>
+            <div>
+              <Label>BCC</Label>
+              <EmailAutocompleteInput
+                value={form.bcc}
+                onChange={(v) => setField("bcc", v)}
+                placeholder="Search contacts..."
+              />
+            </div>
+          </div>
           {/* Subject */}
           <div>
             <Label>Subject *</Label>

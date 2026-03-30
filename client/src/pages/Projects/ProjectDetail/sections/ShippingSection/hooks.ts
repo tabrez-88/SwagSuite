@@ -121,7 +121,11 @@ export function useShippingSection(projectId: string, data: ProjectData) {
       shippingNotes: item.shippingNotes || "",
       shipToAddressId: item.shipToAddressId || "",
       shipToAddress: addr || null,
-      shipInHandsDate: item.shipInHandsDate ? new Date(item.shipInHandsDate).toISOString().slice(0, 10) : "",
+      shipInHandsDate: item.shipInHandsDate
+        ? new Date(item.shipInHandsDate).toISOString().slice(0, 10)
+        : (order as any)?.inHandsDate
+          ? new Date((order as any).inHandsDate).toISOString().slice(0, 10)
+          : "",
       shipFirm: item.shipFirm || false,
       shippingQuote: item.shippingQuote || "",
       leg2ShipTo: item.leg2ShipTo || "client",
@@ -343,6 +347,22 @@ export function useShippingSection(projectId: string, data: ProjectData) {
     return null;
   };
 
+  // ── Notify Client ──
+  const [notifyShipment, setNotifyShipment] = useState<any>(null);
+
+  const getNotifyEmailBody = (s: any) => {
+    const orderNum = (order as any)?.orderNumber || "";
+    const trackUrl = getTrackingUrl(s.carrier, s.trackingNumber);
+    let body = `Your order ${orderNum} has been shipped!\n\n`;
+    if (s.carrier) body += `Carrier: ${s.carrier}\n`;
+    if (s.shippingMethod) body += `Method: ${s.shippingMethod}\n`;
+    if (s.trackingNumber) body += `Tracking Number: ${s.trackingNumber}\n`;
+    if (trackUrl) body += `Track your shipment: ${trackUrl}\n`;
+    if (s.estimatedDelivery) body += `\nEstimated Delivery: ${new Date(s.estimatedDelivery).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}\n`;
+    body += "\nThank you for your business!";
+    return body;
+  };
+
   const totalShippingCost = shipments.reduce((s, sh) => s + parseFloat(sh.shippingCost || "0"), 0);
   const deliveredCount = shipments.filter(s => s.status === "delivered").length;
   const timelineConflicts = hasTimelineConflict(order, shipments, orderItems);
@@ -382,6 +402,12 @@ export function useShippingSection(projectId: string, data: ProjectData) {
     openEdit,
     handleSave,
     getTrackingUrl,
+
+    // Notify client
+    notifyShipment, setNotifyShipment,
+    getNotifyEmailBody,
+    companyName: data.companyName,
+    primaryContact: data.primaryContact,
 
     // Mutation state
     updateItemShippingMutation,
