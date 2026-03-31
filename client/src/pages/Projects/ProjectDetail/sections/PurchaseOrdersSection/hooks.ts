@@ -45,6 +45,8 @@ export function usePurchaseOrdersSection({ projectId, data, isLocked }: Purchase
 
   // Email PO to vendor
   const [emailPOVendor, setEmailPOVendor] = useState<{ doc: any; vendor: any } | null>(null);
+  // Notify vendor (general email without PO stage change)
+  const [notifyVendor, setNotifyVendor] = useState<{ vendor: any; subject?: string; body?: string } | null>(null);
 
   // Proofing states
   const [uploadProofArt, setUploadProofArt] = useState<any>(null);
@@ -124,7 +126,6 @@ export function usePurchaseOrdersSection({ projectId, data, isLocked }: Purchase
         items.forEach((item: any) => {
           const itemArts = allArtworkItems[item.id] || [];
           itemArts.forEach((art: any) => {
-            const artCharges = allItemCharges ? [] : []; // artwork charges from data
             const charges = (data as any).allArtworkCharges?.[art.id] || [];
             charges.forEach((c: any) => {
               const cost = parseFloat(c.netCost || "0");
@@ -335,6 +336,9 @@ export function usePurchaseOrdersSection({ projectId, data, isLocked }: Purchase
       queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/activities`] });
       // PO stage change may auto-transition SO status
       queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}`] });
+      // Sync production report
+      queryClient.invalidateQueries({ queryKey: ["/api/production/po-report"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/production/alerts"] });
     },
     onError: () => toast({ title: "Failed to update PO", variant: "destructive" }),
   });
@@ -342,9 +346,12 @@ export function usePurchaseOrdersSection({ projectId, data, isLocked }: Purchase
   // Send PO email to vendor
   const sendPOEmailMutation = useMutation({
     mutationFn: async ({ doc, formData }: { doc: any; formData: EmailFormData & { adHocEmails: string[] } }) => {
-      const emailBodyFull = doc.fileUrl
-        ? `${formData.body}\n\n---\nView Purchase Order PDF: ${doc.fileUrl}`
-        : formData.body;
+      const emailBodyFull = formData.body;
+
+      // Build user-selected attachment URLs for direct buffer sending
+      const userAttachments = formData.attachments?.length
+        ? formData.attachments.map((att) => ({ fileUrl: att.cloudinaryUrl, fileName: att.fileName }))
+        : undefined;
 
       await apiRequest("POST", `/api/projects/${projectId}/communications`, {
         communicationType: "vendor_email",
@@ -358,19 +365,38 @@ export function usePurchaseOrdersSection({ projectId, data, isLocked }: Purchase
         metadata: { type: "purchase_order", documentId: doc.id, vendorId: doc.vendorId },
         autoAttachArtworkForVendor: doc.vendorId,
         autoAttachDocumentFile: doc.fileUrl ? { fileUrl: doc.fileUrl, fileName: doc.fileName || `PO-${doc.documentNumber}.pdf` } : undefined,
+        additionalAttachments: userAttachments,
       });
 
+      // Only advance stage to "submitted" on first send, preserve stage on resends
+      const currentStage = doc.metadata?.poStage || "created";
       await updateDocMetaMutation.mutateAsync({
         docId: doc.id,
         updates: {
           status: "sent",
           sentAt: new Date().toISOString(),
-          metadata: { ...doc.metadata, poStage: "submitted" },
+          metadata: { ...doc.metadata, poStage: currentStage === "created" ? "submitted" : currentStage },
         },
       });
     },
-    onSuccess: () => {
+    onSuccess: async (_data, vars) => {
       toast({ title: "PO sent to vendor!", description: "Email sent successfully." });
+      // Auto-transition artworks to "awaiting_proof" when PO is sent
+      const vendorKey = vars.doc.vendorId;
+      const vendorArts = getVendorArtworks(vendorKey);
+      for (const art of vendorArts) {
+        if (art.proofRequired !== false && art.status === "pending") {
+          try {
+            await fetch(`/api/project-items/${art.orderItemId}/artworks/${art.id}`, {
+              method: "PUT",
+              headers: { "Content-Type": "application/json" },
+              credentials: "include",
+              body: JSON.stringify({ name: art.name, status: "awaiting_proof" }),
+            });
+          } catch { /* best effort */ }
+        }
+      }
+      queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/items-with-details`] });
       setEmailPOVendor(null);
     },
     onError: () => toast({ title: "Failed to send PO", variant: "destructive" }),
@@ -390,6 +416,10 @@ export function usePurchaseOrdersSection({ projectId, data, isLocked }: Purchase
     },
     onSuccess: (_data, vars) => {
       queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/all-artworks`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/items-with-details`] });
+      // Invalidate production report so artwork/proof status is reflected there too
+      queryClient.invalidateQueries({ queryKey: ["/api/production/po-report"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/production/alerts"] });
       // Log proofing status changes
       const newStatus = vars.updates.status;
       if (newStatus) {
@@ -582,6 +612,8 @@ export function usePurchaseOrdersSection({ projectId, data, isLocked }: Purchase
     // Email
     emailPOVendor,
     setEmailPOVendor,
+    notifyVendor,
+    setNotifyVendor,
     poVendorContacts,
     openEmailPO,
     sendPOEmailMutation,

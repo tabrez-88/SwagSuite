@@ -185,6 +185,7 @@ export default function Vendors() {
                         </FormItem>
                       )}
                     />
+
                   </div>
 
                   {/* Preferred vendor benefits - show only when preferred is enabled */}
@@ -663,6 +664,7 @@ export default function Vendors() {
                                 {vendor.isPreferred && (
                                   <Badge className="bg-yellow-100 text-yellow-800 text-xs">Preferred</Badge>
                                 )}
+
                                 {vendor.apiIntegrationStatus === "active" && (
                                   <Badge className="bg-green-100 text-green-800 text-xs">API Connected</Badge>
                                 )}
@@ -1878,6 +1880,7 @@ export default function Vendors() {
                     </FormItem>
                   )}
                 />
+
                 <FormField
                   control={v.form.control}
                   name="doNotOrder"

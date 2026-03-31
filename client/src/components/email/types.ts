@@ -8,6 +8,13 @@ export interface EmailContact {
   receiveOrderEmails?: boolean;
 }
 
+export interface EmailAttachment {
+  id: string;
+  fileName: string;
+  cloudinaryUrl: string;
+  mimeType?: string | null;
+}
+
 export interface EmailFormData {
   to: string;
   toName: string;
@@ -18,6 +25,7 @@ export interface EmailFormData {
   subject: string;
   body: string;
   selectedContactIds: Set<string>;
+  attachments: EmailAttachment[];
 }
 
 export type EmailFormField = keyof Omit<EmailFormData, "selectedContactIds">;

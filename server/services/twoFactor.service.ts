@@ -68,8 +68,9 @@ export function verifyTOTPCode(secret: string, code: string): boolean {
     period: 30,
     secret: OTPAuth.Secret.fromBase32(secret),
   });
-  // Allow 1 step window (30 seconds before/after)
-  const delta = totp.validate({ token: code, window: 1 });
+  // Allow 2 step window (60 seconds before/after) to account for
+  // clock drift between server and authenticator app
+  const delta = totp.validate({ token: code, window: 2 });
   return delta !== null;
 }
 

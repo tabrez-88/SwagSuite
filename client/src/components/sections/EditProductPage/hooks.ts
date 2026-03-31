@@ -8,6 +8,7 @@ import {
   useDeleteLine,
   useAddLine,
   useAddCharge,
+  useUpdateCharge,
   useDeleteCharge,
   useToggleChargeDisplay,
   useCreateArtwork,
@@ -17,6 +18,8 @@ import {
   useAddArtworkFile,
   useRemoveArtworkFile,
   useCopyArtwork,
+  useApplyMatrixPricing,
+  useUpdateArtworkCharge,
 } from "@/services/project-items";
 import * as orderItemRequests from "@/services/project-items/requests";
 import { projectKeys } from "@/services/projects/keys";
@@ -106,15 +109,18 @@ export function useEditProductPage(projectId: string, itemId: string, data: Proj
   const deleteLineMutation = useDeleteLine(projectId);
   const addLineMutation = useAddLine(projectId);
   const addChargeMutation = useAddCharge(projectId);
+  const updateChargeMutation = useUpdateCharge(projectId);
   const deleteChargeMutation = useDeleteCharge(projectId);
   const toggleChargeDisplayMutation = useToggleChargeDisplay(projectId);
   const createArtworkMutation = useCreateArtwork(projectId);
   const deleteArtworkMutation = useDeleteArtwork(projectId);
   const createArtworkChargeMutation = useCreateArtworkCharge(projectId);
+  const updateArtworkChargeMutation = useUpdateArtworkCharge(projectId);
   const deleteArtworkChargeMutation = useDeleteArtworkCharge(projectId);
   const addArtworkFileMutation = useAddArtworkFile(projectId);
   const removeArtworkFileMutation = useRemoveArtworkFile(projectId);
   const copyArtworkMutation = useCopyArtwork(projectId);
+  const applyMatrixMutation = useApplyMatrixPricing(projectId);
 
   // ── Line editing helpers ──
   const updateLine = useCallback((id: string, field: string, value: any) => {
@@ -258,6 +264,7 @@ export function useEditProductPage(projectId: string, itemId: string, data: Proj
 
   // ── Charge dialog ──
   const [showAddCharge, setShowAddCharge] = useState(false);
+  const [editingCharge, setEditingCharge] = useState<any>(null); // charge being edited, or null for add mode
   const [newCharge, setNewCharge] = useState({ description: "", chargeType: "flat", chargeCategory: "fixed" as "run" | "fixed", amount: 0, isVendorCharge: false, displayToClient: true, includeInUnitPrice: false });
 
   // ── Artwork file picker (for adding additional files to existing artwork) ──
@@ -325,7 +332,42 @@ export function useEditProductPage(projectId: string, itemId: string, data: Proj
       color: artUploadColor || undefined,
       size: artUploadSize || undefined,
       repeatLogo: artUploadRepeatLogo || undefined,
-    }, { onSuccess: () => resetArtForm() });
+    }, {
+      onSuccess: (newArtwork: any) => {
+        resetArtForm();
+        // CommonSKU: auto-create default Imprint Cost + Setup Cost charges
+        if (newArtwork?.id) {
+          const method = artUploadMethod || "";
+          createArtworkChargeMutation.mutate({
+            artworkId: newArtwork.id,
+            charge: {
+              chargeName: method ? `${method} imprint` : "Imprint Cost",
+              chargeCategory: "run",
+              netCost: "0",
+              margin: "0",
+              retailPrice: "0",
+              quantity: 1,
+              displayMode: "include_in_price",
+            },
+          }, {
+            onSuccess: () => {
+              createArtworkChargeMutation.mutate({
+                artworkId: newArtwork.id,
+                charge: {
+                  chargeName: method ? `${method} setup` : "Setup Cost",
+                  chargeCategory: "fixed",
+                  netCost: "0",
+                  margin: "0",
+                  retailPrice: "0",
+                  quantity: 1,
+                  displayMode: "display_to_client",
+                },
+              });
+            },
+          });
+        }
+      },
+    });
   };
 
   // ── Save all ──
@@ -450,7 +492,10 @@ export function useEditProductPage(projectId: string, itemId: string, data: Proj
     setShowAddCharge,
     newCharge,
     setNewCharge,
+    editingCharge,
+    setEditingCharge,
     addChargeMutation,
+    updateChargeMutation,
     deleteChargeMutation,
     toggleChargeDisplayMutation,
     // Artwork
@@ -483,7 +528,9 @@ export function useEditProductPage(projectId: string, itemId: string, data: Proj
     newArtworkCharge,
     setNewArtworkCharge,
     createArtworkChargeMutation,
+    updateArtworkChargeMutation,
     deleteArtworkChargeMutation,
+    applyMatrixMutation,
     // Artwork files & copy
     addArtworkFileMutation,
     removeArtworkFileMutation,

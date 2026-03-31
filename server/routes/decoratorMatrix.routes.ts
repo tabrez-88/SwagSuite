@@ -11,10 +11,14 @@ router.post("/api/suppliers/:supplierId/matrices", isAuthenticated, DecoratorMat
 // ── Lookup (auto-populate) — must be before :matrixId wildcard ──
 router.get("/api/matrices/lookup", isAuthenticated, DecoratorMatrixController.lookup);
 
+// ── Apply matrix to artwork (creates all charges) ──
+router.post("/api/matrices/apply", isAuthenticated, DecoratorMatrixController.applyToArtwork);
+
 // ── Matrix CRUD ──
 router.get("/api/matrices/:matrixId", isAuthenticated, DecoratorMatrixController.getMatrix);
 router.patch("/api/matrices/:matrixId", isAuthenticated, DecoratorMatrixController.updateMatrix);
 router.delete("/api/matrices/:matrixId", isAuthenticated, DecoratorMatrixController.deleteMatrix);
+router.post("/api/matrices/:matrixId/copy", isAuthenticated, DecoratorMatrixController.copyMatrix);
 
 // ── Matrix Entries ──
 router.get("/api/matrices/:matrixId/entries", isAuthenticated, DecoratorMatrixController.listEntries);

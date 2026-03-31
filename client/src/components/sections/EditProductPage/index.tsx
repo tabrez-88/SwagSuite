@@ -45,6 +45,7 @@ import {
   LockOpen,
   Package,
   Palette,
+  Pencil,
   Percent,
   Plus,
   Repeat,
@@ -382,6 +383,25 @@ export default function EditProductPage({ projectId, itemId, data }: EditProduct
                   </span>
                   <Button
                     variant="ghost" size="sm" className="h-6 w-6 p-0"
+                    title="Edit charge"
+                    onClick={() => {
+                      editProductPage.setEditingCharge(charge);
+                      editProductPage.setNewCharge({
+                        description: charge.description,
+                        chargeType: charge.chargeType || "flat",
+                        chargeCategory: charge.chargeCategory || "fixed",
+                        amount: parseFloat(charge.amount || "0"),
+                        isVendorCharge: charge.isVendorCharge || false,
+                        displayToClient: charge.displayToClient !== false,
+                        includeInUnitPrice: charge.includeInUnitPrice || false,
+                      });
+                      editProductPage.setShowAddCharge(true);
+                    }}
+                  >
+                    <Pencil className="w-3 h-3 text-gray-400 hover:text-blue-500" />
+                  </Button>
+                  <Button
+                    variant="ghost" size="sm" className="h-6 w-6 p-0"
                     title={charge.displayToClient !== false ? "Visible to client" : "Hidden from client"}
                     onClick={() => editProductPage.toggleChargeDisplayMutation.mutate({
                       chargeId: charge.id,
@@ -507,6 +527,9 @@ export default function EditProductPage({ projectId, itemId, data }: EditProduct
                 const artFiles = editProductPage.allArtworkFiles[art.id] || [];
                 const runCharges = artCharges.filter((c: any) => c.chargeCategory === "run");
                 const fixedCharges = artCharges.filter((c: any) => c.chargeCategory !== "run");
+                const vendorId = editProductPage.editItemData.decoratorType === "third_party"
+                  ? editProductPage.editItemData.decoratorId
+                  : editProductPage.item?.supplierId;
 
                 // Build file list: artworkItemFiles if any, fallback to artworkItems.filePath
                 const displayFiles = artFiles.length > 0
@@ -517,7 +540,7 @@ export default function EditProductPage({ projectId, itemId, data }: EditProduct
                   <div key={art.id} className="border rounded-lg bg-white overflow-hidden">
                     {/* Artwork header row */}
                     <div className="p-3 flex gap-3 items-start">
-                      {/* Thumbnails (multiple files) */}
+                      {/* Thumbnails */}
                       <div className="flex gap-1.5 flex-shrink-0">
                         {displayFiles.length > 0 ? displayFiles.slice(0, 3).map((f: any, idx: number) => (
                           <div key={f.id || idx} className="w-14 h-14 bg-gray-50 rounded border overflow-hidden flex items-center justify-center relative">
@@ -569,89 +592,254 @@ export default function EditProductPage({ projectId, itemId, data }: EditProduct
                           >
                             {art.status}
                           </Badge>
-                          {artCharges.length > 0 && (
-                            <Badge variant="secondary" className="text-[9px]">
-                              <DollarSign className="w-2.5 h-2.5 mr-0.5" />
-                              {artCharges.length} charge{artCharges.length !== 1 ? "s" : ""}
-                            </Badge>
-                          )}
                         </div>
                       </div>
 
                       {/* Actions */}
-                      <div className="flex flex-col gap-1">
-                        <div className="flex items-center gap-1">
-                          <Button variant="outline" size="sm" className="h-7 text-[10px]"
-                            onClick={() => editProductPage.setShowAddArtworkCharge(art.id)}>
-                            <Plus className="w-3 h-3 mr-0.5" /> Charge
-                          </Button>
-                          <Button variant="outline" size="sm" className="h-7 text-[10px]"
-                            onClick={() => editProductPage.setAddingFileToArtworkId(art.id)}>
-                            <Upload className="w-3 h-3 mr-0.5" /> File
-                          </Button>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <Button variant="ghost" size="sm" className="h-7 text-[10px]"
-                            onClick={() => editProductPage.setCopyingArtworkId(art.id)}>
-                            <Copy className="w-3 h-3 mr-0.5" /> Copy to...
-                          </Button>
-                          <Button variant="ghost" size="sm" className="h-7 w-7 p-0"
-                            onClick={() => editProductPage.deleteArtworkMutation.mutate({ artworkId: art.id, orderItemId: itemId })}>
-                            <Trash2 className="w-3.5 h-3.5 text-red-400" />
-                          </Button>
-                        </div>
+                      <div className="flex items-center gap-1">
+                        <Button variant="outline" size="sm" className="h-7 text-[10px]"
+                          onClick={() => editProductPage.setAddingFileToArtworkId(art.id)}>
+                          <Upload className="w-3 h-3 mr-0.5" /> File
+                        </Button>
+                        <Button variant="ghost" size="sm" className="h-7 text-[10px]"
+                          onClick={() => editProductPage.setCopyingArtworkId(art.id)}>
+                          <Copy className="w-3 h-3 mr-0.5" /> Copy to...
+                        </Button>
+                        <Button variant="ghost" size="sm" className="h-7 w-7 p-0"
+                          onClick={() => editProductPage.deleteArtworkMutation.mutate({ artworkId: art.id, orderItemId: itemId })}>
+                          <Trash2 className="w-3.5 h-3.5 text-red-400" />
+                        </Button>
                       </div>
                     </div>
 
-                    {/* Artwork charges list */}
-                    {artCharges.length > 0 && (
-                      <div className="border-t bg-gray-50/50 px-3 py-2 space-y-1">
-                        {runCharges.length > 0 && (
-                          <div>
-                            <p className="text-[9px] font-semibold text-gray-400 uppercase tracking-wide mb-0.5">Imprint Costs (per unit)</p>
-                            {runCharges.map((charge: any) => (
-                              <div key={charge.id} className="flex items-center justify-between text-xs py-0.5">
-                                <div className="flex items-center gap-1.5">
-                                  <span className="font-medium">{charge.chargeName}</span>
-                                  <span className="text-gray-400">Cost: ${parseFloat(charge.netCost || "0").toFixed(2)}</span>
-                                  <span className="text-gray-400">→ Retail: ${parseFloat(charge.retailPrice || "0").toFixed(2)}</span>
-                                  <Badge variant="outline" className="text-[8px]">
-                                    {charge.displayMode === "include_in_price" ? "in price" : "line item"}
-                                  </Badge>
-                                </div>
-                                <Button variant="ghost" size="sm" className="h-5 w-5 p-0"
-                                  onClick={() => editProductPage.deleteArtworkChargeMutation.mutate({ artworkId: art.id, chargeId: charge.id })}
-                                >
-                                  <Trash2 className="w-3 h-3 text-gray-400" />
-                                </Button>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                        {fixedCharges.length > 0 && (
-                          <div>
-                            <p className="text-[9px] font-semibold text-gray-400 uppercase tracking-wide mb-0.5">Setup Costs (one-time)</p>
-                            {fixedCharges.map((charge: any) => (
-                              <div key={charge.id} className="flex items-center justify-between text-xs py-0.5">
-                                <div className="flex items-center gap-1.5">
-                                  <span className="font-medium">{charge.chargeName}</span>
-                                  <span className="text-gray-400">Cost: ${parseFloat(charge.netCost || "0").toFixed(2)}</span>
-                                  <span className="text-gray-400">→ Retail: ${parseFloat(charge.retailPrice || "0").toFixed(2)}</span>
-                                  <Badge variant="outline" className="text-[8px]">
-                                    {charge.displayMode === "subtract_from_margin" ? "absorbed" : "line item"}
-                                  </Badge>
-                                </div>
-                                <Button variant="ghost" size="sm" className="h-5 w-5 p-0"
-                                  onClick={() => editProductPage.deleteArtworkChargeMutation.mutate({ artworkId: art.id, chargeId: charge.id })}
-                                >
-                                  <Trash2 className="w-3 h-3 text-gray-400" />
-                                </Button>
-                              </div>
-                            ))}
-                          </div>
-                        )}
+                    {/* CommonSKU-style inline charge rows */}
+                    <div className="border-t">
+                      {/* Column headers */}
+                      <div className="grid grid-cols-[1fr_32px_50px_80px_65px_80px_130px_28px] gap-0 items-center px-3 py-1 bg-gray-50 border-b text-[9px] font-medium text-gray-500 uppercase tracking-wider">
+                        <span>Charge</span>
+                        <span></span>
+                        <span className="text-center">Qty</span>
+                        <span className="text-right">Cost</span>
+                        <span className="text-right">Margin %</span>
+                        <span className="text-right">Sell</span>
+                        <span></span>
+                        <span></span>
                       </div>
-                    )}
+
+                      {/* Charge rows — inline editable */}
+                      {artCharges.map((charge: any) => {
+                        const isRun = charge.chargeCategory === "run";
+                        const cNetCost = parseFloat(charge.netCost || "0");
+                        const cMargin = parseFloat(charge.margin || "0");
+                        const cRetail = parseFloat(charge.retailPrice || "0");
+                        const cQty = charge.quantity || (isRun ? editProductPage.lineTotals.qty || 1 : 1);
+                        return (
+                          <div key={charge.id} className="grid grid-cols-[1fr_32px_50px_80px_65px_80px_130px_28px] gap-0 items-center px-3 py-1 border-b last:border-0 hover:bg-gray-50/50">
+                            {/* Charge Name — editable */}
+                            <input
+                              className="text-xs font-medium bg-transparent border-0 outline-none focus:bg-white focus:ring-1 focus:ring-blue-300 rounded px-1 py-0.5 w-full"
+                              defaultValue={charge.chargeName}
+                              onBlur={(e) => {
+                                const val = e.target.value.trim();
+                                if (val && val !== charge.chargeName) {
+                                  editProductPage.updateArtworkChargeMutation.mutate({
+                                    artworkId: art.id, chargeId: charge.id,
+                                    updates: { chargeName: val },
+                                  });
+                                }
+                              }}
+                            />
+                            {/* Matrix icon */}
+                            {vendorId ? (
+                              <button
+                                className={`w-6 h-6 flex items-center justify-center rounded hover:bg-blue-100 ${art.artworkType ? "text-blue-500 cursor-pointer" : "text-gray-300 cursor-not-allowed"}`}
+                                title={art.artworkType ? "Fill cost from decorator matrix" : "Set imprint method on artwork to use matrix lookup"}
+                                onClick={async (e) => {
+                                  const btn = e.currentTarget;
+                                  if (!art.artworkType) {
+                                    btn.classList.add("animate-pulse", "text-orange-400");
+                                    setTimeout(() => btn.classList.remove("animate-pulse", "text-orange-400"), 1000);
+                                    return;
+                                  }
+                                  try {
+                                    const qty = editProductPage.lineTotals.qty || 1;
+                                    const method = art.artworkType;
+                                    const res = await apiRequest("GET", `/api/matrices/lookup?supplierId=${vendorId}&method=${encodeURIComponent(method)}&quantity=${qty}`);
+                                    const data = await res.json();
+                                    if (!data.found) {
+                                      btn.classList.add("text-red-400");
+                                      btn.title = "No matrix found for this vendor/method";
+                                      setTimeout(() => { btn.classList.remove("text-red-400"); btn.title = "Fill cost from decorator matrix"; }, 2000);
+                                      return;
+                                    }
+                                    const mt = data.matrixType || "run_charge_table";
+                                    let cost = 0;
+                                    if (mt === "run_charge_table") {
+                                      cost = parseFloat(isRun ? data.runCost : data.setupCost) || 0;
+                                    } else if ((mt === "run_charge_per_item" || mt === "fixed_charge_list") && data.entries?.length > 0) {
+                                      cost = parseFloat(data.entries[0]?.unitCost || "0");
+                                    } else if (mt === "fixed_charge_table" && data.entries?.length > 0) {
+                                      cost = parseFloat(data.entries[0]?.unitCost || "0");
+                                    }
+                                    if (cost > 0) {
+                                      btn.classList.add("text-green-500");
+                                      setTimeout(() => btn.classList.remove("text-green-500"), 1500);
+                                      editProductPage.updateArtworkChargeMutation.mutate({
+                                        artworkId: art.id, chargeId: charge.id,
+                                        updates: { netCost: cost.toFixed(2) },
+                                      });
+                                    } else {
+                                      btn.classList.add("text-red-400");
+                                      setTimeout(() => btn.classList.remove("text-red-400"), 2000);
+                                    }
+                                  } catch (err) {
+                                    console.error("Matrix lookup failed:", err);
+                                    btn.classList.add("text-red-400");
+                                    setTimeout(() => btn.classList.remove("text-red-400"), 2000);
+                                  }
+                                }}
+                              >
+                                <Grid3X3 className="w-3.5 h-3.5" />
+                              </button>
+                            ) : <span />}
+                            {/* Qty */}
+                            <input
+                              type="number"
+                              className="text-xs text-center bg-transparent border-0 outline-none focus:bg-white focus:ring-1 focus:ring-blue-300 rounded px-1 py-0.5 w-full [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                              defaultValue={isRun ? (editProductPage.lineTotals.qty || 1) : (charge.quantity || 1)}
+                              readOnly={isRun}
+                              onBlur={(e) => {
+                                if (isRun) return;
+                                const val = parseInt(e.target.value) || 1;
+                                if (val !== charge.quantity) {
+                                  editProductPage.updateArtworkChargeMutation.mutate({
+                                    artworkId: art.id, chargeId: charge.id,
+                                    updates: { quantity: val },
+                                  });
+                                }
+                              }}
+                            />
+                            {/* $ Cost */}
+                            <input
+                              type="number"
+                              step="0.01"
+                              className="text-xs text-right bg-transparent border-0 outline-none focus:bg-white focus:ring-1 focus:ring-blue-300 rounded px-1 py-0.5 w-full [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                              defaultValue={cNetCost.toFixed(4)}
+                              onBlur={(e) => {
+                                const val = parseFloat(e.target.value) || 0;
+                                if (Math.abs(val - cNetCost) > 0.001) {
+                                  const m = cMargin;
+                                  const retail = m > 0 && m < 100 ? val / (1 - m / 100) : val;
+                                  editProductPage.updateArtworkChargeMutation.mutate({
+                                    artworkId: art.id, chargeId: charge.id,
+                                    updates: { netCost: val.toFixed(2), retailPrice: retail.toFixed(2) },
+                                  });
+                                }
+                              }}
+                            />
+                            {/* Margin % */}
+                            <input
+                              type="number"
+                              step="0.1"
+                              className="text-xs text-right bg-transparent border-0 outline-none focus:bg-white focus:ring-1 focus:ring-blue-300 rounded px-1 py-0.5 w-full [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                              defaultValue={cMargin.toFixed(2)}
+                              onBlur={(e) => {
+                                const val = parseFloat(e.target.value) || 0;
+                                if (Math.abs(val - cMargin) > 0.1) {
+                                  const retail = val > 0 && val < 100 ? cNetCost / (1 - val / 100) : cNetCost;
+                                  editProductPage.updateArtworkChargeMutation.mutate({
+                                    artworkId: art.id, chargeId: charge.id,
+                                    updates: { margin: val.toFixed(2), retailPrice: retail.toFixed(2) },
+                                  });
+                                }
+                              }}
+                            />
+                            {/* Sell — calculated from cost + margin (read-only) */}
+                            <span className="text-xs text-right text-gray-600 px-1 py-0.5 tabular-nums">
+                              {(cMargin > 0 && cMargin < 100 ? cNetCost / (1 - cMargin / 100) : cNetCost).toFixed(2)}
+                            </span>
+                            {/* Display mode */}
+                            <Select
+                              defaultValue={charge.displayMode || "display_to_client"}
+                              onValueChange={(v) => {
+                                editProductPage.updateArtworkChargeMutation.mutate({
+                                  artworkId: art.id, chargeId: charge.id,
+                                  updates: { displayMode: v },
+                                });
+                              }}
+                            >
+                              <SelectTrigger className="h-6 text-[10px] border-0 shadow-none px-1">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {isRun ? (
+                                  <>
+                                    <SelectItem value="include_in_price">Include in price</SelectItem>
+                                    <SelectItem value="display_to_client">Display to client</SelectItem>
+                                  </>
+                                ) : (
+                                  <>
+                                    <SelectItem value="display_to_client">Display to client</SelectItem>
+                                    <SelectItem value="subtract_from_margin">Subtract from margin</SelectItem>
+                                  </>
+                                )}
+                              </SelectContent>
+                            </Select>
+                            {/* Delete */}
+                            <button
+                              className="w-5 h-5 flex items-center justify-center rounded hover:bg-red-50 text-gray-400 hover:text-red-500"
+                              onClick={() => editProductPage.deleteArtworkChargeMutation.mutate({ artworkId: art.id, chargeId: charge.id })}
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </button>
+                          </div>
+                        );
+                      })}
+
+                      {/* Quick add links — CommonSKU style */}
+                      <div className="flex items-center gap-4 px-3 py-1.5 text-[10px]">
+                        <button
+                          className="text-blue-600 hover:text-blue-800 hover:underline"
+                          onClick={() => {
+                            editProductPage.createArtworkChargeMutation.mutate({
+                              artworkId: art.id,
+                              charge: {
+                                chargeName: `${art.artworkType || "Imprint"} run charge`,
+                                chargeCategory: "run",
+                                netCost: "0", margin: "0", retailPrice: "0",
+                                quantity: 1,
+                                displayMode: "include_in_price",
+                              },
+                            });
+                          }}
+                        >
+                          + Run charge for this decoration
+                        </button>
+                        <button
+                          className="text-blue-600 hover:text-blue-800 hover:underline"
+                          onClick={() => {
+                            editProductPage.createArtworkChargeMutation.mutate({
+                              artworkId: art.id,
+                              charge: {
+                                chargeName: `${art.artworkType || "Setup"} fixed charge`,
+                                chargeCategory: "fixed",
+                                netCost: "0", margin: "0", retailPrice: "0",
+                                quantity: 1,
+                                displayMode: "display_to_client",
+                              },
+                            });
+                          }}
+                        >
+                          + Fixed charge for this decoration
+                        </button>
+                        <button
+                          className="text-blue-600 hover:text-blue-800 hover:underline ml-auto"
+                          onClick={() => editProductPage.setCopyingArtworkId(art.id)}
+                        >
+                          + Copy item location
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 );
               })}
@@ -674,11 +862,16 @@ export default function EditProductPage({ projectId, itemId, data }: EditProduct
         </Button>
       </div>
 
-      {/* ADD CHARGE DIALOG */}
-      <Dialog open={editProductPage.showAddCharge} onOpenChange={(open) => !open && editProductPage.setShowAddCharge(false)}>
+      {/* ADD/EDIT CHARGE DIALOG */}
+      <Dialog open={editProductPage.showAddCharge} onOpenChange={(open) => {
+        if (!open) {
+          editProductPage.setShowAddCharge(false);
+          editProductPage.setEditingCharge(null);
+        }
+      }}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Add Charge</DialogTitle>
+            <DialogTitle>{editProductPage.editingCharge ? "Edit Charge" : "Add Charge"}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             {/* Charge Category Toggle */}
@@ -753,31 +946,43 @@ export default function EditProductPage({ projectId, itemId, data }: EditProduct
             )}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => editProductPage.setShowAddCharge(false)}>Cancel</Button>
+            <Button variant="outline" onClick={() => { editProductPage.setShowAddCharge(false); editProductPage.setEditingCharge(null); }}>Cancel</Button>
             <Button
-              disabled={!editProductPage.newCharge.description || editProductPage.newCharge.amount <= 0 || editProductPage.addChargeMutation.isPending}
+              disabled={!editProductPage.newCharge.description || editProductPage.newCharge.amount <= 0 || editProductPage.addChargeMutation.isPending || editProductPage.updateChargeMutation.isPending}
               onClick={() => {
-                editProductPage.addChargeMutation.mutate({
-                  orderItemId: itemId,
-                  charge: {
-                    description: editProductPage.newCharge.description,
-                    chargeType: editProductPage.newCharge.chargeType,
-                    chargeCategory: editProductPage.newCharge.chargeCategory,
-                    amount: editProductPage.newCharge.amount.toFixed(2),
-                    isVendorCharge: editProductPage.newCharge.isVendorCharge,
-                    displayToClient: editProductPage.newCharge.includeInUnitPrice ? false : editProductPage.newCharge.displayToClient,
-                    includeInUnitPrice: editProductPage.newCharge.includeInUnitPrice,
-                  },
-                }, {
-                  onSuccess: () => {
-                    editProductPage.setShowAddCharge(false);
-                    editProductPage.setNewCharge({ description: "", chargeType: "flat", chargeCategory: "fixed", amount: 0, isVendorCharge: false, displayToClient: true, includeInUnitPrice: false });
-                  },
-                });
+                const chargeData = {
+                  description: editProductPage.newCharge.description,
+                  chargeType: editProductPage.newCharge.chargeType,
+                  chargeCategory: editProductPage.newCharge.chargeCategory,
+                  amount: editProductPage.newCharge.amount.toFixed(2),
+                  isVendorCharge: editProductPage.newCharge.isVendorCharge,
+                  displayToClient: editProductPage.newCharge.includeInUnitPrice ? false : editProductPage.newCharge.displayToClient,
+                  includeInUnitPrice: editProductPage.newCharge.includeInUnitPrice,
+                };
+                const onSuccess = () => {
+                  editProductPage.setShowAddCharge(false);
+                  editProductPage.setEditingCharge(null);
+                  editProductPage.setNewCharge({ description: "", chargeType: "flat", chargeCategory: "fixed", amount: 0, isVendorCharge: false, displayToClient: true, includeInUnitPrice: false });
+                };
+                if (editProductPage.editingCharge) {
+                  editProductPage.updateChargeMutation.mutate({
+                    orderItemId: editProductPage.editingCharge.orderItemId,
+                    chargeId: editProductPage.editingCharge.id,
+                    updates: chargeData,
+                  }, { onSuccess });
+                } else {
+                  editProductPage.addChargeMutation.mutate({
+                    orderItemId: itemId,
+                    charge: chargeData,
+                  }, { onSuccess });
+                }
               }}
             >
-              {editProductPage.addChargeMutation.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Plus className="w-4 h-4 mr-2" />}
-              Add Charge
+              {(editProductPage.addChargeMutation.isPending || editProductPage.updateChargeMutation.isPending)
+                ? <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                : editProductPage.editingCharge ? <Save className="w-4 h-4 mr-2" /> : <Plus className="w-4 h-4 mr-2" />
+              }
+              {editProductPage.editingCharge ? "Save Changes" : "Add Charge"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -871,176 +1076,6 @@ export default function EditProductPage({ projectId, itemId, data }: EditProduct
               ) : (
                 "Add Artwork"
               )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* ADD ARTWORK CHARGE DIALOG */}
-      <Dialog open={!!editProductPage.showAddArtworkCharge} onOpenChange={(open) => !open && editProductPage.setShowAddArtworkCharge(null)}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Add Artwork Charge</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <Label className="mb-1.5 block">Charge Type</Label>
-              <div className="flex gap-2">
-                <Button type="button" variant={editProductPage.newArtworkCharge.chargeCategory === "run" ? "default" : "outline"} size="sm" className="flex-1"
-                  onClick={() => editProductPage.setNewArtworkCharge(c => ({ ...c, chargeCategory: "run" as const }))}
-                >
-                  Imprint Cost (per unit)
-                </Button>
-                <Button type="button" variant={editProductPage.newArtworkCharge.chargeCategory === "fixed" ? "default" : "outline"} size="sm" className="flex-1"
-                  onClick={() => editProductPage.setNewArtworkCharge(c => ({ ...c, chargeCategory: "fixed" as const }))}
-                >
-                  Setup Cost (one-time)
-                </Button>
-              </div>
-            </div>
-            <div>
-              <Label>Charge Name *</Label>
-              <Input
-                value={editProductPage.newArtworkCharge.chargeName}
-                onChange={(e) => editProductPage.setNewArtworkCharge(c => ({ ...c, chargeName: e.target.value }))}
-                placeholder={editProductPage.newArtworkCharge.chargeCategory === "run" ? "e.g., Imprint Charge, 2nd Color Run" : "e.g., Screen Setup, Digitizing Fee"}
-              />
-            </div>
-            <div className="grid grid-cols-3 gap-3">
-              <div>
-                <Label>Net Cost *</Label>
-                <Input type="number" step="0.01" min={0}
-                  value={editProductPage.newArtworkCharge.netCost}
-                  onChange={(e) => {
-                    const cost = parseFloat(e.target.value) || 0;
-                    const margin = editProductPage.newArtworkCharge.margin;
-                    const retail = margin > 0 && margin < 100 ? cost / (1 - margin / 100) : cost;
-                    editProductPage.setNewArtworkCharge(c => ({ ...c, netCost: cost, retailPrice: parseFloat(retail.toFixed(2)) }));
-                  }}
-                />
-              </div>
-              <div>
-                <Label>Margin %</Label>
-                <Input type="number" step="0.1" min={0} max={99.9}
-                  value={editProductPage.newArtworkCharge.margin}
-                  onChange={(e) => {
-                    const margin = parseFloat(e.target.value) || 0;
-                    const cost = editProductPage.newArtworkCharge.netCost;
-                    const retail = margin > 0 && margin < 100 ? cost / (1 - margin / 100) : cost;
-                    editProductPage.setNewArtworkCharge(c => ({ ...c, margin, retailPrice: parseFloat(retail.toFixed(2)) }));
-                  }}
-                />
-              </div>
-              <div>
-                <Label>Retail Price *</Label>
-                <Input type="number" step="0.01" min={0}
-                  value={editProductPage.newArtworkCharge.retailPrice}
-                  onChange={(e) => {
-                    const retail = parseFloat(e.target.value) || 0;
-                    const cost = editProductPage.newArtworkCharge.netCost;
-                    const margin = retail > 0 ? ((retail - cost) / retail * 100) : 0;
-                    editProductPage.setNewArtworkCharge(c => ({ ...c, retailPrice: retail, margin: parseFloat(margin.toFixed(1)) }));
-                  }}
-                />
-              </div>
-            </div>
-            {/* Matrix lookup button */}
-            {(() => {
-              const vendorId = editProductPage.editItemData.decoratorType === "third_party"
-                ? editProductPage.editItemData.decoratorId
-                : editProductPage.item?.supplierId;
-              const artId = editProductPage.showAddArtworkCharge;
-              const art = artId ? editProductPage.artworks.find((a: any) => a.id === artId) : null;
-              const method = art?.artworkType || editProductPage.editItemData.imprintMethod;
-              if (!vendorId || !method) return null;
-              return (
-                <Button
-                  type="button" variant="outline" size="sm" className="gap-1.5"
-                  onClick={async () => {
-                    try {
-                      const qty = editProductPage.lineTotals.qty || 1;
-                      const res = await apiRequest("GET", `/api/matrices/lookup?supplierId=${vendorId}&method=${method}&quantity=${qty}`);
-                      const data = await res.json();
-                      if (data.found) {
-                        const cat = editProductPage.newArtworkCharge.chargeCategory;
-                        const cost = parseFloat(cat === "run" ? data.runCost : data.setupCost) || 0;
-                        editProductPage.setNewArtworkCharge(c => ({
-                          ...c,
-                          netCost: cost,
-                          retailPrice: cost,
-                          chargeName: c.chargeName || (cat === "run" ? `${method} imprint` : `${method} setup`),
-                        }));
-                      } else {
-                        // No match — open matrix management
-                      }
-                    } catch { /* ignore */ }
-                  }}
-                >
-                  <Grid3X3 className="w-3 h-3" />
-                  Lookup Matrix
-                </Button>
-              );
-            })()}
-            {editProductPage.newArtworkCharge.chargeCategory === "fixed" && (
-              <div className="w-24">
-                <Label>Qty</Label>
-                <Input type="number" min={1}
-                  value={editProductPage.newArtworkCharge.quantity}
-                  onChange={(e) => editProductPage.setNewArtworkCharge(c => ({ ...c, quantity: parseInt(e.target.value) || 1 }))}
-                />
-              </div>
-            )}
-            <div>
-              <Label>Display Mode</Label>
-              <Select
-                value={editProductPage.newArtworkCharge.displayMode}
-                onValueChange={(v: any) => editProductPage.setNewArtworkCharge(c => ({ ...c, displayMode: v }))}
-              >
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {editProductPage.newArtworkCharge.chargeCategory === "run" ? (
-                    <>
-                      <SelectItem value="display_to_client">Display to client (line item)</SelectItem>
-                      <SelectItem value="include_in_price">Include in unit price (hidden)</SelectItem>
-                    </>
-                  ) : (
-                    <>
-                      <SelectItem value="display_to_client">Display to client (line item)</SelectItem>
-                      <SelectItem value="subtract_from_margin">Subtract from margin (hidden)</SelectItem>
-                    </>
-                  )}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => editProductPage.setShowAddArtworkCharge(null)}>Cancel</Button>
-            <Button
-              disabled={!editProductPage.newArtworkCharge.chargeName || editProductPage.newArtworkCharge.retailPrice <= 0 || editProductPage.createArtworkChargeMutation.isPending}
-              onClick={() => {
-                const artId = editProductPage.showAddArtworkCharge;
-                if (!artId) return;
-                editProductPage.createArtworkChargeMutation.mutate({
-                  artworkId: artId,
-                  charge: {
-                    chargeName: editProductPage.newArtworkCharge.chargeName,
-                    chargeCategory: editProductPage.newArtworkCharge.chargeCategory,
-                    netCost: editProductPage.newArtworkCharge.netCost.toFixed(2),
-                    margin: editProductPage.newArtworkCharge.margin.toFixed(1),
-                    retailPrice: editProductPage.newArtworkCharge.retailPrice.toFixed(2),
-                    quantity: editProductPage.newArtworkCharge.chargeCategory === "fixed" ? editProductPage.newArtworkCharge.quantity : 1,
-                    displayMode: editProductPage.newArtworkCharge.displayMode,
-                  },
-                }, {
-                  onSuccess: () => {
-                    editProductPage.setShowAddArtworkCharge(null);
-                    editProductPage.setNewArtworkCharge({ chargeName: "", chargeCategory: "run", netCost: 0, margin: 0, retailPrice: 0, quantity: 1, displayMode: "display_to_client" });
-                  },
-                });
-              }}
-            >
-              {editProductPage.createArtworkChargeMutation.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Plus className="w-4 h-4 mr-2" />}
-              Add Charge
             </Button>
           </DialogFooter>
         </DialogContent>

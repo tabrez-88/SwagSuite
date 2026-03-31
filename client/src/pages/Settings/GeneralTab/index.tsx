@@ -70,7 +70,8 @@ export function GeneralTab({ adminSettings }: GeneralTabProps) {
               onChange={(e) => updateField("minimumMargin", e.target.value)}
             />
           </div>
-          <div className="space-y-2">
+          {/* Hidden until enforcement logic is implemented */}
+          {/* <div className="space-y-2">
             <Label htmlFor="maxOrderValue">Max Order Value ($)</Label>
             <Input
               id="maxOrderValue"
@@ -91,7 +92,7 @@ export function GeneralTab({ adminSettings }: GeneralTabProps) {
                 updateField("requireApprovalOver", e.target.value)
               }
             />
-          </div>
+          </div> */}
         </div>
         <Button onClick={saveSettings} className="w-full">
           <Save className="w-4 h-4 mr-2" />

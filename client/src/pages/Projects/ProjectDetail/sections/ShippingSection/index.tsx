@@ -676,6 +676,7 @@ export default function ShippingSection({ projectId, data, isLocked }: ShippingS
                 body: h.getNotifyEmailBody(h.notifyShipment),
               }}
               autoFillSender
+              richText
               onSend={async (formData) => {
                 await apiRequest("POST", `/api/projects/${projectId}/communications`, {
                   communicationType: "client_email",

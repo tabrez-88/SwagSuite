@@ -12,7 +12,9 @@ router.get("/api/media-library/:id", isAuthenticated, asyncHandler(MediaLibraryC
 router.post("/api/media-library/upload", isAuthenticated, (req, res, next) => {
   upload.array("files", 10)(req, res, (err) => {
     if (err) {
-      return res.status(400).json({ error: err.message || "File upload failed" });
+      const errorMessage = err instanceof Error ? err.message : JSON.stringify(err);
+      console.error('Media library upload failed:', errorMessage);
+      return res.status(400).json({ error: errorMessage || "File upload failed" });
     }
     next();
   });

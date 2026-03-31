@@ -127,6 +127,20 @@ export function useDeleteCharge(projectId: string | number) {
   });
 }
 
+export function useUpdateCharge(projectId: string | number) {
+  const { toast } = useToast();
+  const invalidate = useInvalidateProjectItems(projectId);
+  return useMutation({
+    mutationFn: ({ orderItemId, chargeId, updates }: { orderItemId: string | number; chargeId: string | number; updates: Record<string, any> }) =>
+      requests.updateCharge(orderItemId, chargeId, updates),
+    onSuccess: () => {
+      invalidate();
+      toast({ title: "Charge updated" });
+    },
+    onError: () => toast({ title: "Failed to update charge", variant: "destructive" }),
+  });
+}
+
 export function useToggleChargeDisplay(projectId: string | number) {
   const { toast } = useToast();
   const invalidate = useInvalidateProjectItems(projectId);
@@ -244,5 +258,26 @@ export function useDeleteArtworkCharge(projectId: string | number) {
       toast({ title: "Charge removed" });
     },
     onError: () => toast({ title: "Failed to remove charge", variant: "destructive" }),
+  });
+}
+
+export function useApplyMatrixPricing(projectId: string | number) {
+  const { toast } = useToast();
+  const invalidate = useInvalidateProjectItems(projectId);
+  return useMutation({
+    mutationFn: async ({ artworkId, supplierId, quantity }: { artworkId: string; supplierId: string; quantity: number }) => {
+      const { apiRequest } = await import("@/lib/queryClient");
+      const res = await apiRequest("POST", "/api/matrices/apply", { artworkId, supplierId, quantity });
+      return res.json();
+    },
+    onSuccess: (data) => {
+      invalidate();
+      if (data.applied) {
+        toast({ title: `Matrix pricing applied`, description: `${data.charges.length} charge(s) from "${data.matrixName}"` });
+      } else {
+        toast({ title: "No matrix pricing found", description: data.message, variant: "destructive" });
+      }
+    },
+    onError: () => toast({ title: "Failed to apply matrix pricing", variant: "destructive" }),
   });
 }

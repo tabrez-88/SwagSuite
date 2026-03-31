@@ -24,6 +24,7 @@ export class CommunicationService {
     attachmentIds?: string[];
     autoAttachArtworkForVendor?: string;
     autoAttachDocumentFile?: { fileUrl: string; fileName?: string };
+    additionalAttachments?: Array<{ fileUrl: string; fileName: string }>;
   }) {
     // Create communication record
     const communication = await communicationRepository.create({
@@ -64,6 +65,14 @@ export class CommunicationService {
     if (data.autoAttachDocumentFile?.fileUrl) {
       const docAttachment = await this.fetchDocumentAttachment(data.autoAttachDocumentFile);
       if (docAttachment) directBufferAttachments.push(docAttachment);
+    }
+
+    // User-selected additional attachments (from media library / file picker)
+    if (data.additionalAttachments && data.additionalAttachments.length > 0) {
+      for (const att of data.additionalAttachments) {
+        const fetched = await this.fetchDocumentAttachment({ fileUrl: att.fileUrl, fileName: att.fileName });
+        if (fetched) directBufferAttachments.push(fetched);
+      }
     }
 
     // Send email if direction is 'sent'
@@ -120,7 +129,7 @@ export class CommunicationService {
           await this.trackPOSending(orderId, userId, data.subject, data.recipientName, data.recipientEmail, order);
         }
       } catch (emailError) {
-        console.error('Failed to send email:', emailError);
+        console.error('Failed to send email:', emailError instanceof Error ? emailError.message : JSON.stringify(emailError));
         return {
           ...communication,
           emailStatus: 'failed',
@@ -204,7 +213,7 @@ export class CommunicationService {
         }
       }
     } catch (error) {
-      console.error('Warning: Failed to auto-attach artwork files:', error);
+      console.error('Warning: Failed to auto-attach artwork files:', error instanceof Error ? error.message : JSON.stringify(error));
     }
 
     return attachments;
@@ -214,13 +223,24 @@ export class CommunicationService {
     try {
       const axios = (await import('axios')).default;
       const response = await axios.get(doc.fileUrl, { responseType: 'arraybuffer' });
+      // Infer content type from file extension or response headers
+      const ext = (doc.fileName || doc.fileUrl).split('.').pop()?.toLowerCase();
+      const contentTypeMap: Record<string, string> = {
+        pdf: 'application/pdf', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg',
+        gif: 'image/gif', webp: 'image/webp', svg: 'image/svg+xml', ai: 'application/postscript',
+        eps: 'application/postscript', psd: 'image/vnd.adobe.photoshop',
+        doc: 'application/msword', docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        xls: 'application/vnd.ms-excel', xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        csv: 'text/csv',
+      };
+      const contentType = contentTypeMap[ext || ''] || response.headers['content-type'] || 'application/octet-stream';
       return {
-        filename: doc.fileName || 'purchase-order.pdf',
+        filename: doc.fileName || 'attachment',
         content: Buffer.from(response.data),
-        contentType: 'application/pdf',
+        contentType,
       };
     } catch (error) {
-      console.error('Warning: Failed to auto-attach document:', error);
+      console.error('Warning: Failed to auto-attach document:', error instanceof Error ? error.message : JSON.stringify(error));
       return null;
     }
   }
@@ -290,7 +310,7 @@ export class CommunicationService {
         });
       }
     } catch (error) {
-      console.error('PO tracking failed (non-critical):', error);
+      console.error('PO tracking failed (non-critical):', error instanceof Error ? error.message : JSON.stringify(error));
     }
   }
 }

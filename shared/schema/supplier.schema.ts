@@ -23,6 +23,7 @@ export const suppliers = pgTable("suppliers", {
   paymentTerms: varchar("payment_terms"),
   notes: text("notes"),
   isPreferred: boolean("is_preferred").default(false),
+  isDecorator: boolean("is_decorator").default(false),
   doNotOrder: boolean("do_not_order").default(false),
   // Enhanced vendor management
   ytdSpend: decimal("ytd_spend", { precision: 12, scale: 2 }).default("0"),

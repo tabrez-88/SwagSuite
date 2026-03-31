@@ -200,15 +200,27 @@ export default function QuoteApprovalPage() {
               <div className="pt-2">
                 <Button
                   variant="outline"
-                  onClick={() => {
-                    const link = document.createElement('a');
-                    link.href = approval.pdfPath!;
+                  onClick={async () => {
                     const fileName = `${docLabel.replace(' ', '-')}-${approval.orderNumber || 'document'}.pdf`;
-                    link.download = fileName;
-                    link.target = '_blank';
-                    document.body.appendChild(link);
-                    link.click();
-                    document.body.removeChild(link);
+                    try {
+                      // Fetch through proxy to get proper PDF binary
+                      const url = approval.pdfPath!.includes('cloudinary.com')
+                        ? `/api/pdf-proxy?url=${encodeURIComponent(approval.pdfPath!)}`
+                        : approval.pdfPath!;
+                      const response = await fetch(url);
+                      const blob = await response.blob();
+                      const blobUrl = URL.createObjectURL(blob);
+                      const a = document.createElement('a');
+                      a.href = blobUrl;
+                      a.download = fileName;
+                      document.body.appendChild(a);
+                      a.click();
+                      document.body.removeChild(a);
+                      URL.revokeObjectURL(blobUrl);
+                    } catch {
+                      // Fallback: open in new tab
+                      window.open(approval.pdfPath!, '_blank');
+                    }
                   }}
                   className={isSalesOrder ? "text-emerald-600 hover:text-emerald-800" : "text-blue-600 hover:text-blue-800"}
                 >

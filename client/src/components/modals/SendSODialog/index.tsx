@@ -55,6 +55,7 @@ export default function SendSODialog({
             body: `Hi ${recipientName.split(" ")[0] || "there"},\n\nPlease find the sales order for your project. Click the link below to review and approve.\n\nIf you have any questions or need changes, please don't hesitate to reach out.\n\nBest regards,\n${companyName}`,
           }}
           showAdvancedFields
+          richText
           footerHint="The approval link will be automatically added to the email."
           onSend={(data) => sendMutation.mutate(data)}
           isSending={sendMutation.isPending}

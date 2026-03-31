@@ -162,7 +162,7 @@ class EmailService {
               </div>
             ` : ''}
             <div style="color: #374151; line-height: 1.6; font-size: 14px;">
-              ${data.body.replace(/\n/g, '<br>')}
+              ${this.formatEmailBody(data.body)}
             </div>
           </div>
           <div style="background-color: #f9fafb; padding: 20px; text-align: center; border-top: 1px solid #e5e7eb;">
@@ -188,7 +188,7 @@ class EmailService {
       toName: data.toName,
       subject: data.subject,
       html,
-      text: data.body,
+      text: this.stripHtml(data.body),
     };
 
     // Add CC if provided
@@ -271,7 +271,7 @@ class EmailService {
               </div>
             ` : ''}
             <div style="color: #374151; line-height: 1.6; font-size: 14px;">
-              ${data.body.replace(/\n/g, '<br>')}
+              ${this.formatEmailBody(data.body)}
             </div>
           </div>
           <div style="background-color: #f9fafb; padding: 20px; text-align: center; border-top: 1px solid #e5e7eb;">
@@ -296,7 +296,7 @@ class EmailService {
       toName: data.toName,
       subject: data.subject,
       html,
-      text: data.body,
+      text: this.stripHtml(data.body),
     };
 
     // Add CC if provided
@@ -344,6 +344,36 @@ class EmailService {
 
     console.log('✓ Email sent:', info.messageId);
     return { id: info.messageId, ...info };
+  }
+
+  /**
+   * If body already contains HTML tags, use as-is. Otherwise convert newlines to <br>.
+   */
+  private formatEmailBody(body: string): string {
+    if (/<[a-z][\s\S]*>/i.test(body)) {
+      return body;
+    }
+    return body.replace(/\n/g, '<br>');
+  }
+
+  /**
+   * Strip HTML tags for plain text fallback.
+   */
+  private stripHtml(body: string): string {
+    if (!/<[a-z][\s\S]*>/i.test(body)) return body;
+    return body
+      .replace(/<br\s*\/?>/gi, '\n')
+      .replace(/<\/p>/gi, '\n')
+      .replace(/<\/div>/gi, '\n')
+      .replace(/<\/li>/gi, '\n')
+      .replace(/<[^>]+>/g, '')
+      .replace(/&nbsp;/g, ' ')
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
   }
 
   async testConnection(testEmailTo?: string): Promise<boolean> {
@@ -412,7 +442,7 @@ class EmailService {
 
       return true;
     } catch (error) {
-      console.error('❌ SMTP connection failed:', error);
+      console.error('❌ SMTP connection failed:', error instanceof Error ? error.message : JSON.stringify(error));
       throw error;
     }
   }

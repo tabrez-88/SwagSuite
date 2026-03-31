@@ -17,13 +17,14 @@ export class CommunicationController {
       communicationType, direction, fromEmail, fromName,
       recipientEmail, recipientName, subject, body, metadata,
       attachmentIds, autoAttachArtworkForVendor, autoAttachDocumentFile,
-      cc, bcc,
+      additionalAttachments, cc, bcc,
     } = req.body;
 
     const result = await communicationService.create(projectId, userId, {
       communicationType, direction, fromEmail, fromName,
       recipientEmail, recipientName, subject, body, metadata,
       cc, bcc, attachmentIds, autoAttachArtworkForVendor, autoAttachDocumentFile,
+      additionalAttachments,
     });
 
     // If email failed, return 207 (partial success)

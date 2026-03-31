@@ -18,12 +18,15 @@ import {
   ClipboardList, Copy, Download, ExternalLink, Eye, FileText, Loader2,
   Mail, MoreHorizontal, Package, Palette, Printer, Send, ShieldCheck, Upload,
 } from "lucide-react";
+import { apiRequest } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 import EmailComposer from "@/components/email/EmailComposer";
 import type { EmailContact } from "@/components/email/types";
 import type { OrderItemLine } from "@shared/schema";
 import PurchaseOrderTemplate from "@/components/documents/PurchaseOrderTemplate";
 import GeneratedDocumentCard from "@/components/documents/GeneratedDocumentCard";
 import { DocumentEditor } from "@/components/feature/DocumentEditor";
+import { getCloudinaryThumbnail } from "@/lib/media-library";
 import FilePickerDialog from "@/components/modals/FilePickerDialog";
 import { FilePreviewModal } from "@/components/modals/FilePreviewModal";
 import { EditableDate } from "@/components/shared/InlineEditable";
@@ -32,6 +35,7 @@ import { usePurchaseOrdersSection } from "./hooks";
 
 export default function PurchaseOrdersSection({ projectId, data, isLocked }: PurchaseOrdersSectionProps) {
   const h = usePurchaseOrdersSection({ projectId, data, isLocked });
+  const { toast } = useToast();
 
   return (
     <div className="space-y-5">
@@ -148,6 +152,11 @@ export default function PurchaseOrdersSection({ projectId, data, isLocked }: Pur
                           {isDecorator && <Badge variant="outline" className="text-[10px] border-purple-200 text-purple-600 bg-purple-50">Decorator</Badge>}
                           {stageInfo && <Badge variant="outline" className={`text-[10px] ${stageInfo.color}`}>{stageInfo.label}</Badge>}
                           {statusInfo && poStatus !== "ok" && <Badge variant="outline" className={`text-[10px] ${statusInfo.color}`}>{statusInfo.label}</Badge>}
+                          {vendorDoc && h.isVendorDocStale(vendorDoc) && (
+                            <Badge variant="outline" className="text-[10px] border-orange-300 text-orange-600 bg-orange-50">
+                              <AlertTriangle className="w-2.5 h-2.5 mr-0.5" /> Outdated
+                            </Badge>
+                          )}
                           {effectiveIhd ? (
                             <Badge variant="outline" className={`text-[10px] ${vendorIhdValue ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-gray-50 text-gray-600 border-gray-200'}`}>
                               <Calendar className="w-3 h-3 mr-1" />
@@ -188,7 +197,7 @@ export default function PurchaseOrdersSection({ projectId, data, isLocked }: Pur
                       </div>
 
                       {/* Actions */}
-                      <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
+                      <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
                         {!vendorDoc ? (
                           <Button variant="default" size="sm" className="h-7 text-xs gap-1"
                             onClick={() => h.handleGeneratePO(vendorKey, po.vendor.name)}
@@ -198,6 +207,14 @@ export default function PurchaseOrdersSection({ projectId, data, isLocked }: Pur
                           </Button>
                         ) : (
                           <>
+                            {h.isVendorDocStale(vendorDoc) && (
+                              <Button variant="destructive" size="sm" className="h-7 text-xs gap-1"
+                                onClick={() => h.handleRegeneratePO(vendorDoc)}
+                                disabled={h.isGenerating || h.isLocked}>
+                                {h.generatingVendorId ? <Loader2 className="w-3 h-3 animate-spin" /> : <AlertTriangle className="w-3 h-3" />}
+                                Regenerate PO
+                              </Button>
+                            )}
                             {poStage === "created" && (
                               <Button variant="default" size="sm" className="h-7 text-xs gap-1"
                                 onClick={() => h.openEmailPO(vendorDoc, po.vendor)} disabled={h.isLocked}>
@@ -205,7 +222,7 @@ export default function PurchaseOrdersSection({ projectId, data, isLocked }: Pur
                               </Button>
                             )}
                             {(poStage === "submitted") && vendorDoc && (
-                              <Button variant="outline" size="sm" className="h-7 text-xs gap-1 border-green-200 text-green-700 hover:bg-green-50"
+                              <Button variant="outline" size="sm" className="h-7 text-xs gap-1 border-green-200 text-green-700"
                                 onClick={() => h.updateDocMetaMutation.mutate({
                                   docId: vendorDoc.id,
                                   updates: { metadata: { ...vendorDoc.metadata, poStage: "confirmed" } },
@@ -224,9 +241,17 @@ export default function PurchaseOrdersSection({ projectId, data, isLocked }: Pur
                               <DropdownMenuContent align="end">
                                 {poStage !== "created" && (
                                   <DropdownMenuItem onClick={() => h.openEmailPO(vendorDoc, po.vendor)}>
-                                    <Mail className="w-4 h-4 mr-2" /> Resend PO Email
+                                    <Mail className="w-4 h-4 mr-2" /> Resend PO
                                   </DropdownMenuItem>
                                 )}
+                                <DropdownMenuItem onClick={() => h.setNotifyVendor({
+                                  vendor: po.vendor,
+                                  subject: `Update — Order #${(h.order as any)?.orderNumber || ""}`,
+                                  body: "",
+                                })}>
+                                  <Send className="w-4 h-4 mr-2" /> Email Vendor
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
                                 <DropdownMenuItem onClick={() => h.setPreviewDocument(vendorDoc)}>
                                   <Eye className="w-4 h-4 mr-2" /> Preview PDF
                                 </DropdownMenuItem>
@@ -247,6 +272,10 @@ export default function PurchaseOrdersSection({ projectId, data, isLocked }: Pur
                                   <Copy className="w-4 h-4 mr-2" /> Copy to Clipboard
                                 </DropdownMenuItem>
                                 <DropdownMenuSeparator />
+                                <DropdownMenuItem onClick={() => h.handleRegeneratePO(vendorDoc)}
+                                  className="text-orange-600">
+                                  <Printer className="w-4 h-4 mr-2" /> Regenerate PO
+                                </DropdownMenuItem>
                                 {poStage === "submitted" && (
                                   <DropdownMenuItem onClick={() => h.updateDocMetaMutation.mutate({
                                     docId: vendorDoc.id,
@@ -299,199 +328,9 @@ export default function PurchaseOrdersSection({ projectId, data, isLocked }: Pur
                 {/* Expanded — items + proofing */}
                 {isExpanded && (
                   <div className="border-t">
-                    {/* Items List */}
-                    <div className="bg-gray-50/50">
-                      {po.items.map((item: any, idx: number) => {
-                        const itemLines = po.lines[item.id] || [];
-                        return (
-                          <div key={item.id} className={`px-6 py-3 ${idx < po.items.length - 1 ? "border-b" : ""}`}>
-                            <div className="flex items-center justify-between mb-2">
-                              <div className="flex items-center gap-2">
-                                <Package className="w-4 h-4 text-gray-400" />
-                                <span className="text-sm font-medium">{item.productName || "Product"}</span>
-                                <span className="text-xs text-blue-600">{item.productSku || ""}</span>
-                              </div>
-                            </div>
-                            {itemLines.length > 0 ? (
-                              <div className="border rounded bg-white overflow-hidden">
-                                <table className="w-full text-xs">
-                                  <thead className="bg-gray-50 border-b">
-                                    <tr>
-                                      <th className="text-left p-2 font-medium">Color</th>
-                                      <th className="text-left p-2 font-medium">Size</th>
-                                      <th className="text-right p-2 font-medium">Qty</th>
-                                      <th className="text-right p-2 font-medium">Cost</th>
-                                      <th className="text-right p-2 font-medium">Ext. Cost</th>
-                                    </tr>
-                                  </thead>
-                                  <tbody>
-                                    {itemLines.map((l) => {
-                                      const qty = l.quantity || 0;
-                                      const cost = parseFloat(l.cost || "0");
-                                      return (
-                                        <tr key={l.id} className="border-b last:border-0">
-                                          <td className="p-2">{l.color || "--"}</td>
-                                          <td className="p-2">{l.size || "--"}</td>
-                                          <td className="p-2 text-right font-medium">{qty}</td>
-                                          <td className="p-2 text-right">${cost.toFixed(2)}</td>
-                                          <td className="p-2 text-right font-medium">${(qty * cost).toFixed(2)}</td>
-                                        </tr>
-                                      );
-                                    })}
-                                  </tbody>
-                                </table>
-                              </div>
-                            ) : (
-                              <div className="text-xs text-gray-500 flex gap-4 ml-6">
-                                <span>Qty: <strong>{item.quantity}</strong></span>
-                                <span>Cost: <strong>${parseFloat(item.cost || item.unitPrice || "0").toFixed(2)}</strong></span>
-                                {item.color && <span>Color: {item.color}</span>}
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-
-                    {/* Proofing Section */}
-                    {vendorArtworks.length > 0 && (
-                      <div className="border-t p-4">
-                        <div className="flex items-center justify-between mb-3">
-                          <h4 className="text-sm font-semibold flex items-center gap-2">
-                            <Palette className="w-4 h-4 text-purple-500" />
-                            Artwork Proofs
-                            <Badge variant="secondary" className="text-[10px]">
-                              {vendorArtworks.filter((a: any) => a.proofRequired !== false && ["approved", "proofing_complete"].includes(a.status)).length}/{vendorArtworks.filter((a: any) => a.proofRequired !== false).length} approved
-                            </Badge>
-                          </h4>
-                          {!h.isLocked && vendorArtworks.some((a: any) => a.proofRequired !== false && a.proofFilePath && ["proof_received", "change_requested"].includes(a.status)) && (
-                            <Button variant="default" size="sm" className="h-7 text-xs gap-1"
-                              onClick={() => h.openSendAllProofs(vendorKey)}>
-                              <Send className="w-3 h-3" /> Send All Proofs to Client
-                            </Button>
-                          )}
-                        </div>
-                        <div className="space-y-3">
-                          {vendorArtworks.map((art: any) => {
-                            const proofRequired = art.proofRequired !== false;
-                            const si = h.PROOF_STATUSES[art.status] || h.PROOF_STATUSES.pending;
-                            const canRequestProof = proofRequired && ["pending", "change_requested"].includes(art.status || "pending");
-                            const canUpload = proofRequired && ["pending", "awaiting_proof", "change_requested"].includes(art.status || "pending");
-                            const canMarkComplete = proofRequired && art.status === "approved";
-
-                            return (
-                              <div key={art.id} className={`rounded-lg border ${proofRequired ? "" : "opacity-50"}`}>
-                                <div className="flex items-center gap-3 p-3">
-                                  <div className="w-12 h-12 flex-shrink-0 bg-white rounded border overflow-hidden flex items-center justify-center cursor-pointer"
-                                    onClick={() => { const url = art.fileUrl || art.filePath; if (url) h.setPreviewFile({ url, name: art.name || "Artwork" }); }}>
-                                    {art.fileUrl || art.filePath ? (
-                                      <img src={art.fileUrl || art.filePath} alt="" className="w-full h-full object-contain p-0.5" />
-                                    ) : (
-                                      <Palette className="w-5 h-5 text-gray-300" />
-                                    )}
-                                  </div>
-
-                                  <div className="flex-1 min-w-0">
-                                    <p className="text-sm font-medium truncate">{art.name || art.fileName}</p>
-                                    <p className="text-xs text-gray-500">
-                                      {art.productName}
-                                      {art.location && <span className="ml-1 text-gray-400">· {art.location}</span>}
-                                      {art.artworkType && <span className="ml-1 text-gray-400">· {art.artworkType}</span>}
-                                    </p>
-                                  </div>
-
-                                  <div className="flex items-center gap-1.5" title={proofRequired ? "Proof required" : "No proof needed"}>
-                                    <ShieldCheck className={`w-3.5 h-3.5 ${proofRequired ? "text-blue-500" : "text-gray-300"}`} />
-                                    <Switch
-                                      checked={proofRequired}
-                                      onCheckedChange={(checked) => {
-                                        h.updateArtworkMutation.mutate({
-                                          artworkId: art.id, orderItemId: art.orderItemId,
-                                          updates: { name: art.name, proofRequired: checked },
-                                        });
-                                      }}
-                                      className="h-4 w-7"
-                                      disabled={h.isLocked}
-                                    />
-                                  </div>
-
-                                  {proofRequired ? (
-                                    <Badge className={`text-[10px] ${si.color}`}>{si.label}</Badge>
-                                  ) : (
-                                    <Badge variant="outline" className="text-[10px] text-gray-400">No Proof</Badge>
-                                  )}
-                                </div>
-
-                                {proofRequired && art.proofFilePath && (
-                                  <div className="px-3 pb-2">
-                                    <div className="flex items-center gap-3 p-2 bg-blue-50 rounded-md border border-blue-100">
-                                      <div className="w-10 h-10 flex-shrink-0 bg-white rounded border overflow-hidden cursor-pointer"
-                                        onClick={() => h.setPreviewFile({ url: art.proofFilePath, name: art.proofFileName || "Vendor Proof" })}>
-                                        <img src={art.proofFilePath} alt="Proof" className="w-full h-full object-contain p-0.5" />
-                                      </div>
-                                      <div className="flex-1 min-w-0">
-                                        <p className="text-xs font-medium text-blue-700">Vendor Proof</p>
-                                        <p className="text-[10px] text-blue-500 truncate">{art.proofFileName || "proof-file"}</p>
-                                      </div>
-                                      <Button variant="ghost" size="sm" className="h-7 text-xs text-blue-600 hover:text-blue-800"
-                                        onClick={() => h.setPreviewFile({ url: art.proofFilePath, name: art.proofFileName || "Vendor Proof" })}>
-                                        <Eye className="w-3 h-3 mr-1" /> View
-                                      </Button>
-                                    </div>
-                                  </div>
-                                )}
-
-                                {proofRequired && !h.isLocked && (
-                                  <div className="flex items-center gap-2 px-3 pb-3 flex-wrap">
-                                    {canRequestProof && (
-                                      <Button variant="outline" size="sm" className="h-7 text-xs gap-1"
-                                        onClick={() => {
-                                          h.updateArtworkMutation.mutate({
-                                            artworkId: art.id, orderItemId: art.orderItemId,
-                                            updates: { name: art.name, status: "awaiting_proof" },
-                                          });
-                                        }}>
-                                        <Mail className="w-3 h-3" /> Request Proof
-                                      </Button>
-                                    )}
-
-                                    {canUpload && (
-                                      <Button variant="outline" size="sm" className="h-7 text-xs gap-1 border-blue-200 text-blue-700 hover:bg-blue-50"
-                                        onClick={() => h.setUploadProofArt(art)}>
-                                        <Upload className="w-3 h-3" /> Upload Proof
-                                      </Button>
-                                    )}
-
-                                    {canMarkComplete && (
-                                      <Button variant="outline" size="sm" className="h-7 text-xs gap-1 border-green-200 text-green-700 hover:bg-green-50"
-                                        onClick={() => {
-                                          h.updateArtworkMutation.mutate({
-                                            artworkId: art.id, orderItemId: art.orderItemId,
-                                            updates: { name: art.name, status: "proofing_complete" },
-                                          });
-                                        }}>
-                                        <CheckCircle className="w-3 h-3" /> Complete
-                                      </Button>
-                                    )}
-
-                                    {art.status === "change_requested" && art.proofFilePath && (
-                                      <Button variant="outline" size="sm" className="h-7 text-xs gap-1 border-orange-200 text-orange-700 hover:bg-orange-50"
-                                        onClick={() => h.setUploadProofArt(art)}>
-                                        <Upload className="w-3 h-3" /> Re-upload Proof
-                                      </Button>
-                                    )}
-                                  </div>
-                                )}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
-
                     {/* PO Stage selector + Supplier IHD */}
                     {vendorDoc && (
-                      <div className="border-t p-4 flex items-center gap-4 flex-wrap">
+                      <div className="border-b p-4 flex items-center gap-4 flex-wrap">
                         <div>
                           <label className="text-[10px] font-medium text-gray-500 block mb-1">PO Stage</label>
                           <Select
@@ -564,6 +403,220 @@ export default function PurchaseOrdersSection({ projectId, data, isLocked }: Pur
                         )}
                       </div>
                     )}
+                    {/* Items List */}
+                    <div className="bg-gray-50/50">
+                      {po.items.map((item: any, idx: number) => {
+                        const itemLines = po.lines[item.id] || [];
+                        return (
+                          <div key={item.id} className={`px-6 py-3 ${idx < po.items.length - 1 ? "border-b" : ""}`}>
+                            <div className="flex items-center justify-between mb-2">
+                              <div className="flex items-center gap-2">
+                                <Package className="w-4 h-4 text-gray-400" />
+                                <span className="text-sm font-medium">{item.productName || "Product"}</span>
+                                <span className="text-xs text-blue-600">{item.productSku || ""}</span>
+                              </div>
+                            </div>
+                            {itemLines.length > 0 ? (
+                              <div className="border rounded bg-white overflow-hidden">
+                                <table className="w-full text-xs">
+                                  <thead className="bg-gray-50 border-b">
+                                    <tr>
+                                      <th className="text-left p-2 font-medium">Color</th>
+                                      <th className="text-left p-2 font-medium">Size</th>
+                                      <th className="text-right p-2 font-medium">Qty</th>
+                                      <th className="text-right p-2 font-medium">Cost</th>
+                                      <th className="text-right p-2 font-medium">Amount</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {itemLines.map((l) => {
+                                      const qty = l.quantity || 0;
+                                      const cost = parseFloat(l.cost || "0");
+                                      return (
+                                        <tr key={l.id} className="border-b last:border-0">
+                                          <td className="p-2">{l.color || "--"}</td>
+                                          <td className="p-2">{l.size || "--"}</td>
+                                          <td className="p-2 text-right font-medium">{qty}</td>
+                                          <td className="p-2 text-right">${cost.toFixed(2)}</td>
+                                          <td className="p-2 text-right font-medium">${(qty * cost).toFixed(2)}</td>
+                                        </tr>
+                                      );
+                                    })}
+                                  </tbody>
+                                </table>
+                              </div>
+                            ) : (
+                              <div className="text-xs text-gray-500 flex gap-4 ml-6">
+                                <span>Qty: <strong>{item.quantity}</strong></span>
+                                <span>Cost: <strong>${parseFloat(item.cost || item.unitPrice || "0").toFixed(2)}</strong></span>
+                                {item.color && <span>Color: {item.color}</span>}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* Proofing Section */}
+                    {vendorArtworks.length > 0 && (
+                      <div className="border-t p-4">
+                        <div className="flex items-center justify-between mb-3">
+                          <h4 className="text-sm font-semibold flex items-center gap-2">
+                            <Palette className="w-4 h-4 text-purple-500" />
+                            Artwork Proofs
+                            <Badge variant="secondary" className="text-[10px]">
+                              {vendorArtworks.filter((a: any) => a.proofRequired !== false && ["approved", "proofing_complete"].includes(a.status)).length}/{vendorArtworks.filter((a: any) => a.proofRequired !== false).length} approved
+                            </Badge>
+                          </h4>
+                          {!h.isLocked && vendorArtworks.some((a: any) => a.proofRequired !== false && a.proofFilePath && ["proof_received", "change_requested"].includes(a.status)) && (
+                            <Button variant="default" size="sm" className="h-7 text-xs gap-1"
+                              onClick={() => h.openSendAllProofs(vendorKey)}>
+                              <Send className="w-3 h-3" /> Send All Proofs to Client
+                            </Button>
+                          )}
+                        </div>
+                        <div className="space-y-3">
+                          {vendorArtworks.map((art: any) => {
+                            const proofRequired = art.proofRequired !== false;
+                            const si = h.PROOF_STATUSES[art.status] || h.PROOF_STATUSES.pending;
+                            const canRequestProof = proofRequired && ["pending", "change_requested"].includes(art.status || "pending");
+                            const canUpload = proofRequired && ["pending", "awaiting_proof", "change_requested"].includes(art.status || "pending");
+                            const canMarkComplete = proofRequired && art.status === "approved";
+
+                            return (
+                              <div key={art.id} className={`rounded-lg border`}>
+                                <div className="flex items-center gap-3 p-3">
+                                  <div className="w-12 h-12 flex-shrink-0 bg-white rounded border overflow-hidden flex items-center justify-center cursor-pointer"
+                                    onClick={() => { const url = art.fileUrl || art.filePath; if (url) h.setPreviewFile({ url, name: art.name || "Artwork" }); }}>
+                                    {art.fileUrl || art.filePath ? (
+                                      (() => {
+                                        const url = art.fileUrl || art.filePath;
+                                        const ext = url.split("?")[0].split(".").pop()?.toLowerCase();
+                                        const isDesignFile = ["ai", "eps", "psd"].includes(ext || "");
+                                        const imgSrc = isDesignFile && url.includes("cloudinary.com")
+                                          ? getCloudinaryThumbnail(url, 96, 96) : url;
+                                        return <img src={imgSrc} alt="" className="w-full h-full object-contain p-0.5"
+                                          onError={(e) => { (e.target as HTMLImageElement).style.display = "none";
+                                            e.currentTarget.parentElement?.insertAdjacentHTML("afterbegin",
+                                              `<span class="text-[9px] text-gray-400 uppercase font-medium">.${ext || "file"}</span>`);
+                                          }} />;
+                                      })()
+                                    ) : (
+                                      <Palette className="w-5 h-5 text-gray-300" />
+                                    )}
+                                  </div>
+
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-medium truncate">{art.name || art.fileName}</p>
+                                    <p className="text-xs text-gray-500">
+                                      {art.productName}
+                                      {art.location && <span className="ml-1 text-gray-400">· {art.location}</span>}
+                                      {art.artworkType && <span className="ml-1 text-gray-400">· {art.artworkType}</span>}
+                                    </p>
+                                  </div>
+
+                                  <div className="flex flex-col items-start gap-1.5" title={proofRequired ? "Proof required" : "No proof needed"}>
+                                    <div className="flex gap-1 items-center justify-start">
+                                      <ShieldCheck className={`w-3.5 h-3.5 ${proofRequired ? "text-blue-500" : "text-gray-300"}`} />
+                                      <p className="text-xs">Proof Required </p>
+                                    </div>
+                                    <div className="flex gap-2 w-full">
+                                      <Switch
+                                        checked={proofRequired}
+                                        onCheckedChange={(checked) => {
+                                          h.updateArtworkMutation.mutate({
+                                            artworkId: art.id, orderItemId: art.orderItemId,
+                                            updates: { name: art.name, proofRequired: checked },
+                                          });
+                                        }}
+                                        disabled={h.isLocked}
+                                      />
+                                      {proofRequired ? (
+                                        <Badge className={`text-[10px] ${si.color}`}>{si.label}</Badge>
+                                      ) : (
+                                        <Badge variant="outline" className="text-[10px] text-gray-400">No Proof</Badge>
+                                      )}
+                                    </div>
+
+                                  </div>
+
+                                </div>
+
+                                {proofRequired && art.proofFilePath && (
+                                  <div className="px-3 pb-2">
+                                    <div className="flex items-center gap-3 p-2 bg-blue-50 rounded-md border border-blue-100">
+                                      <div className="w-10 h-10 flex-shrink-0 bg-white rounded border overflow-hidden cursor-pointer"
+                                        onClick={() => h.setPreviewFile({ url: art.proofFilePath, name: art.proofFileName || "Vendor Proof" })}>
+                                        {(() => {
+                                          const pExt = art.proofFilePath.split("?")[0].split(".").pop()?.toLowerCase();
+                                          const pIsDesign = ["ai", "eps", "psd"].includes(pExt || "");
+                                          const pSrc = pIsDesign && art.proofFilePath.includes("cloudinary.com")
+                                            ? getCloudinaryThumbnail(art.proofFilePath, 80, 80) : art.proofFilePath;
+                                          return <img src={pSrc} alt="Proof" className="w-full h-full object-contain p-0.5"
+                                            onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />;
+                                        })()}
+                                      </div>
+                                      <div className="flex-1 min-w-0">
+                                        <p className="text-xs font-medium text-blue-700">Vendor Proof</p>
+                                        <p className="text-[10px] text-blue-500 truncate">{art.proofFileName || "proof-file"}</p>
+                                      </div>
+                                      <Button variant="ghost" size="sm" className="h-7 text-xs text-blue-600 hover:text-blue-800"
+                                        onClick={() => h.setPreviewFile({ url: art.proofFilePath, name: art.proofFileName || "Vendor Proof" })}>
+                                        <Eye className="w-3 h-3 mr-1" /> View
+                                      </Button>
+                                    </div>
+                                  </div>
+                                )}
+
+                                {proofRequired && !h.isLocked && (
+                                  <div className="flex items-center gap-2 px-3 pb-3 flex-wrap">
+                                    {canRequestProof && (
+                                      <Button variant="outline" size="sm" className="h-7 text-xs gap-1"
+                                        onClick={() => {
+                                          h.updateArtworkMutation.mutate({
+                                            artworkId: art.id, orderItemId: art.orderItemId,
+                                            updates: { name: art.name, status: "awaiting_proof" },
+                                          });
+                                        }}>
+                                        <Mail className="w-3 h-3" /> Request Proof
+                                      </Button>
+                                    )}
+
+                                    {canUpload && (
+                                      <Button variant="outline" size="sm" className="h-7 text-xs gap-1 border-blue-200 text-blue-700 hover:bg-blue-50"
+                                        onClick={() => h.setUploadProofArt(art)}>
+                                        <Upload className="w-3 h-3" /> Upload Proof
+                                      </Button>
+                                    )}
+
+                                    {canMarkComplete && (
+                                      <Button variant="outline" size="sm" className="h-7 text-xs gap-1 border-green-200 text-green-700 hover:bg-green-50"
+                                        onClick={() => {
+                                          h.updateArtworkMutation.mutate({
+                                            artworkId: art.id, orderItemId: art.orderItemId,
+                                            updates: { name: art.name, status: "proofing_complete" },
+                                          });
+                                        }}>
+                                        <CheckCircle className="w-3 h-3" /> Complete
+                                      </Button>
+                                    )}
+
+                                    {art.status === "change_requested" && art.proofFilePath && (
+                                      <Button variant="outline" size="sm" className="h-7 text-xs gap-1 border-orange-200 text-orange-700 hover:bg-orange-50"
+                                        onClick={() => h.setUploadProofArt(art)}>
+                                        <Upload className="w-3 h-3" /> Re-upload Proof
+                                      </Button>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    
                   </div>
                 )}
               </Card>
@@ -660,7 +713,10 @@ export default function PurchaseOrdersSection({ projectId, data, isLocked }: Pur
               })(),
             }}
             showAdvancedFields
-            footerHint="The PO PDF and artwork files will be automatically attached."
+            richText
+            showAttachments
+            contextProjectId={String(h.order?.id || "")}
+            footerHint="The PO PDF and artwork files will be automatically attached. You can also attach additional files above."
             onSend={(formData) => {
               if (!h.emailPOVendor) return;
               h.sendPOEmailMutation.mutate({ doc: h.emailPOVendor.doc, formData });
@@ -715,6 +771,7 @@ export default function PurchaseOrdersSection({ projectId, data, isLocked }: Pur
               })(),
             }}
             showAdvancedFields
+            richText
             beforeBody={
               <div className="space-y-2 max-h-[200px] overflow-y-auto">
                 {h.sendProofArts.map((art: any) => {
@@ -803,12 +860,34 @@ export default function PurchaseOrdersSection({ projectId, data, isLocked }: Pur
                     {h.previewPO.items.map((item: any) => {
                       const qty = item.quantity || 0;
                       const cost = parseFloat(item.cost || item.unitPrice || "0");
+                      const itemArts = h.allArtworkItems[item.id] || [];
                       return (
                         <tr key={item.id} className="border-b">
-                          <td className="p-3"><p className="font-medium">{item.productName}</p><p className="text-xs text-gray-500">{item.productSku}</p></td>
-                          <td className="p-3 text-right">{qty}</td>
-                          <td className="p-3 text-right">${cost.toFixed(2)}</td>
-                          <td className="p-3 text-right font-medium">${(qty * cost).toFixed(2)}</td>
+                          <td className="p-3">
+                            <p className="font-medium">{item.productName}</p>
+                            <p className="text-xs text-gray-500">{item.productSku}</p>
+                            {itemArts.length > 0 && (
+                              <div className="mt-2 space-y-1">
+                                {itemArts.map((art: any) => (
+                                  <div key={art.id} className="flex items-center gap-2 text-[10px] text-gray-500 bg-gray-50 rounded px-2 py-1">
+                                    {art.filePath && (() => {
+                                      const ext = art.filePath.split("?")[0].split(".").pop()?.toLowerCase();
+                                      const isDesign = ["ai", "eps", "psd"].includes(ext || "");
+                                      const src = isDesign && art.filePath.includes("cloudinary.com")
+                                        ? getCloudinaryThumbnail(art.filePath, 48, 48) : art.filePath;
+                                      return <img src={src} className="w-6 h-6 rounded object-contain border" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />;
+                                    })()}
+                                    <span className="font-medium">{art.name}</span>
+                                    {art.artworkType && <span>· {art.artworkType}</span>}
+                                    {art.location && <span>· {art.location}</span>}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </td>
+                          <td className="p-3 text-right align-top">{qty}</td>
+                          <td className="p-3 text-right align-top">${cost.toFixed(2)}</td>
+                          <td className="p-3 text-right font-medium align-top">${(qty * cost).toFixed(2)}</td>
                         </tr>
                       );
                     })}
@@ -825,6 +904,46 @@ export default function PurchaseOrdersSection({ projectId, data, isLocked }: Pur
         </DialogContent>
       </Dialog>
 
+      {/* Notify Vendor Email Dialog (general email, no PO stage change) */}
+      <Dialog open={!!h.notifyVendor} onOpenChange={(open) => !open && h.setNotifyVendor(null)}>
+        <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Send className="w-5 h-5" /> Email Vendor — {h.notifyVendor?.vendor?.name}
+            </DialogTitle>
+          </DialogHeader>
+          {h.notifyVendor && (
+            <EmailComposer
+              defaults={{
+                to: h.notifyVendor.vendor.email || "",
+                toName: h.notifyVendor.vendor.name || "",
+                subject: h.notifyVendor.subject || "",
+                body: h.notifyVendor.body || "",
+              }}
+              autoFillSender
+              richText
+              onSend={async (formData) => {
+                await apiRequest("POST", `/api/projects/${projectId}/communications`, {
+                  communicationType: "vendor_email",
+                  direction: "sent",
+                  recipientEmail: formData.to,
+                  recipientName: formData.toName,
+                  subject: formData.subject,
+                  body: formData.body,
+                  cc: formData.cc || undefined,
+                  bcc: formData.bcc || undefined,
+                  metadata: { type: "vendor_notification", vendorId: h.notifyVendor?.vendor?.id },
+                });
+                toast({ title: "Email sent to vendor" });
+                h.setNotifyVendor(null);
+              }}
+              onCancel={() => h.setNotifyVendor(null)}
+              sendLabel="Send Email"
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+
       {/* Document Editor */}
       {h.previewDocument && (
         <DocumentEditor document={h.previewDocument} order={h.order} orderItems={h.orderItems}
@@ -836,8 +955,10 @@ export default function PurchaseOrdersSection({ projectId, data, isLocked }: Pur
       {/* File Preview */}
       {h.previewFile && (
         <FilePreviewModal open={true}
-          file={{ fileName: h.previewFile.name, originalName: h.previewFile.name, filePath: h.previewFile.url,
-            mimeType: h.previewFile.url.match(/\.(png|jpg|jpeg|gif|webp|svg)$/i) ? "image/png" : "application/pdf" }}
+          file={{
+            fileName: h.previewFile.name, originalName: h.previewFile.name, filePath: h.previewFile.url,
+            mimeType: h.previewFile.url.match(/\.(png|jpg|jpeg|gif|webp|svg)$/i) ? "image/png" : "application/pdf"
+          }}
           onClose={() => h.setPreviewFile(null)} />
       )}
     </div>

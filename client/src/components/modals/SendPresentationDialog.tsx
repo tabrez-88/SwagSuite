@@ -85,6 +85,7 @@ export default function SendPresentationDialog({
             body: `Hi ${recipientName.split(" ")[0] || "there"},\n\nPlease find our product presentation for your upcoming project. Click the link below to view and comment on the products.\n\nWe look forward to your feedback!\n\nBest regards,\n${companyName}`,
           }}
           showAdvancedFields
+          richText
           footerHint="The presentation link will be automatically added to the email."
           onSend={(data) => sendMutation.mutate(data)}
           isSending={sendMutation.isPending}

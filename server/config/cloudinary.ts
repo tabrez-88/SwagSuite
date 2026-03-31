@@ -15,8 +15,12 @@ const ALLOWED_FORMATS = [
   'pdf', // PDF
   'ai', 'eps', 'svg', // Vector/Design files
   'xlsx', 'xls', 'csv', // Spreadsheets
-  'docx', 'doc', // Documents
+  'docx', 'doc', 'txt', 'rtf', // Documents
+  'ppt', 'pptx', // Presentations
   'psd', // Photoshop
+  'mp4', 'webm', 'mov', // Video
+  'mp3', 'wav', // Audio
+  'zip', 'rar', // Archives
 ];
 
 // Create storage for general file uploads
@@ -27,23 +31,39 @@ const generalStorage = new CloudinaryStorage({
     let folder = 'general';
     const ext = file.originalname.split('.').pop()?.toLowerCase() || '';
     
+    const RAW_EXTENSIONS = ['pdf', 'xls', 'xlsx', 'csv', 'doc', 'docx', 'ppt', 'pptx', 'txt', 'rtf', 'zip', 'rar'];
+
     if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext)) {
       folder = 'images';
-    } else if (['pdf'].includes(ext)) {
+    } else if (['pdf', 'docx', 'doc', 'txt', 'rtf'].includes(ext)) {
       folder = 'documents';
     } else if (['ai', 'eps', 'svg', 'psd'].includes(ext)) {
       folder = 'design-files';
     } else if (['xlsx', 'xls', 'csv'].includes(ext)) {
       folder = 'spreadsheets';
-    } else if (['docx', 'doc'].includes(ext)) {
-      folder = 'documents';
+    } else if (['ppt', 'pptx'].includes(ext)) {
+      folder = 'presentations';
+    } else if (['mp4', 'webm', 'mov'].includes(ext)) {
+      folder = 'videos';
+    } else if (['mp3', 'wav'].includes(ext)) {
+      folder = 'audio';
+    } else if (['zip', 'rar'].includes(ext)) {
+      folder = 'archives';
     }
+
+    const isRaw = RAW_EXTENSIONS.includes(ext);
+    const isVideo = ['mp4', 'webm', 'mov'].includes(ext);
+    const resourceType = isRaw ? 'raw' as const : (isVideo ? 'video' as const : 'auto' as const);
 
     return {
       folder: `swagsuite/${folder}`,
-      allowed_formats: ALLOWED_FORMATS,
-      resource_type: ext === 'pdf' ? 'raw' as const : 'auto' as const,
-      public_id: `${Date.now()}-${file.originalname.replace(/\.[^/.]+$/, '')}`,
+      // Don't send allowed_formats for raw uploads — Cloudinary rejects unknown format names for raw
+      ...(isRaw ? {} : { allowed_formats: ALLOWED_FORMATS }),
+      resource_type: resourceType,
+      // Raw uploads need the extension in public_id so Cloudinary serves correct Content-Type
+      public_id: isRaw
+        ? `${Date.now()}-${file.originalname}`
+        : `${Date.now()}-${file.originalname.replace(/\.[^/.]+$/, '')}`,
     };
   },
 });
@@ -79,9 +99,15 @@ export const upload = multer({
       'image/svg+xml',
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // .xlsx
       'application/vnd.ms-excel', // .xls
-      'text/csv',
+      'text/csv', 'text/plain', // .csv, .txt
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // .docx
-      'application/msword' // .doc
+      'application/msword', // .doc
+      'application/rtf', // .rtf
+      'application/vnd.ms-powerpoint', // .ppt
+      'application/vnd.openxmlformats-officedocument.presentationml.presentation', // .pptx
+      'video/mp4', 'video/webm', 'video/quicktime', // video
+      'audio/mpeg', 'audio/wav', 'audio/mp3', // audio
+      'application/zip', 'application/x-rar-compressed', // archives
     ];
 
     if (allowedTypes.includes(file.mimetype) || ALLOWED_FORMATS.includes(ext)) {
@@ -211,7 +237,7 @@ export async function deleteFromCloudinary(publicId: string): Promise<void> {
   try {
     await cloudinary.uploader.destroy(publicId);
   } catch (error) {
-    console.error('Error deleting file from Cloudinary:', error);
+    console.error('Error deleting file from Cloudinary:', error instanceof Error ? error.message : JSON.stringify(error));
     throw error;
   }
 }

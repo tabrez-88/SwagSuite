@@ -15,7 +15,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { IMPRINT_METHODS } from "@/constants/imprintOptions";
-import { Grid3X3, Loader2, Plus, Trash2 } from "lucide-react";
+import { Copy, Grid3X3, Loader2, Plus, Settings, Trash2 } from "lucide-react";
+import { useLocation } from "wouter";
 
 interface DecoratorMatrixDialogProps {
   open: boolean;
@@ -27,6 +28,7 @@ interface DecoratorMatrixDialogProps {
 export default function DecoratorMatrixDialog({ open, supplierId, supplierName, onClose }: DecoratorMatrixDialogProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [, navigate] = useLocation();
 
   const { data: matrices = [], isLoading } = useQuery<any[]>({
     queryKey: [`/api/suppliers/${supplierId}/matrices`],
@@ -37,6 +39,7 @@ export default function DecoratorMatrixDialog({ open, supplierId, supplierName, 
   const [showAddMatrix, setShowAddMatrix] = useState(false);
   const [newMatrixName, setNewMatrixName] = useState("");
   const [newMatrixMethod, setNewMatrixMethod] = useState("");
+  const [newMatrixType, setNewMatrixType] = useState("run_charge_table");
 
   // Load matrix detail with entries
   const { data: matrixDetail } = useQuery<any>({
@@ -62,6 +65,7 @@ export default function DecoratorMatrixDialog({ open, supplierId, supplierName, 
       setShowAddMatrix(false);
       setNewMatrixName("");
       setNewMatrixMethod("");
+      setNewMatrixType("run_charge_table");
       toast({ title: "Matrix created" });
     },
   });
@@ -106,6 +110,15 @@ export default function DecoratorMatrixDialog({ open, supplierId, supplierName, 
           <DialogTitle className="flex items-center gap-2">
             <Grid3X3 className="w-5 h-5" />
             Decorator Matrix — {supplierName}
+            <Button
+              variant="ghost"
+              size="sm"
+              className="ml-auto text-xs text-muted-foreground"
+              onClick={() => { onClose(); navigate("/settings?tab=decorator-matrix"); }}
+            >
+              <Settings className="w-3 h-3 mr-1" />
+              Manage in Settings
+            </Button>
           </DialogTitle>
         </DialogHeader>
 
@@ -161,9 +174,21 @@ export default function DecoratorMatrixDialog({ open, supplierId, supplierName, 
                     </Select>
                   </div>
                 </div>
+                <div>
+                  <Label>Matrix Type</Label>
+                  <Select value={newMatrixType} onValueChange={setNewMatrixType}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="run_charge_table">Run Charge Table</SelectItem>
+                      <SelectItem value="run_charge_per_item">Run Charge Per Item</SelectItem>
+                      <SelectItem value="fixed_charge_table">Fixed Charge Table</SelectItem>
+                      <SelectItem value="fixed_charge_list">Fixed Charge List</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
                 <div className="flex gap-2">
                   <Button size="sm" disabled={!newMatrixName || !newMatrixMethod || createMatrixMutation.isPending}
-                    onClick={() => createMatrixMutation.mutate({ name: newMatrixName, decorationMethod: newMatrixMethod })}>
+                    onClick={() => createMatrixMutation.mutate({ name: newMatrixName, decorationMethod: newMatrixMethod, matrixType: newMatrixType })}>
                     {createMatrixMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : null}
                     Create
                   </Button>
@@ -173,16 +198,47 @@ export default function DecoratorMatrixDialog({ open, supplierId, supplierName, 
             </Card>
           )}
 
-          {/* Matrix entries table */}
+          {/* Matrix entries */}
           {matrixDetail && (
             <div>
               <div className="flex items-center gap-2 mb-2">
                 <h4 className="text-sm font-semibold">{matrixDetail.name}</h4>
                 <Badge variant="outline" className="text-xs">{matrixDetail.decorationMethod}</Badge>
+                <Badge variant="secondary" className="text-xs">
+                  {matrixDetail.matrixType === "run_charge_per_item" ? "Per Item" :
+                   matrixDetail.matrixType === "fixed_charge_table" ? "Fixed Table" :
+                   matrixDetail.matrixType === "fixed_charge_list" ? "Fixed List" :
+                   "Run Charge Table"}
+                </Badge>
               </div>
 
-              <div className="border rounded-lg overflow-hidden">
-                <table className="w-full text-sm">
+              {/* Non-table types: show simplified view with link to settings */}
+              {matrixDetail.matrixType && matrixDetail.matrixType !== "run_charge_table" ? (
+                <div className="border rounded-lg p-4 space-y-2">
+                  {(matrixDetail.entries || []).map((entry: any) => (
+                    <div key={entry.id} className="flex items-center justify-between text-sm py-1 border-b last:border-0">
+                      <span>{entry.rowLabel || "—"}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">${parseFloat(entry.unitCost || "0").toFixed(2)}</span>
+                        {entry.perUnit && <span className="text-xs text-muted-foreground">{entry.perUnit}</span>}
+                        <Button variant="ghost" size="sm" className="h-5 w-5 p-0"
+                          onClick={() => deleteEntryMutation.mutate({ matrixId: matrixDetail.id, entryId: entry.id })}>
+                          <Trash2 className="w-3 h-3 text-muted-foreground" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                  <p className="text-xs text-muted-foreground pt-2">
+                    For full editing capabilities, use{" "}
+                    <button className="underline" onClick={() => { onClose(); navigate("/settings?tab=decorator-matrix"); }}>
+                      Settings → Decorator Matrix
+                    </button>.
+                  </p>
+                </div>
+              ) : (
+                /* Run charge table: existing behavior */
+                <div className="border rounded-lg overflow-hidden">
+                  <table className="w-full text-sm">
                   <thead className="bg-gray-50 border-b">
                     <tr>
                       <th className="text-left p-2.5 font-medium text-xs">Min Qty</th>
@@ -261,6 +317,7 @@ export default function DecoratorMatrixDialog({ open, supplierId, supplierName, 
                   </tbody>
                 </table>
               </div>
+              )}
             </div>
           )}
 

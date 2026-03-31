@@ -4,13 +4,15 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { RichTextEditor } from "@/components/shared/RichTextEditor";
-import { Send, Eye, Edit, Loader2 } from "lucide-react";
+import { Send, Eye, Edit, Loader2, Paperclip, X, FileText } from "lucide-react";
 import EmailAutocompleteInput from "./EmailAutocompleteInput";
 import EmailContactPicker from "./EmailContactPicker";
 import EmailPreview from "./EmailPreview";
+import FilePickerDialog from "@/components/modals/FilePickerDialog";
+import { FilePreviewModal } from "@/components/modals/FilePreviewModal";
 import { useEmailForm } from "./useEmailForm";
 import { useAutoFillSender } from "./useAutoFillSender";
-import type { EmailContact, EmailFormData, EmailFormField } from "./types";
+import type { EmailContact, EmailFormData, EmailFormField, EmailAttachment } from "./types";
 
 export interface EmailComposerProps {
   /** Initial/default values */
@@ -33,6 +35,10 @@ export interface EmailComposerProps {
   afterBody?: ReactNode;
   /** Hint text below body (e.g., "PDF will be attached") */
   footerHint?: string;
+  /** Show attachment picker button (default: false) */
+  showAttachments?: boolean;
+  /** Project ID for file picker context (shows "Project Files" tab) */
+  contextProjectId?: string;
   /** Called with form data on send */
   onSend: (data: EmailFormData & { adHocEmails: string[] }) => void;
   /** Whether send is in progress */
@@ -64,6 +70,8 @@ const EmailComposer = forwardRef<EmailComposerRef, EmailComposerProps>(function 
   beforeBody,
   afterBody,
   footerHint,
+  showAttachments = false,
+  contextProjectId,
   onSend,
   isSending = false,
   sendLabel = "Send Email",
@@ -71,7 +79,7 @@ const EmailComposer = forwardRef<EmailComposerRef, EmailComposerProps>(function 
   resetTrigger,
   className,
 }, ref) {
-  const { form, setField, toggleContact, reset } = useEmailForm({
+  const { form, setField, toggleContact, reset, addAttachments, removeAttachment } = useEmailForm({
     defaults,
     contacts,
     resetTrigger,
@@ -79,6 +87,8 @@ const EmailComposer = forwardRef<EmailComposerRef, EmailComposerProps>(function 
 
   const [adHocEmails, setAdHocEmails] = useState<string[]>([]);
   const [mode, setMode] = useState<"compose" | "preview">("compose");
+  const [showFilePicker, setShowFilePicker] = useState(false);
+  const [previewAttachment, setPreviewAttachment] = useState<EmailAttachment | null>(null);
 
   // Reset ad-hoc emails when trigger changes
   useEffect(() => {
@@ -296,9 +306,90 @@ const EmailComposer = forwardRef<EmailComposerRef, EmailComposerProps>(function 
 
           {/* After body slot */}
           {afterBody}
+
+          {/* Attachments */}
+          {showAttachments && (
+            <div>
+              <div className="flex items-center justify-between">
+                <Label className="flex items-center gap-1.5">
+                  <Paperclip className="w-3 h-3" />
+                  Attachments
+                </Label>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 text-xs gap-1"
+                  onClick={() => setShowFilePicker(true)}
+                >
+                  <Paperclip className="w-3 h-3" />
+                  Add Files
+                </Button>
+              </div>
+              {form.attachments.length > 0 && (
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {form.attachments.map((att) => (
+                    <div
+                      key={att.id}
+                      className="flex items-center gap-1.5 bg-gray-100 rounded-md px-2.5 py-1.5 text-xs group"
+                    >
+                      <FileText className="w-3 h-3 text-gray-500 flex-shrink-0" />
+                      <button
+                        type="button"
+                        onClick={() => setPreviewAttachment(att)}
+                        className="truncate max-w-[200px] hover:text-blue-600 hover:underline text-left"
+                      >
+                        {att.fileName}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => removeAttachment(att.id)}
+                        className="text-gray-400 hover:text-red-500 flex-shrink-0"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       ) : (
         <EmailPreview form={form} recipientDisplay={recipientDisplay} />
+      )}
+
+      {/* File Picker Dialog */}
+      {showAttachments && (
+        <>
+          <FilePickerDialog
+            open={showFilePicker}
+            onClose={() => setShowFilePicker(false)}
+            onSelect={(files) => {
+              const attachments: EmailAttachment[] = files.map((f) => ({
+                id: f.id,
+                fileName: f.originalName || f.fileName,
+                cloudinaryUrl: f.cloudinaryUrl,
+                mimeType: f.mimeType,
+              }));
+              addAttachments(attachments);
+              setShowFilePicker(false);
+            }}
+            multiple
+            contextProjectId={contextProjectId}
+            title="Attach Files"
+          />
+          <FilePreviewModal
+            open={!!previewAttachment}
+            onClose={() => setPreviewAttachment(null)}
+            file={previewAttachment ? {
+              originalName: previewAttachment.fileName,
+              filePath: previewAttachment.cloudinaryUrl,
+              mimeType: previewAttachment.mimeType || "application/octet-stream",
+              fileName: previewAttachment.fileName,
+            } : null}
+          />
+        </>
       )}
 
       {/* Actions */}

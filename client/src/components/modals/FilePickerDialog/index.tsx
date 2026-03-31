@@ -183,7 +183,15 @@ export default function FilePickerDialog(props: FilePickerDialogProps) {
 
   return (
     <Dialog open={props.open} onOpenChange={(isOpen) => !isOpen && h.resetAndClose()}>
-      <DialogContent className="max-w-3xl max-h-[80vh] flex flex-col">
+      <DialogContent
+        className="max-w-3xl max-h-[80vh] flex flex-col"
+        onPointerDownOutside={(e) => e.preventDefault()}
+        onInteractOutside={(e) => e.preventDefault()}
+        onEscapeKeyDown={(e) => {
+          e.preventDefault();
+          h.resetAndClose();
+        }}
+      >
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
         </DialogHeader>

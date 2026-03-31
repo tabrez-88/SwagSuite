@@ -39,6 +39,11 @@ export function usePODetailPanel(documentId: string | null, open: boolean) {
       queryClient.invalidateQueries({ queryKey: [`/api/production/po-report/${documentId}`] });
       queryClient.invalidateQueries({ queryKey: ["/api/production/po-report"] });
       queryClient.invalidateQueries({ queryKey: ["/api/production/alerts"] });
+      // Also invalidate project-level queries so PO section in project detail reflects changes
+      if (po?.order_id) {
+        queryClient.invalidateQueries({ queryKey: [`/api/projects/${po.order_id}/documents`] });
+        queryClient.invalidateQueries({ queryKey: [`/api/projects/${po.order_id}`] });
+      }
     },
     onError: () => {
       toast({ title: "Error", description: "Failed to update PO.", variant: "destructive" });
@@ -54,6 +59,7 @@ export function usePODetailPanel(documentId: string | null, open: boolean) {
       toast({ title: "Next Action Updated" });
       queryClient.invalidateQueries({ queryKey: [`/api/production/po-report/${documentId}`] });
       queryClient.invalidateQueries({ queryKey: ["/api/production/po-report"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/production/alerts"] });
     },
     onError: () => {
       toast({ title: "Error", description: "Failed to update next action.", variant: "destructive" });

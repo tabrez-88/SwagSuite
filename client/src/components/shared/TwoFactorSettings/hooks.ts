@@ -46,7 +46,10 @@ export function useTwoFactorSettings() {
       setBackupCodes(data.backupCodes);
       setSetupStep("backup");
       queryClient.setQueryData(["/api/auth/2fa/status"], { enabled: true });
-      queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+      // Don't invalidate user query here — it causes an immediate redirect
+      // away from backup codes (App.tsx routes to AuthenticatedLayout when
+      // twoFactorEnabled becomes true). Invalidation happens in resetSetup()
+      // when the user clicks "Done" after saving their codes.
       toast({ title: "2FA Enabled", description: "Two-factor authentication has been enabled." });
     },
     onError: (error: Error) => {
@@ -112,6 +115,9 @@ export function useTwoFactorSettings() {
     setVerifyCode("");
     setBackupCodes([]);
     setShowSecret(false);
+    // Now that user has seen backup codes, refresh user data to trigger
+    // proper routing (App.tsx redirects to main app when twoFactorEnabled=true)
+    queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
   };
 
   const isEnabled = twoFaStatus?.enabled ?? false;

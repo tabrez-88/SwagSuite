@@ -56,6 +56,7 @@ export default function SendQuoteDialog({
             body: `Hi ${recipientName.split(" ")[0] || "there"},\n\nPlease find our quote for your upcoming project. Click the link below to review and approve the quote.\n\nWe look forward to working with you!\n\nBest regards,\n${companyName}`,
           }}
           showAdvancedFields
+          richText
           footerHint="The quote approval link will be automatically added to the email."
           onSend={(data) => sendMutation.mutate(data)}
           isSending={sendMutation.isPending}

@@ -39,6 +39,7 @@ import {
 } from "@/constants/poStages";
 import { getStageBadgeClass } from "@/constants/productionStages";
 import { getDateStatus } from "@/lib/dateUtils";
+import { formatAddress } from "@/components/feature/DocumentEditor/types";
 import { getActionTypeBadgeClass } from "@/hooks/useNextActionTypes";
 import type { PODetailPanelProps } from "./types";
 import { usePODetailPanel } from "./hooks";
@@ -428,41 +429,47 @@ export default function PODetailPanel({ documentId, open, onOpenChange }: PODeta
                     <p className="text-sm">No shipments recorded yet</p>
                   </div>
                 ) : (
-                  po.shipments.map((ship: any, idx: number) => (
-                    <Card key={idx}>
-                      <CardContent className="p-4 space-y-1">
-                        <div className="flex items-center justify-between">
-                          <span className="font-medium text-sm">
-                            {ship.carrier || "Unknown Carrier"}
-                          </span>
-                          <Badge variant="outline" className="text-xs">
-                            {ship.status || "pending"}
-                          </Badge>
-                        </div>
-                        {ship.trackingNumber && (
-                          <p className="text-xs text-muted-foreground">
-                            Tracking: <span className="font-mono">{ship.trackingNumber}</span>
-                          </p>
-                        )}
-                        {ship.shipDate && (
-                          <p className="text-xs text-muted-foreground">
-                            Shipped: {format(new Date(ship.shipDate), "MMM d, yyyy")}
-                          </p>
-                        )}
-                        {ship.estimatedDelivery && (
-                          <p className="text-xs text-muted-foreground">
-                            Est. Delivery: {format(new Date(ship.estimatedDelivery), "MMM d, yyyy")}
-                          </p>
-                        )}
-                        {ship.actualDelivery && (
-                          <p className="text-xs text-green-600 flex items-center gap-1">
-                            <CheckCircle className="h-3 w-3" />
-                            Delivered: {format(new Date(ship.actualDelivery), "MMM d, yyyy")}
-                          </p>
-                        )}
-                      </CardContent>
-                    </Card>
-                  ))
+                  po.shipments.map((ship: any, idx: number) => {
+                    const tracking = ship.tracking_number || ship.trackingNumber;
+                    const shipDate = ship.ship_date || ship.shipDate;
+                    const estDelivery = ship.estimated_delivery || ship.estimatedDelivery;
+                    const actDelivery = ship.actual_delivery || ship.actualDelivery;
+                    return (
+                      <Card key={idx}>
+                        <CardContent className="p-4 space-y-1">
+                          <div className="flex items-center justify-between">
+                            <span className="font-medium text-sm">
+                              {ship.carrier || "Unknown Carrier"}
+                            </span>
+                            <Badge variant="outline" className="text-xs">
+                              {ship.status || "pending"}
+                            </Badge>
+                          </div>
+                          {tracking && (
+                            <p className="text-xs text-muted-foreground">
+                              Tracking: <span className="font-mono">{tracking}</span>
+                            </p>
+                          )}
+                          {shipDate && (
+                            <p className="text-xs text-muted-foreground">
+                              Shipped: {format(new Date(shipDate), "MMM d, yyyy")}
+                            </p>
+                          )}
+                          {estDelivery && (
+                            <p className="text-xs text-muted-foreground">
+                              Est. Delivery: {format(new Date(estDelivery), "MMM d, yyyy")}
+                            </p>
+                          )}
+                          {actDelivery && (
+                            <p className="text-xs text-green-600 flex items-center gap-1">
+                              <CheckCircle className="h-3 w-3" />
+                              Delivered: {format(new Date(actDelivery), "MMM d, yyyy")}
+                            </p>
+                          )}
+                        </CardContent>
+                      </Card>
+                    );
+                  })
                 )}
               </TabsContent>
 
@@ -514,7 +521,7 @@ export default function PODetailPanel({ documentId, open, onOpenChange }: PODeta
                             <MapPin className="h-3.5 w-3.5" /> Shipping Address
                           </h4>
                           <p className="text-xs text-muted-foreground whitespace-pre-line mt-1">
-                            {po.shipping_address}
+                            {formatAddress(po.shipping_address)}
                           </p>
                         </div>
                       )}
@@ -524,7 +531,7 @@ export default function PODetailPanel({ documentId, open, onOpenChange }: PODeta
                             <Building2 className="h-3.5 w-3.5" /> Billing Address
                           </h4>
                           <p className="text-xs text-muted-foreground whitespace-pre-line mt-1">
-                            {po.billing_address}
+                            {formatAddress(po.billing_address)}
                           </p>
                         </div>
                       )}

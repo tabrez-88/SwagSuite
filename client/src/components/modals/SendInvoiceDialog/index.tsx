@@ -109,6 +109,7 @@ export default function SendInvoiceDialog({
             body: `Hi ${recipientName.split(" ")[0] || "there"},\n\nPlease find attached Invoice #${invoiceNumber} for $${totalAmount.toFixed(2)}${dueDateFormatted ? ` due by ${dueDateFormatted}` : ""}.\n\nIf you have any questions regarding this invoice, please don't hesitate to reach out.\n\nThank you for your business!\n\nBest regards,\n${companyName}`,
           }}
           showAdvancedFields
+          richText
           footerHint="The invoice PDF will be attached to the email."
           afterBody={reminderSection}
           onSend={(data) => sendMutation.mutate(data)}

@@ -7,6 +7,7 @@ import {
   Brain,
   Factory,
   Globe,
+  Grid3X3,
   Image,
   List,
   Mail,
@@ -30,10 +31,12 @@ import { ThemeTab } from "./ThemeTab";
 import { FormsTab } from "./FormsTab";
 import { ProductionStagesTab } from "./ProductionStagesTab";
 import { ImportTab } from "./ImportTab";
+import { DecoratorMatrixTab } from "./DecoratorMatrixTab";
 
 export default function Settings() {
   const { user, isLoading: authLoading } = useAuth();
-  const [activeTab, setActiveTab] = useState("features");
+  const urlParams = new URLSearchParams(window.location.search);
+  const [activeTab, setActiveTab] = useState(urlParams.get("tab") || "features");
 
   // Load admin settings from backend
   const { data: adminSettings, isLoading: settingsLoading } = useQuery({
@@ -144,6 +147,10 @@ export default function Settings() {
             <Factory className="w-4 h-4" />
             Production Stages
           </TabsTrigger>
+          <TabsTrigger value="decorator-matrix" className="flex items-center gap-2">
+            <Grid3X3 className="w-4 h-4" />
+            Decorator Matrix
+          </TabsTrigger>
           <TabsTrigger value="import" className="flex items-center gap-2">
             <Brain className="w-4 h-4" />
             Data Import
@@ -188,6 +195,10 @@ export default function Settings() {
 
         <TabsContent value="production-stages" className="space-y-6">
           <ProductionStagesTab />
+        </TabsContent>
+
+        <TabsContent value="decorator-matrix" className="space-y-6">
+          <DecoratorMatrixTab />
         </TabsContent>
 
         <TabsContent value="import" className="space-y-6">

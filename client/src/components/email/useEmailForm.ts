@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from "react";
-import type { EmailFormData, EmailFormField, EmailContact } from "./types";
+import type { EmailFormData, EmailFormField, EmailContact, EmailAttachment } from "./types";
 
 const EMPTY_FORM: EmailFormData = {
   to: "",
@@ -11,6 +11,7 @@ const EMPTY_FORM: EmailFormData = {
   subject: "",
   body: "",
   selectedContactIds: new Set(),
+  attachments: [],
 };
 
 interface UseEmailFormOptions {
@@ -71,5 +72,20 @@ export function useEmailForm({ defaults, contacts, resetTrigger }: UseEmailFormO
     }
   }, [buildInitial]);
 
-  return { form, setField, setForm, toggleContact, reset };
+  const addAttachments = useCallback((files: EmailAttachment[]) => {
+    setForm((prev) => {
+      const existingIds = new Set(prev.attachments.map((a) => a.id));
+      const newFiles = files.filter((f) => !existingIds.has(f.id));
+      return { ...prev, attachments: [...prev.attachments, ...newFiles] };
+    });
+  }, []);
+
+  const removeAttachment = useCallback((id: string) => {
+    setForm((prev) => ({
+      ...prev,
+      attachments: prev.attachments.filter((a) => a.id !== id),
+    }));
+  }, []);
+
+  return { form, setField, setForm, toggleContact, reset, addAttachments, removeAttachment };
 }
