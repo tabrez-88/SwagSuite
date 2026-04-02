@@ -26,6 +26,14 @@ router.delete("/api/user-email-settings", isAuthenticated, asyncHandler(Settings
 router.post("/api/user-email-settings/test-smtp", isAuthenticated, asyncHandler(SettingsController.testSmtp));
 router.post("/api/user-email-settings/test-imap", isAuthenticated, asyncHandler(SettingsController.testImap));
 
+// Email templates
+router.get("/api/settings/email-templates", isAuthenticated, asyncHandler(SettingsController.getEmailTemplates));
+router.get("/api/settings/email-templates/:id", isAuthenticated, asyncHandler(SettingsController.getEmailTemplate));
+router.post("/api/settings/email-templates", isAuthenticated, asyncHandler(SettingsController.createEmailTemplate));
+router.patch("/api/settings/email-templates/:id", isAuthenticated, asyncHandler(SettingsController.updateEmailTemplate));
+router.delete("/api/settings/email-templates/:id", isAuthenticated, asyncHandler(SettingsController.deleteEmailTemplate));
+router.patch("/api/settings/email-templates/:id/default", isAuthenticated, asyncHandler(SettingsController.setDefaultEmailTemplate));
+
 // Test email + geocode
 router.post("/api/settings/test-email", isAuthenticated, asyncHandler(SettingsController.testEmail));
 router.get("/api/geocode/search", isAuthenticated, asyncHandler(SettingsController.geocodeSearch));

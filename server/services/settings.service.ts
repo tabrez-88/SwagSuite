@@ -207,6 +207,49 @@ export class SettingsService {
     return { suggestions };
   }
 
+  // Email templates
+  async getEmailTemplates(type?: string) {
+    return settingsRepository.getEmailTemplates(type);
+  }
+
+  async getEmailTemplate(id: string) {
+    return settingsRepository.getEmailTemplate(id);
+  }
+
+  async createEmailTemplate(data: any, userId: string) {
+    // If this is the first template of this type, auto-set as default
+    const existing = await settingsRepository.getEmailTemplates(data.templateType);
+    if (existing.length === 0) {
+      data.isDefault = true;
+    }
+    // If setting as default, clear others first
+    if (data.isDefault) {
+      await settingsRepository.clearDefaultForType(data.templateType);
+    }
+    return settingsRepository.createEmailTemplate({ ...data, updatedBy: userId });
+  }
+
+  async updateEmailTemplate(id: string, data: any, userId: string) {
+    if (data.isDefault) {
+      const template = await settingsRepository.getEmailTemplate(id);
+      if (template) {
+        await settingsRepository.clearDefaultForType(template.templateType);
+      }
+    }
+    return settingsRepository.updateEmailTemplate(id, { ...data, updatedBy: userId });
+  }
+
+  async deleteEmailTemplate(id: string) {
+    await settingsRepository.deleteEmailTemplate(id);
+  }
+
+  async setDefaultEmailTemplate(id: string, userId: string) {
+    const template = await settingsRepository.getEmailTemplate(id);
+    if (!template) return null;
+    await settingsRepository.clearDefaultForType(template.templateType);
+    return settingsRepository.updateEmailTemplate(id, { isDefault: true, updatedBy: userId });
+  }
+
   private async requireAdminOrManager(userId: string) {
     const role = await settingsRepository.getUserRole(userId);
     if (role !== 'admin' && role !== 'manager') {

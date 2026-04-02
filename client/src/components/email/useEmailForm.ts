@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import type { EmailFormData, EmailFormField, EmailContact, EmailAttachment } from "./types";
 
 const EMPTY_FORM: EmailFormData = {
@@ -21,12 +21,19 @@ interface UseEmailFormOptions {
 }
 
 export function useEmailForm({ defaults, contacts, resetTrigger }: UseEmailFormOptions = {}) {
+  // Store defaults/contacts in refs so buildInitial doesn't change on every render
+  const defaultsRef = useRef(defaults);
+  const contactsRef = useRef(contacts);
+  defaultsRef.current = defaults;
+  contactsRef.current = contacts;
+
   const buildInitial = useCallback((): EmailFormData => {
-    const initial = { ...EMPTY_FORM, ...defaults };
+    const initial = { ...EMPTY_FORM, ...defaultsRef.current };
+    const currentContacts = contactsRef.current;
     // Auto-select primary or receiveOrderEmails contacts
-    if (contacts && contacts.length > 0 && (!defaults?.selectedContactIds || defaults.selectedContactIds.size === 0)) {
+    if (currentContacts && currentContacts.length > 0 && (!defaultsRef.current?.selectedContactIds || defaultsRef.current.selectedContactIds.size === 0)) {
       const autoSelected = new Set<string>();
-      const contactsWithEmail = contacts.filter((c) => c.email);
+      const contactsWithEmail = currentContacts.filter((c) => c.email);
       for (const c of contactsWithEmail) {
         if (c.receiveOrderEmails || c.isPrimary) {
           autoSelected.add(c.id);
@@ -40,15 +47,17 @@ export function useEmailForm({ defaults, contacts, resetTrigger }: UseEmailFormO
       initial.selectedContactIds = autoSelected;
     }
     return initial;
-  }, [defaults, contacts]);
+  }, []);
 
-  const [form, setForm] = useState<EmailFormData>(buildInitial);
+  const [form, setForm] = useState<EmailFormData>(() => buildInitial());
 
-  // Reset when trigger changes (e.g., dialog open)
+  // Reset only when resetTrigger actually changes value (not on every render)
+  const prevTriggerRef = useRef(resetTrigger);
   useEffect(() => {
-    if (resetTrigger) {
+    if (resetTrigger && resetTrigger !== prevTriggerRef.current) {
       setForm(buildInitial());
     }
+    prevTriggerRef.current = resetTrigger;
   }, [resetTrigger, buildInitial]);
 
   const setField = useCallback((field: EmailFormField, value: string) => {

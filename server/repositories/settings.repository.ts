@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { db } from "../db";
 
 export class SettingsRepository {
@@ -141,6 +141,50 @@ export class SettingsRepository {
   async deleteUserEmailSettings(id: string): Promise<void> {
     const { userEmailSettings } = await import("@shared/schema");
     await db.delete(userEmailSettings).where(eq(userEmailSettings.id, id));
+  }
+
+  // Email templates
+  async getEmailTemplates(type?: string): Promise<any[]> {
+    const { emailTemplates } = await import("@shared/schema");
+    if (type) {
+      return db.select().from(emailTemplates).where(eq(emailTemplates.templateType, type));
+    }
+    return db.select().from(emailTemplates);
+  }
+
+  async getEmailTemplate(id: string): Promise<any | undefined> {
+    const { emailTemplates } = await import("@shared/schema");
+    const [template] = await db.select().from(emailTemplates).where(eq(emailTemplates.id, id));
+    return template;
+  }
+
+  async createEmailTemplate(data: any): Promise<any> {
+    const { emailTemplates } = await import("@shared/schema");
+    const [created] = await db.insert(emailTemplates).values(data).returning();
+    return created;
+  }
+
+  async updateEmailTemplate(id: string, data: any): Promise<any> {
+    const { emailTemplates } = await import("@shared/schema");
+    const [updated] = await db
+      .update(emailTemplates)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(emailTemplates.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteEmailTemplate(id: string): Promise<void> {
+    const { emailTemplates } = await import("@shared/schema");
+    await db.delete(emailTemplates).where(eq(emailTemplates.id, id));
+  }
+
+  async clearDefaultForType(templateType: string): Promise<void> {
+    const { emailTemplates } = await import("@shared/schema");
+    await db
+      .update(emailTemplates)
+      .set({ isDefault: false, updatedAt: new Date() })
+      .where(and(eq(emailTemplates.templateType, templateType), eq(emailTemplates.isDefault, true)));
   }
 
   // User role check

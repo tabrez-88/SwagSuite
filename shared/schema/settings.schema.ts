@@ -93,6 +93,20 @@ export const companySettings = pgTable("company_settings", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+// Email Templates (configurable email templates per type)
+export const emailTemplates = pgTable("email_templates", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  templateType: varchar("template_type").notNull(), // quote, sales_order, invoice, purchase_order, presentation, proof
+  name: varchar("name").notNull(),
+  subject: text("subject").notNull(),
+  body: text("body").notNull(),
+  isDefault: boolean("is_default").default(false),
+  isActive: boolean("is_active").default(true),
+  updatedBy: varchar("updated_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 // Insert schemas
 export const insertUserEmailSettingsSchema = createInsertSchema(userEmailSettings).omit({
   id: true,
@@ -112,8 +126,16 @@ export const insertCompanySettingsSchema = createInsertSchema(companySettings).o
   updatedAt: true,
 });
 
+export const insertEmailTemplateSchema = createInsertSchema(emailTemplates).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 // Types
 export type UserEmailSettings = typeof userEmailSettings.$inferSelect;
 export type InsertUserEmailSettings = z.infer<typeof insertUserEmailSettingsSchema>;
 export type CompanySettings = typeof companySettings.$inferSelect;
 export type InsertCompanySettings = z.infer<typeof insertCompanySettingsSchema>;
+export type EmailTemplate = typeof emailTemplates.$inferSelect;
+export type InsertEmailTemplate = z.infer<typeof insertEmailTemplateSchema>;

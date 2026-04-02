@@ -489,7 +489,9 @@ export async function setupAuth(app: Express) {
   });
 
   app.get("/api/logout", (req, res) => {
-    res.clearCookie(TRUSTED_DEVICE_COOKIE);
+    // Note: Do NOT clear TRUSTED_DEVICE_COOKIE here.
+    // "Trust this device for 30 days" should persist across logout/login cycles,
+    // same as Google/GitHub behavior. Cookie expires naturally after 30 days.
     req.logout(() => {
       res.redirect("/");
     });

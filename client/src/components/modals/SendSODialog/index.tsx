@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import {
   Dialog,
   DialogContent,
@@ -33,6 +34,14 @@ export default function SendSODialog({
     projectId, recipientName, soDocument, soTotal, quoteApprovals, createQuoteApproval, onOpenChange,
   });
 
+  const mergeData = useMemo(() => ({
+    companyName,
+    senderName: "",
+    recipientName,
+    recipientFirstName: recipientName.split(" ")[0] || "there",
+    orderNumber,
+  }), [companyName, recipientName, orderNumber]);
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-5xl max-h-[85vh] overflow-y-auto">
@@ -54,6 +63,8 @@ export default function SendSODialog({
             subject: `Sales Order #${orderNumber} from ${companyName}`,
             body: `Hi ${recipientName.split(" ")[0] || "there"},\n\nPlease find the sales order for your project. Click the link below to review and approve.\n\nIf you have any questions or need changes, please don't hesitate to reach out.\n\nBest regards,\n${companyName}`,
           }}
+          templateType="sales_order"
+          templateMergeData={mergeData}
           showAdvancedFields
           richText
           footerHint="The approval link will be automatically added to the email."

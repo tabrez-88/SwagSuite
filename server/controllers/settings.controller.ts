@@ -127,6 +127,51 @@ export class SettingsController {
     res.json(result);
   }
 
+  // Email templates
+  static async getEmailTemplates(req: Request, res: Response) {
+    const type = req.query.type as string | undefined;
+    const templates = await settingsService.getEmailTemplates(type);
+    res.json(templates);
+  }
+
+  static async getEmailTemplate(req: Request, res: Response) {
+    const template = await settingsService.getEmailTemplate(req.params.id);
+    if (!template) return res.status(404).json({ message: "Template not found" });
+    res.json(template);
+  }
+
+  static async createEmailTemplate(req: Request, res: Response) {
+    const userId = getUserId(req);
+    const { templateType, name, subject, body, isDefault, isActive } = req.body;
+    if (!templateType || !name || !subject || !body) {
+      return res.status(400).json({ message: "templateType, name, subject, and body are required" });
+    }
+    const template = await settingsService.createEmailTemplate(
+      { templateType, name, subject, body, isDefault, isActive },
+      userId
+    );
+    res.status(201).json(template);
+  }
+
+  static async updateEmailTemplate(req: Request, res: Response) {
+    const userId = getUserId(req);
+    const template = await settingsService.updateEmailTemplate(req.params.id, req.body, userId);
+    if (!template) return res.status(404).json({ message: "Template not found" });
+    res.json(template);
+  }
+
+  static async deleteEmailTemplate(req: Request, res: Response) {
+    await settingsService.deleteEmailTemplate(req.params.id);
+    res.json({ success: true });
+  }
+
+  static async setDefaultEmailTemplate(req: Request, res: Response) {
+    const userId = getUserId(req);
+    const template = await settingsService.setDefaultEmailTemplate(req.params.id, userId);
+    if (!template) return res.status(404).json({ message: "Template not found" });
+    res.json(template);
+  }
+
   // Geocode
   static async geocodeSearch(req: Request, res: Response) {
     const { q } = req.query;

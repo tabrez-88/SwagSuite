@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import {
   Dialog,
   DialogContent,
@@ -48,6 +49,17 @@ export default function SendInvoiceDialog({
   const dueDateFormatted = dueDate
     ? new Date(dueDate).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })
     : null;
+
+  const mergeData = useMemo(() => ({
+    companyName,
+    senderName: "",
+    recipientName,
+    recipientFirstName: recipientName.split(" ")[0] || "there",
+    orderNumber,
+    invoiceNumber,
+    totalAmount: `$${totalAmount.toFixed(2)}`,
+    dueDate: dueDateFormatted || "",
+  }), [companyName, recipientName, orderNumber, invoiceNumber, totalAmount, dueDateFormatted]);
 
   const reminderSection = (
     <div className="border rounded-lg p-3 bg-gray-50/50">
@@ -108,6 +120,8 @@ export default function SendInvoiceDialog({
             subject: `Invoice #${invoiceNumber} from ${companyName}`,
             body: `Hi ${recipientName.split(" ")[0] || "there"},\n\nPlease find attached Invoice #${invoiceNumber} for $${totalAmount.toFixed(2)}${dueDateFormatted ? ` due by ${dueDateFormatted}` : ""}.\n\nIf you have any questions regarding this invoice, please don't hesitate to reach out.\n\nThank you for your business!\n\nBest regards,\n${companyName}`,
           }}
+          templateType="invoice"
+          templateMergeData={mergeData}
           showAdvancedFields
           richText
           footerHint="The invoice PDF will be attached to the email."

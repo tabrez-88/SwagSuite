@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import {
   Dialog,
   DialogContent,
@@ -34,6 +35,14 @@ export default function SendQuoteDialog({
     projectId, recipientName, quoteDocument, quoteTotal, quoteApprovals, createQuoteApproval, onOpenChange,
   });
 
+  const mergeData = useMemo(() => ({
+    companyName,
+    senderName: "",
+    recipientName,
+    recipientFirstName: recipientName.split(" ")[0] || "there",
+    orderNumber,
+  }), [companyName, recipientName, orderNumber]);
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-5xl max-h-[85vh] overflow-y-auto">
@@ -55,6 +64,8 @@ export default function SendQuoteDialog({
             subject: `Quote #${orderNumber} from ${companyName}`,
             body: `Hi ${recipientName.split(" ")[0] || "there"},\n\nPlease find our quote for your upcoming project. Click the link below to review and approve the quote.\n\nWe look forward to working with you!\n\nBest regards,\n${companyName}`,
           }}
+          templateType="quote"
+          templateMergeData={mergeData}
           showAdvancedFields
           richText
           footerHint="The quote approval link will be automatically added to the email."

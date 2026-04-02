@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Dialog,
@@ -28,6 +29,14 @@ export default function SendPresentationDialog({
 }: SendPresentationDialogProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  const mergeData = useMemo(() => ({
+    companyName,
+    senderName: "",
+    recipientName,
+    recipientFirstName: recipientName.split(" ")[0] || "there",
+    orderNumber,
+  }), [companyName, recipientName, orderNumber]);
 
   const sendMutation = useMutation({
     mutationFn: async (formData: EmailFormData & { adHocEmails: string[] }) => {
@@ -84,6 +93,8 @@ export default function SendPresentationDialog({
             subject: `Product Presentation from ${companyName}`,
             body: `Hi ${recipientName.split(" ")[0] || "there"},\n\nPlease find our product presentation for your upcoming project. Click the link below to view and comment on the products.\n\nWe look forward to your feedback!\n\nBest regards,\n${companyName}`,
           }}
+          templateType="presentation"
+          templateMergeData={mergeData}
           showAdvancedFields
           richText
           footerHint="The presentation link will be automatically added to the email."

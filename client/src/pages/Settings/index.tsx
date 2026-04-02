@@ -18,6 +18,7 @@ import {
   Shield,
   ToggleRight,
   Users,
+  FileText,
 } from "lucide-react";
 import { useState } from "react";
 import { FeaturesTab } from "./FeaturesTab";
@@ -34,6 +35,7 @@ import { ProductionStagesTab } from "./ProductionStagesTab";
 import { ImportTab } from "./ImportTab";
 import { DecoratorMatrixTab } from "./DecoratorMatrixTab";
 import { TaxCodesTab } from "./TaxCodesTab";
+import { EmailTemplatesTab } from "./EmailTemplatesTab";
 
 export default function Settings() {
   const { user, isLoading: authLoading } = useAuth();
@@ -157,6 +159,10 @@ export default function Settings() {
             <Receipt className="w-4 h-4" />
             Tax Codes
           </TabsTrigger>
+          <TabsTrigger value="email-templates" className="flex items-center gap-2">
+            <FileText className="w-4 h-4" />
+            Email Templates
+          </TabsTrigger>
           <TabsTrigger value="import" className="flex items-center gap-2">
             <Brain className="w-4 h-4" />
             Data Import
@@ -209,6 +215,10 @@ export default function Settings() {
 
         <TabsContent value="tax-codes" className="space-y-6">
           <TaxCodesTab />
+        </TabsContent>
+
+        <TabsContent value="email-templates" className="space-y-6">
+          <EmailTemplatesTab />
         </TabsContent>
 
         <TabsContent value="import" className="space-y-6">

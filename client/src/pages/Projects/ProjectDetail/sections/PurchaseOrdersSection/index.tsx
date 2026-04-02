@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -36,6 +37,29 @@ import { usePurchaseOrdersSection } from "./hooks";
 export default function PurchaseOrdersSection({ projectId, data, isLocked }: PurchaseOrdersSectionProps) {
   const h = usePurchaseOrdersSection({ projectId, data, isLocked });
   const { toast } = useToast();
+
+  // Merge data for PO email template
+  const poMergeData = useMemo(() => ({
+    companyName: "",
+    senderName: "",
+    vendorName: h.emailPOVendor?.vendor.name || "",
+    vendorContactName: h.emailPOVendor?.vendor.contactPerson || h.emailPOVendor?.vendor.name || "",
+    orderNumber: (h.order as any)?.orderNumber || "",
+    poNumber: h.emailPOVendor?.doc.documentNumber || "",
+    supplierInHandsDate: (() => {
+      const ihd = h.emailPOVendor?.doc?.metadata?.supplierIHD || (h.order as any)?.supplierInHandsDate;
+      return ihd ? new Date(ihd).toLocaleDateString() : "";
+    })(),
+  }), [h.emailPOVendor, h.order]);
+
+  // Merge data for Proof email template
+  const proofMergeData = useMemo(() => ({
+    companyName: h.data.companyName || "",
+    senderName: "",
+    recipientName: h.data.primaryContact ? `${h.data.primaryContact.firstName} ${h.data.primaryContact.lastName}` : "",
+    recipientFirstName: h.data.primaryContact?.firstName || "there",
+    artworkList: h.sendProofArts.map((a: any) => `  - ${a.productName} (${a.location || a.artworkType || "Artwork"})`).join("\n"),
+  }), [h.data, h.sendProofArts]);
 
   return (
     <div className="space-y-5">
@@ -712,6 +736,8 @@ export default function PurchaseOrdersSection({ projectId, data, isLocked }: Pur
                 return `Hi ${h.emailPOVendor?.vendor.contactPerson || h.emailPOVendor?.vendor.name || "there"},\n\nPlease find the attached purchase order for your review and confirmation.\n\nOrder #: ${(h.order as any)?.orderNumber || ""}\nPO #: ${h.emailPOVendor?.doc.documentNumber || ""}\n${ihd ? `In-Hands Date: ${new Date(ihd).toLocaleDateString()}` : ""}\n\nPlease confirm receipt and acknowledge this order.\n\nThank you.`;
               })(),
             }}
+            templateType="purchase_order"
+            templateMergeData={poMergeData}
             showAdvancedFields
             richText
             showAttachments
@@ -763,6 +789,7 @@ export default function PurchaseOrdersSection({ projectId, data, isLocked }: Pur
             defaults={{
               to: h.data.primaryContact?.email || "",
               toName: h.data.primaryContact ? `${h.data.primaryContact.firstName} ${h.data.primaryContact.lastName}` : h.data.companyName || "",
+              subject: `Artwork Proofs for Review - ${(h.order as any)?.orderNumber || ""}`,
               body: (() => {
                 const pc = h.data.primaryContact;
                 const cn = h.data.companyName || "";
@@ -770,6 +797,8 @@ export default function PurchaseOrdersSection({ projectId, data, isLocked }: Pur
                 return `Hi ${pc?.firstName || "there"},\n\nWe've received artwork proofs for your order. Please review each proof below and let us know if you'd like to approve or request changes.\n\nProofs included:\n${artList}\n\nBest regards,\n${cn}`;
               })(),
             }}
+            templateType="proof"
+            templateMergeData={proofMergeData}
             showAdvancedFields
             richText
             beforeBody={

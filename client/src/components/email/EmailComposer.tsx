@@ -8,6 +8,7 @@ import { Send, Eye, Edit, Loader2, Paperclip, X, FileText } from "lucide-react";
 import EmailAutocompleteInput from "./EmailAutocompleteInput";
 import EmailContactPicker from "./EmailContactPicker";
 import EmailPreview from "./EmailPreview";
+import TemplateSelector from "./TemplateSelector";
 import FilePickerDialog from "@/components/modals/FilePickerDialog";
 import { FilePreviewModal } from "@/components/modals/FilePreviewModal";
 import { useEmailForm } from "./useEmailForm";
@@ -39,6 +40,10 @@ export interface EmailComposerProps {
   showAttachments?: boolean;
   /** Project ID for file picker context (shows "Project Files" tab) */
   contextProjectId?: string;
+  /** Template type for template selector (e.g. 'quote', 'invoice') */
+  templateType?: string;
+  /** Merge data for template field replacement */
+  templateMergeData?: Record<string, string>;
   /** Called with form data on send */
   onSend: (data: EmailFormData & { adHocEmails: string[] }) => void;
   /** Whether send is in progress */
@@ -72,6 +77,8 @@ const EmailComposer = forwardRef<EmailComposerRef, EmailComposerProps>(function 
   footerHint,
   showAttachments = false,
   contextProjectId,
+  templateType,
+  templateMergeData,
   onSend,
   isSending = false,
   sendLabel = "Send Email",
@@ -89,14 +96,28 @@ const EmailComposer = forwardRef<EmailComposerRef, EmailComposerProps>(function 
   const [mode, setMode] = useState<"compose" | "preview">("compose");
   const [showFilePicker, setShowFilePicker] = useState(false);
   const [previewAttachment, setPreviewAttachment] = useState<EmailAttachment | null>(null);
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
 
-  // Reset ad-hoc emails when trigger changes
+  // Reset ad-hoc emails and template selection when trigger changes
   useEffect(() => {
     if (resetTrigger) {
       setAdHocEmails([]);
       setMode("compose");
+      setSelectedTemplateId(null);
     }
   }, [resetTrigger]);
+
+  // Handle template selection — update subject and body fields
+  const handleTemplateApply = (applied: { subject: string; body: string } | null) => {
+    if (applied) {
+      setField("subject", applied.subject);
+      setField("body", applied.body);
+    } else {
+      // Reset to defaults when "No template" selected
+      setField("subject", defaults?.subject || "");
+      setField("body", defaults?.body || "");
+    }
+  };
 
   // Auto-fill sender
   const sender = useAutoFillSender();
@@ -269,6 +290,17 @@ const EmailComposer = forwardRef<EmailComposerRef, EmailComposerProps>(function 
               />
             </div>
           </div>
+          {/* Template Selector */}
+          {templateType && (
+            <TemplateSelector
+              templateType={templateType}
+              mergeData={templateMergeData || {}}
+              onApply={handleTemplateApply}
+              selectedId={selectedTemplateId}
+              onSelectId={setSelectedTemplateId}
+            />
+          )}
+
           {/* Subject */}
           <div>
             <Label>Subject *</Label>
