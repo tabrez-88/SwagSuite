@@ -87,6 +87,9 @@ export * from './communication.schema';
 // Attachments
 export * from './attachment.schema';
 
+// Tax
+export * from './tax.schema';
+
 // Misc
 export * from './misc.schema';
 

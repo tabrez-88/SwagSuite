@@ -11,4 +11,7 @@ router.get("/api/projects/:projectId/vendor-invoices", isAuthenticated, asyncHan
 // Create vendor invoice (bill) for a project — with optional PO auto-vouch
 router.post("/api/projects/:projectId/vendor-invoices", isAuthenticated, asyncHandler(VendorInvoiceController.create));
 
+// Update vendor invoice (bill)
+router.patch("/api/projects/:projectId/vendor-invoices/:invoiceId", isAuthenticated, asyncHandler(VendorInvoiceController.update));
+
 export default router;

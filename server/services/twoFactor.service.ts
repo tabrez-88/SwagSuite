@@ -153,6 +153,59 @@ export function verifyTempToken(token: string): { sub: string } | null {
   }
 }
 
+// --- Trusted Device Tokens ---
+
+const TRUSTED_DEVICE_EXPIRY_DAYS = 30;
+
+export interface TrustedDevice {
+  tokenHash: string;
+  expiresAt: string; // ISO date
+  label: string;
+  createdAt: string; // ISO date
+}
+
+export function generateTrustedDeviceToken(): string {
+  return crypto.randomBytes(32).toString("hex");
+}
+
+export function hashTrustedDeviceToken(token: string): string {
+  return crypto.createHash("sha256").update(token).digest("hex");
+}
+
+export function createTrustedDevice(token: string, userAgent: string): TrustedDevice {
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + TRUSTED_DEVICE_EXPIRY_DAYS * 24 * 60 * 60 * 1000);
+  // Extract a short label from user-agent
+  const label = userAgent?.slice(0, 100) || "Unknown device";
+  return {
+    tokenHash: hashTrustedDeviceToken(token),
+    expiresAt: expiresAt.toISOString(),
+    label,
+    createdAt: now.toISOString(),
+  };
+}
+
+export function verifyTrustedDevice(
+  token: string,
+  devices: TrustedDevice[]
+): boolean {
+  if (!devices || devices.length === 0) return false;
+  const hash = hashTrustedDeviceToken(token);
+  const now = new Date();
+  return devices.some(
+    (d) => d.tokenHash === hash && new Date(d.expiresAt) > now
+  );
+}
+
+export function cleanExpiredDevices(devices: TrustedDevice[]): TrustedDevice[] {
+  if (!devices) return [];
+  const now = new Date();
+  return devices.filter((d) => new Date(d.expiresAt) > now);
+}
+
+export const TRUSTED_DEVICE_COOKIE = "swag_trusted_device";
+export const TRUSTED_DEVICE_MAX_AGE = TRUSTED_DEVICE_EXPIRY_DAYS * 24 * 60 * 60 * 1000;
+
 // --- Generate encryption key helper (for initial setup) ---
 
 export function generateEncryptionKey(): string {

@@ -75,6 +75,23 @@ export class VendorInvoiceService {
 
     return invoice;
   }
+
+  async update(id: string, data: {
+    invoiceNumber?: string;
+    amount?: string;
+    dueDate?: string | null;
+    notes?: string | null;
+    status?: string;
+  }) {
+    const updateData: Record<string, unknown> = {};
+    if (data.invoiceNumber !== undefined) updateData.invoiceNumber = data.invoiceNumber;
+    if (data.amount !== undefined) updateData.amount = data.amount;
+    if (data.dueDate !== undefined) updateData.dueDate = data.dueDate ? new Date(data.dueDate) : null;
+    if (data.notes !== undefined) updateData.notes = data.notes;
+    if (data.status !== undefined) updateData.status = data.status;
+
+    return vendorInvoiceRepository.updateVendorInvoice(id, updateData as any);
+  }
 }
 
 export const vendorInvoiceService = new VendorInvoiceService();

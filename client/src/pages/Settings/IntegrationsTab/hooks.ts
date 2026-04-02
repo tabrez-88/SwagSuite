@@ -45,6 +45,11 @@ export function useIntegrationsTab() {
     stripePublishableKey: "",
     stripeSecretKey: "",
     taxjarApiKey: "",
+    taxOriginStreet: "",
+    taxOriginCity: "",
+    taxOriginState: "",
+    taxOriginZip: "",
+    taxOriginCountry: "US",
     shipmateConnected: false,
   });
 
@@ -82,6 +87,11 @@ export function useIntegrationsTab() {
         stripePublishableKey: settings.stripePublishableKey || "",
         stripeSecretKey: settings.stripeSecretKey || "",
         taxjarApiKey: settings.taxjarApiKey || "",
+        taxOriginStreet: settings.taxOriginStreet || "",
+        taxOriginCity: settings.taxOriginCity || "",
+        taxOriginState: settings.taxOriginState || "",
+        taxOriginZip: settings.taxOriginZip || "",
+        taxOriginCountry: settings.taxOriginCountry || "US",
         shipmateConnected: settings.shipmateConnected || false,
       });
     }

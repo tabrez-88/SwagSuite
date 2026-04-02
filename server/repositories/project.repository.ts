@@ -211,6 +211,7 @@ export class ProjectRepository {
         leg2ShippingMethod: orderItems.leg2ShippingMethod,
         leg2ShippingAccountType: orderItems.leg2ShippingAccountType,
         leg2ShippingQuote: orderItems.leg2ShippingQuote,
+        taxCodeId: orderItems.taxCodeId,
         createdAt: orderItems.createdAt,
         // Join product info
         productName: products.name,

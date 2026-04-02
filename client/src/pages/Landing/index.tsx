@@ -20,6 +20,8 @@ export default function Landing() {
     useBackupCode,
     backupCode,
     setBackupCode,
+    trustDevice,
+    setTrustDevice,
     inputRefs,
     theme,
     handleLocalLogin,
@@ -192,6 +194,17 @@ export default function Landing() {
                     />
                   </div>
                 )}
+
+                <label className="flex items-center gap-2 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={trustDevice}
+                    onChange={(e) => setTrustDevice(e.target.checked)}
+                    className="rounded border-gray-300 text-swag-primary focus:ring-swag-primary h-4 w-4"
+                    disabled={isLoading}
+                  />
+                  <span className="text-sm text-gray-600">Trust this device for 30 days</span>
+                </label>
 
                 <Button
                   type="submit"

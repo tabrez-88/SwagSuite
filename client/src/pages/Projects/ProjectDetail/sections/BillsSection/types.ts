@@ -12,7 +12,10 @@ export interface BillFormData {
   amount: string;
   dueDate: string;
   notes: string;
+  status: string;
 }
+
+export const BILL_STATUSES = ["pending", "vouched", "paid", "rejected"] as const;
 
 export const billStatusColors: Record<string, string> = {
   pending: "bg-yellow-100 text-yellow-800",

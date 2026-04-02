@@ -35,6 +35,8 @@ import ActivitiesSection from "@/pages/Projects/ProjectDetail/sections/OverviewS
 import EmailSection from "@/components/sections/EmailSection";
 import VendorSection from "@/components/sections/VendorSection";
 
+import { useQuery } from "@tanstack/react-query";
+import { getQueryFn } from "@/lib/queryClient";
 import { useOverviewSection } from "./hooks";
 import type { OverviewSectionProps, TeamMemberPickerProps } from "./types";
 
@@ -65,6 +67,11 @@ export default function OverviewSection(props: OverviewSectionProps) {
     renderDateBadge,
     totalQuantity,
   } = hook;
+
+  const { data: taxCodes } = useQuery<any[]>({
+    queryKey: ["/api/tax-codes"],
+    queryFn: getQueryFn({ on401: "throw" }),
+  });
 
   if (!order) return null;
 
@@ -348,18 +355,31 @@ export default function OverviewSection(props: OverviewSectionProps) {
                     <span className="text-gray-500">Subtotal</span>
                     <span>${Number(order.subtotal || 0).toLocaleString()}</span>
                   </div>
-                  {Number(order.tax || 0) > 0 && (
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-500">Tax</span>
-                      <span>${Number(order.tax || 0).toLocaleString()}</span>
-                    </div>
-                  )}
                   {Number((order as any)?.shipping || 0) > 0 && (
                     <div className="flex justify-between text-sm">
                       <span className="text-gray-500">Shipping</span>
                       <span>${Number((order as any).shipping || 0).toLocaleString()}</span>
                     </div>
                   )}
+                  {(() => {
+                    const taxAmount = Number(order.tax || 0);
+                    const activeTaxCode = taxCodes?.find((tc: any) => String(tc.id) === (order as any)?.defaultTaxCodeId);
+                    return (
+                      <div className={`flex justify-between text-sm items-center ${taxAmount > 0 ? "bg-amber-50 -mx-6 px-6 py-1.5 rounded" : ""}`}>
+                        <span className="text-gray-500 flex items-center gap-1.5">
+                          Tax
+                          {activeTaxCode && (
+                            <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 font-normal">
+                              {activeTaxCode.isExempt ? "Exempt" : `${activeTaxCode.label} · ${activeTaxCode.rate}%`}
+                            </Badge>
+                          )}
+                        </span>
+                        <span className={taxAmount > 0 ? "font-medium text-amber-700" : ""}>
+                          ${taxAmount.toFixed(2)}
+                        </span>
+                      </div>
+                    );
+                  })()}
                   <div className="flex justify-between text-sm font-bold border-t pt-2">
                     <span>Total</span>
                     <span>${Number(order.total || 0).toLocaleString()}</span>

@@ -17,6 +17,13 @@ import {
   verifyBackupCode,
   createTempToken,
   verifyTempToken,
+  generateTrustedDeviceToken,
+  createTrustedDevice,
+  verifyTrustedDevice,
+  cleanExpiredDevices,
+  TRUSTED_DEVICE_COOKIE,
+  TRUSTED_DEVICE_MAX_AGE,
+  type TrustedDevice,
 } from "../services/twoFactor.service";
 
 // Simple in-memory rate limiter for 2FA verification
@@ -184,13 +191,26 @@ export async function setupAuth(app: Express) {
 
       // Check if 2FA is enabled
       if (user.twoFactorEnabled && user.twoFactorSecret) {
-        // Don't create session yet — return temp token for 2FA step
-        const tempToken = createTempToken(user.id);
-        console.log(`2FA required for user: ${user.username || user.email}`);
-        return res.json({
-          requires2FA: true,
-          tempToken,
-        });
+        // Check for trusted device cookie — skip 2FA if valid
+        const trustedToken = req.cookies?.[TRUSTED_DEVICE_COOKIE];
+        if (trustedToken) {
+          const devices = (user.trustedDevices as TrustedDevice[]) || [];
+          if (verifyTrustedDevice(trustedToken, devices)) {
+            console.log(`Trusted device recognized for: ${user.username || user.email}`);
+            // Skip 2FA — fall through to session creation below
+          } else {
+            // Invalid/expired token — clear it and require 2FA
+            res.clearCookie(TRUSTED_DEVICE_COOKIE);
+            const tempToken = createTempToken(user.id);
+            console.log(`2FA required for user: ${user.username || user.email}`);
+            return res.json({ requires2FA: true, tempToken });
+          }
+        } else {
+          // No trusted device cookie — require 2FA
+          const tempToken = createTempToken(user.id);
+          console.log(`2FA required for user: ${user.username || user.email}`);
+          return res.json({ requires2FA: true, tempToken });
+        }
       }
 
       // No 2FA — create session directly
@@ -219,7 +239,7 @@ export async function setupAuth(app: Express) {
   // 2FA Verify (second step of login)
   app.post("/api/auth/2fa/verify", async (req, res) => {
     try {
-      const { tempToken, code } = req.body;
+      const { tempToken, code, trustDevice } = req.body;
 
       if (!tempToken || !code) {
         return res.status(400).json({ message: "Token and code are required" });
@@ -272,6 +292,28 @@ export async function setupAuth(app: Express) {
         }
 
         await userRepository.updateUserLastLogin(user.id);
+
+        // Set trusted device cookie if requested
+        if (trustDevice) {
+          const deviceToken = generateTrustedDeviceToken();
+          const userAgent = req.headers["user-agent"] || "";
+          const device = createTrustedDevice(deviceToken, userAgent);
+          const existingDevices = cleanExpiredDevices(
+            (user.trustedDevices as TrustedDevice[]) || []
+          );
+          // Keep max 5 trusted devices
+          const updatedDevices = [...existingDevices, device].slice(-5);
+          await userRepository.setTrustedDevices(user.id, updatedDevices);
+          res.cookie(TRUSTED_DEVICE_COOKIE, deviceToken, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === "production",
+            sameSite: process.env.NODE_ENV === "production" ? "strict" : "lax",
+            maxAge: TRUSTED_DEVICE_MAX_AGE,
+            path: "/",
+          });
+          console.log(`Trusted device saved for: ${user.username || user.email}`);
+        }
+
         console.log(`2FA login successful for: ${user.username || user.email}`);
         return res.json({
           message: "Login successful",
@@ -447,6 +489,7 @@ export async function setupAuth(app: Express) {
   });
 
   app.get("/api/logout", (req, res) => {
+    res.clearCookie(TRUSTED_DEVICE_COOKIE);
     req.logout(() => {
       res.redirect("/");
     });

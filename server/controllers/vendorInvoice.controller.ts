@@ -23,4 +23,19 @@ export class VendorInvoiceController {
 
     res.status(201).json(invoice);
   }
+
+  static async update(req: Request, res: Response) {
+    const { invoiceId } = req.params;
+    const { invoiceNumber, amount, dueDate, notes, status } = req.body;
+
+    const invoice = await vendorInvoiceService.update(invoiceId, {
+      invoiceNumber,
+      amount,
+      dueDate,
+      notes,
+      status,
+    });
+
+    res.json(invoice);
+  }
 }

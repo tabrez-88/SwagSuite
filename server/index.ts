@@ -1,6 +1,7 @@
 import "dotenv/config";
 import { loadSecrets } from "./config/secrets";
 import express, { type Request, Response, NextFunction } from "express";
+import cookieParser from "cookie-parser";
 import { createServer } from "http";
 import { setupAuth } from "./config/auth";
 import { registerModularRoutes } from "./routes/index";
@@ -18,6 +19,7 @@ if (process.env.NODE_ENV === 'production') {
   app.set('trust proxy', true);
 }
 
+app.use(cookieParser());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: false, limit: '50mb' }));
 

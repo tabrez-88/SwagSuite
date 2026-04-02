@@ -83,22 +83,25 @@ export function useEditProductPage(projectId: string, itemId: string, data: Proj
   }, [serverLines, item, itemId]);
 
   // ── Item-level editable fields ──
+  // Use render-time initialization (not useEffect) to avoid reset-on-refetch bug.
+  // React safely handles setState during render when it's conditional & convergent.
   const [editItemData, setEditItemData] = useState<any>({});
+  const [initializedForItem, setInitializedForItem] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (item) {
-      setEditItemData({
-        description: item.description || "",
-        decoratorType: item.decoratorType || "supplier",
-        decoratorId: item.decoratorId || "",
-        notes: item.notes || "",
-        privateNotes: item.privateNotes || "",
-        shippingDestination: item.shippingDestination || "",
-        shippingAccountType: item.shippingAccountType || "",
-        shippingNotes: item.shippingNotes || "",
-      });
-    }
-  }, [item]);
+  if (item && initializedForItem !== itemId) {
+    setInitializedForItem(itemId);
+    setEditItemData({
+      description: item.description || "",
+      decoratorType: item.decoratorType || "supplier",
+      decoratorId: item.decoratorId || "",
+      notes: item.notes || "",
+      privateNotes: item.privateNotes || "",
+      shippingDestination: item.shippingDestination || "",
+      shippingAccountType: item.shippingAccountType || "",
+      shippingNotes: item.shippingNotes || "",
+      taxCodeId: item.taxCodeId || "",
+    });
+  }
 
   // ── Price lock (CommonSKU-style: lock retail price, cost changes only affect margin) ──
   const [isPriceLocked, setIsPriceLocked] = useState(false);
@@ -207,6 +210,7 @@ export function useEditProductPage(projectId: string, itemId: string, data: Proj
     if ((editItemData.decoratorId || "") !== (item.decoratorId || "")) return true;
     if ((editItemData.notes || "") !== (item.notes || "")) return true;
     if ((editItemData.privateNotes || "") !== (item.privateNotes || "")) return true;
+    if ((editItemData.taxCodeId || "") !== (item.taxCodeId || "")) return true;
 
     // Check line count changed
     if (editableLines.length !== serverLines.length) return true;
@@ -401,6 +405,7 @@ export function useEditProductPage(projectId: string, itemId: string, data: Proj
         decoratorId: editItemData.decoratorId || null,
         notes: editItemData.notes,
         privateNotes: editItemData.privateNotes || null,
+        taxCodeId: editItemData.taxCodeId || null,
         shippingDestination: editItemData.shippingDestination || null,
         shippingAccountType: editItemData.shippingAccountType || null,
         shippingNotes: editItemData.shippingNotes || null,

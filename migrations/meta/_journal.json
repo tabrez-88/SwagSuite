@@ -71,6 +71,20 @@
       "when": 1774944876408,
       "tag": "0009_silent_veda",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1775025907122,
+      "tag": "0010_uneven_hannibal_king",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1775097848676,
+      "tag": "0011_living_nightshade",
+      "breakpoints": true
     }
   ]
 }

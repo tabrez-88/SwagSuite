@@ -28,6 +28,7 @@ import vendorApprovalRoutes from "./vendorApproval.routes";
 import miscRoutes from "./misc.routes";
 import projectRoutes from "./project.routes";
 import decoratorMatrixRoutes from "./decoratorMatrix.routes";
+import taxRoutes from "./tax.routes";
 
 /**
  * Register all modular route files.
@@ -103,6 +104,9 @@ export function registerModularRoutes(app: Express) {
 
   // Invoices & Payments (QuickBooks, Stripe, TaxJar)
   app.use(invoiceRoutes);
+
+  // Tax Codes
+  app.use(taxRoutes);
 
   // Vendor Approvals
   app.use(vendorApprovalRoutes);

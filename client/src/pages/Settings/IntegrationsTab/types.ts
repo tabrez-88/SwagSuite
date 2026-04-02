@@ -18,6 +18,11 @@ export interface IntegrationSettings {
   stripePublishableKey: string;
   stripeSecretKey: string;
   taxjarApiKey: string;
+  taxOriginStreet: string;
+  taxOriginCity: string;
+  taxOriginState: string;
+  taxOriginZip: string;
+  taxOriginCountry: string;
   shipmateConnected: boolean;
 }
 

@@ -18,7 +18,7 @@ import { registerInMediaLibrary } from "../utils/registerInMediaLibrary";
 // ── Helper: recalculate order totals (items + charges + discount + tax + shipping) ──
 async function recalculateOrderTotals(orderId: string) {
   const { db } = await import("../db");
-  const { orderServiceCharges, orderAdditionalCharges, orderShipments, companies, artworkItems, artworkCharges } = await import("@shared/schema");
+  const { orderServiceCharges, orderAdditionalCharges, orderShipments, companies, artworkItems, artworkCharges, taxCodes, integrationSettings } = await import("@shared/schema");
   const { eq } = await import("drizzle-orm");
   const { getTaxJarCredentials } = await import("../services/taxjar.service");
 
@@ -76,17 +76,36 @@ async function recalculateOrderTotals(orderId: string) {
   // Discount disabled for now — kept in schema but not applied
   const discountedSubtotal = subtotal;
 
-  // Calculate tax: try TaxJar first, fallback to manual taxRate
+  // Calculate tax: check tax code, try TaxJar, fallback to manual taxRate
   let tax = 0;
   let taxSource = "none";
-  const isTaxExempt = await (async () => {
-    if (!existingOrder?.companyId) return false;
-    const [company] = await db.select().from(companies).where(eq(companies.id, existingOrder.companyId));
-    return company?.taxExempt || false;
+
+  // Tax hierarchy (CommonSKU-style): Item tax code > Order tax code > Company default
+  // Order-level tax code OVERRIDES company-level taxExempt when explicitly set
+  const company = await (async () => {
+    if (!existingOrder?.companyId) return null;
+    const [c] = await db.select().from(companies).where(eq(companies.id, existingOrder.companyId));
+    return c || null;
+  })();
+  const companyTaxExempt = company?.taxExempt || false;
+
+  // Resolve the order's tax code (if set)
+  const orderTaxCode = await (async () => {
+    const taxCodeId = (existingOrder as any)?.defaultTaxCodeId;
+    if (!taxCodeId) return null;
+    const [tc] = await db.select().from(taxCodes).where(eq(taxCodes.id, taxCodeId));
+    return tc || null;
   })();
 
-  if (!isTaxExempt && discountedSubtotal > 0) {
-    // Try TaxJar API
+  // If order has an explicit tax code, it overrides company-level exempt
+  // Only use company exempt as default when no order-level tax code is set
+  const hasOrderTaxCode = orderTaxCode !== null;
+  const isExempt = hasOrderTaxCode
+    ? orderTaxCode.isExempt === true   // Order tax code decides
+    : companyTaxExempt;                 // Fall back to company default
+
+  if (!isExempt && discountedSubtotal > 0) {
+    // Try TaxJar API (if tax code has a TaxJar product code or no tax code is set)
     const taxService = await getTaxJarCredentials();
     if (taxService) {
       try {
@@ -95,10 +114,27 @@ async function recalculateOrderTotals(orderId: string) {
           catch { return null; }
         })();
         if (shippingAddr?.state && shippingAddr?.zipCode) {
+          // Load configurable origin address from integration settings
+          const [settings] = await db.select().from(integrationSettings).limit(1);
+          const fromState = settings?.taxOriginState || "NY";
+          const fromZip = settings?.taxOriginZip || "10001";
+          const fromCountry = settings?.taxOriginCountry || "US";
+          const fromCity = settings?.taxOriginCity || "";
+          const fromStreet = settings?.taxOriginStreet || "";
+
+          // Resolve per-item TaxJar product codes
+          const allTaxCodeIds = [...new Set(allItems.map((i: any) => i.taxCodeId).filter(Boolean))];
+          const itemTaxCodes = allTaxCodeIds.length > 0
+            ? await db.select().from(taxCodes).where(inArray(taxCodes.id, allTaxCodeIds))
+            : [];
+          const taxCodeMap = new Map(itemTaxCodes.map(tc => [tc.id, tc]));
+
           const taxResult = await taxService.calculateTax({
-            from_country: "US",
-            from_state: "NY",
-            from_zip: "10001",
+            from_country: fromCountry,
+            from_state: fromState,
+            from_zip: fromZip,
+            from_city: fromCity,
+            from_street: fromStreet,
             to_country: shippingAddr.country || "US",
             to_state: shippingAddr.state,
             to_zip: shippingAddr.zipCode,
@@ -106,12 +142,17 @@ async function recalculateOrderTotals(orderId: string) {
             to_street: shippingAddr.street || shippingAddr.address || "",
             amount: discountedSubtotal,
             shipping: shippingTotal,
-            line_items: allItems.map((item: any) => ({
-              id: item.id,
-              quantity: item.quantity,
-              unit_price: parseFloat(item.unitPrice) || 0,
-              discount: 0,
-            })),
+            line_items: allItems.map((item: any) => {
+              const itemTaxCode = item.taxCodeId ? taxCodeMap.get(item.taxCodeId) : null;
+              const productTaxCode = itemTaxCode?.taxjarProductCode || orderTaxCode?.taxjarProductCode || undefined;
+              return {
+                id: item.id,
+                quantity: item.quantity,
+                unit_price: parseFloat(item.unitPrice) || 0,
+                discount: 0,
+                ...(productTaxCode ? { product_tax_code: productTaxCode } : {}),
+              };
+            }),
           });
           tax = taxResult.amount_to_collect;
           taxSource = "taxjar";
@@ -120,11 +161,38 @@ async function recalculateOrderTotals(orderId: string) {
         console.warn(`TaxJar calculation failed for order ${orderId}, falling back to manual rate:`, err);
       }
     }
-    // Fallback to manual tax rate if TaxJar didn't calculate
-    if (taxSource === "none") {
-      const manualTaxRate = parseFloat((existingOrder as any)?.taxRate || "0");
-      if (manualTaxRate > 0) {
-        tax = discountedSubtotal * (manualTaxRate / 100);
+    // Fallback to manual tax rate: when TaxJar not available, failed, OR returned 0 but manual rate exists
+    if (taxSource === "none" || (taxSource === "taxjar" && tax === 0)) {
+      const orderRate = orderTaxCode ? parseFloat(orderTaxCode.rate || "0") : parseFloat((existingOrder as any)?.taxRate || "0");
+
+      // Check for per-item tax code overrides
+      const allItemTaxCodeIds = [...new Set(allItems.map((i: any) => i.taxCodeId).filter(Boolean))];
+      const itemTaxCodesForManual = allItemTaxCodeIds.length > 0
+        ? await db.select().from(taxCodes).where(inArray(taxCodes.id, allItemTaxCodeIds))
+        : [];
+      const itemTaxCodeMap = new Map(itemTaxCodesForManual.map(tc => [tc.id, tc]));
+
+      let manualTax = 0;
+      for (const item of allItems) {
+        const itemTotal = parseFloat(item.totalPrice || "0");
+        if (itemTotal <= 0) continue;
+
+        const itemTaxCode = item.taxCodeId ? itemTaxCodeMap.get(item.taxCodeId) : null;
+        if (itemTaxCode?.isExempt === true) continue; // Per-item exempt → skip
+
+        const rate = itemTaxCode ? parseFloat(itemTaxCode.rate || "0") : orderRate;
+        if (rate > 0) {
+          manualTax += itemTotal * (rate / 100);
+        }
+      }
+
+      // Tax additional/service/artwork charges at order rate
+      if (orderRate > 0) {
+        manualTax += (additionalChargesTotal + serviceChargesTotal + artworkChargesTotal) * (orderRate / 100);
+      }
+
+      if (manualTax > 0) {
+        tax = manualTax;
         taxSource = "manual";
       }
     }
@@ -143,10 +211,16 @@ async function recalculateOrderTotals(orderId: string) {
     total: total.toFixed(2),
   });
 
+  // Store effective tax rate for display on PDFs
+  const effectiveTaxRate = tax > 0 && discountedSubtotal > 0
+    ? ((tax / discountedSubtotal) * 100).toFixed(3)
+    : "0";
+
   const updatedOrder = await projectRepository.updateOrder(orderId, {
     subtotal: subtotal.toFixed(2),
     shipping: shippingTotal.toFixed(2),
     tax: tax.toFixed(2),
+    taxRate: effectiveTaxRate,
     total: total.toFixed(2),
     taxCalculatedAt: taxSource !== "none" ? new Date() : undefined,
   } as any);
@@ -240,6 +314,27 @@ export class ProjectController {
   static async create(req: Request, res: Response) {
     try {
       const { items, ...orderData } = req.body;
+
+      // Resolve default tax code if not explicitly set
+      if (!orderData.defaultTaxCodeId) {
+        const { db } = await import("../db");
+        const { taxCodes } = await import("@shared/schema");
+        const { eq: eqOp } = await import("drizzle-orm");
+        // Use the tax code marked as default, or fall back to the first exempt code
+        const [defaultTc] = await db.select().from(taxCodes)
+          .where(eqOp(taxCodes.isDefault, true))
+          .limit(1);
+        if (defaultTc) {
+          orderData.defaultTaxCodeId = defaultTc.id;
+        } else {
+          const [exemptTc] = await db.select().from(taxCodes)
+            .where(eqOp(taxCodes.isExempt, true))
+            .limit(1);
+          if (exemptTc) {
+            orderData.defaultTaxCodeId = exemptTc.id;
+          }
+        }
+      }
 
       const dataToValidate = {
         ...orderData,
@@ -606,7 +701,7 @@ export class ProjectController {
       }
 
       // Recalculate totals when pricing-related fields change
-      const pricingFields = ['orderDiscount', 'taxRate', 'shippingAddress', 'billingAddress'];
+      const pricingFields = ['orderDiscount', 'taxRate', 'shippingAddress', 'billingAddress', 'defaultTaxCodeId'];
       const hasPricingChange = pricingFields.some(f => req.body[f] !== undefined);
       if (hasPricingChange || items) {
         try {
@@ -983,7 +1078,7 @@ export class ProjectController {
           if (margin > 0 && margin < minMargin) {
             // Include warning in response but allow save (client handles confirmation)
             const updatedItem = await projectRepository.updateOrderItem(req.params.itemId, req.body);
-            const pricingFields = ['quantity', 'unitPrice', 'totalPrice', 'cost', 'decorationCost', 'charges'];
+            const pricingFields = ['quantity', 'unitPrice', 'totalPrice', 'cost', 'decorationCost', 'charges', 'taxCodeId'];
             if (pricingFields.some(f => req.body[f] !== undefined)) {
               await recalculateOrderTotals(req.params.projectId);
             }
@@ -1016,7 +1111,7 @@ export class ProjectController {
       const updatedItem = await projectRepository.updateOrderItem(req.params.itemId, body);
 
       // Recalculate order totals if pricing fields changed
-      const pricingFields = ['quantity', 'unitPrice', 'totalPrice', 'cost', 'decorationCost', 'charges'];
+      const pricingFields = ['quantity', 'unitPrice', 'totalPrice', 'cost', 'decorationCost', 'charges', 'taxCodeId'];
       if (pricingFields.some(f => req.body[f] !== undefined)) {
         await recalculateOrderTotals(req.params.projectId);
       }

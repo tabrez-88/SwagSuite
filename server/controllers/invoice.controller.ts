@@ -73,42 +73,9 @@ export class InvoiceController {
         return res.json(existingInvoice);
       }
 
-      // Calculate tax using TaxJar
-      const taxService = await getTaxJarCredentials();
-      let taxAmount = 0;
-
-      if (taxService && order.companyId) {
-        const company = await companyRepository.getById(order.companyId);
-        if (company && !company.taxExempt) {
-          try {
-            // Extract zip/state from order billing address or fall back to company default address
-            let toZip = '10001';
-            let toState = 'NY';
-            if ((order as any).billingAddress) {
-              try {
-                const billing = JSON.parse((order as any).billingAddress);
-                toZip = billing.zipCode || toZip;
-                toState = billing.state || toState;
-              } catch { /* ignore parse errors */ }
-            }
-            const taxCalc = await taxService.calculateTax({
-              from_country: 'US',
-              from_zip: '10001',
-              from_state: 'NY',
-              to_country: 'US',
-              to_zip: toZip,
-              to_state: toState,
-              amount: Number(order.subtotal),
-              shipping: Number(order.shipping || 0)
-            });
-            taxAmount = taxCalc.amount_to_collect;
-          } catch (taxError) {
-            console.error("TaxJar calculation error:", taxError);
-            // Continue without tax if calculation fails
-          }
-        }
-      }
-
+      // Use the order's already-calculated tax (from recalculateOrderTotals which handles
+      // TaxJar, tax codes, tax-exempt status, and manual rate fallback)
+      const taxAmount = Number(order.tax || 0);
       const totalAmount = Number(order.subtotal) + taxAmount + Number(order.shipping || 0);
 
       // Create invoice

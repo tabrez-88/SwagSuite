@@ -61,6 +61,12 @@ export const integrationSettings = pgTable("integration_settings", {
 
   // TaxJar Integration
   taxjarApiKey: text("taxjar_api_key"),
+  // Tax Origin Address (for TaxJar tax calculation)
+  taxOriginStreet: varchar("tax_origin_street"),
+  taxOriginCity: varchar("tax_origin_city"),
+  taxOriginState: varchar("tax_origin_state"),
+  taxOriginZip: varchar("tax_origin_zip"),
+  taxOriginCountry: varchar("tax_origin_country").default("US"),
 
   // Metadata
   updatedBy: varchar("updated_by").references(() => users.id),

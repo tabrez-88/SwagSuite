@@ -12,6 +12,7 @@ router.post("/api/projects", isAuthenticated, ProjectController.create);
 router.patch("/api/projects/:id", isAuthenticated, ProjectController.update);
 router.post("/api/projects/:projectId/duplicate", isAuthenticated, ProjectController.duplicate);
 router.post("/api/projects/:id/recalculate-total", isAuthenticated, ProjectController.recalculateTotal);
+router.post("/api/projects/:id/calculate-tax", isAuthenticated, ProjectController.recalculateTotal); // Alias for Calculate Tax button
 
 // ── Batch: Items with all details (lines, charges, artwork) ──
 router.get("/api/projects/:projectId/items-with-details", isAuthenticated, ProjectController.listItemsWithDetails);

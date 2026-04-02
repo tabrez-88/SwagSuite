@@ -27,6 +27,7 @@ export const users = pgTable("users", {
   twoFactorEnabled: boolean("two_factor_enabled").default(false),
   twoFactorSecret: varchar("two_factor_secret"), // AES-256-GCM encrypted
   twoFactorBackupCodes: jsonb("two_factor_backup_codes"), // hashed backup codes
+  trustedDevices: jsonb("trusted_devices").default([]), // [{ tokenHash, expiresAt, label, createdAt }]
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

@@ -7,6 +7,8 @@ export interface Company {
   industry?: string;
   notes?: string;
   ytdSpend?: string;
+  taxExempt?: boolean;
+  defaultTaxCodeId?: string;
   socialMediaLinks?: {
     linkedin?: string;
     twitter?: string;

@@ -83,6 +83,11 @@ export class SettingsService {
       stripeSecretKey: dbSettings?.stripeSecretKey || process.env.STRIPE_SECRET_KEY?.trim() || "",
       stripeWebhookSecret: dbSettings?.stripeWebhookSecret || process.env.STRIPE_WEBHOOK_SECRET?.trim() || "",
       taxjarApiKey: dbSettings?.taxjarApiKey || process.env.TAXJAR_API_KEY?.trim() || "",
+      taxOriginStreet: dbSettings?.taxOriginStreet || "",
+      taxOriginCity: dbSettings?.taxOriginCity || "",
+      taxOriginState: dbSettings?.taxOriginState || "",
+      taxOriginZip: dbSettings?.taxOriginZip || "",
+      taxOriginCountry: dbSettings?.taxOriginCountry || "US",
     };
   }
 

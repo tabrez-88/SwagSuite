@@ -27,8 +27,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { IMPRINT_LOCATIONS, IMPRINT_METHODS } from "@/constants/imprintOptions";
 import { isBelowMinimum } from "@/hooks/useMarginSettings";
 import { getCloudinaryThumbnail } from "@/lib/media-library";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, getQueryFn } from "@/lib/queryClient";
 import type { ProjectData } from "@/types/project-types";
+import { useQuery } from "@tanstack/react-query";
 import {
   AlertTriangle,
   ArrowLeft,
@@ -66,6 +67,11 @@ interface EditProductPageProps {
 export default function EditProductPage({ projectId, itemId, data }: EditProductPageProps) {
   const editProductPage = useEditProductPage(projectId, itemId, data);
   const [showMatrixDialog, setShowMatrixDialog] = useState(false);
+
+  const { data: taxCodes } = useQuery<any[]>({
+    queryKey: ["/api/tax-codes"],
+    queryFn: getQueryFn({ on401: "throw" }),
+  });
 
   if (!editProductPage.item) {
     return (
@@ -160,6 +166,26 @@ export default function EditProductPage({ projectId, itemId, data }: EditProduct
               placeholder="Internal notes visible only to your team..."
               rows={2}
             />
+          </div>
+          <div>
+            <Label>Tax Code Override</Label>
+            <Select
+              value={editProductPage.editItemData.taxCodeId || "none"}
+              onValueChange={(val) => editProductPage.setEditItemData((d: any) => ({ ...d, taxCodeId: val === "none" ? "" : val }))}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Use order default" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Use order default</SelectItem>
+                {(taxCodes || []).map((tc: any) => (
+                  <SelectItem key={tc.id} value={String(tc.id)}>
+                    {tc.label} {tc.rate ? `(${tc.rate}%)` : ""} {tc.isExempt ? "— Exempt" : ""}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground mt-1">Override the order-level tax code for this item only</p>
           </div>
         </CardContent>
       </Card>

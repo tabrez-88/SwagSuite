@@ -19,6 +19,8 @@ export const companyFormSchema = z.object({
   website: urlField("website URL"),
   industry: z.string().optional(),
   notes: z.string().optional(),
+  taxExempt: z.boolean().optional(),
+  defaultTaxCodeId: z.string().optional().or(z.literal("")),
   // Social media links
   linkedinUrl: urlField("LinkedIn URL"),
   twitterUrl: urlField("Twitter URL"),

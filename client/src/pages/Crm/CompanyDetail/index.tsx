@@ -32,6 +32,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useCompanyDetail } from "./hooks";
 import { INDUSTRY_OPTIONS, ENGAGEMENT_COLORS } from "./types";
+import { useQuery } from "@tanstack/react-query";
+import { getQueryFn } from "@/lib/queryClient";
 
 export default function CompanyDetail() {
   const {
@@ -69,6 +71,11 @@ export default function CompanyDetail() {
     getInitials,
     setLocation,
   } = useCompanyDetail();
+
+  const { data: taxCodes } = useQuery<any[]>({
+    queryKey: ["/api/tax-codes"],
+    queryFn: getQueryFn({ on401: "throw" }),
+  });
 
   if (isLoading) {
     return (
@@ -199,6 +206,15 @@ export default function CompanyDetail() {
                       <strong>Contact Information:</strong> View and manage all contact persons for this company in the <button onClick={() => setActiveTab("contacts")} className="text-blue-700 underline hover:text-blue-800">Contacts tab</button>.
                     </p>
                   </div>
+
+                  {/* Tax Info */}
+                  {company.taxExempt && (
+                    <div className="flex items-center gap-2 pt-2">
+                      <Badge variant="outline" className="border-amber-500 text-amber-700 bg-amber-50">
+                        Tax Exempt
+                      </Badge>
+                    </div>
+                  )}
 
                   {company.notes && (
                     <div className="pt-4 border-t">
@@ -632,6 +648,56 @@ export default function CompanyDetail() {
                       <FormControl>
                         <Input placeholder="https://..." {...field} />
                       </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              {/* Tax Settings */}
+              <div className="space-y-3 pt-2 border-t">
+                <h4 className="font-medium">Tax Settings</h4>
+                <FormField
+                  control={form.control}
+                  name="taxExempt"
+                  render={({ field }) => (
+                    <FormItem className="flex items-center gap-3 space-y-0">
+                      <FormControl>
+                        <input
+                          type="checkbox"
+                          checked={field.value || false}
+                          onChange={field.onChange}
+                          className="h-4 w-4 rounded border-gray-300"
+                        />
+                      </FormControl>
+                      <FormLabel className="font-normal">Tax Exempt</FormLabel>
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="defaultTaxCodeId"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Default Tax Code</FormLabel>
+                      <Select
+                        value={field.value || "none"}
+                        onValueChange={(val) => field.onChange(val === "none" ? "" : val)}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select default tax code" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="none">None</SelectItem>
+                          {(taxCodes || []).map((tc: any) => (
+                            <SelectItem key={tc.id} value={String(tc.id)}>
+                              {tc.label} {tc.rate ? `(${tc.rate}%)` : ""}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                       <FormMessage />
                     </FormItem>
                   )}

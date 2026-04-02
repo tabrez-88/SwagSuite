@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { AddressAutocomplete, type ParsedAddress } from "@/components/ui/address-autocomplete";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -217,6 +218,80 @@ export function IntegrationsTab() {
                         <Eye className="h-4 w-4 text-gray-500" />
                       )}
                     </Button>
+                  </div>
+                </div>
+
+                {/* Tax Origin Address */}
+                <div className="pt-3 border-t">
+                  <p className="text-sm font-medium mb-2">Tax Origin Address</p>
+                  <p className="text-xs text-gray-500 mb-3">
+                    Your business origin address for tax calculation. Required for accurate sales tax rates.
+                  </p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="col-span-2 space-y-1">
+                      <Label htmlFor="taxOriginStreet">Street</Label>
+                      <AddressAutocomplete
+                        id="taxOriginStreet"
+                        placeholder="Start typing your business address..."
+                        value={hook.integrations.taxOriginStreet || ""}
+                        onChange={(val) =>
+                          hook.updateIntegrationField("taxOriginStreet", val)
+                        }
+                        onAddressSelect={(addr: ParsedAddress) => {
+                          hook.updateIntegrationField("taxOriginStreet", addr.street);
+                          hook.updateIntegrationField("taxOriginCity", addr.city);
+                          hook.updateIntegrationField("taxOriginState", addr.state);
+                          hook.updateIntegrationField("taxOriginZip", addr.zipCode);
+                          hook.updateIntegrationField("taxOriginCountry", addr.country || "US");
+                        }}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor="taxOriginCity">City</Label>
+                      <Input
+                        id="taxOriginCity"
+                        placeholder="New York"
+                        value={hook.integrations.taxOriginCity || ""}
+                        onChange={(e) =>
+                          hook.updateIntegrationField("taxOriginCity", e.target.value)
+                        }
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor="taxOriginState">State</Label>
+                      <Input
+                        id="taxOriginState"
+                        placeholder="NY"
+                        maxLength={2}
+                        value={hook.integrations.taxOriginState || ""}
+                        onChange={(e) =>
+                          hook.updateIntegrationField("taxOriginState", e.target.value)
+                        }
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor="taxOriginZip">ZIP Code</Label>
+                      <Input
+                        id="taxOriginZip"
+                        placeholder="10001"
+                        value={hook.integrations.taxOriginZip || ""}
+                        onChange={(e) =>
+                          hook.updateIntegrationField("taxOriginZip", e.target.value)
+                        }
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor="taxOriginCountry">Country</Label>
+                      <Input
+                        id="taxOriginCountry"
+                        placeholder="US"
+                        maxLength={2}
+                        value={hook.integrations.taxOriginCountry || ""}
+                        onChange={(e) =>
+                          hook.updateIntegrationField("taxOriginCountry", e.target.value)
+                        }
+                      />
+                    </div>
                   </div>
                 </div>
               </div>

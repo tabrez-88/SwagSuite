@@ -12,6 +12,7 @@ import {
   List,
   Mail,
   Palette,
+  Receipt,
   Settings2,
   Settings as SettingsIcon,
   Shield,
@@ -32,6 +33,7 @@ import { FormsTab } from "./FormsTab";
 import { ProductionStagesTab } from "./ProductionStagesTab";
 import { ImportTab } from "./ImportTab";
 import { DecoratorMatrixTab } from "./DecoratorMatrixTab";
+import { TaxCodesTab } from "./TaxCodesTab";
 
 export default function Settings() {
   const { user, isLoading: authLoading } = useAuth();
@@ -151,6 +153,10 @@ export default function Settings() {
             <Grid3X3 className="w-4 h-4" />
             Decorator Matrix
           </TabsTrigger>
+          <TabsTrigger value="tax-codes" className="flex items-center gap-2">
+            <Receipt className="w-4 h-4" />
+            Tax Codes
+          </TabsTrigger>
           <TabsTrigger value="import" className="flex items-center gap-2">
             <Brain className="w-4 h-4" />
             Data Import
@@ -199,6 +205,10 @@ export default function Settings() {
 
         <TabsContent value="decorator-matrix" className="space-y-6">
           <DecoratorMatrixTab />
+        </TabsContent>
+
+        <TabsContent value="tax-codes" className="space-y-6">
+          <TaxCodesTab />
         </TabsContent>
 
         <TabsContent value="import" className="space-y-6">

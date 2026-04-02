@@ -14,6 +14,7 @@ export function useLanding() {
   const [twoFaCode, setTwoFaCode] = useState(["", "", "", "", "", ""]);
   const [useBackupCode, setUseBackupCode] = useState(false);
   const [backupCode, setBackupCode] = useState("");
+  const [trustDevice, setTrustDevice] = useState(true);
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
   const { toast } = useToast();
   const { theme } = useTheme();
@@ -82,7 +83,7 @@ export function useLanding() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ tempToken, code }),
+        body: JSON.stringify({ tempToken, code, trustDevice }),
       });
 
       const data = await response.json();
@@ -187,6 +188,8 @@ export function useLanding() {
     useBackupCode,
     backupCode,
     setBackupCode,
+    trustDevice,
+    setTrustDevice,
     inputRefs,
     theme,
 

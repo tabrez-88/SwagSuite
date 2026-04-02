@@ -29,6 +29,7 @@ export const companies = pgTable("companies", {
   qbCustomerId: varchar("qb_customer_id"), // Map to QuickBooks Customer
   stripeCustomerId: varchar("stripe_customer_id"), // Map to Stripe Customer
   taxExempt: boolean("tax_exempt").default(false), // TaxJar Exemption Flag
+  defaultTaxCodeId: varchar("default_tax_code_id"), // Default tax code for this client's orders
   // Social media integration
   socialMediaLinks: jsonb("social_media_links"), // { linkedin: "url", twitter: "url", facebook: "url" }
   socialMediaPosts: jsonb("social_media_posts"), // Array of recent posts with content and timestamps

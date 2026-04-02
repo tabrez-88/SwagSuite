@@ -9,11 +9,11 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { FileText, Building2, Plus, Loader2, Link2 } from "lucide-react";
+import { FileText, Building2, Plus, Loader2, Link2, Pencil } from "lucide-react";
 import { format } from "date-fns";
 import ProjectInfoBar from "@/components/layout/ProjectInfoBar";
 import { useBillsSection } from "./hooks";
-import { billStatusColors } from "./types";
+import { billStatusColors, BILL_STATUSES } from "./types";
 import type { BillsSectionProps } from "./types";
 
 export default function BillsSection(props: BillsSectionProps) {
@@ -31,12 +31,21 @@ export default function BillsSection(props: BillsSectionProps) {
     billForm,
     canSubmit,
     isCreating,
+    showEdit,
+    editingBill,
+    editForm,
+    canEditSubmit,
+    isUpdating,
     openCreateForVendor,
     closeDialog,
     handleVendorChange,
     handleDocumentChange,
     handleFieldChange,
     handleSubmit,
+    openEditBill,
+    closeEditDialog,
+    handleEditFieldChange,
+    handleEditSubmit,
   } = useBillsSection(props);
 
   return (
@@ -135,6 +144,11 @@ export default function BillsSection(props: BillsSectionProps) {
                                   Received {format(new Date(inv.receivedDate), "MMM d, yyyy")}
                                 </p>
                               )}
+                              {inv.dueDate && (
+                                <p className="text-xs text-gray-500">
+                                  Due {format(new Date(inv.dueDate), "MMM d, yyyy")}
+                                </p>
+                              )}
                               {linkedDoc && (
                                 <span className="text-xs text-blue-600 flex items-center gap-1">
                                   <Link2 className="w-3 h-3" />
@@ -142,6 +156,9 @@ export default function BillsSection(props: BillsSectionProps) {
                                 </span>
                               )}
                             </div>
+                            {inv.notes && (
+                              <p className="text-xs text-gray-400 mt-1">{inv.notes}</p>
+                            )}
                           </div>
                           <div className="flex items-center gap-3">
                             <span className="text-sm font-bold">
@@ -150,6 +167,14 @@ export default function BillsSection(props: BillsSectionProps) {
                             <Badge className={billStatusColors[inv.status] || ""}>
                               {inv.status?.toUpperCase()}
                             </Badge>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 w-7 p-0"
+                              onClick={() => openEditBill(inv)}
+                            >
+                              <Pencil className="w-3.5 h-3.5" />
+                            </Button>
                           </div>
                         </div>
                       );
@@ -238,6 +263,69 @@ export default function BillsSection(props: BillsSectionProps) {
             >
               {isCreating && <Loader2 className="w-4 h-4 animate-spin" />}
               Record Bill
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Bill Dialog */}
+      <Dialog open={showEdit} onOpenChange={(open) => !open && closeEditDialog()}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Pencil className="w-5 h-5" /> Edit Bill
+            </DialogTitle>
+            <DialogDescription>
+              Update vendor bill details.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-medium text-gray-500 block mb-1">Invoice Number *</label>
+                <Input value={editForm.invoiceNumber} onChange={(e) => handleEditFieldChange("invoiceNumber", e.target.value)} placeholder="INV-001" />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-gray-500 block mb-1">Amount *</label>
+                <Input type="number" step="0.01" value={editForm.amount} onChange={(e) => handleEditFieldChange("amount", e.target.value)} placeholder="0.00" />
+              </div>
+            </div>
+
+            <div>
+              <label className="text-xs font-medium text-gray-500 block mb-1">Status</label>
+              <Select value={editForm.status} onValueChange={(val) => handleEditFieldChange("status", val)}>
+                <SelectTrigger className="h-9 text-sm">
+                  <SelectValue placeholder="Select status" />
+                </SelectTrigger>
+                <SelectContent>
+                  {BILL_STATUSES.map((s) => (
+                    <SelectItem key={s} value={s}>
+                      {s.charAt(0).toUpperCase() + s.slice(1)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <label className="text-xs font-medium text-gray-500 block mb-1">Due Date</label>
+              <Input type="date" value={editForm.dueDate} onChange={(e) => handleEditFieldChange("dueDate", e.target.value)} />
+            </div>
+
+            <div>
+              <label className="text-xs font-medium text-gray-500 block mb-1">Notes</label>
+              <Textarea value={editForm.notes} onChange={(e) => handleEditFieldChange("notes", e.target.value)} className="min-h-[80px] resize-none text-sm" placeholder="Optional notes..." />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={closeEditDialog}>Cancel</Button>
+            <Button
+              onClick={handleEditSubmit}
+              disabled={!canEditSubmit}
+              className="gap-1"
+            >
+              {isUpdating && <Loader2 className="w-4 h-4 animate-spin" />}
+              Save Changes
             </Button>
           </DialogFooter>
         </DialogContent>

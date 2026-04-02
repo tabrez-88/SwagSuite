@@ -56,6 +56,7 @@ export const orders = pgTable("orders", {
   paymentTerms: varchar("payment_terms").default("Net 30"),
   currency: varchar("currency").default("USD"),
   taxRate: decimal("tax_rate", { precision: 5, scale: 2 }).default("0"),
+  defaultTaxCodeId: varchar("default_tax_code_id"), // Tax code applied to this order
   quoteIntroduction: text("quote_introduction"),
   orderDiscount: decimal("order_discount", { precision: 12, scale: 2 }).default("0"),
   projectName: varchar("project_name"),
@@ -130,6 +131,7 @@ export const orderItems = pgTable("order_items", {
   leg2ShippingMethod: varchar("leg2_shipping_method"),
   leg2ShippingAccountType: varchar("leg2_shipping_account_type"),
   leg2ShippingQuote: decimal("leg2_shipping_quote", { precision: 10, scale: 2 }),
+  taxCodeId: varchar("tax_code_id"), // Per-item tax code override
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -174,6 +176,7 @@ export const orderServiceCharges = pgTable("order_service_charges", {
   unitCost: decimal("unit_cost", { precision: 10, scale: 2 }).notNull().default("0"), // What we pay
   unitPrice: decimal("unit_price", { precision: 10, scale: 2 }).notNull().default("0"), // What client pays
   taxable: boolean("taxable").default(false),
+  taxCodeId: varchar("tax_code_id"), // Per-service-charge tax code override
   includeInMargin: boolean("include_in_margin").default(false), // Include in margin calculation?
   displayToClient: boolean("display_to_client").default(true),
   vendorId: varchar("vendor_id").references(() => suppliers.id), // Optional vendor link

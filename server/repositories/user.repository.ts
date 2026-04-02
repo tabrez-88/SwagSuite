@@ -191,6 +191,7 @@ export class UserRepository {
         twoFactorEnabled: false,
         twoFactorSecret: null,
         twoFactorBackupCodes: null,
+        trustedDevices: [],
         updatedAt: new Date(),
       })
       .where(eq(users.id, userId));
@@ -203,6 +204,13 @@ export class UserRepository {
     await db
       .update(users)
       .set({ twoFactorBackupCodes: codes, updatedAt: new Date() })
+      .where(eq(users.id, userId));
+  }
+
+  async setTrustedDevices(userId: string, devices: any[]): Promise<void> {
+    await db
+      .update(users)
+      .set({ trustedDevices: devices, updatedAt: new Date() })
       .where(eq(users.id, userId));
   }
 }

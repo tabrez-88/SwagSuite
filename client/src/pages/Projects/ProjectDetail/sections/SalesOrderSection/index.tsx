@@ -16,6 +16,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  Calculator,
   ChevronDown,
   ChevronUp,
   ClipboardList,
@@ -44,10 +45,34 @@ import SendSODialog from "@/components/modals/SendSODialog";
 import ProductsSection from "@/components/sections/ProductsSection";
 import type { SalesOrderSectionProps } from "./types";
 import { useSalesOrderSection } from "./hooks";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { getQueryFn, apiRequest } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 
 export default function SalesOrderSection(props: SalesOrderSectionProps) {
   const { projectId, lockStatus } = props;
   const hook = useSalesOrderSection(props);
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  const { data: taxCodes } = useQuery<any[]>({
+    queryKey: ["/api/tax-codes"],
+    queryFn: getQueryFn({ on401: "throw" }),
+  });
+
+  const calculateTaxMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", `/api/projects/${projectId}/calculate-tax`);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}`] });
+      toast({ title: "Tax Calculated", description: "Tax has been updated based on TaxJar rates." });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Tax Calculation Failed", description: error.message, variant: "destructive" });
+    },
+  });
 
   if (!hook.order) return null;
 
@@ -210,6 +235,73 @@ export default function SalesOrderSection(props: SalesOrderSectionProps) {
                     isLocked={hook.isLocked}
                     isPending={hook.isFieldPending}
                   />
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-muted-foreground">Tax Code</span>
+                  {hook.isLocked ? (
+                    <span className="text-sm">
+                      {taxCodes?.find((tc: any) => String(tc.id) === (hook.order as any)?.defaultTaxCodeId)?.label || "None"}
+                    </span>
+                  ) : (
+                    <Select
+                      value={(hook.order as any)?.defaultTaxCodeId || "none"}
+                      onValueChange={(val) => hook.updateField({ defaultTaxCodeId: val === "none" ? null : val })}
+                    >
+                      <SelectTrigger className="w-[180px] h-8 text-sm">
+                        <SelectValue placeholder="Select tax code" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">None</SelectItem>
+                        {(taxCodes || []).map((tc: any) => (
+                          <SelectItem key={tc.id} value={String(tc.id)}>
+                            {tc.label} {tc.rate ? `(${tc.rate}%)` : ""}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-muted-foreground">Tax</span>
+                  <div className="flex items-center gap-2">
+                    {(() => {
+                      const taxAmount = Number((hook.order as any)?.tax || 0);
+                      const activeTaxCode = taxCodes?.find((tc: any) => String(tc.id) === (hook.order as any)?.defaultTaxCodeId);
+                      return (
+                        <>
+                          <span className={`text-sm font-medium ${taxAmount > 0 ? "text-amber-700" : ""}`}>
+                            ${taxAmount.toFixed(2)}
+                          </span>
+                          {activeTaxCode && !activeTaxCode.isExempt && taxAmount > 0 && (
+                            <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-5 bg-amber-50 text-amber-700 border-amber-200">
+                              {activeTaxCode.rate}%
+                            </Badge>
+                          )}
+                          {activeTaxCode?.isExempt && (
+                            <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-5 bg-green-50 text-green-700 border-green-200">
+                              Exempt
+                            </Badge>
+                          )}
+                        </>
+                      );
+                    })()}
+                    {!hook.isLocked && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-7 text-xs gap-1"
+                        onClick={() => calculateTaxMutation.mutate()}
+                        disabled={calculateTaxMutation.isPending}
+                      >
+                        {calculateTaxMutation.isPending ? (
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                        ) : (
+                          <Calculator className="h-3 w-3" />
+                        )}
+                        Calculate Tax
+                      </Button>
+                    )}
+                  </div>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-muted-foreground">In-Hands Date</span>
