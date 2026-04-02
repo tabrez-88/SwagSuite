@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { leadFormSchema, type LeadFormData } from "@/schemas/crm.schemas";
 import {
   useLeads as useLeadsQuery,
   useCreateLead,
+  useUpdateLead,
   useDeleteLead,
 } from "@/services/leads";
 import type { Lead } from "@/services/leads";
@@ -12,6 +13,8 @@ import type { Lead } from "@/services/leads";
 export function useLeadsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editingLead, setEditingLead] = useState<Lead | null>(null);
   const [filterStatus, setFilterStatus] = useState<string>("all");
   const [filterSource, setFilterSource] = useState<string>("all");
   const [viewMode, setViewMode] = useState<"cards" | "list">("cards");
@@ -35,8 +38,26 @@ export function useLeadsPage() {
     },
   });
 
+  const editForm = useForm<LeadFormData>({
+    resolver: zodResolver(leadFormSchema),
+    defaultValues: {
+      firstName: "",
+      lastName: "",
+      email: "",
+      phone: "",
+      company: "",
+      title: "",
+      source: "",
+      status: "new",
+      estimatedValue: 0,
+      notes: "",
+      nextFollowUpDate: "",
+    },
+  });
+
   const { data: leads = [], isLoading } = useLeadsQuery();
   const createLeadMutation = useCreateLead();
+  const updateLeadMutation = useUpdateLead();
   const deleteLeadMutation = useDeleteLead();
 
   const onSubmit = (data: LeadFormData) => {
@@ -46,6 +67,53 @@ export function useLeadsPage() {
         form.reset();
       },
     });
+  };
+
+  const handleEditLead = (lead: Lead) => {
+    setEditingLead(lead);
+    editForm.reset({
+      firstName: lead.firstName,
+      lastName: lead.lastName,
+      email: lead.email || "",
+      phone: lead.phone || "",
+      company: lead.company || "",
+      title: lead.title || "",
+      source: lead.source,
+      status: lead.status,
+      estimatedValue: lead.estimatedValue ?? 0,
+      notes: lead.notes || "",
+      nextFollowUpDate: lead.nextFollowUpDate
+        ? new Date(lead.nextFollowUpDate).toISOString().split("T")[0]
+        : "",
+    });
+    setIsEditModalOpen(true);
+  };
+
+  const onEditSubmit = (data: LeadFormData) => {
+    if (!editingLead) return;
+    const payload: Record<string, unknown> = {
+      firstName: data.firstName,
+      lastName: data.lastName,
+      email: data.email || undefined,
+      phone: data.phone || undefined,
+      company: data.company || undefined,
+      title: data.title || undefined,
+      source: data.source,
+      status: data.status,
+      estimatedValue: data.estimatedValue || undefined,
+      notes: data.notes || undefined,
+      nextFollowUpDate: data.nextFollowUpDate || undefined,
+    };
+    updateLeadMutation.mutate(
+      { id: editingLead.id, data: payload },
+      {
+        onSuccess: () => {
+          setIsEditModalOpen(false);
+          setEditingLead(null);
+          editForm.reset();
+        },
+      }
+    );
   };
 
   const handleDeleteLead = (lead: Lead) => {
@@ -99,6 +167,9 @@ export function useLeadsPage() {
     setSearchQuery,
     isCreateModalOpen,
     setIsCreateModalOpen,
+    isEditModalOpen,
+    setIsEditModalOpen,
+    editingLead,
     filterStatus,
     setFilterStatus,
     filterSource,
@@ -111,6 +182,7 @@ export function useLeadsPage() {
 
     // Form
     form,
+    editForm,
 
     // Data
     leads,
@@ -119,10 +191,13 @@ export function useLeadsPage() {
 
     // Mutations
     createLeadMutation,
+    updateLeadMutation,
     deleteLeadMutation,
 
     // Handlers
     onSubmit,
+    handleEditLead,
+    onEditSubmit,
     handleDeleteLead,
     confirmDeleteLead,
     cancelDeleteLead,

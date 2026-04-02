@@ -1,5 +1,5 @@
 export { leadKeys } from "./keys";
 export { useLeads } from "./queries";
-export { useCreateLead, useDeleteLead } from "./mutations";
-export { createLead, deleteLead } from "./requests";
+export { useCreateLead, useUpdateLead, useDeleteLead } from "./mutations";
+export { createLead, updateLead, deleteLead } from "./requests";
 export type { Lead } from "./types";

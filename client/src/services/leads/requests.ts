@@ -5,6 +5,11 @@ export async function createLead(data: LeadFormData) {
   return await apiRequest("POST", "/api/leads", data);
 }
 
+export async function updateLead({ id, data }: { id: string; data: Record<string, unknown> }) {
+  const response = await apiRequest("PATCH", `/api/leads/${id}`, data);
+  return response.json();
+}
+
 export async function deleteLead(leadId: string) {
   return await apiRequest("DELETE", `/api/leads/${leadId}`);
 }

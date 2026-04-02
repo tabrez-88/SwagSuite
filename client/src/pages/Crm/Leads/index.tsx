@@ -71,8 +71,193 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import type { Lead } from "@/services/leads";
+import type { LeadFormData } from "@/schemas/crm.schemas";
 import { useLeadsPage } from "./hooks";
 import { LEAD_STATUSES, STATUS_COLORS } from "./types";
+import type { UseFormReturn } from "react-hook-form";
+
+function LeadFormFields({ form }: { form: UseFormReturn<LeadFormData> }) {
+  return (
+    <>
+      <div className="grid grid-cols-2 gap-4">
+        <FormField
+          control={form.control}
+          name="firstName"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>First Name *</FormLabel>
+              <FormControl>
+                <Input placeholder="Enter first name" {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={form.control}
+          name="lastName"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Last Name *</FormLabel>
+              <FormControl>
+                <Input placeholder="Enter last name" {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <FormField
+          control={form.control}
+          name="email"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Email</FormLabel>
+              <FormControl>
+                <Input type="email" placeholder="Enter email" {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={form.control}
+          name="phone"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Phone</FormLabel>
+              <FormControl>
+                <Input placeholder="Enter phone number" {...field} />
+              </FormControl>
+            </FormItem>
+          )}
+        />
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <FormField
+          control={form.control}
+          name="company"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Company</FormLabel>
+              <FormControl>
+                <Input placeholder="Enter company name" {...field} />
+              </FormControl>
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={form.control}
+          name="title"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Job Title</FormLabel>
+              <FormControl>
+                <Input placeholder="Enter job title" {...field} />
+              </FormControl>
+            </FormItem>
+          )}
+        />
+      </div>
+
+      <div className="grid grid-cols-3 gap-4">
+        <FormField
+          control={form.control}
+          name="source"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Lead Source *</FormLabel>
+              <Select onValueChange={field.onChange} value={field.value}>
+                <FormControl>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select source" />
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent>
+                  {LEAD_SOURCES.map((source) => (
+                    <SelectItem key={source} value={source}>
+                      {source}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={form.control}
+          name="status"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Status *</FormLabel>
+              <Select onValueChange={field.onChange} value={field.value}>
+                <FormControl>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select status" />
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent>
+                  {LEAD_STATUSES.map((status) => (
+                    <SelectItem key={status} value={status}>
+                      {status.charAt(0).toUpperCase() + status.slice(1)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={form.control}
+          name="estimatedValue"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Estimated Value</FormLabel>
+              <FormControl>
+                <Input type="number" step="0.01" placeholder="0.00" {...field} />
+              </FormControl>
+            </FormItem>
+          )}
+        />
+      </div>
+
+      <FormField
+        control={form.control}
+        name="nextFollowUpDate"
+        render={({ field }) => (
+          <FormItem>
+            <FormLabel>Next Follow-up Date</FormLabel>
+            <FormControl>
+              <Input type="date" {...field} />
+            </FormControl>
+          </FormItem>
+        )}
+      />
+
+      <FormField
+        control={form.control}
+        name="notes"
+        render={({ field }) => (
+          <FormItem>
+            <FormLabel>Notes</FormLabel>
+            <FormControl>
+              <Textarea
+                placeholder="Additional notes about this lead"
+                rows={3}
+                {...field}
+              />
+            </FormControl>
+          </FormItem>
+        )}
+      />
+    </>
+  );
+}
 
 export default function Leads() {
   const {
@@ -80,6 +265,9 @@ export default function Leads() {
     setSearchQuery,
     isCreateModalOpen,
     setIsCreateModalOpen,
+    isEditModalOpen,
+    setIsEditModalOpen,
+    editingLead,
     filterStatus,
     setFilterStatus,
     filterSource,
@@ -90,11 +278,15 @@ export default function Leads() {
     setIsDeleteDialogOpen,
     leadToDelete,
     form,
+    editForm,
     isLoading,
     filteredLeads,
     createLeadMutation,
+    updateLeadMutation,
     deleteLeadMutation,
     onSubmit,
+    handleEditLead,
+    onEditSubmit,
     handleDeleteLead,
     confirmDeleteLead,
     cancelDeleteLead,
@@ -123,209 +315,8 @@ export default function Leads() {
               <DialogTitle>Add New Lead</DialogTitle>
             </DialogHeader>
             <Form {...form}>
-              <form
-                onSubmit={form.handleSubmit(onSubmit)}
-                className="space-y-4"
-              >
-                <div className="grid grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="firstName"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>First Name *</FormLabel>
-                        <FormControl>
-                          <Input placeholder="Enter first name" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="lastName"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Last Name *</FormLabel>
-                        <FormControl>
-                          <Input placeholder="Enter last name" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="email"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Email</FormLabel>
-                        <FormControl>
-                          <Input
-                            type="email"
-                            placeholder="Enter email"
-                            {...field}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="phone"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Phone</FormLabel>
-                        <FormControl>
-                          <Input
-                            placeholder="Enter phone number"
-                            {...field}
-                          />
-                        </FormControl>
-                      </FormItem>
-                    )}
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="company"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Company</FormLabel>
-                        <FormControl>
-                          <Input
-                            placeholder="Enter company name"
-                            {...field}
-                          />
-                        </FormControl>
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="title"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Job Title</FormLabel>
-                        <FormControl>
-                          <Input placeholder="Enter job title" {...field} />
-                        </FormControl>
-                      </FormItem>
-                    )}
-                  />
-                </div>
-
-                <div className="grid grid-cols-3 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="source"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Lead Source *</FormLabel>
-                        <Select
-                          onValueChange={field.onChange}
-                          defaultValue={field.value}
-                        >
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select source" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {LEAD_SOURCES.map((source) => (
-                              <SelectItem key={source} value={source}>
-                                {source}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="status"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Status *</FormLabel>
-                        <Select
-                          onValueChange={field.onChange}
-                          defaultValue={field.value}
-                        >
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select status" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {LEAD_STATUSES.map((status) => (
-                              <SelectItem key={status} value={status}>
-                                {status.charAt(0).toUpperCase() +
-                                  status.slice(1)}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="estimatedValue"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Estimated Value</FormLabel>
-                        <FormControl>
-                          <Input
-                            type="number"
-                            step="0.01"
-                            placeholder="0.00"
-                            {...field}
-                          />
-                        </FormControl>
-                      </FormItem>
-                    )}
-                  />
-                </div>
-
-                <FormField
-                  control={form.control}
-                  name="nextFollowUpDate"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Next Follow-up Date</FormLabel>
-                      <FormControl>
-                        <Input type="date" {...field} />
-                      </FormControl>
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="notes"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Notes</FormLabel>
-                      <FormControl>
-                        <Textarea
-                          placeholder="Additional notes about this lead"
-                          rows={3}
-                          {...field}
-                        />
-                      </FormControl>
-                    </FormItem>
-                  )}
-                />
-
+              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                <LeadFormFields form={form} />
                 <div className="flex justify-end gap-2 pt-4">
                   <Button
                     type="button"
@@ -339,9 +330,7 @@ export default function Leads() {
                     disabled={createLeadMutation.isPending}
                     className="bg-swag-primary hover:bg-swag-primary/90"
                   >
-                    {createLeadMutation.isPending
-                      ? "Creating..."
-                      : "Create Lead"}
+                    {createLeadMutation.isPending ? "Creating..." : "Create Lead"}
                   </Button>
                 </div>
               </form>
@@ -434,24 +423,12 @@ export default function Leads() {
                 <TableBody>
                   {Array.from({ length: 6 }).map((_, i) => (
                     <TableRow key={i}>
-                      <TableCell>
-                        <Skeleton className="h-4 w-32" />
-                      </TableCell>
-                      <TableCell>
-                        <Skeleton className="h-4 w-24" />
-                      </TableCell>
-                      <TableCell>
-                        <Skeleton className="h-4 w-20" />
-                      </TableCell>
-                      <TableCell>
-                        <Skeleton className="h-4 w-16" />
-                      </TableCell>
-                      <TableCell>
-                        <Skeleton className="h-4 w-12" />
-                      </TableCell>
-                      <TableCell>
-                        <Skeleton className="h-4 w-8" />
-                      </TableCell>
+                      <TableCell><Skeleton className="h-4 w-32" /></TableCell>
+                      <TableCell><Skeleton className="h-4 w-24" /></TableCell>
+                      <TableCell><Skeleton className="h-4 w-20" /></TableCell>
+                      <TableCell><Skeleton className="h-4 w-16" /></TableCell>
+                      <TableCell><Skeleton className="h-4 w-12" /></TableCell>
+                      <TableCell><Skeleton className="h-4 w-8" /></TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -467,10 +444,7 @@ export default function Leads() {
               {filteredLeads.map((lead: Lead) => {
                 const leadScore = getLeadScore(lead);
                 return (
-                  <Card
-                    key={lead.id}
-                    className="hover:shadow-lg transition-shadow"
-                  >
+                  <Card key={lead.id} className="hover:shadow-lg transition-shadow">
                     <CardHeader>
                       <div className="flex items-start justify-between">
                         <div className="flex items-center space-x-3 flex-1">
@@ -497,22 +471,11 @@ export default function Leads() {
                         <div className="flex items-center gap-2">
                           <Badge
                             className={
-                              STATUS_COLORS[
-                                lead.status as keyof typeof STATUS_COLORS
-                              ]
+                              STATUS_COLORS[lead.status as keyof typeof STATUS_COLORS]
                             }
                           >
-                            {lead.status.charAt(0).toUpperCase() +
-                              lead.status.slice(1)}
+                            {lead.status.charAt(0).toUpperCase() + lead.status.slice(1)}
                           </Badge>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleDeleteLead(lead)}
-                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                          >
-                            <Trash2 size={14} />
-                          </Button>
                         </div>
                       </div>
                     </CardHeader>
@@ -521,17 +484,13 @@ export default function Leads() {
                         {lead.email && (
                           <div className="flex items-center gap-2 text-sm">
                             <Mail className="h-4 w-4 text-muted-foreground" />
-                            <span className="text-muted-foreground">
-                              {lead.email}
-                            </span>
+                            <span className="text-muted-foreground">{lead.email}</span>
                           </div>
                         )}
                         {lead.phone && (
                           <div className="flex items-center gap-2 text-sm">
                             <Phone className="h-4 w-4 text-muted-foreground" />
-                            <span className="text-muted-foreground">
-                              {lead.phone}
-                            </span>
+                            <span className="text-muted-foreground">{lead.phone}</span>
                           </div>
                         )}
                       </div>
@@ -540,12 +499,10 @@ export default function Leads() {
                         <div className="flex items-center gap-2">
                           <Badge variant="outline">{lead.source}</Badge>
                         </div>
-                        <div className="flex items-center gap-2">
+                        {/* <div className="flex items-center gap-2">
                           <TrendingUp className="h-4 w-4 text-blue-600" />
-                          <span className="text-sm font-medium">
-                            {leadScore}%
-                          </span>
-                        </div>
+                          <span className="text-sm font-medium">{leadScore}%</span>
+                        </div> */}
                       </div>
 
                       {lead.estimatedValue && (
@@ -561,22 +518,27 @@ export default function Leads() {
                         <div className="flex items-center gap-2 text-sm">
                           <Calendar className="h-4 w-4 text-orange-600" />
                           <span className="text-muted-foreground">
-                            Follow-up:{" "}
-                            {new Date(
-                              lead.nextFollowUpDate
-                            ).toLocaleDateString()}
+                            Follow-up: {new Date(lead.nextFollowUpDate).toLocaleDateString()}
                           </span>
                         </div>
                       )}
 
                       <div className="flex items-center justify-between pt-2">
-                        <Button variant="outline" size="sm">
-                          <Activity className="mr-1" size={12} />
-                          View Activity
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleEditLead(lead)}
+                        >
+                          <Edit className="mr-1" size={12} />
+                          Edit
                         </Button>
-                        <Button variant="outline" size="sm">
-                          <Target className="mr-1" size={12} />
-                          Convert
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleDeleteLead(lead)}
+                          className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                        >
+                          <Trash2 size={14} />
                         </Button>
                       </div>
                     </CardContent>
@@ -598,6 +560,7 @@ export default function Leads() {
                       <TableHead>Source</TableHead>
                       <TableHead>Value</TableHead>
                       <TableHead>Status</TableHead>
+                      <TableHead>Follow-up</TableHead>
                       <TableHead className="w-[100px]">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -653,24 +616,33 @@ export default function Leads() {
                           </Badge>
                         </TableCell>
                         <TableCell>
-                          {lead.estimatedValue && (
+                          {lead.estimatedValue ? (
                             <div className="flex items-center gap-1 text-sm font-medium">
                               <DollarSign className="h-3 w-3 text-muted-foreground" />
                               ${lead.estimatedValue.toLocaleString()}
                             </div>
+                          ) : (
+                            <span className="text-sm text-muted-foreground">-</span>
                           )}
                         </TableCell>
                         <TableCell>
                           <Badge
                             className={
-                              STATUS_COLORS[
-                                lead.status as keyof typeof STATUS_COLORS
-                              ]
+                              STATUS_COLORS[lead.status as keyof typeof STATUS_COLORS]
                             }
                           >
-                            {lead.status.charAt(0).toUpperCase() +
-                              lead.status.slice(1)}
+                            {lead.status.charAt(0).toUpperCase() + lead.status.slice(1)}
                           </Badge>
+                        </TableCell>
+                        <TableCell>
+                          {lead.nextFollowUpDate ? (
+                            <div className="flex items-center gap-1 text-sm">
+                              <Calendar className="h-3 w-3 text-muted-foreground" />
+                              <span>{new Date(lead.nextFollowUpDate).toLocaleDateString()}</span>
+                            </div>
+                          ) : (
+                            <span className="text-sm text-muted-foreground">-</span>
+                          )}
                         </TableCell>
                         <TableCell>
                           <DropdownMenu>
@@ -684,11 +656,7 @@ export default function Leads() {
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
-                              <DropdownMenuItem>
-                                <Eye className="h-4 w-4 mr-2" />
-                                View Details
-                              </DropdownMenuItem>
-                              <DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleEditLead(lead)}>
                                 <Edit className="h-4 w-4 mr-2" />
                                 Edit
                               </DropdownMenuItem>
@@ -733,11 +701,38 @@ export default function Leads() {
         </Card>
       )}
 
+      {/* Edit Lead Dialog */}
+      <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
+        <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Edit Lead</DialogTitle>
+          </DialogHeader>
+          <Form {...editForm}>
+            <form onSubmit={editForm.handleSubmit(onEditSubmit)} className="space-y-4">
+              <LeadFormFields form={editForm} />
+              <div className="flex justify-end gap-2 pt-4">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setIsEditModalOpen(false)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={updateLeadMutation.isPending}
+                  className="bg-swag-primary hover:bg-swag-primary/90"
+                >
+                  {updateLeadMutation.isPending ? "Saving..." : "Save Changes"}
+                </Button>
+              </div>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
+
       {/* Delete Confirmation Dialog */}
-      <AlertDialog
-        open={isDeleteDialogOpen}
-        onOpenChange={setIsDeleteDialogOpen}
-      >
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center gap-2">
@@ -756,9 +751,7 @@ export default function Leads() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel onClick={cancelDeleteLead}>
-              Cancel
-            </AlertDialogCancel>
+            <AlertDialogCancel onClick={cancelDeleteLead}>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={confirmDeleteLead}
               className="bg-red-600 hover:bg-red-700 focus:ring-red-600"

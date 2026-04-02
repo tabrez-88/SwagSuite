@@ -60,7 +60,12 @@ export async function updateContact({
   data,
 }: {
   id: string;
-  data: Partial<ContactManagerFormData> & { isActive?: boolean };
+  data: Partial<ContactManagerFormData> & {
+    isActive?: boolean;
+    leadSource?: string;
+    companyId?: string | null;
+    supplierId?: string | null;
+  };
 }) {
   const payload: Record<string, unknown> = {
     firstName: data.firstName,
@@ -73,6 +78,9 @@ export async function updateContact({
     isPrimary: data.isPrimary,
   };
   if (data.isActive !== undefined) payload.isActive = data.isActive;
+  if (data.leadSource !== undefined) payload.leadSource = data.leadSource;
+  if (data.companyId !== undefined) payload.companyId = data.companyId;
+  if (data.supplierId !== undefined) payload.supplierId = data.supplierId;
 
   const response = await apiRequest("PATCH", `/api/contacts/${id}`, payload);
   return response.json();
