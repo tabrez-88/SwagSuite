@@ -30,7 +30,7 @@ export default function TopBar() {
       </div>
 
       {/* Right side - Notifications and User Menu */}
-      <div className="flex items-center gap-2 md:gap-4">
+      <div className="flex items-center gap-2 md:gap-2">
         {/* Notifications */}
         <NotificationDropdown />
         {/* User Menu */}
@@ -39,7 +39,7 @@ export default function TopBar() {
             <Button variant="ghost" size="icon" className="relative rounded-full">
               <UserAvatar
                 user={user as any}
-                size="lg"
+                size="md"
               />
             </Button>
           </DropdownMenuTrigger>

@@ -1,39 +1,39 @@
 import {
-  Building,
-  ArrowLeft,
-  Edit,
-  Mail,
-  Globe,
-  Calendar,
-  DollarSign,
-  ExternalLink,
-  MessageSquare,
   AlertCircle,
-  TrendingUp,
+  ArrowLeft,
+  Building,
+  Calendar,
   Clock,
+  DollarSign,
+  Edit,
+  ExternalLink,
+  Globe,
+  Mail,
+  MessageSquare,
   Plus,
   Trash2,
+  TrendingUp,
 } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Skeleton } from "@/components/ui/skeleton";
+import { CompanyAddressesManager } from "@/components/feature/CompanyAddressesManager";
+import { ContactsManager } from "@/components/feature/ContactsManager";
 import NewProjectWizard from "@/components/modals/NewProjectWizard";
 import SendEmailDialog from "@/components/modals/SendEmailDialog";
-import { ContactsManager } from "@/components/feature/ContactsManager";
-import { CompanyAddressesManager } from "@/components/feature/CompanyAddressesManager";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useCompanyDetail } from "./hooks";
-import { INDUSTRY_OPTIONS, ENGAGEMENT_COLORS } from "./types";
-import { useQuery } from "@tanstack/react-query";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Textarea } from "@/components/ui/textarea";
 import { getQueryFn } from "@/lib/queryClient";
+import { useQuery } from "@tanstack/react-query";
+import { useCompanyDetail } from "./hooks";
+import { ENGAGEMENT_COLORS, INDUSTRY_OPTIONS } from "./types";
 
 export default function CompanyDetail() {
   const {
@@ -76,7 +76,7 @@ export default function CompanyDetail() {
     queryKey: ["/api/tax-codes"],
     queryFn: getQueryFn({ on401: "throw" }),
   });
-
+  
   if (isLoading) {
     return (
       <div className="space-y-6 p-6">
@@ -168,11 +168,15 @@ export default function CompanyDetail() {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <Building className="h-5 w-5" />
-                    Business Information
+                    Details
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* // TODO implement themeMemberPicker for For Sales Rep assignment */}
+                    {/* <TeamMemberPicker role="Sales Rep" field="assignedUserId" currentUser={assignedUser} /> */}
+                    
+                    
                     {company.website && (
                       <div className="flex items-center gap-3">
                         <Globe className="h-4 w-4 text-muted-foreground" />

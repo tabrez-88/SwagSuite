@@ -66,6 +66,7 @@ export class SsActivewearService {
 
   async getBrands(): Promise<{ id: string; name: string }[]> {
     try {
+      console.log('==================================');
       console.log('Fetching brands from S&S API...');
       console.log('Account:', this.config.accountNumber ? `${this.config.accountNumber.substring(0, 3)}***` : 'NOT SET');
       console.log('API Key:', this.config.apiKey ? `${this.config.apiKey.substring(0, 5)}***` : 'NOT SET');
@@ -76,7 +77,7 @@ export class SsActivewearService {
       });
 
       console.log('S&S Brands API Response Status:', response.status, response.statusText);
-
+      console.log('---------------------------------------------')
       if (!response.ok) {
         const errorText = await response.text();
         console.error('S&S Brands API Error Response:', errorText.substring(0, 500));
@@ -91,9 +92,7 @@ export class SsActivewearService {
       }
 
       const brands = await response.json();
-      console.log(`Fetched ${brands.length} brands from S&S API`);
-      console.log('Raw brands sample:', JSON.stringify(brands.slice(0, 2)));
-      
+      console.log(`Fetched [${brands.length}] brands from S&S API`);
       // S&S API returns: { brandID, name, image, noeRetailing, activeProducts }
       const mappedBrands = brands
         .map((b: any) => ({ 
@@ -102,10 +101,12 @@ export class SsActivewearService {
         }))
         .sort((a: any, b: any) => a.name.localeCompare(b.name));
       
-      console.log('Mapped brands sample:', JSON.stringify(mappedBrands.slice(0, 2)));
+      console.log('Mapped brands:', JSON.stringify(mappedBrands));
+      console.log('==================================');
       return mappedBrands;
     } catch (error) {
       console.error('Error fetching S&S Activewear brands:', error);
+      console.log('==================================');
       throw error;
     }
   }

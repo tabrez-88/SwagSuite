@@ -4,6 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Box, Eye, EyeOff, Loader2, ShieldCheck, ArrowLeft } from "lucide-react";
 import { useLanding } from "./hooks";
+import { Separator } from "@/components/ui/separator";
 
 export default function Landing() {
   const {
@@ -34,24 +35,31 @@ export default function Landing() {
   } = useLanding();
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-swag-dark via-swag-accent to-swag-primary flex items-center justify-center p-4">
-      <Card className="w-full max-w-md">
-        <CardContent className="pt-8 pb-8 px-8">
-          <div className="text-center mb-8">
+    <div className="min-h-screen p-4 flex h-screen items-center justify-center relative">
+      <div className="hidden sm:flex w-full justify-center items-center bg-black p-4 h-full rounded-lg overflow-hidden relative" >
+        <img src="/bg-login.webp" alt="Background Login" className="absolute inset-0 w-full h-full object-cover"/>
+        <div className="absolute inset-0 bg-black/60" />
+        <div className="relative z-10 max-w-md text-white space-y-6">
+          <img src="/LSD_Logo.webp" alt="" />
+        </div>
+      </div>
+      <Card className="w-full max-w-md border-0 shadow-none">
+        <CardContent >
+          <div className="text-center mb-4">
             <div className="flex justify-center">
               {theme?.logoUrl ? (
-                <img src={theme.logoUrl} alt={theme?.companyName || 'Logo'} className="h-20 object-contain" />
+                <img src={theme.logoUrl} alt={theme?.companyName || 'Logo'} className="h-24 object-contain" />
               ) : (
                 <div className="w-16 h-16 bg-swag-primary rounded-xl flex items-center justify-center">
                   <Box className="text-white" size={32} />
                 </div>
               )}
             </div>
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">{theme?.companyName || 'SwagSuite'}</h1>
+            <h1 className="text-3xl font-bold text-gray-900">{theme?.companyName || 'SwagSuite'}</h1>
             {theme?.tagline && <p className="text-gray-600 mb-1">{theme.tagline}</p>}
             <p className="text-sm text-gray-500">Order Management System</p>
           </div>
-
+          <Separator className="mb-4" />
           {/* Welcome Screen */}
           {loginStep === "welcome" && (
             <>
@@ -63,7 +71,7 @@ export default function Landing() {
                     Streamline your workflow from quote to delivery.
                   </p>
                 </div>
-                <div className="grid grid-cols-1 gap-2 text-sm">
+                <div className="grid grid-cols-1 gap-2 text-sm pl-8">
                   {["Order Management & CRM", "AI-Powered Search & Analytics", "Supplier & Inventory Management", "Real-time Reporting & Dashboards"].map((feature) => (
                     <div key={feature} className="flex items-center space-x-2">
                       <div className="w-2 h-2 bg-swag-primary rounded-full" />
@@ -82,7 +90,7 @@ export default function Landing() {
                     <span className="bg-white px-2 text-gray-500">Dev</span>
                   </div>
                 </div>
-                <Button onClick={() => { window.location.href = "/api/login/dev"; }} variant="outline" className="w-full" size="lg">
+                <Button onClick={() => { window.location.href = "/api/login/dev"; }} variant="outline" className="w-full hover:text-gray-900" size="lg">
                   Quick Dev Login (Auto)
                 </Button>
                 <div className="mt-6 text-center">

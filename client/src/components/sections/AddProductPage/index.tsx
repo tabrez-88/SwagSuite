@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import {
   ArrowLeft, Search, Package, PenLine, Loader2, Plus,
-  DollarSign, ShoppingCart, Trash2, ImageIcon, Tag, ShieldAlert
+  DollarSign, ShoppingCart, Trash2, ImageIcon, Tag, ShieldAlert, ImageOff, Database
 } from "lucide-react";
 import { IMPRINT_LOCATIONS, IMPRINT_METHODS } from "@/constants/imprintOptions";
 import { marginColorClass, isBelowMinimum, calcMarginPercent } from "@/hooks/useMarginSettings";
@@ -36,13 +36,16 @@ export default function AddProductPage({ projectId, data }: AddProductPageProps)
       <Card>
         <CardContent className="pt-5 space-y-3">
           <div className="flex gap-2">
-            <Input
-              value={h.searchQuery}
-              onChange={(e) => h.setSearchQuery(e.target.value)}
-              onKeyDown={h.handleKeyDown}
-              placeholder={placeholder}
-              className="flex-1"
-            />
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground h-4 w-4" />
+              <Input
+                value={h.searchQuery}
+                onChange={(e) => h.setSearchQuery(e.target.value)}
+                onKeyDown={h.handleKeyDown}
+                placeholder={placeholder}
+                className="pl-10"
+              />
+            </div>
             <Button onClick={h.handleSearch} disabled={h.isSearching || !h.searchQuery.trim()}>
               {h.isSearching ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Search className="w-4 h-4 mr-2" />}
               Search
@@ -58,23 +61,21 @@ export default function AddProductPage({ projectId, data }: AddProductPageProps)
   function renderSearchResults() {
     if (h.isSearching) {
       return (
-        <Card>
-          <CardContent className="py-12 text-center">
-            <Loader2 className="w-10 h-10 mx-auto mb-3 animate-spin text-blue-500" />
-            <p className="text-gray-500">
-              Searching {h.activeTab === "sage" ? "SAGE" : h.activeTab === "sanmar" ? "SanMar" : h.activeTab === "ss_activewear" ? "S&S Activewear" : "catalog"}...
-            </p>
-          </CardContent>
-        </Card>
+        <div className="flex flex-col items-center justify-center py-12">
+          <Loader2 className="w-8 h-8 animate-spin text-blue-500 mb-3" />
+          <p className="text-sm text-muted-foreground">
+            Searching {h.activeTab === "sage" ? "SAGE" : h.activeTab === "sanmar" ? "SanMar" : h.activeTab === "ss_activewear" ? "S&S Activewear" : "catalog"}...
+          </p>
+        </div>
       );
     }
 
     if (h.searchError && h.searchResults.length === 0) {
       return (
         <Card>
-          <CardContent className="py-12 text-center">
-            <Search className="w-10 h-10 mx-auto mb-3 text-gray-300" />
-            <p className="text-gray-500">{h.searchError}</p>
+          <CardContent className="flex flex-col items-center justify-center py-12 text-center">
+            <Search className="w-10 h-10 text-muted-foreground mb-3 opacity-40" />
+            <p className="text-sm text-muted-foreground">{h.searchError}</p>
           </CardContent>
         </Card>
       );
@@ -83,9 +84,9 @@ export default function AddProductPage({ projectId, data }: AddProductPageProps)
     if (h.searchResults.length === 0) {
       return (
         <Card>
-          <CardContent className="py-12 text-center">
-            <Search className="w-10 h-10 mx-auto mb-3 text-gray-300" />
-            <p className="text-gray-500">
+          <CardContent className="flex flex-col items-center justify-center py-12 text-center">
+            <Package className="w-10 h-10 text-muted-foreground mb-3 opacity-40" />
+            <p className="text-sm text-muted-foreground">
               {h.activeTab === "catalog"
                 ? "Search products from your local catalog"
                 : `Search for products from ${h.sourceLabel(h.activeTab)}`}
@@ -96,144 +97,215 @@ export default function AddProductPage({ projectId, data }: AddProductPageProps)
     }
 
     return (
-      <div className="space-y-2">
-        <div className="flex items-center justify-between px-1">
-          <p className="text-sm text-gray-500">{h.searchResults.length} product{h.searchResults.length !== 1 ? "s" : ""} found</p>
-        </div>
-        {h.searchResults.map((product) => (
-          <Card
-            key={`${product.source}_${product.id}`}
-            className="cursor-pointer hover:border-blue-300 hover:shadow-sm transition-all"
-            onClick={() => h.syncAndOpenConfig(product)}
-          >
-            <CardContent className="p-4">
-              <div className="flex gap-4">
-                {product.imageUrl ? (
+      <div className="space-y-3">
+        <p className="text-sm text-muted-foreground">
+          Found <strong>{h.searchResults.length}</strong> product{h.searchResults.length !== 1 ? "s" : ""}
+        </p>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+          {h.searchResults.map((product) => (
+            <Card
+              key={`${product.source}_${product.id}`}
+              className="overflow-hidden cursor-pointer hover:shadow-lg transition-shadow group"
+              onClick={() => h.syncAndOpenConfig(product)}
+            >
+              {/* Product Image */}
+              <div className="relative h-32 bg-muted flex items-center justify-center overflow-hidden">
+                {product.imageUrl && product.source !== 'ss_activewear' ? (
                   <img
                     src={product.imageUrl}
                     alt={product.name}
-                    className="w-16 h-16 object-contain rounded border bg-white flex-shrink-0"
-                    onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                    onError={(e) => {
+                      e.currentTarget.style.display = 'none';
+                      e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                    }}
                   />
-                ) : (
-                  <div className="w-16 h-16 bg-gray-100 rounded border flex items-center justify-center flex-shrink-0">
-                    <Package className="w-6 h-6 text-gray-300" />
-                  </div>
-                )}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <h4 className="font-medium text-sm truncate">{product.name}</h4>
-                      <div className="flex items-center gap-2 mt-1 flex-wrap">
-                        <Badge className={`text-[10px] ${h.sourceBadgeColor(product.source)}`}>
-                          {h.sourceLabel(product.source)}
-                        </Badge>
-                        {product.sku && (
-                          <span className="text-xs text-gray-500">SKU: {product.sku}</span>
-                        )}
-                        {product.supplierName && (
-                          <span className="text-xs text-gray-500">{product.supplierName}</span>
-                        )}
-                        {product.category && (
-                          <span className="text-xs text-gray-400">{product.category}</span>
-                        )}
-                      </div>
-                    </div>
-                    <div className="text-right flex-shrink-0">
-                      {product.basePrice != null && (
-                        <p className="font-semibold text-sm">${product.basePrice.toFixed(2)}</p>
-                      )}
-                      {product.minQuantity && (
-                        <p className="text-[10px] text-gray-400">Min: {product.minQuantity}</p>
-                      )}
-                    </div>
-                  </div>
-                  {product.description && (
-                    <p className="text-xs text-gray-500 mt-1 line-clamp-1">{product.description}</p>
+                ) : null}
+                <div className={`flex flex-col items-center justify-center text-muted-foreground ${product.imageUrl && product.source !== 'ss_activewear' ? 'hidden' : ''}`}>
+                  {product.source === 'ss_activewear' ? (
+                    <>
+                      <Package className="w-8 h-8 text-blue-300 mb-1" />
+                      <span className="text-xs text-blue-400">S&S Activewear</span>
+                    </>
+                  ) : (
+                    <>
+                      <ImageOff size={28} className="mb-1 opacity-40" />
+                      <span className="text-xs opacity-60">No image</span>
+                    </>
                   )}
-                  <div className="flex items-center gap-4 mt-2">
-                    {product.colors && product.colors.length > 0 && (
-                      <span className="text-[10px] text-gray-400">
-                        {product.colors.length} color{product.colors.length !== 1 ? "s" : ""}
-                      </span>
+                </div>
+
+                {/* Source badge overlay */}
+                <Badge className={`absolute top-2 left-2 text-[10px] shadow-sm ${h.sourceBadgeColor(product.source)}`}>
+                  {h.sourceLabel(product.source)}
+                </Badge>
+
+                {/* Price overlay */}
+                {product.basePrice != null && (
+                  <Badge className="absolute top-2 right-2 bg-green-600 text-white shadow-sm text-xs">
+                    <DollarSign size={10} className="mr-0.5" />
+                    {product.basePrice.toFixed(2)}
+                  </Badge>
+                )}
+              </div>
+
+              {/* Product Info */}
+              <CardContent className="p-3 space-y-1.5">
+                <div>
+                  <h4 className="font-semibold text-sm line-clamp-1">{product.name}</h4>
+                  <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                    {product.sku && (
+                      <span className="text-xs text-muted-foreground">SKU: {product.sku}</span>
                     )}
-                    {product.sizes && product.sizes.length > 0 && (
-                      <span className="text-[10px] text-gray-400">
-                        {product.sizes.length} size{product.sizes.length !== 1 ? "s" : ""}
-                      </span>
-                    )}
-                    {product.decorationMethods && product.decorationMethods.length > 0 && (
-                      <span className="text-[10px] text-gray-400">
-                        {product.decorationMethods.join(", ")}
-                      </span>
+                    {product.supplierName && (
+                      <span className="text-xs text-muted-foreground">&middot; {product.supplierName}</span>
                     )}
                   </div>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+                {product.description && (
+                  <p className="text-xs text-muted-foreground line-clamp-2">{product.description}</p>
+                )}
+                <div className="flex items-center gap-2 pt-1">
+                  {product.colors && product.colors.length > 0 && (
+                    <Badge variant="secondary" className="text-[10px]">
+                      {product.colors.length} color{product.colors.length !== 1 ? "s" : ""}
+                    </Badge>
+                  )}
+                  {product.sizes && product.sizes.length > 0 && (
+                    <Badge variant="outline" className="text-[10px]">
+                      {product.sizes.length} size{product.sizes.length !== 1 ? "s" : ""}
+                    </Badge>
+                  )}
+                  {product.decorationMethods && product.decorationMethods.length > 0 && (
+                    <span className="text-[10px] text-muted-foreground">
+                      {product.decorationMethods.slice(0, 2).join(", ")}
+                      {product.decorationMethods.length > 2 && ` +${product.decorationMethods.length - 2}`}
+                    </span>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
       </div>
     );
   }
 
   // ── Product card renderer for catalog ──
-  function renderProductCard(p: any) {
-    const product: ProductResult = {
-      id: p.id,
-      source: "local",
-      name: p.name || p.productName,
-      sku: p.sku,
-      description: p.description,
-      supplierName: h.data.suppliers?.find((s: any) => s.id === p.supplierId)?.name || "Unknown",
-      supplierId: p.supplierId,
-      category: p.category,
-      imageUrl: p.imageUrl,
-      basePrice: p.basePrice ? parseFloat(p.basePrice) : undefined,
-      baseCost: p.baseCost ? parseFloat(p.baseCost) : undefined,
-      colors: p.colors || [],
-      sizes: p.sizes || [],
-      rawData: p,
-    };
+  function renderCatalogGrid() {
+    if (h.isCatalogLoading) {
+      return (
+        <div className="flex flex-col items-center justify-center py-12">
+          <Loader2 className="w-6 h-6 animate-spin text-muted-foreground mb-2" />
+          <p className="text-sm text-muted-foreground">Loading catalog...</p>
+        </div>
+      );
+    }
+
+    if (h.filteredCatalogProducts.length === 0) {
+      return (
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center py-12 text-center">
+            <Package className="w-10 h-10 text-muted-foreground mb-3 opacity-40" />
+            <p className="text-sm text-muted-foreground">
+              {h.allCatalogProducts.length === 0
+                ? "No products in catalog yet. Add products from suppliers or use Manual entry."
+                : `No products match "${h.catalogFilter}".`}
+            </p>
+          </CardContent>
+        </Card>
+      );
+    }
+
+    const products = h.filteredCatalogProducts.slice(0, 50);
+
     return (
-      <Card
-        key={product.id}
-        className="cursor-pointer hover:border-blue-300 hover:shadow-sm transition-all"
-        onClick={() => h.syncAndOpenConfig(product)}
-      >
-        <CardContent className="p-4">
-          <div className="flex gap-3">
-            {product.imageUrl && product.source !== 'ss_activewear' ? (
-              <img src={product.imageUrl} alt={product.name} className="w-16 h-16 object-contain rounded border bg-white flex-shrink-0" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-            ) : product.source === 'ss_activewear' ? (
-              <div className="w-16 h-16 bg-blue-50 rounded border border-blue-200 flex items-center justify-center flex-shrink-0">
-                <span className="text-[10px] font-bold text-blue-600 text-center leading-tight">S&S</span>
-              </div>
-            ) : (
-              <div className="w-16 h-16 bg-gray-100 rounded border flex items-center justify-center flex-shrink-0">
-                <ImageIcon className="w-6 h-6 text-gray-400" />
-              </div>
-            )}
-            <div className="flex-1 min-w-0">
-              <h4 className="font-medium text-sm truncate">{product.name}</h4>
-              <div className="flex items-center gap-2 mt-1 flex-wrap">
-                {product.sku && <Badge variant="outline" className="text-xs"><Tag className="w-3 h-3 mr-1" />{product.sku}</Badge>}
-                <Badge className="text-xs bg-gray-100 text-gray-800">{product.supplierName}</Badge>
-              </div>
-              {product.basePrice && (
-                <p className="text-sm font-medium text-green-700 mt-1">
-                  <DollarSign className="w-3 h-3 inline" />{product.basePrice.toFixed(2)}
-                </p>
-              )}
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      <div className="space-y-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+          {products.map((p: any) => {
+            const product: ProductResult = {
+              id: p.id,
+              source: "local",
+              name: p.name || p.productName,
+              sku: p.sku,
+              description: p.description,
+              supplierName: h.data.suppliers?.find((s: any) => s.id === p.supplierId)?.name || "Unknown",
+              supplierId: p.supplierId,
+              category: p.category,
+              imageUrl: p.imageUrl,
+              basePrice: p.basePrice ? parseFloat(p.basePrice) : undefined,
+              baseCost: p.baseCost ? parseFloat(p.baseCost) : undefined,
+              colors: p.colors || [],
+              sizes: p.sizes || [],
+              rawData: p,
+            };
+
+            return (
+              <Card
+                key={product.id}
+                className="overflow-hidden cursor-pointer hover:shadow-lg transition-shadow group"
+                onClick={() => h.syncAndOpenConfig(product)}
+              >
+                {/* Product Image */}
+                <div className="relative h-32 bg-muted flex items-center justify-center overflow-hidden">
+                  {product.imageUrl ? (
+                    <img
+                      src={product.imageUrl}
+                      alt={product.name}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                      onError={(e) => {
+                        e.currentTarget.style.display = 'none';
+                        e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                      }}
+                    />
+                  ) : null}
+                  <div className={`flex flex-col items-center justify-center text-muted-foreground ${product.imageUrl ? 'hidden' : ''}`}>
+                    <ImageOff size={28} className="mb-1 opacity-40" />
+                    <span className="text-xs opacity-60">No image</span>
+                  </div>
+
+                  {/* Price overlay */}
+                  {product.basePrice != null && (
+                    <Badge className="absolute top-2 right-2 bg-green-600 text-white shadow-sm text-xs">
+                      <DollarSign size={10} className="mr-0.5" />
+                      {product.basePrice.toFixed(2)}
+                    </Badge>
+                  )}
+                </div>
+
+                {/* Product Info */}
+                <CardContent className="p-3 space-y-1.5">
+                  <div>
+                    <h4 className="font-semibold text-sm line-clamp-1">{product.name}</h4>
+                    <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                      {product.sku && (
+                        <Badge variant="outline" className="text-[10px]">
+                          <Tag className="w-2.5 h-2.5 mr-0.5" />
+                          {product.sku}
+                        </Badge>
+                      )}
+                      <Badge variant="secondary" className="text-[10px]">{product.supplierName}</Badge>
+                    </div>
+                  </div>
+                  {product.description && (
+                    <p className="text-xs text-muted-foreground line-clamp-2">{product.description}</p>
+                  )}
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+        {h.filteredCatalogProducts.length > 50 && (
+          <p className="text-xs text-muted-foreground text-center py-2">
+            Showing first 50 of {h.filteredCatalogProducts.length} results. Refine your filter to see more.
+          </p>
+        )}
+      </div>
     );
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Header */}
       <div className="flex items-center gap-4">
         <Button
@@ -249,82 +321,59 @@ export default function AddProductPage({ projectId, data }: AddProductPageProps)
 
       {/* Syncing overlay */}
       {h.isSyncing && (
-        <Card>
-          <CardContent className="py-6 text-center">
-            <Loader2 className="w-8 h-8 mx-auto mb-2 animate-spin text-blue-500" />
-            <p className="text-sm text-gray-500">Syncing product to catalog...</p>
-          </CardContent>
-        </Card>
+        <div className="flex flex-col items-center justify-center py-8">
+          <Loader2 className="w-8 h-8 animate-spin text-blue-500 mb-2" />
+          <p className="text-sm text-muted-foreground">Syncing product to catalog...</p>
+        </div>
       )}
 
       <Tabs value={h.activeTab} onValueChange={h.handleTabChange}>
         <TabsList className="grid w-full grid-cols-5">
-          <TabsTrigger value="catalog" className="text-xs sm:text-sm">
-            <Package className="w-3.5 h-3.5 mr-1 hidden sm:inline" />
+          <TabsTrigger value="catalog" className="flex items-center gap-1.5 text-xs sm:text-sm">
+            <Package className="w-3.5 h-3.5 hidden sm:inline" />
             Catalog
           </TabsTrigger>
-          <TabsTrigger value="sage" className="text-xs sm:text-sm">
+          <TabsTrigger value="sage" className="flex items-center gap-1.5 text-xs sm:text-sm">
+            <Database className="w-3.5 h-3.5 hidden sm:inline" />
             SAGE
           </TabsTrigger>
-          <TabsTrigger value="sanmar" className="text-xs sm:text-sm">
+          <TabsTrigger value="sanmar" className="flex items-center gap-1.5 text-xs sm:text-sm">
+            <Package className="w-3.5 h-3.5 hidden sm:inline" />
             SanMar
           </TabsTrigger>
-          <TabsTrigger value="ss_activewear" className="text-xs sm:text-sm">
+          <TabsTrigger value="ss_activewear" className="flex items-center gap-1.5 text-xs sm:text-sm">
+            <ShoppingCart className="w-3.5 h-3.5 hidden sm:inline" />
             S&S
           </TabsTrigger>
-          <TabsTrigger value="manual" className="text-xs sm:text-sm">
-            <PenLine className="w-3.5 h-3.5 mr-1 hidden sm:inline" />
+          <TabsTrigger value="manual" className="flex items-center gap-1.5 text-xs sm:text-sm">
+            <PenLine className="w-3.5 h-3.5 hidden sm:inline" />
             Manual
           </TabsTrigger>
         </TabsList>
 
         {/* LOCAL CATALOG TAB */}
-        <TabsContent value="catalog" className="space-y-4">
+        <TabsContent value="catalog" forceMount className="data-[state=inactive]:hidden space-y-4">
           <Card>
             <CardContent className="pt-5 space-y-3">
-              <Input
-                value={h.catalogFilter}
-                onChange={(e) => h.setCatalogFilter(e.target.value)}
-                placeholder="Filter by name, SKU, or description..."
-                className="flex-1"
-              />
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground h-4 w-4" />
+                <Input
+                  value={h.catalogFilter}
+                  onChange={(e) => h.setCatalogFilter(e.target.value)}
+                  placeholder="Filter by name, SKU, or description..."
+                  className="pl-10"
+                />
+              </div>
               <p className="text-xs text-muted-foreground">
-                Showing {h.filteredCatalogProducts.length} of {h.allCatalogProducts.length} products in your catalog. Type to filter instantly.
+                Showing {h.filteredCatalogProducts.length} of {h.allCatalogProducts.length} products in your catalog
               </p>
             </CardContent>
           </Card>
-          {h.isCatalogLoading ? (
-            <Card>
-              <CardContent className="py-8 text-center">
-                <Loader2 className="w-6 h-6 mx-auto mb-2 animate-spin text-muted-foreground" />
-                <p className="text-sm text-muted-foreground">Loading catalog...</p>
-              </CardContent>
-            </Card>
-          ) : h.filteredCatalogProducts.length === 0 ? (
-            <Card>
-              <CardContent className="py-8 text-center">
-                <Package className="w-8 h-8 mx-auto mb-2 text-muted-foreground" />
-                <p className="text-sm text-muted-foreground">
-                  {h.allCatalogProducts.length === 0
-                    ? "No products in catalog yet. Add products from suppliers or use Manual entry."
-                    : `No products match "${h.catalogFilter}".`}
-                </p>
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {h.filteredCatalogProducts.slice(0, 50).map((p: any) => renderProductCard(p))}
-              {h.filteredCatalogProducts.length > 50 && (
-                <p className="text-xs text-muted-foreground col-span-full text-center py-2">
-                  Showing first 50 of {h.filteredCatalogProducts.length} results. Refine your filter to see more.
-                </p>
-              )}
-            </div>
-          )}
+          {renderCatalogGrid()}
         </TabsContent>
 
         {/* SAGE TAB */}
-        <TabsContent value="sage" className="space-y-4">
+        <TabsContent value="sage" forceMount className="data-[state=inactive]:hidden space-y-4">
           {renderSearchInput(
             "Search keywords, product name, or item number...",
             "SAGE supports full keyword search across all promotional products (pens, bags, mugs, etc.)"
@@ -333,7 +382,7 @@ export default function AddProductPage({ projectId, data }: AddProductPageProps)
         </TabsContent>
 
         {/* SANMAR TAB */}
-        <TabsContent value="sanmar" className="space-y-4">
+        <TabsContent value="sanmar" forceMount className="data-[state=inactive]:hidden space-y-4">
           {renderSearchInput(
             "Style number (PC54, G500, DT6000) or brand name...",
             "SanMar works best with style numbers or exact brand names. Click a brand below to search."
@@ -359,7 +408,7 @@ export default function AddProductPage({ projectId, data }: AddProductPageProps)
         </TabsContent>
 
         {/* S&S ACTIVEWEAR TAB */}
-        <TabsContent value="ss_activewear" className="space-y-4">
+        <TabsContent value="ss_activewear" forceMount className="data-[state=inactive]:hidden space-y-4">
           {renderSearchInput(
             "Keyword (polo, hoodie), style number, or brand name...",
             "S&S Activewear supports keyword search, style numbers, and brand names. Click a brand below to search."
@@ -389,7 +438,7 @@ export default function AddProductPage({ projectId, data }: AddProductPageProps)
         </TabsContent>
 
         {/* MANUAL ENTRY TAB */}
-        <TabsContent value="manual" className="space-y-4">
+        <TabsContent value="manual" forceMount className="data-[state=inactive]:hidden space-y-4">
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-base">Manual Product Entry</CardTitle>
@@ -521,16 +570,16 @@ export default function AddProductPage({ projectId, data }: AddProductPageProps)
 
                 {/* Manual Summary */}
                 {h.manualForm.unitPrice > 0 && (
-                  <div className="col-span-2 rounded-lg bg-gray-50 p-4 flex items-center gap-6 text-sm">
+                  <div className="col-span-2 rounded-lg bg-muted/50 p-4 flex items-center gap-6 text-sm">
                     <div>
-                      <span className="text-gray-500">Total:</span>{" "}
+                      <span className="text-muted-foreground">Total:</span>{" "}
                       <span className="font-semibold">${(h.manualForm.quantity * h.manualForm.unitPrice).toFixed(2)}</span>
                     </div>
                     {h.manualForm.unitCost > 0 && (() => {
                       const m = ((h.manualForm.unitPrice - h.manualForm.unitCost) / h.manualForm.unitPrice) * 100;
                       return (
                         <div>
-                          <span className="text-gray-500">Margin:</span>{" "}
+                          <span className="text-muted-foreground">Margin:</span>{" "}
                           <span className={`font-semibold ${marginColorClass(m, h.marginSettings)}`}>
                             {m.toFixed(1)}%
                           </span>
@@ -542,7 +591,7 @@ export default function AddProductPage({ projectId, data }: AddProductPageProps)
                     })()}
                     {h.manualForm.unitCost > 0 && (
                       <div>
-                        <span className="text-gray-500">Profit:</span>{" "}
+                        <span className="text-muted-foreground">Profit:</span>{" "}
                         <span className="font-semibold text-green-700">
                           ${((h.manualForm.unitPrice - h.manualForm.unitCost) * h.manualForm.quantity).toFixed(2)}
                         </span>
@@ -589,7 +638,7 @@ export default function AddProductPage({ projectId, data }: AddProductPageProps)
           {h.selectedProduct && (
             <div className="space-y-6">
               {/* Product Summary */}
-              <div className="flex gap-4 p-4 bg-gray-50 rounded-lg">
+              <div className="flex gap-4 p-4 bg-muted/50 rounded-lg">
                 {h.selectedProduct.imageUrl ? (
                   <img
                     src={h.selectedProduct.imageUrl}
@@ -597,8 +646,8 @@ export default function AddProductPage({ projectId, data }: AddProductPageProps)
                     className="w-20 h-20 object-contain rounded border bg-white"
                   />
                 ) : (
-                  <div className="w-20 h-20 bg-gray-200 rounded border flex items-center justify-center">
-                    <ImageIcon className="w-8 h-8 text-gray-400" />
+                  <div className="w-20 h-20 bg-muted rounded border flex items-center justify-center">
+                    <ImageIcon className="w-8 h-8 text-muted-foreground" />
                   </div>
                 )}
                 <div className="flex-1">
@@ -614,11 +663,11 @@ export default function AddProductPage({ projectId, data }: AddProductPageProps)
                       {h.sourceLabel(h.selectedProduct.source)}
                     </Badge>
                     {h.selectedProduct.supplierName && (
-                      <span className="text-sm text-gray-500">{h.selectedProduct.supplierName}</span>
+                      <span className="text-sm text-muted-foreground">{h.selectedProduct.supplierName}</span>
                     )}
                   </div>
                   {h.selectedProduct.description && (
-                    <p className="text-sm text-gray-600 mt-2 line-clamp-2">{h.selectedProduct.description}</p>
+                    <p className="text-sm text-muted-foreground mt-2 line-clamp-2">{h.selectedProduct.description}</p>
                   )}
                 </div>
               </div>
@@ -678,7 +727,7 @@ export default function AddProductPage({ projectId, data }: AddProductPageProps)
 
                 <div className="border rounded-lg overflow-hidden">
                   <table className="w-full text-sm">
-                    <thead className="bg-gray-50 border-b">
+                    <thead className="bg-muted/50 border-b">
                       <tr>
                         <th className="text-left p-3 font-medium">Color</th>
                         <th className="text-left p-3 font-medium">Size</th>
@@ -794,11 +843,11 @@ export default function AddProductPage({ projectId, data }: AddProductPageProps)
                         );
                       })}
                     </tbody>
-                    <tfoot className="bg-gray-50 border-t">
+                    <tfoot className="bg-muted/50 border-t">
                       <tr>
                         <td colSpan={2} className="p-3 text-sm font-semibold">Totals</td>
                         <td className="p-3 text-right text-sm font-semibold">{h.configTotalQty}</td>
-                        <td className="p-3 text-right text-sm text-gray-500">${h.configTotalCost.toFixed(2)}</td>
+                        <td className="p-3 text-right text-sm text-muted-foreground">${h.configTotalCost.toFixed(2)}</td>
                         <td className="p-3"></td>
                         <td className="p-3 text-right">
                           <span className={`text-sm font-semibold ${marginColorClass(h.configMargin, h.marginSettings)}`}>

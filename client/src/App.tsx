@@ -10,7 +10,7 @@ import Landing from "@/pages/Landing";
 import Home from "@/pages/Home";
 import CRM from "@/pages/Crm";
 import ContactDetail from "@/pages/Crm/ContactDetail";
-import CompanyDetail from "@/pages/Crm/CompanyDetail";
+import CompanyDetail from "@/pages/Crm/Companies/CompanyDetail";
 import ProjectsPage from "@/pages/Projects";
 import ProjectDetailPage from "@/pages/Projects/ProjectDetail";
 import Products from "@/pages/Products";
@@ -157,8 +157,8 @@ function Router() {
             <Route path="/crm/contacts/:id" component={ContactDetail} />
             <Route path="/crm/companies/:id" component={CompanyDetail} />
             <Route path="/projects" component={ProjectsPage} />
-            <Route path="/projects/:projectId/*" component={ProjectDetailPage} />
             <Route path="/projects/:projectId" component={ProjectDetailPage} />
+            <Route path="/projects/:projectId/*" component={ProjectDetailPage} />
             <Route path="/production-report" component={ProductionReport} />
             <Route path="/products" component={Products} />
             <Route path="/media-library" component={MediaLibraryPage} />

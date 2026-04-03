@@ -17,7 +17,7 @@ export const companyFormSchema = z.object({
   email: z.string().email("Invalid email address").optional().or(z.literal("")),
   phone: z.string().optional(),
   website: urlField("website URL"),
-  industry: z.string().optional(),
+  industry: z.string(),
   notes: z.string().optional(),
   taxExempt: z.boolean().optional(),
   defaultTaxCodeId: z.string().optional().or(z.literal("")),

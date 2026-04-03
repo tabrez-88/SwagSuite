@@ -1,10 +1,10 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Box, Search, Plus, DollarSign, Package, Database, ShoppingCart, Trash2, TrendingUp, Eye, Edit, AlertTriangle } from "lucide-react";
+import { Box, Search, Plus, DollarSign, Package, Database, ShoppingCart, Trash2, TrendingUp, Edit, AlertTriangle, ImageOff } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -16,7 +16,6 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import ProductModal from "@/components/modals/ProductModal";
-import { ProductIntegrations } from "@/components/integrations/ProductIntegrations";
 import { SsActivewearIntegration } from "@/components/integrations/SsActivewearIntegration";
 import { SageIntegration } from "@/components/integrations/SageIntegration";
 import { SanmarIntegration } from "@/components/integrations/SanmarIntegration";
@@ -61,7 +60,7 @@ export default function Products() {
         <div>
           <h1 className="text-3xl font-bold text-swag-navy">Products</h1>
           <p className="text-muted-foreground">
-            Manage your product catalog and S&S Activewear integration
+            Manage your product catalog and supplier integrations
           </p>
         </div>
         <Button
@@ -93,7 +92,7 @@ export default function Products() {
       />
 
       {/* Main Content */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-auto">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="my-catalog" className="flex items-center gap-2">
             <Package size={16} />
@@ -115,14 +114,10 @@ export default function Products() {
             <Database size={16} />
             SAGE
           </TabsTrigger>
-          {/* <TabsTrigger value="integrations" className="flex items-center gap-2">
-            <Database size={16} />
-            Other Integrations
-          </TabsTrigger> */}
         </TabsList>
 
         {/* My Catalog Tab */}
-        <TabsContent value="my-catalog" className="space-y-4">
+        <TabsContent value="my-catalog" forceMount className="data-[state=inactive]:hidden space-y-4">
           {/* Search and Filters */}
           <div className="flex items-center gap-4">
             <div className="relative flex-1">
@@ -141,120 +136,119 @@ export default function Products() {
 
           {/* Products Grid */}
           {isLoading ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {Array.from({ length: 6 }).map((_, i) => (
-                <Card key={i}>
-                  <CardHeader>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              {Array.from({ length: 8 }).map((_, i) => (
+                <Card key={i} className="overflow-hidden">
+                  <Skeleton className="h-40 w-full" />
+                  <CardContent className="p-4 space-y-2">
                     <Skeleton className="h-4 w-2/3" />
                     <Skeleton className="h-3 w-1/2" />
-                  </CardHeader>
-                  <CardContent>
-                    <Skeleton className="h-20 w-full mb-2" />
                     <Skeleton className="h-3 w-1/3" />
                   </CardContent>
                 </Card>
               ))}
             </div>
           ) : filteredProducts.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
               {filteredProducts.map((product: Product) => {
                 const supplier = suppliers.find((s: Supplier) => s.id === product.supplierId);
 
                 return (
-                  <Card key={product.id} className="hover:shadow-lg flex flex-col justify-between transition-shadow">
-                    <CardHeader>
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <CardTitle className="text-lg text-swag-navy">{product.name}</CardTitle>
-                          {product.sku && (
-                            <p className="text-sm text-muted-foreground">SKU: {product.sku}</p>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-2">
-                          {product.basePrice && (
-                            <Badge className="bg-green-100 text-green-800">
-                              <DollarSign size={12} className="mr-1" />
-                              {product.basePrice}
-                            </Badge>
-                          )}
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setEditingProduct(product)}
-                            className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-                            title="Edit product"
-                          >
-                            <Edit size={14} />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleDeleteProduct(product)}
-                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                            title="Delete product"
-                          >
-                            <Trash2 size={14} />
-                          </Button>
-                        </div>
+                  <Card
+                    key={product.id}
+                    className="overflow-hidden hover:shadow-lg transition-shadow group cursor-pointer"
+                    onClick={() => handleViewProduct(product)}
+                  >
+                    {/* Product Image */}
+                    <div className="relative h-40 bg-muted flex items-center justify-center overflow-hidden">
+                      {product.imageUrl ? (
+                        <img
+                          src={product.imageUrl}
+                          alt={product.name}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                          onError={(e) => {
+                            e.currentTarget.style.display = 'none';
+                            e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                          }}
+                        />
+                      ) : null}
+                      <div className={`flex flex-col items-center justify-center text-muted-foreground ${product.imageUrl ? 'hidden' : ''}`}>
+                        <ImageOff size={32} className="mb-1 opacity-40" />
+                        <span className="text-xs opacity-60">No image</span>
                       </div>
-                    </CardHeader>
-                    <CardContent className="space-y-3">
+
+                      {/* Price badge overlay */}
+                      {product.basePrice && (
+                        <Badge className="absolute top-2 right-2 bg-green-600 text-white shadow-sm">
+                          <DollarSign size={12} className="mr-0.5" />
+                          {product.basePrice}
+                        </Badge>
+                      )}
+
+                      {/* Action buttons overlay */}
+                      <div className="absolute top-2 left-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <Button
+                          variant="secondary"
+                          size="icon"
+                          className="h-7 w-7 bg-white/90 hover:bg-white shadow-sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setEditingProduct(product);
+                          }}
+                          title="Edit product"
+                        >
+                          <Edit size={13} />
+                        </Button>
+                        <Button
+                          variant="secondary"
+                          size="icon"
+                          className="h-7 w-7 bg-white/90 hover:bg-red-50 text-red-600 shadow-sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteProduct(product);
+                          }}
+                          title="Delete product"
+                        >
+                          <Trash2 size={13} />
+                        </Button>
+                      </div>
+                    </div>
+
+                    {/* Product Info */}
+                    <CardContent className="p-4 space-y-2">
                       <div>
-                        {product.description && (
-                          <p className="text-sm text-muted-foreground line-clamp-2">
-                            {product.description}
-                          </p>
+                        <h3 className="font-semibold text-sm line-clamp-1">{product.name}</h3>
+                        {product.sku && (
+                          <p className="text-xs text-muted-foreground">SKU: {product.sku}</p>
                         )}
+                      </div>
 
+                      {product.description && (
+                        <p className="text-xs text-muted-foreground line-clamp-2">
+                          {product.description}
+                        </p>
+                      )}
+
+                      <div className="flex flex-wrap items-center gap-1 pt-1">
                         {supplier && (
-                          <div className="flex items-center gap-2 mt-2">
-                            <Badge variant="outline">{supplier.name}</Badge>
-                          </div>
+                          <Badge variant="outline" className="text-xs">{supplier.name}</Badge>
                         )}
-
                         {(() => {
                           const colors = parseArrayField(product.colors);
-                          return colors.length > 0 && (
-                            <div className="space-y-1">
-                              <span className="text-xs font-medium text-muted-foreground">Colors:</span>
-                              <div className="flex flex-wrap gap-1">
-                                {colors.map((color, index) => (
-                                  <Badge key={index} variant="secondary" className="text-xs">
-                                    {color}
-                                  </Badge>
-                                ))}
-                              </div>
-                            </div>
-                          );
+                          return colors.length > 0 ? (
+                            <Badge variant="secondary" className="text-xs">
+                              {colors.length} color{colors.length > 1 ? 's' : ''}
+                            </Badge>
+                          ) : null;
                         })()}
-
                         {(() => {
-                          const imprintMethods = parseArrayField(product.imprintMethods);
-                          return imprintMethods.length > 0 && (
-                            <div className="space-y-1">
-                              <span className="text-xs font-medium text-muted-foreground">Imprint Methods:</span>
-                              <div className="flex flex-wrap gap-1">
-                                {imprintMethods.map((method, index) => (
-                                  <Badge key={index} variant="outline" className="text-xs">
-                                    {method}
-                                  </Badge>
-                                ))}
-                              </div>
-                            </div>
-                          );
+                          const methods = parseArrayField(product.imprintMethods);
+                          return methods.length > 0 ? (
+                            <Badge variant="secondary" className="text-xs">
+                              {methods.length} imprint{methods.length > 1 ? 's' : ''}
+                            </Badge>
+                          ) : null;
                         })()}
-                      </div>
-
-                      <div className="flex flex-wrap items-center justify-between pt-2 gap-2">
-                        <Button
-                          variant="default"
-                          size="sm"
-                          onClick={() => handleViewProduct(product)}
-                          className="flex-1"
-                        >
-                          <Eye size={12} className="mr-1" />
-                          View Details
-                        </Button>
                       </div>
                     </CardContent>
                   </Card>
@@ -263,7 +257,7 @@ export default function Products() {
             </div>
           ) : (
             <Card>
-              <CardContent className="flex flex-col items-center justify-center py-12 text-center">
+              <CardContent className="flex flex-col items-center justify-center py-16 text-center">
                 <Box className="h-12 w-12 text-muted-foreground mb-4" />
                 <h3 className="text-lg font-semibold text-muted-foreground mb-2">
                   No products found
@@ -271,7 +265,7 @@ export default function Products() {
                 <p className="text-sm text-muted-foreground mb-4">
                   {searchQuery
                     ? "Try adjusting your search terms or create a new product."
-                    : "Get started by adding your first product using S&S Activewear lookup."
+                    : "Get started by adding your first product or searching supplier catalogs."
                   }
                 </p>
                 <Button onClick={handleOpenProductModal} className="bg-swag-primary hover:bg-swag-primary/90">
@@ -284,41 +278,23 @@ export default function Products() {
         </TabsContent>
 
         {/* Popular Products Tab */}
-        <TabsContent value="popular">
+        <TabsContent value="popular" forceMount className="data-[state=inactive]:hidden">
           <PopularProducts />
         </TabsContent>
 
-        {/* S&S Activewear Integration Tab */}
-        <TabsContent value="ss-activewear">
+        {/* S&S Activewear Integration Tab - forceMount prevents remounting/refetching */}
+        <TabsContent value="ss-activewear" forceMount className="data-[state=inactive]:hidden">
           <SsActivewearIntegration />
         </TabsContent>
 
         {/* SanMar Integration Tab */}
-        <TabsContent value="sanmar">
+        <TabsContent value="sanmar" forceMount className="data-[state=inactive]:hidden">
           <SanmarIntegration />
         </TabsContent>
 
         {/* SAGE Integration Tab */}
-        <TabsContent value="sage">
+        <TabsContent value="sage" forceMount className="data-[state=inactive]:hidden">
           <SageIntegration />
-        </TabsContent>
-
-        {/* ESP/ASI/SAGE Integration Tab */}
-        <TabsContent value="integrations">
-          <Card className="mb-4">
-            <CardContent className="pt-6">
-              <div className="flex items-center gap-3 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                <Database className="h-5 w-5 text-blue-600" />
-                <div>
-                  <h4 className="font-semibold text-blue-900">API Integration Required</h4>
-                  <p className="text-sm text-blue-700">
-                    To search ESP/ASI databases, please configure your API credentials in the Settings → Integrations tab.
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          <ProductIntegrations />
         </TabsContent>
       </Tabs>
 
@@ -353,7 +329,7 @@ export default function Products() {
             >
               {deleteProductMutation.isPending ? (
                 <>
-                  <span className="animate-spin mr-2">⏳</span>
+                  <span className="animate-spin mr-2">&#9203;</span>
                   Deleting...
                 </>
               ) : (

@@ -1,0 +1,76 @@
+export interface ShippingAddress {
+  label?: string;
+  street?: string;
+  city?: string;
+  state?: string;
+  zipCode?: string;
+  country?: string;
+}
+
+export const INDUSTRY_OPTIONS = [
+  "Ad Agency",
+  "Auto",
+  "Aviation",
+  "Beverages",
+  "Business Services",
+  "Camp",
+  "Cannabis",
+  "Church/Religious Organization",
+  "Cleaning Services",
+  "Clubs & Associations",
+  "Conference",
+  "Consulting",
+  "Construction",
+  "Corporate",
+  "Cosmetics",
+  "Education",
+  "Entertainment",
+  "Event Planning",
+  "Farming",
+  "Finance",
+  "Fire & Emergency Services",
+  "Food & Beverage",
+  "Forestry",
+  "Franchise",
+  "Government",
+  "Healthcare",
+  "Hospitality",
+  "Individual",
+  "Insurance",
+  "Legal",
+  "Logistics",
+  "Manufacturing",
+  "Market Research",
+  "Media",
+  "Mining",
+  "Miscellaneous",
+  "Non-Profit",
+  "Oil",
+  "Other",
+  "Packaged Goods",
+  "Parking",
+  "Pharmaceuticals",
+  "Planners & Diaries",
+  "Professional Services",
+  "Real Estate",
+  "Restaurant",
+  "Retail",
+  "School",
+  "Service",
+  "Sports",
+  "Technology",
+  "Telecom",
+  "Tourism",
+  "Transportation",
+  "Union",
+  "University/College",
+  "Utilities",
+  "Waste Management",
+];
+
+export const ENGAGEMENT_COLORS = {
+  high: "bg-green-100 text-green-800 hover:bg-green-200",
+  medium: "bg-yellow-100 text-yellow-800 hover:bg-yellow-200",
+  low: "bg-red-100 text-red-800 hover:bg-red-200",
+  undefined: "bg-gray-100 text-gray-800 hover:bg-gray-200",
+};

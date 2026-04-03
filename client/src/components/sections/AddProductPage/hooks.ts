@@ -28,13 +28,33 @@ export function useAddProductPage({ projectId, data }: AddProductPageProps) {
       ? `/projects/${projectId}/quote`
       : `/projects/${projectId}/sales-order`;
 
-  // Search state
-  const [searchQuery, setSearchQuery] = useState("");
+  // Search state — per-tab so switching tabs doesn't leak loading/results
   const [activeTab, setActiveTab] = useState<SourceTab>("catalog");
-  const [searchResults, setSearchResults] = useState<ProductResult[]>([]);
-  const [isSearching, setIsSearching] = useState(false);
-  const [searchError, setSearchError] = useState<string | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
+
+  type TabSearchState = { query: string; results: ProductResult[]; isSearching: boolean; error: string | null };
+  const emptySearch: TabSearchState = { query: "", results: [], isSearching: false, error: null };
+  const [tabSearch, setTabSearch] = useState<Record<string, TabSearchState>>({
+    sage: { ...emptySearch },
+    sanmar: { ...emptySearch },
+    ss_activewear: { ...emptySearch },
+  });
+
+  // Current tab's search state (convenience accessors)
+  const currentSearch = tabSearch[activeTab] || emptySearch;
+  const searchQuery = currentSearch.query;
+  const searchResults = currentSearch.results;
+  const isSearching = currentSearch.isSearching;
+  const searchError = currentSearch.error;
+
+  const setSearchQuery = useCallback((q: string) => {
+    setTabSearch(prev => ({ ...prev, [activeTab]: { ...prev[activeTab] || emptySearch, query: q } }));
+  }, [activeTab]);
+
+  // Helper to update a specific tab's search state
+  const updateTabSearch = useCallback((tab: string, updates: Partial<TabSearchState>) => {
+    setTabSearch(prev => ({ ...prev, [tab]: { ...prev[tab] || emptySearch, ...updates } }));
+  }, []);
 
   // Configuration dialog
   const [selectedProduct, setSelectedProduct] = useState<ProductResult | null>(null);
@@ -110,13 +130,13 @@ export function useAddProductPage({ projectId, data }: AddProductPageProps) {
   });
 
   // ── Per-supplier search functions ──
+  // Each function targets its own tab's state, so switching tabs doesn't affect other searches
   const searchSage = useCallback(async () => {
-    if (!searchQuery.trim()) return;
-    setIsSearching(true);
-    setSearchError(null);
-    setSearchResults([]);
+    const q = (tabSearch.sage?.query || "").trim();
+    if (!q) return;
+    updateTabSearch("sage", { isSearching: true, error: null, results: [] });
     try {
-      const res = await fetch("/api/integrations/sage/products?" + new URLSearchParams({ search: searchQuery }));
+      const res = await fetch("/api/integrations/sage/products?" + new URLSearchParams({ search: q }));
       if (!res.ok) throw new Error("SAGE search failed");
       const data = await res.json();
       const results: ProductResult[] = (data.products || []).map((p: any) => {
@@ -146,22 +166,20 @@ export function useAddProductPage({ projectId, data }: AddProductPageProps) {
           rawData: p,
         };
       });
-      setSearchResults(results);
-      if (results.length === 0) setSearchError("No SAGE products found for this keyword.");
+      updateTabSearch("sage", { results, error: results.length === 0 ? "No SAGE products found for this keyword." : null });
     } catch {
-      setSearchError("Failed to search SAGE. Check your credentials in Settings.");
+      updateTabSearch("sage", { error: "Failed to search SAGE. Check your credentials in Settings." });
     } finally {
-      setIsSearching(false);
+      updateTabSearch("sage", { isSearching: false });
     }
-  }, [searchQuery]);
+  }, [tabSearch.sage?.query, updateTabSearch]);
 
   const searchSanMar = useCallback(async () => {
-    if (!searchQuery.trim()) return;
-    setIsSearching(true);
-    setSearchError(null);
-    setSearchResults([]);
+    const q = (tabSearch.sanmar?.query || "").trim();
+    if (!q) return;
+    updateTabSearch("sanmar", { isSearching: true, error: null, results: [] });
     try {
-      const res = await fetch("/api/sanmar/search?" + new URLSearchParams({ q: searchQuery }));
+      const res = await fetch("/api/sanmar/search?" + new URLSearchParams({ q }));
       if (!res.ok) throw new Error("SanMar search failed");
       const products = await res.json();
       const results: ProductResult[] = (Array.isArray(products) ? products : []).map((p: any) => ({
@@ -181,22 +199,20 @@ export function useAddProductPage({ projectId, data }: AddProductPageProps) {
         decorationMethods: [],
         rawData: p,
       }));
-      setSearchResults(results);
-      if (results.length === 0) setSearchError("No SanMar products found. Try a style number (PC54, G500) or brand name (Nike, OGIO).");
+      updateTabSearch("sanmar", { results, error: results.length === 0 ? "No SanMar products found. Try a style number (PC54, G500) or brand name (Nike, OGIO)." : null });
     } catch {
-      setSearchError("Failed to search SanMar. Check your credentials in Settings.");
+      updateTabSearch("sanmar", { error: "Failed to search SanMar. Check your credentials in Settings." });
     } finally {
-      setIsSearching(false);
+      updateTabSearch("sanmar", { isSearching: false });
     }
-  }, [searchQuery]);
+  }, [tabSearch.sanmar?.query, updateTabSearch]);
 
   const searchSsActivewear = useCallback(async () => {
-    if (!searchQuery.trim()) return;
-    setIsSearching(true);
-    setSearchError(null);
-    setSearchResults([]);
+    const q = (tabSearch.ss_activewear?.query || "").trim();
+    if (!q) return;
+    updateTabSearch("ss_activewear", { isSearching: true, error: null, results: [] });
     try {
-      const res = await fetch("/api/ss-activewear/search?" + new URLSearchParams({ q: searchQuery }));
+      const res = await fetch("/api/ss-activewear/search?" + new URLSearchParams({ q }));
       if (!res.ok) throw new Error("S&S search failed");
       const products = await res.json();
       const arr = Array.isArray(products) ? products : [];
@@ -231,14 +247,13 @@ export function useAddProductPage({ projectId, data }: AddProductPageProps) {
           rawData: p,
         });
       }
-      setSearchResults(results);
-      if (results.length === 0) setSearchError("No S&S Activewear products found for this search term.");
+      updateTabSearch("ss_activewear", { results, error: results.length === 0 ? "No S&S Activewear products found for this search term." : null });
     } catch {
-      setSearchError("Failed to search S&S Activewear. Check your credentials in Settings.");
+      updateTabSearch("ss_activewear", { error: "Failed to search S&S Activewear. Check your credentials in Settings." });
     } finally {
-      setIsSearching(false);
+      updateTabSearch("ss_activewear", { isSearching: false });
     }
-  }, [searchQuery]);
+  }, [tabSearch.ss_activewear?.query, updateTabSearch]);
 
   // ── Handle Search per tab ──
   const handleSearch = useCallback(() => {
@@ -616,93 +631,79 @@ export function useAddProductPage({ projectId, data }: AddProductPageProps) {
     }
   };
 
-  // Brand search helpers for inline brand click handlers
+  // Brand search helpers — write to the specific tab's state
   const searchSanMarBrand = (brand: string) => {
-    setSearchQuery(brand);
-    setTimeout(() => {
-      setIsSearching(true);
-      setSearchError(null);
-      setSearchResults([]);
-      fetch("/api/sanmar/search?" + new URLSearchParams({ q: brand }))
-        .then(r => r.ok ? r.json() : Promise.reject())
-        .then(products => {
-          const arr = Array.isArray(products) ? products : [];
-          const results: ProductResult[] = arr.map((p: any) => ({
-            id: p.styleId || p.id || `sanmar_${p.productId}`,
-            source: "sanmar" as const,
-            name: p.productTitle || p.styleName || p.productName,
-            sku: p.styleId || p.productId,
-            description: p.description || p.productDescription,
-            supplierName: p.brandName || "SanMar",
-            category: p.categoryName || p.category,
-            imageUrl: p.productImage || p.thumbnailImage || p.frontFlat,
-            basePrice: p.piecePrice || p.basePrice,
-            baseCost: p.casePrice || p.baseCost,
-            colors: p.colors || [],
-            sizes: p.sizes || [],
-            minQuantity: p.caseSize || 1,
-            decorationMethods: [],
-            rawData: p,
-          }));
-          setSearchResults(results);
-          if (results.length === 0) setSearchError(`No SanMar products found for "${brand}".`);
-        })
-        .catch(() => setSearchError("Failed to search SanMar."))
-        .finally(() => setIsSearching(false));
-    }, 0);
+    updateTabSearch("sanmar", { query: brand, isSearching: true, error: null, results: [] });
+    fetch("/api/sanmar/search?" + new URLSearchParams({ q: brand }))
+      .then(r => r.ok ? r.json() : Promise.reject())
+      .then(products => {
+        const arr = Array.isArray(products) ? products : [];
+        const results: ProductResult[] = arr.map((p: any) => ({
+          id: p.styleId || p.id || `sanmar_${p.productId}`,
+          source: "sanmar" as const,
+          name: p.productTitle || p.styleName || p.productName,
+          sku: p.styleId || p.productId,
+          description: p.description || p.productDescription,
+          supplierName: p.brandName || "SanMar",
+          category: p.categoryName || p.category,
+          imageUrl: p.productImage || p.thumbnailImage || p.frontFlat,
+          basePrice: p.piecePrice || p.basePrice,
+          baseCost: p.casePrice || p.baseCost,
+          colors: p.colors || [],
+          sizes: p.sizes || [],
+          minQuantity: p.caseSize || 1,
+          decorationMethods: [],
+          rawData: p,
+        }));
+        updateTabSearch("sanmar", { results, error: results.length === 0 ? `No SanMar products found for "${brand}".` : null });
+      })
+      .catch(() => updateTabSearch("sanmar", { error: "Failed to search SanMar." }))
+      .finally(() => updateTabSearch("sanmar", { isSearching: false }));
   };
 
   const searchSsBrand = (brandName: string) => {
-    setSearchQuery(brandName);
-    setTimeout(() => {
-      setIsSearching(true);
-      setSearchError(null);
-      setSearchResults([]);
-      fetch("/api/ss-activewear/search?" + new URLSearchParams({ q: brandName }))
-        .then(r => r.ok ? r.json() : Promise.reject())
-        .then(products => {
-          const arr = Array.isArray(products) ? products : [];
-          const styleMap = new Map<number, { base: any; colors: Set<string>; sizes: Set<string> }>();
-          for (const p of arr) {
-            const sid = p.styleID || 0;
-            if (!styleMap.has(sid)) styleMap.set(sid, { base: p, colors: new Set(), sizes: new Set() });
-            const entry = styleMap.get(sid)!;
-            if (p.colorName) entry.colors.add(p.colorName);
-            if (p.sizeName) entry.sizes.add(p.sizeName);
-          }
-          const results: ProductResult[] = [];
-          for (const [, { base: p, colors, sizes }] of Array.from(styleMap.entries())) {
-            results.push({
-              id: `ss_${p.styleID}`,
-              source: "ss_activewear",
-              name: p.styleName || p.productName || p.title,
-              sku: String(p.styleID || p.sku),
-              description: p.description || `${p.brandName} ${p.styleName}`,
-              supplierName: p.brandName || "S&S Activewear",
-              category: p.category,
-              imageUrl: getSsImageUrl(p),
-              basePrice: p.customerPrice || p.piecePrice || p.basePrice,
-              baseCost: p.casePrice || p.costPrice,
-              colors: Array.from(colors),
-              sizes: Array.from(sizes),
-              minQuantity: 1,
-              decorationMethods: [],
-              rawData: p,
-            });
-          }
-          setSearchResults(results);
-          if (results.length === 0) setSearchError(`No S&S products found for "${brandName}".`);
-        })
-        .catch(() => setSearchError("Failed to search S&S Activewear."))
-        .finally(() => setIsSearching(false));
-    }, 0);
+    updateTabSearch("ss_activewear", { query: brandName, isSearching: true, error: null, results: [] });
+    fetch("/api/ss-activewear/search?" + new URLSearchParams({ q: brandName }))
+      .then(r => r.ok ? r.json() : Promise.reject())
+      .then(products => {
+        const arr = Array.isArray(products) ? products : [];
+        const styleMap = new Map<number, { base: any; colors: Set<string>; sizes: Set<string> }>();
+        for (const p of arr) {
+          const sid = p.styleID || 0;
+          if (!styleMap.has(sid)) styleMap.set(sid, { base: p, colors: new Set(), sizes: new Set() });
+          const entry = styleMap.get(sid)!;
+          if (p.colorName) entry.colors.add(p.colorName);
+          if (p.sizeName) entry.sizes.add(p.sizeName);
+        }
+        const results: ProductResult[] = [];
+        for (const [, { base: p, colors, sizes }] of Array.from(styleMap.entries())) {
+          results.push({
+            id: `ss_${p.styleID}`,
+            source: "ss_activewear",
+            name: p.styleName || p.productName || p.title,
+            sku: String(p.styleID || p.sku),
+            description: p.description || `${p.brandName} ${p.styleName}`,
+            supplierName: p.brandName || "S&S Activewear",
+            category: p.category,
+            imageUrl: getSsImageUrl(p),
+            basePrice: p.customerPrice || p.piecePrice || p.basePrice,
+            baseCost: p.casePrice || p.costPrice,
+            colors: Array.from(colors),
+            sizes: Array.from(sizes),
+            minQuantity: 1,
+            decorationMethods: [],
+            rawData: p,
+          });
+        }
+        updateTabSearch("ss_activewear", { results, error: results.length === 0 ? `No S&S products found for "${brandName}".` : null });
+      })
+      .catch(() => updateTabSearch("ss_activewear", { error: "Failed to search S&S Activewear." }))
+      .finally(() => updateTabSearch("ss_activewear", { isSearching: false }));
   };
 
+  // Tab change no longer clears search state — each tab preserves its own results
   const handleTabChange = (v: string) => {
     setActiveTab(v as SourceTab);
-    setSearchResults([]);
-    setSearchError(null);
-    setSearchQuery("");
   };
 
   const handleAddProduct = () => {

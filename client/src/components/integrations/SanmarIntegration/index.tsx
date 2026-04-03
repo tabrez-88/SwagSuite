@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { AlertCircle, Box, Download, Loader2, Package, Search } from 'lucide-react';
+import { AlertCircle, Box, Download, ImageOff, Loader2, Package, Search } from 'lucide-react';
 import { useSanmarIntegration } from './hooks';
 
 const formatCurrency = (value: number | null | undefined) => {
@@ -27,73 +27,21 @@ export function SanmarIntegration() {
     } = useSanmarIntegration();
 
     return (
-        <div className="space-y-6">
-            {/* Header */}
-            <Card>
-                <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                        <Package className="h-5 w-5" />
-                        SanMar Integration
-                    </CardTitle>
-                    <CardDescription>
-                        Search and import products from SanMar's catalog using their SOAP API.
-                        Configure your credentials in Settings &rarr; Integrations.
-                    </CardDescription>
-                </CardHeader>
-            </Card>
-
+        <div className="space-y-4">
             {/* Search Section */}
             <Card>
-                <CardHeader>
-                    <CardTitle>Search Products</CardTitle>
-                    <CardDescription>
-                        Search by Style ID (e.g., PC54, ST350) or product name
-                    </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                    <div className="flex gap-2">
-                        <Input
-                            placeholder="Enter style ID or search term..."
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
-                            className="flex-1"
-                        />
-                        <Button
-                            onClick={handleSearch}
-                            disabled={searchMutation.isPending}
-                        >
-                            {searchMutation.isPending ? (
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                                <Search className="h-4 w-4" />
-                            )}
-                            <span className="ml-2">Search</span>
-                        </Button>
-                    </div>
-
-                    {searchMutation.isError && (
-                        <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-md">
-                            <AlertCircle className="h-5 w-5 text-red-600" />
-                            <p className="text-sm text-red-800">
-                                Failed to search products. Please check your API credentials in Settings.
-                            </p>
+                <CardHeader className="pb-4">
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <CardTitle className="flex items-center gap-2 text-lg">
+                                <Package className="h-5 w-5 text-blue-600" />
+                                SanMar Product Search
+                            </CardTitle>
+                            <CardDescription>
+                                Search by Style ID (e.g., PC54, ST350) or product name
+                            </CardDescription>
                         </div>
-                    )}
-                </CardContent>
-            </Card>
-
-            {/* Search Results */}
-            {searchMutation.data && searchMutation.data.length > 0 && (
-                <Card>
-                    <CardHeader>
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <CardTitle>Search Results</CardTitle>
-                                <CardDescription>
-                                    Found {searchMutation.data.length} product(s)
-                                </CardDescription>
-                            </div>
+                        {searchMutation.data && searchMutation.data.length > 0 && (
                             <Button
                                 variant="outline"
                                 size="sm"
@@ -107,125 +55,169 @@ export function SanmarIntegration() {
                                 )}
                                 Add All to Catalog
                             </Button>
+                        )}
+                    </div>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                    <div className="flex gap-2">
+                        <div className="relative flex-1">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground h-4 w-4" />
+                            <Input
+                                placeholder="Enter style ID or search term..."
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                                className="pl-10"
+                            />
                         </div>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="grid gap-4">
-                            {searchMutation.data.map((product) => (
-                                <Card key={product.styleId} className="hover:shadow-md transition-shadow">
-                                    <CardContent className="pt-6">
-                                        <div className="flex gap-4">
-                                            {(product.frontModel || product.colorProductImage || product.productImage) && (
-                                                <img
-                                                    src={product.frontModel || product.colorProductImage || product.productImage}
-                                                    alt={product.productTitle}
-                                                    className="w-24 h-24 object-cover rounded-md"
-                                                    onError={(e) => {
-                                                        e.currentTarget.style.display = 'none';
-                                                    }}
-                                                />
-                                            )}
-                                            <div className="flex-1 space-y-2">
-                                                <div className="flex items-start justify-between">
-                                                    <div>
-                                                        <h4 className="font-semibold text-lg">{product.productTitle}</h4>
-                                                        <p className="text-sm text-muted-foreground">
-                                                            Style: {product.styleId} | Brand: {product.brandName}
-                                                        </p>
-                                                    </div>
-                                                    <Badge variant="secondary">{product.categoryName}</Badge>
-                                                </div>
+                        <Button
+                            onClick={handleSearch}
+                            disabled={searchMutation.isPending}
+                        >
+                            {searchMutation.isPending ? (
+                                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                            ) : (
+                                <Search className="h-4 w-4 mr-2" />
+                            )}
+                            Search
+                        </Button>
+                    </div>
 
-                                                {product.productDescription && (
-                                                    <p className="text-sm text-muted-foreground line-clamp-2">
-                                                        {product.productDescription}
-                                                    </p>
-                                                )}
-
-                                                <div className="flex flex-wrap gap-2">
-                                                    {product.colors.length > 0 && (
-                                                        <div className="flex items-center gap-1">
-                                                            <span className="text-xs font-medium">Colors:</span>
-                                                            <span className="text-xs text-muted-foreground">
-                                                                {product.colors.slice(0, 3).join(', ')}
-                                                                {product.colors.length > 3 && ` +${product.colors.length - 3}`}
-                                                            </span>
-                                                        </div>
-                                                    )}
-                                                    {product.sizes.length > 0 && (
-                                                        <div className="flex items-center gap-1">
-                                                            <span className="text-xs font-medium">Sizes:</span>
-                                                            <span className="text-xs text-muted-foreground">
-                                                                {product.sizes.slice(0, 5).join(', ')}
-                                                                {product.sizes.length > 5 && ` +${product.sizes.length - 5}`}
-                                                            </span>
-                                                        </div>
-                                                    )}
-                                                </div>
-
-                                                <div className="flex items-center justify-between pt-2">
-                                                    <div className="flex gap-3">
-                                                        {product.pieceSalePrice && product.pieceSalePrice < product.piecePrice! && (
-                                                            <div className="flex flex-col">
-                                                                <span className="text-sm font-semibold text-red-600">
-                                                                    Sale: {formatCurrency(product.pieceSalePrice)}
-                                                                </span>
-                                                                <span className="text-xs text-muted-foreground line-through">
-                                                                    {formatCurrency(product.piecePrice)}
-                                                                </span>
-                                                            </div>
-                                                        )}
-                                                        {!product.pieceSalePrice && (
-                                                            <span className="text-sm font-semibold">
-                                                                Piece: {formatCurrency(product.piecePrice)}
-                                                            </span>
-                                                        )}
-                                                        {product.dozenPrice && (
-                                                            <span className="text-sm text-muted-foreground">
-                                                                Dozen: {formatCurrency(product.dozenPrice)}
-                                                            </span>
-                                                        )}
-                                                        {product.casePrice && (
-                                                            <span className="text-sm text-muted-foreground">
-                                                                Case: {formatCurrency(product.casePrice)} ({product.caseSize} pcs)
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                    <div className="flex gap-2">
-                                                        <Button
-                                                            variant="outline"
-                                                            size="sm"
-                                                            onClick={() => handleViewDetail(product)}
-                                                        >
-                                                            View Details
-                                                        </Button>
-                                                        <Button
-                                                            size="sm"
-                                                            onClick={() => handleAddToCatalog(product)}
-                                                            disabled={syncingProducts.has(product.styleId)}
-                                                        >
-                                                            {syncingProducts.has(product.styleId) ? (
-                                                                <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                                                            ) : (
-                                                                <Download className="h-4 w-4 mr-2" />
-                                                            )}
-                                                            Add to Catalog
-                                                        </Button>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </CardContent>
-                                </Card>
-                            ))}
+                    {searchMutation.isError && (
+                        <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-md">
+                            <AlertCircle className="h-5 w-5 text-red-600 shrink-0" />
+                            <p className="text-sm text-red-800">
+                                Failed to search products. Please check your API credentials in Settings.
+                            </p>
                         </div>
-                    </CardContent>
-                </Card>
+                    )}
+                </CardContent>
+            </Card>
+
+            {/* Loading State */}
+            {searchMutation.isPending && (
+                <div className="flex flex-col items-center justify-center py-12">
+                    <Loader2 className="h-8 w-8 animate-spin text-blue-500 mb-3" />
+                    <p className="text-sm text-muted-foreground">Searching SanMar catalog...</p>
+                </div>
             )}
 
-            {searchMutation.data && searchMutation.data.length === 0 && (
+            {/* Search Results */}
+            {searchMutation.data && searchMutation.data.length > 0 && !searchMutation.isPending && (
+                <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                        <p className="text-sm text-muted-foreground">
+                            Found <strong>{searchMutation.data.length}</strong> product(s)
+                        </p>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                        {searchMutation.data.map((product) => (
+                            <Card key={product.styleId} className="overflow-hidden hover:shadow-lg transition-shadow group cursor-pointer" onClick={() => handleViewDetail(product)}>
+                                {/* Product Image */}
+                                <div className="relative h-40 bg-muted flex items-center justify-center overflow-hidden">
+                                    {(product.frontModel || product.colorProductImage || product.productImage) ? (
+                                        <img
+                                            src={product.frontModel || product.colorProductImage || product.productImage}
+                                            alt={product.productTitle}
+                                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                            onError={(e) => {
+                                                e.currentTarget.style.display = 'none';
+                                                e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                                            }}
+                                        />
+                                    ) : null}
+                                    <div className={`flex flex-col items-center justify-center text-muted-foreground ${(product.frontModel || product.colorProductImage || product.productImage) ? 'hidden' : ''}`}>
+                                        <ImageOff size={32} className="mb-1 opacity-40" />
+                                        <span className="text-xs opacity-60">No image</span>
+                                    </div>
+
+                                    {/* Category badge */}
+                                    <Badge variant="secondary" className="absolute top-2 right-2 shadow-sm text-xs">
+                                        {product.categoryName}
+                                    </Badge>
+                                </div>
+
+                                {/* Product Info */}
+                                <CardContent className="p-4 space-y-2">
+                                    <div>
+                                        <h3 className="font-semibold text-sm line-clamp-1">{product.productTitle}</h3>
+                                        <p className="text-xs text-muted-foreground">
+                                            {product.styleId} &middot; {product.brandName}
+                                        </p>
+                                    </div>
+
+                                    {product.productDescription && (
+                                        <p className="text-xs text-muted-foreground line-clamp-2">
+                                            {product.productDescription}
+                                        </p>
+                                    )}
+
+                                    {/* Colors & Sizes summary */}
+                                    <div className="flex flex-wrap gap-1">
+                                        {product.colors.length > 0 && (
+                                            <Badge variant="secondary" className="text-xs">
+                                                {product.colors.length} color{product.colors.length > 1 ? 's' : ''}
+                                            </Badge>
+                                        )}
+                                        {product.sizes.length > 0 && (
+                                            <Badge variant="outline" className="text-xs">
+                                                {product.sizes.length} size{product.sizes.length > 1 ? 's' : ''}
+                                            </Badge>
+                                        )}
+                                    </div>
+
+                                    {/* Pricing */}
+                                    <div className="flex items-center justify-between pt-2 border-t">
+                                        <div className="space-y-0.5">
+                                            {product.pieceSalePrice && product.pieceSalePrice < product.piecePrice! ? (
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-sm font-bold text-red-600">
+                                                        {formatCurrency(product.pieceSalePrice)}
+                                                    </span>
+                                                    <span className="text-xs text-muted-foreground line-through">
+                                                        {formatCurrency(product.piecePrice)}
+                                                    </span>
+                                                </div>
+                                            ) : (
+                                                <span className="text-sm font-bold text-green-700">
+                                                    {formatCurrency(product.piecePrice)}
+                                                </span>
+                                            )}
+                                            {product.casePrice && (
+                                                <p className="text-xs text-muted-foreground">
+                                                    Case: {formatCurrency(product.casePrice)} ({product.caseSize} pcs)
+                                                </p>
+                                            )}
+                                        </div>
+                                        <Button
+                                            size="sm"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleAddToCatalog(product);
+                                            }}
+                                            disabled={syncingProducts.has(product.styleId)}
+                                        >
+                                            {syncingProducts.has(product.styleId) ? (
+                                                <Loader2 className="h-3 w-3 animate-spin" />
+                                            ) : (
+                                                <>
+                                                    <Download className="h-3 w-3 mr-1" />
+                                                    Add
+                                                </>
+                                            )}
+                                        </Button>
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {/* Empty Results */}
+            {searchMutation.data && searchMutation.data.length === 0 && !searchMutation.isPending && (
                 <Card>
-                    <CardContent className="flex flex-col items-center justify-center py-12 text-center">
+                    <CardContent className="flex flex-col items-center justify-center py-16 text-center">
                         <Box className="h-12 w-12 text-muted-foreground mb-4" />
                         <h3 className="text-lg font-semibold text-muted-foreground mb-2">
                             No products found
@@ -241,9 +233,9 @@ export function SanmarIntegration() {
             <Dialog open={detailModalOpen} onOpenChange={setDetailModalOpen}>
                 <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
                     <DialogHeader>
-                        <DialogTitle>Product Details</DialogTitle>
+                        <DialogTitle>{selectedProduct?.productTitle}</DialogTitle>
                         <DialogDescription>
-                            {selectedProduct?.styleId} - {selectedProduct?.brandName}
+                            {selectedProduct?.styleId} &middot; {selectedProduct?.brandName}
                         </DialogDescription>
                     </DialogHeader>
                     {selectedProduct && (
@@ -252,7 +244,7 @@ export function SanmarIntegration() {
                                 <img
                                     src={selectedProduct.frontModel || selectedProduct.colorProductImage || selectedProduct.productImage}
                                     alt={selectedProduct.productTitle}
-                                    className="w-full h-64 object-contain rounded-md bg-gray-50"
+                                    className="w-full h-64 object-contain rounded-md bg-muted"
                                     onError={(e) => {
                                         e.currentTarget.style.display = 'none';
                                     }}
@@ -261,77 +253,83 @@ export function SanmarIntegration() {
 
                             <div className="space-y-2">
                                 <h3 className="font-semibold text-lg">{selectedProduct.productTitle}</h3>
-                                <p className="text-sm text-muted-foreground">
-                                    {selectedProduct.productDescription}
-                                </p>
+                                {selectedProduct.productDescription && (
+                                    <p className="text-sm text-muted-foreground">
+                                        {selectedProduct.productDescription}
+                                    </p>
+                                )}
                             </div>
 
-                            <div className="grid grid-cols-2 gap-4">
+                            <div className="grid grid-cols-2 gap-4 p-4 bg-muted/50 rounded-lg">
                                 <div>
-                                    <span className="text-sm font-medium">Style ID:</span>
-                                    <p className="text-sm text-muted-foreground">{selectedProduct.styleId}</p>
+                                    <span className="text-xs font-medium text-muted-foreground">Style ID</span>
+                                    <p className="text-sm">{selectedProduct.styleId}</p>
                                 </div>
                                 <div>
-                                    <span className="text-sm font-medium">Brand:</span>
-                                    <p className="text-sm text-muted-foreground">{selectedProduct.brandName}</p>
+                                    <span className="text-xs font-medium text-muted-foreground">Brand</span>
+                                    <p className="text-sm">{selectedProduct.brandName}</p>
                                 </div>
                                 <div>
-                                    <span className="text-sm font-medium">Category:</span>
-                                    <p className="text-sm text-muted-foreground">{selectedProduct.categoryName}</p>
+                                    <span className="text-xs font-medium text-muted-foreground">Category</span>
+                                    <p className="text-sm">{selectedProduct.categoryName}</p>
                                 </div>
                                 {selectedProduct.pieceWeight && (
                                     <div>
-                                        <span className="text-sm font-medium">Weight:</span>
-                                        <p className="text-sm text-muted-foreground">{selectedProduct.pieceWeight} oz</p>
+                                        <span className="text-xs font-medium text-muted-foreground">Weight</span>
+                                        <p className="text-sm">{selectedProduct.pieceWeight} oz</p>
                                     </div>
                                 )}
                                 {selectedProduct.caseSize && (
                                     <div>
-                                        <span className="text-sm font-medium">Case Size:</span>
-                                        <p className="text-sm text-muted-foreground">{selectedProduct.caseSize} pieces</p>
+                                        <span className="text-xs font-medium text-muted-foreground">Case Size</span>
+                                        <p className="text-sm">{selectedProduct.caseSize} pieces</p>
                                     </div>
                                 )}
                             </div>
 
-                            <div className="space-y-2">
-                                <span className="text-sm font-medium">Available Colors:</span>
-                                <div className="flex flex-wrap gap-2">
-                                    {selectedProduct.colors.map((color, idx) => (
-                                        <Badge key={idx} variant="secondary">{color}</Badge>
-                                    ))}
+                            {selectedProduct.colors.length > 0 && (
+                                <div className="space-y-2">
+                                    <span className="text-sm font-medium">Available Colors</span>
+                                    <div className="flex flex-wrap gap-1.5">
+                                        {selectedProduct.colors.map((color, idx) => (
+                                            <Badge key={idx} variant="secondary" className="text-xs">{color}</Badge>
+                                        ))}
+                                    </div>
                                 </div>
-                            </div>
+                            )}
 
-                            <div className="space-y-2">
-                                <span className="text-sm font-medium">Available Sizes:</span>
-                                <div className="flex flex-wrap gap-2">
-                                    {selectedProduct.sizes.map((size, idx) => (
-                                        <Badge key={idx} variant="outline">{size}</Badge>
-                                    ))}
+                            {selectedProduct.sizes.length > 0 && (
+                                <div className="space-y-2">
+                                    <span className="text-sm font-medium">Available Sizes</span>
+                                    <div className="flex flex-wrap gap-1.5">
+                                        {selectedProduct.sizes.map((size, idx) => (
+                                            <Badge key={idx} variant="outline" className="text-xs">{size}</Badge>
+                                        ))}
+                                    </div>
                                 </div>
-                            </div>
+                            )}
 
                             <div className="flex items-center justify-between pt-4 border-t">
                                 <div className="space-y-1">
                                     <p className="text-sm font-semibold">
-                                        Piece Price: {formatCurrency(selectedProduct.piecePrice)}
+                                        Piece: {formatCurrency(selectedProduct.piecePrice)}
                                     </p>
                                     {selectedProduct.dozenPrice && (
                                         <p className="text-sm text-muted-foreground">
-                                            Dozen Price: {formatCurrency(selectedProduct.dozenPrice)}
+                                            Dozen: {formatCurrency(selectedProduct.dozenPrice)}
                                         </p>
                                     )}
                                     {selectedProduct.casePrice && (
                                         <p className="text-sm text-muted-foreground">
-                                            Case Price: {formatCurrency(selectedProduct.casePrice)}
+                                            Case: {formatCurrency(selectedProduct.casePrice)}
                                         </p>
                                     )}
                                 </div>
                                 <Button
                                     onClick={() => handleAddToCatalog(selectedProduct)}
-                                    disabled={selectedProduct ? syncingProducts.has(selectedProduct.styleId) : false}
+                                    disabled={syncingProducts.has(selectedProduct.styleId)}
                                 >
-                                    {selectedProduct && syncingProducts.has(selectedProduct.styleId) ? (
+                                    {syncingProducts.has(selectedProduct.styleId) ? (
                                         <>
                                             <Loader2 className="h-4 w-4 animate-spin mr-2" />
                                             Adding...

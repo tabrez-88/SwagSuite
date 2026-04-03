@@ -103,11 +103,11 @@ export default function ProductionAlerts({ onAlertClick }: ProductionAlertsProps
   }
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+    <div className="flex w-full flex-wrap gap-3">
       {tiles.map((tile) => (
         <Card
           key={tile.key}
-          className={`cursor-pointer transition-all hover:shadow-md ${
+          className={`cursor-pointer flex-1 transition-all hover:shadow-md ${
             tile.count > 0
               ? `${tile.bgColor} ${tile.borderColor} border`
               : "bg-muted/30 border-muted opacity-50"
