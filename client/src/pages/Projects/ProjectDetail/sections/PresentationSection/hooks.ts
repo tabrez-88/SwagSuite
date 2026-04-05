@@ -129,6 +129,8 @@ export function usePresentationSection({ projectId, data }: PresentationSectionP
         sizes: item.productSizes || product?.sizes || [],
         brand: item.productBrand || product?.brand || null,
         description: item.productDescription || product?.description || null,
+        productImprintMethods: product?.imprintMethods || null,
+        productSupplierId: product?.supplierId || item.supplierId || null,
         lines,
         charges,
         isVisible,

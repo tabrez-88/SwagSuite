@@ -1,4 +1,4 @@
-import { desc, eq, like } from "drizzle-orm";
+import { desc, eq, like, and } from "drizzle-orm";
 import { db } from "../db";
 import {
   products,
@@ -23,6 +23,11 @@ export class ProductRepository {
 
   async getBySupplierId(supplierId: string): Promise<Product[]> {
     return await db.select().from(products).where(eq(products.supplierId, supplierId));
+  }
+
+  async getBySupplierSku(supplierSku: string): Promise<Product | undefined> {
+    const [product] = await db.select().from(products).where(eq(products.supplierSku, supplierSku));
+    return product;
   }
 
   async search(query: string): Promise<Product[]> {

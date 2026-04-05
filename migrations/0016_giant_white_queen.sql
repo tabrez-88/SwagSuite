@@ -1,0 +1,1 @@
+ALTER TABLE "suppliers" ADD COLUMN "sage_data" jsonb;

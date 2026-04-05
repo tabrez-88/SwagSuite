@@ -23,7 +23,7 @@ import {
 import type { Vendor, VendorContact } from "@/services/suppliers";
 import type { BenefitsFormState } from "./types";
 
-export type SortField = "name" | "paymentTerms" | "productCount" | "ytdSpend" | "isPreferred";
+export type SortField = "name" | "paymentTerms" | "productCount" | "ytdSpend" | "isPreferred" | "createdAt";
 export type SortDirection = "asc" | "desc";
 
 export function useVendors() {
@@ -43,8 +43,8 @@ export function useVendors() {
   const [contactToDelete, setContactToDelete] = useState<VendorContact | null>(null);
   const [activeTab, setActiveTab] = useState<string>("all");
   const [showInactiveContacts, setShowInactiveContacts] = useState(false);
-  const [sortField, setSortField] = useState<SortField>("name");
-  const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
+  const [sortField, setSortField] = useState<SortField>("createdAt");
+  const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
 
   // Benefits form state
   const [benefitsForm, setBenefitsForm] = useState<BenefitsFormState>({
@@ -201,6 +201,8 @@ export function useVendors() {
           return dir * ((a.ytdSpend || 0) - (b.ytdSpend || 0));
         case "isPreferred":
           return dir * (Number(a.isPreferred || false) - Number(b.isPreferred || false));
+        case "createdAt":
+          return dir * (new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime());
         default:
           return 0;
       }

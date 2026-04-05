@@ -103,7 +103,7 @@ export const vendorFormSchema = z.object({
   name: z.string().min(1, "Vendor name is required"),
   email: z.string().email().optional().or(z.literal("")),
   phone: z.string().optional(),
-  website: z.string().url().optional().or(z.literal("")),
+  website: urlField("website URL"),
   contactPerson: z.string().optional(),
   paymentTerms: z.string().optional(),
   defaultTerms: z.string().optional(),

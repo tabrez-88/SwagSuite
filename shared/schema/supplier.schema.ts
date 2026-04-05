@@ -43,6 +43,7 @@ export const suppliers = pgTable("suppliers", {
   distributorCentralId: varchar("distributor_central_id"),
   apiIntegrationStatus: varchar("api_integration_status"), // active, inactive, error
   lastSyncAt: timestamp("last_sync_at"),
+  sageData: jsonb("sage_data"), // Extended SAGE supplier info (generalInfo, charges, emails, phones, etc.)
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

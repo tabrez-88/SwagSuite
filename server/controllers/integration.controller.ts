@@ -461,16 +461,18 @@ export class IntegrationController {
 
       const sageService = new SageService(credentials);
 
-      // Sync products to database
+      // Sync products to database with supplier deduplication
       const syncResults = {
         success: 0,
         failed: 0,
         errors: [] as string[]
       };
 
+      const enrichedSupplierIds = new Set<string>();
+
       for (const product of products) {
         try {
-          await sageService.syncProductToDatabase(product);
+          await sageService.syncProductToDatabase(product, enrichedSupplierIds);
           syncResults.success++;
         } catch (error) {
           syncResults.failed++;

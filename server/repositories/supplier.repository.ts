@@ -1,4 +1,4 @@
-import { desc, eq } from "drizzle-orm";
+import { desc, eq, ilike } from "drizzle-orm";
 import { db } from "../db";
 import {
   suppliers,
@@ -17,7 +17,7 @@ export class SupplierRepository {
   }
 
   async getByName(name: string): Promise<Supplier | undefined> {
-    const [supplier] = await db.select().from(suppliers).where(eq(suppliers.name, name));
+    const [supplier] = await db.select().from(suppliers).where(ilike(suppliers.name, name));
     return supplier;
   }
 

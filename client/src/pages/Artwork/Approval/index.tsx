@@ -64,7 +64,7 @@ function ApprovalPage() {
             <p className="text-gray-600 mb-4">
               This approval link is invalid or has expired. Please contact support if you believe this is an error.
             </p>
-            <a href="mailto:support@swagsuite.com">
+            <a href="mailto:orders@liquidscreendesign.com">
               <Button variant="outline"><Mail className="w-4 h-4 mr-2" /> Contact Support</Button>
             </a>
           </CardContent>
@@ -410,7 +410,7 @@ function ApprovalPage() {
                   Questions about the artwork? Contact our team.
                 </p>
                 <Button variant="outline" size="sm" asChild>
-                  <a href="mailto:support@swagsuite.com">
+                  <a href="mailto:orders@liquidscreendesign.com">
                     <Mail className="w-3 h-3 mr-1.5" /> Contact Support
                   </a>
                 </Button>

@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useState, useMemo } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -8,7 +8,9 @@ import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
@@ -50,6 +52,67 @@ export default function ArtworkGrid({ data, projectId, enrichedItems }: ArtworkG
   const [artName, setArtName] = useState("");
   const [artLocation, setArtLocation] = useState("");
   const [artMethod, setArtMethod] = useState("");
+
+  // Get current item's product-level imprint methods and supplier sageData
+  const currentItem = pickedFile ? enrichedItems.find((i: any) => i.id === pickedFile.orderItemId) : null;
+  const currentSupplierId = currentItem?.productSupplierId;
+
+  // Fetch supplier data for sageData.generalInfo.imprintMethods
+  const { data: supplierData } = useQuery<any>({
+    queryKey: [`/api/suppliers/${currentSupplierId}`],
+    enabled: !!currentSupplierId,
+  });
+
+  // Build dynamic imprint method groups
+  const imprintMethodGroups = useMemo(() => {
+    const productMethods: string[] = [];
+    const supplierMethods: string[] = [];
+    const seenValues = new Set<string>();
+
+    // 1. Product-level methods (from products.imprintMethods)
+    if (currentItem?.productImprintMethods) {
+      try {
+        const parsed = typeof currentItem.productImprintMethods === 'string'
+          ? JSON.parse(currentItem.productImprintMethods)
+          : currentItem.productImprintMethods;
+        if (Array.isArray(parsed)) {
+          for (const m of parsed) {
+            const val = m.trim();
+            if (val && !seenValues.has(val.toLowerCase())) {
+              productMethods.push(val);
+              seenValues.add(val.toLowerCase());
+            }
+          }
+        }
+      } catch { /* ignore parse errors */ }
+    }
+
+    // Also check orderItem.imprintMethod (already selected for this item)
+    if (currentItem?.imprintMethod && !seenValues.has(currentItem.imprintMethod.toLowerCase())) {
+      productMethods.push(currentItem.imprintMethod);
+      seenValues.add(currentItem.imprintMethod.toLowerCase());
+    }
+
+    // 2. Supplier-level methods (from supplier.sageData.generalInfo.imprintMethods)
+    const sageImprintMethods = supplierData?.sageData?.generalInfo?.imprintMethods;
+    if (sageImprintMethods && typeof sageImprintMethods === 'string') {
+      const methods = sageImprintMethods.split(/[,;]/).map((m: string) => m.trim()).filter(Boolean);
+      for (const m of methods) {
+        if (!seenValues.has(m.toLowerCase())) {
+          supplierMethods.push(m);
+          seenValues.add(m.toLowerCase());
+        }
+      }
+    }
+
+    // 3. Static fallback methods (filtered)
+    const staticMethods = IMPRINT_METHODS.filter(opt => !seenValues.has(opt.label.toLowerCase()) && !seenValues.has(opt.value.toLowerCase()));
+
+    const hasProductMethods = productMethods.length > 0;
+    const hasSupplierMethods = supplierMethods.length > 0;
+
+    return { productMethods, supplierMethods, staticMethods, hasProductMethods, hasSupplierMethods };
+  }, [currentItem, supplierData]);
 
   const resetForm = () => {
     setPickedFile(null);
@@ -242,9 +305,30 @@ export default function ArtworkGrid({ data, projectId, enrichedItems }: ArtworkG
                     <SelectValue placeholder="Select method" />
                   </SelectTrigger>
                   <SelectContent>
-                    {IMPRINT_METHODS.map((opt) => (
-                      <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                    ))}
+                    {imprintMethodGroups.hasProductMethods && (
+                      <SelectGroup>
+                        <SelectLabel>Product Methods</SelectLabel>
+                        {imprintMethodGroups.productMethods.map((m) => (
+                          <SelectItem key={`prod-${m}`} value={m}>{m}</SelectItem>
+                        ))}
+                      </SelectGroup>
+                    )}
+                    {imprintMethodGroups.hasSupplierMethods && (
+                      <SelectGroup>
+                        <SelectLabel>Supplier Methods</SelectLabel>
+                        {imprintMethodGroups.supplierMethods.map((m) => (
+                          <SelectItem key={`supp-${m}`} value={m}>{m}</SelectItem>
+                        ))}
+                      </SelectGroup>
+                    )}
+                    <SelectGroup>
+                      {(imprintMethodGroups.hasProductMethods || imprintMethodGroups.hasSupplierMethods) && (
+                        <SelectLabel>All Methods</SelectLabel>
+                      )}
+                      {imprintMethodGroups.staticMethods.map((opt) => (
+                        <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                      ))}
+                    </SelectGroup>
                   </SelectContent>
                 </Select>
               </div>
