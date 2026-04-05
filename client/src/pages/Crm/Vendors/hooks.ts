@@ -1,10 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useForm } from "react-hook-form";
+import { useLocation } from "wouter";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   vendorContactFormSchema as contactFormSchema,
   type VendorContactFormData as ContactFormData,
-  vendorFormSchema,
   type VendorFormData,
 } from "@/schemas/crm.schemas";
 import {
@@ -23,15 +23,17 @@ import {
 import type { Vendor, VendorContact } from "@/services/suppliers";
 import type { BenefitsFormState } from "./types";
 
+export type SortField = "name" | "paymentTerms" | "productCount" | "ytdSpend" | "isPreferred";
+export type SortDirection = "asc" | "desc";
+
 export function useVendors() {
+  const [, setLocation] = useLocation();
   const [searchQuery, setSearchQuery] = useState("");
-  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [filterPreferred, setFilterPreferred] = useState<string>("all");
-  const [viewMode, setViewMode] = useState<"cards" | "list">("cards");
+  const [isFormDialogOpen, setIsFormDialogOpen] = useState(false);
   const [selectedVendor, setSelectedVendor] = useState<Vendor | null>(null);
+  const [viewMode, setViewMode] = useState<"cards" | "list">("cards");
   const [isVendorDetailOpen, setIsVendorDetailOpen] = useState(false);
   const [isEditBenefitsOpen, setIsEditBenefitsOpen] = useState(false);
-  const [isEditVendorOpen, setIsEditVendorOpen] = useState(false);
   const [isAddContactOpen, setIsAddContactOpen] = useState(false);
   const [isEditContactOpen, setIsEditContactOpen] = useState(false);
   const [selectedContact, setSelectedContact] = useState<VendorContact | null>(null);
@@ -41,6 +43,8 @@ export function useVendors() {
   const [contactToDelete, setContactToDelete] = useState<VendorContact | null>(null);
   const [activeTab, setActiveTab] = useState<string>("all");
   const [showInactiveContacts, setShowInactiveContacts] = useState(false);
+  const [sortField, setSortField] = useState<SortField>("name");
+  const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
 
   // Benefits form state
   const [benefitsForm, setBenefitsForm] = useState<BenefitsFormState>({
@@ -69,26 +73,6 @@ export function useVendors() {
     !!selectedVendor && isVendorDetailOpen,
   );
 
-  const form = useForm<VendorFormData>({
-    resolver: zodResolver(vendorFormSchema),
-    defaultValues: {
-      name: "",
-      email: "",
-      phone: "",
-      website: "",
-      contactPerson: "",
-      paymentTerms: "",
-      notes: "",
-      isPreferred: false,
-      eqpPricing: undefined,
-      rebatePercentage: undefined,
-      freeSetups: false,
-      freeSpecSamples: false,
-      freeSelfPromo: false,
-      reducedSpecSamples: false,
-    },
-  });
-
   const contactForm = useForm<ContactFormData>({
     resolver: zodResolver(contactFormSchema),
     defaultValues: {
@@ -115,49 +99,34 @@ export function useVendors() {
   const updateContactMutation = useUpdateVendorContact(selectedVendor?.id);
   const deleteContactMutation = useDeleteVendorContact(selectedVendor?.id);
 
-  const onSubmit = (data: VendorFormData) => {
-    createVendorMutation.mutate(data, {
-      onSuccess: () => {
-        setIsCreateModalOpen(false);
-        form.reset();
-      },
-    });
+  const handleOpenCreate = () => {
+    setSelectedVendor(null);
+    setIsFormDialogOpen(true);
   };
 
-  const onUpdateSubmit = (data: VendorFormData) => {
+  const handleOpenEdit = (vendor: Vendor) => {
+    setSelectedVendor(vendor);
+    setIsFormDialogOpen(true);
+  };
+
+  const handleFormSubmit = (data: VendorFormData) => {
     if (selectedVendor) {
       updateVendorMutation.mutate(
         { id: selectedVendor.id, data },
         {
           onSuccess: () => {
-            setIsEditVendorOpen(false);
+            setIsFormDialogOpen(false);
             setSelectedVendor(null);
           },
         },
       );
+    } else {
+      createVendorMutation.mutate(data, {
+        onSuccess: () => {
+          setIsFormDialogOpen(false);
+        },
+      });
     }
-  };
-
-  const handleEditVendor = (vendor: Vendor) => {
-    setSelectedVendor(vendor);
-    form.reset({
-      name: vendor.name || "",
-      email: "",
-      phone: "",
-      website: vendor.website || "",
-      contactPerson: "",
-      paymentTerms: vendor.paymentTerms || "",
-      notes: vendor.notes || "",
-      isPreferred: vendor.isPreferred || false,
-      doNotOrder: vendor.doNotOrder || false,
-      eqpPricing: vendor.preferredBenefits?.eqpPricing || undefined,
-      rebatePercentage: vendor.preferredBenefits?.rebatePercentage || undefined,
-      freeSetups: vendor.preferredBenefits?.freeSetups || false,
-      freeSpecSamples: vendor.preferredBenefits?.freeSpecSamples || false,
-      freeSelfPromo: vendor.preferredBenefits?.freeSelfPromo || false,
-      reducedSpecSamples: vendor.preferredBenefits?.reducedSpecSamples || false,
-    });
-    setIsEditVendorOpen(true);
   };
 
   const handleDeleteVendor = (vendor: Vendor) => {
@@ -191,22 +160,54 @@ export function useVendors() {
     }
   }, [selectedVendor, isEditBenefitsOpen]);
 
-  // Filter vendors based on search and tab selection
-  const filteredVendors = vendors.filter((vendor: Vendor) => {
-    const matchesSearch =
-      !searchQuery ||
-      vendor.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      vendor.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      vendor.contactPerson?.toLowerCase().includes(searchQuery.toLowerCase());
-
-    if (activeTab === "all") {
-      return matchesSearch;
-    } else if (activeTab === "preferred") {
-      return matchesSearch && vendor.isPreferred;
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortDirection((prev) => (prev === "asc" ? "desc" : "asc"));
+    } else {
+      setSortField(field);
+      setSortDirection("asc");
     }
+  };
 
-    return matchesSearch;
-  });
+  // Filter and sort vendors
+  const filteredVendors = useMemo(() => {
+    let result = vendors.filter((vendor: Vendor) => {
+      const matchesSearch =
+        !searchQuery ||
+        vendor.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        vendor.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        vendor.contactPerson?.toLowerCase().includes(searchQuery.toLowerCase());
+
+      if (activeTab === "all") {
+        return matchesSearch;
+      } else if (activeTab === "preferred") {
+        return matchesSearch && vendor.isPreferred;
+      }
+
+      return matchesSearch;
+    });
+
+    // Sort
+    result = [...result].sort((a, b) => {
+      const dir = sortDirection === "asc" ? 1 : -1;
+      switch (sortField) {
+        case "name":
+          return dir * a.name.localeCompare(b.name);
+        case "paymentTerms":
+          return dir * (a.paymentTerms || "").localeCompare(b.paymentTerms || "");
+        case "productCount":
+          return dir * ((a.productCount || 0) - (b.productCount || 0));
+        case "ytdSpend":
+          return dir * ((a.ytdSpend || 0) - (b.ytdSpend || 0));
+        case "isPreferred":
+          return dir * (Number(a.isPreferred || false) - Number(b.isPreferred || false));
+        default:
+          return 0;
+      }
+    });
+
+    return result;
+  }, [vendors, searchQuery, activeTab, sortField, sortDirection]);
 
   // Get preferred vendors specifically
   const preferredVendors = vendors.filter((vendor: Vendor) => vendor.isPreferred);
@@ -319,13 +320,12 @@ export function useVendors() {
   };
 
   const handleOpenVendorDetail = (vendor: Vendor) => {
-    setSelectedVendor(vendor);
-    setIsVendorDetailOpen(true);
+    setLocation(`/crm/vendors/${vendor.id}`);
   };
 
   const handleEditVendorFromDetail = () => {
     if (selectedVendor) {
-      handleEditVendor(selectedVendor);
+      handleOpenEdit(selectedVendor);
       setIsVendorDetailOpen(false);
     }
   };
@@ -341,10 +341,8 @@ export function useVendors() {
     // State
     searchQuery,
     setSearchQuery,
-    isCreateModalOpen,
-    setIsCreateModalOpen,
-    filterPreferred,
-    setFilterPreferred,
+    isFormDialogOpen,
+    setIsFormDialogOpen,
     viewMode,
     setViewMode,
     selectedVendor,
@@ -353,8 +351,6 @@ export function useVendors() {
     setIsVendorDetailOpen,
     isEditBenefitsOpen,
     setIsEditBenefitsOpen,
-    isEditVendorOpen,
-    setIsEditVendorOpen,
     isAddContactOpen,
     setIsAddContactOpen,
     isEditContactOpen,
@@ -376,6 +372,11 @@ export function useVendors() {
     showInactiveContacts,
     setShowInactiveContacts,
 
+    // Sort
+    sortField,
+    sortDirection,
+    handleSort,
+
     // Data
     vendors,
     isLoading,
@@ -389,7 +390,6 @@ export function useVendors() {
     preferredVendors,
 
     // Forms
-    form,
     contactForm,
 
     // Mutations
@@ -403,9 +403,9 @@ export function useVendors() {
     deleteContactMutation,
 
     // Handlers
-    onSubmit,
-    onUpdateSubmit,
-    handleEditVendor,
+    handleOpenCreate,
+    handleOpenEdit,
+    handleFormSubmit,
     handleDeleteVendor,
     handleTogglePreferred,
     handleEditContact,

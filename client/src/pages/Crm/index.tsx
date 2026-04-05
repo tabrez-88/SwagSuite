@@ -1,10 +1,10 @@
-import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Building, Users, TrendingUp, UserCheck, RefreshCw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useTabParam } from "@/hooks/useTabParam";
 import { apiRequest } from "@/lib/queryClient";
 
 // Import component contents directly for now
@@ -14,7 +14,7 @@ import Leads from "./Leads";
 import Contacts from "./Contacts";
 
 export default function CRM() {
-  const [activeTab, setActiveTab] = useState("companies");
+  const [activeTab, setActiveTab] = useTabParam("companies");
   const { toast } = useToast();
   const queryClient = useQueryClient();
 

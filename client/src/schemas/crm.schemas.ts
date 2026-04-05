@@ -19,6 +19,8 @@ export const companyFormSchema = z.object({
   website: urlField("website URL"),
   industry: z.string(),
   notes: z.string().optional(),
+  accountNumber: z.string().optional(),
+  defaultTerms: z.string().optional(),
   taxExempt: z.boolean().optional(),
   defaultTaxCodeId: z.string().optional().or(z.literal("")),
   // Social media links
@@ -104,6 +106,8 @@ export const vendorFormSchema = z.object({
   website: z.string().url().optional().or(z.literal("")),
   contactPerson: z.string().optional(),
   paymentTerms: z.string().optional(),
+  defaultTerms: z.string().optional(),
+  accountNumber: z.string().optional(),
   notes: z.string().optional(),
   isPreferred: z.boolean().default(false),
   doNotOrder: z.boolean().default(false),

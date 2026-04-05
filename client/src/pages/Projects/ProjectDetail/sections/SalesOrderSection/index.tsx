@@ -48,12 +48,15 @@ import { useSalesOrderSection } from "./hooks";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getQueryFn, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { usePaymentTerms } from "@/services/payment-terms";
 
 export default function SalesOrderSection(props: SalesOrderSectionProps) {
   const { projectId, lockStatus } = props;
   const hook = useSalesOrderSection(props);
   const queryClient = useQueryClient();
   const { toast } = useToast();
+
+  const { data: paymentTermsOptions = [] } = usePaymentTerms();
 
   const { data: taxCodes } = useQuery<any[]>({
     queryKey: ["/api/tax-codes"],
@@ -181,17 +184,11 @@ export default function SalesOrderSection(props: SalesOrderSectionProps) {
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-muted-foreground">Payment Terms</span>
                   <EditableSelect
-                    value={(hook.order as any)?.paymentTerms || "net_30"}
+                    value={(hook.order as any)?.paymentTerms || ""}
                     field="paymentTerms"
                     onSave={hook.updateField}
-                    options={[
-                      { value: "net_30", label: "Net 30" },
-                      { value: "net_15", label: "Net 15" },
-                      { value: "net_60", label: "Net 60" },
-                      { value: "credit_card", label: "Credit Card" },
-                      { value: "due_on_receipt", label: "Due on Receipt" },
-                      { value: "prepaid", label: "Prepaid" },
-                    ]}
+                    options={paymentTermsOptions.map((t: any) => ({ value: t.name, label: t.name }))}
+                    emptyOption="Not Set"
                     isLocked={hook.isLocked}
                     isPending={hook.isFieldPending}
                   />

@@ -1,13 +1,14 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
+import { useTabParam } from "@/hooks/useTabParam";
 import type { VendorApprovalRequest } from "./types";
 
 export function useVendorApprovals() {
   const [selectedRequest, setSelectedRequest] = useState<VendorApprovalRequest | null>(null);
   const [isReviewDialogOpen, setIsReviewDialogOpen] = useState(false);
   const [reviewNotes, setReviewNotes] = useState("");
-  const [activeTab, setActiveTab] = useState("pending");
+  const [activeTab, setActiveTab] = useTabParam("pending");
   const { toast } = useToast();
   const queryClient = useQueryClient();
 

@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useDeleteProduct } from "@/services/products";
 import { supplierKeys } from "@/services/suppliers/keys";
 import { productKeys } from "@/services/products/keys";
+import { useTabParam } from "@/hooks/useTabParam";
 import type { Product, Supplier } from "./types";
 
 /** Helper function to parse array fields that might be stored as strings or JSON */
@@ -29,7 +30,7 @@ export function useProducts() {
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
-  const [activeTab, setActiveTab] = useState("my-catalog");
+  const [activeTab, setActiveTab] = useTabParam("my-catalog");
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [productToDelete, setProductToDelete] = useState<Product | null>(null);
 

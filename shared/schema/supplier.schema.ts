@@ -21,6 +21,8 @@ export const suppliers = pgTable("suppliers", {
   website: varchar("website"),
   contactPerson: varchar("contact_person"),
   paymentTerms: varchar("payment_terms"),
+  defaultTerms: varchar("default_terms"),
+  accountNumber: varchar("account_number"),
   notes: text("notes"),
   isPreferred: boolean("is_preferred").default(false),
   isDecorator: boolean("is_decorator").default(false),

@@ -1,6 +1,6 @@
 export { companyKeys } from "./keys";
 export type { Company } from "./types";
-export { useCompanies, useCompany, useCompanyContacts } from "./queries";
+export { useCompanies, useCompany, useCompanyContacts, useCompanyActivities, useCompanyProjects } from "./queries";
 export {
   useCreateCompany,
   useUpdateCompany,

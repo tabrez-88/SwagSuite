@@ -5,22 +5,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
-import { Textarea } from "@/components/ui/textarea";
-import {
   Select,
   SelectContent,
   SelectItem,
@@ -52,222 +36,23 @@ import {
   DollarSign,
   Trash2,
   Edit,
-  TrendingUp,
-  Target,
-  Activity,
   MoreHorizontal,
-  Eye,
-  AlertTriangle,
 } from "lucide-react";
 import { CRMViewToggle } from "@/components/shared/CRMViewToggle";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import type { Lead } from "@/services/leads";
-import type { LeadFormData } from "@/schemas/crm.schemas";
 import { useLeadsPage } from "./hooks";
 import { LEAD_STATUSES, STATUS_COLORS } from "./types";
-import type { UseFormReturn } from "react-hook-form";
-
-function LeadFormFields({ form }: { form: UseFormReturn<LeadFormData> }) {
-  return (
-    <>
-      <div className="grid grid-cols-2 gap-4">
-        <FormField
-          control={form.control}
-          name="firstName"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>First Name *</FormLabel>
-              <FormControl>
-                <Input placeholder="Enter first name" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="lastName"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Last Name *</FormLabel>
-              <FormControl>
-                <Input placeholder="Enter last name" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-      </div>
-
-      <div className="grid grid-cols-2 gap-4">
-        <FormField
-          control={form.control}
-          name="email"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Email</FormLabel>
-              <FormControl>
-                <Input type="email" placeholder="Enter email" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="phone"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Phone</FormLabel>
-              <FormControl>
-                <Input placeholder="Enter phone number" {...field} />
-              </FormControl>
-            </FormItem>
-          )}
-        />
-      </div>
-
-      <div className="grid grid-cols-2 gap-4">
-        <FormField
-          control={form.control}
-          name="company"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Company</FormLabel>
-              <FormControl>
-                <Input placeholder="Enter company name" {...field} />
-              </FormControl>
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="title"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Job Title</FormLabel>
-              <FormControl>
-                <Input placeholder="Enter job title" {...field} />
-              </FormControl>
-            </FormItem>
-          )}
-        />
-      </div>
-
-      <div className="grid grid-cols-3 gap-4">
-        <FormField
-          control={form.control}
-          name="source"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Lead Source *</FormLabel>
-              <Select onValueChange={field.onChange} value={field.value}>
-                <FormControl>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select source" />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent>
-                  {LEAD_SOURCES.map((source) => (
-                    <SelectItem key={source} value={source}>
-                      {source}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="status"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Status *</FormLabel>
-              <Select onValueChange={field.onChange} value={field.value}>
-                <FormControl>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select status" />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent>
-                  {LEAD_STATUSES.map((status) => (
-                    <SelectItem key={status} value={status}>
-                      {status.charAt(0).toUpperCase() + status.slice(1)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="estimatedValue"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Estimated Value</FormLabel>
-              <FormControl>
-                <Input type="number" step="0.01" placeholder="0.00" {...field} />
-              </FormControl>
-            </FormItem>
-          )}
-        />
-      </div>
-
-      <FormField
-        control={form.control}
-        name="nextFollowUpDate"
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel>Next Follow-up Date</FormLabel>
-            <FormControl>
-              <Input type="date" {...field} />
-            </FormControl>
-          </FormItem>
-        )}
-      />
-
-      <FormField
-        control={form.control}
-        name="notes"
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel>Notes</FormLabel>
-            <FormControl>
-              <Textarea
-                placeholder="Additional notes about this lead"
-                rows={3}
-                {...field}
-              />
-            </FormControl>
-          </FormItem>
-        )}
-      />
-    </>
-  );
-}
+import LeadFormDialog from "./components/LeadFormDialog";
+import { DeleteConfirmDialog } from "../components/DeleteConfirmDialog";
+import { SortableTableHead } from "../components/SortableTableHead";
 
 export default function Leads() {
   const {
     searchQuery,
     setSearchQuery,
-    isCreateModalOpen,
-    setIsCreateModalOpen,
-    isEditModalOpen,
-    setIsEditModalOpen,
-    editingLead,
+    isFormDialogOpen,
+    setIsFormDialogOpen,
+    selectedLead,
     filterStatus,
     setFilterStatus,
     filterSource,
@@ -277,16 +62,17 @@ export default function Leads() {
     isDeleteDialogOpen,
     setIsDeleteDialogOpen,
     leadToDelete,
-    form,
-    editForm,
+    sortField,
+    sortDirection,
+    handleSort,
     isLoading,
     filteredLeads,
     createLeadMutation,
     updateLeadMutation,
     deleteLeadMutation,
-    onSubmit,
-    handleEditLead,
-    onEditSubmit,
+    handleOpenCreate,
+    handleOpenEdit,
+    handleFormSubmit,
     handleDeleteLead,
     confirmDeleteLead,
     cancelDeleteLead,
@@ -303,40 +89,10 @@ export default function Leads() {
             Track and manage your sales leads and prospects
           </p>
         </div>
-        <Dialog open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen}>
-          <DialogTrigger asChild>
-            <Button className="bg-swag-primary hover:bg-swag-primary/90">
-              <Plus className="mr-2" size={16} />
-              Add Lead
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>Add New Lead</DialogTitle>
-            </DialogHeader>
-            <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                <LeadFormFields form={form} />
-                <div className="flex justify-end gap-2 pt-4">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => setIsCreateModalOpen(false)}
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    type="submit"
-                    disabled={createLeadMutation.isPending}
-                    className="bg-swag-primary hover:bg-swag-primary/90"
-                  >
-                    {createLeadMutation.isPending ? "Creating..." : "Create Lead"}
-                  </Button>
-                </div>
-              </form>
-            </Form>
-          </DialogContent>
-        </Dialog>
+        <Button onClick={handleOpenCreate} className="bg-swag-primary hover:bg-swag-primary/90">
+          <Plus className="mr-2" size={16} />
+          Add Lead
+        </Button>
       </div>
 
       {/* Search and Filters */}
@@ -499,10 +255,6 @@ export default function Leads() {
                         <div className="flex items-center gap-2">
                           <Badge variant="outline">{lead.source}</Badge>
                         </div>
-                        {/* <div className="flex items-center gap-2">
-                          <TrendingUp className="h-4 w-4 text-blue-600" />
-                          <span className="text-sm font-medium">{leadScore}%</span>
-                        </div> */}
                       </div>
 
                       {lead.estimatedValue && (
@@ -527,7 +279,7 @@ export default function Leads() {
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => handleEditLead(lead)}
+                          onClick={() => handleOpenEdit(lead)}
                         >
                           <Edit className="mr-1" size={12} />
                           Edit
@@ -555,12 +307,12 @@ export default function Leads() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Lead</TableHead>
+                      <SortableTableHead label="Lead" field="name" currentSortField={sortField} currentSortDirection={sortDirection} onSort={handleSort} />
                       <TableHead>Contact Info</TableHead>
-                      <TableHead>Source</TableHead>
-                      <TableHead>Value</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Follow-up</TableHead>
+                      <SortableTableHead label="Source" field="source" currentSortField={sortField} currentSortDirection={sortDirection} onSort={handleSort} />
+                      <SortableTableHead label="Value" field="estimatedValue" currentSortField={sortField} currentSortDirection={sortDirection} onSort={handleSort} />
+                      <SortableTableHead label="Status" field="status" currentSortField={sortField} currentSortDirection={sortDirection} onSort={handleSort} />
+                      <SortableTableHead label="Follow-up" field="nextFollowUpDate" currentSortField={sortField} currentSortDirection={sortDirection} onSort={handleSort} />
                       <TableHead className="w-[100px]">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -570,6 +322,7 @@ export default function Leads() {
                         key={lead.id}
                         className="hover:bg-muted/50 cursor-pointer"
                         data-testid={`lead-row-${lead.id}`}
+                        onClick={() => handleOpenEdit(lead)}
                       >
                         <TableCell>
                           <div className="flex items-center space-x-3">
@@ -651,12 +404,13 @@ export default function Leads() {
                                 variant="ghost"
                                 size="sm"
                                 data-testid={`lead-actions-${lead.id}`}
+                                onClick={(e) => e.stopPropagation()}
                               >
                                 <MoreHorizontal className="h-4 w-4" />
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => handleEditLead(lead)}>
+                              <DropdownMenuItem onClick={() => handleOpenEdit(lead)}>
                                 <Edit className="h-4 w-4 mr-2" />
                                 Edit
                               </DropdownMenuItem>
@@ -691,7 +445,7 @@ export default function Leads() {
                 : "Get started by adding your first lead to track prospects and opportunities."}
             </p>
             <Button
-              onClick={() => setIsCreateModalOpen(true)}
+              onClick={handleOpenCreate}
               className="bg-swag-primary hover:bg-swag-primary/90"
             >
               <Plus className="mr-2" size={16} />
@@ -701,67 +455,26 @@ export default function Leads() {
         </Card>
       )}
 
-      {/* Edit Lead Dialog */}
-      <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
-        <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Edit Lead</DialogTitle>
-          </DialogHeader>
-          <Form {...editForm}>
-            <form onSubmit={editForm.handleSubmit(onEditSubmit)} className="space-y-4">
-              <LeadFormFields form={editForm} />
-              <div className="flex justify-end gap-2 pt-4">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setIsEditModalOpen(false)}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  type="submit"
-                  disabled={updateLeadMutation.isPending}
-                  className="bg-swag-primary hover:bg-swag-primary/90"
-                >
-                  {updateLeadMutation.isPending ? "Saving..." : "Save Changes"}
-                </Button>
-              </div>
-            </form>
-          </Form>
-        </DialogContent>
-      </Dialog>
+      {/* Form Dialog (create/edit) */}
+      <LeadFormDialog
+        open={isFormDialogOpen}
+        onOpenChange={setIsFormDialogOpen}
+        lead={selectedLead}
+        onSubmit={handleFormSubmit}
+        isPending={selectedLead ? updateLeadMutation.isPending : createLeadMutation.isPending}
+      />
 
-      {/* Delete Confirmation Dialog */}
-      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2">
-              <AlertTriangle className="w-5 h-5 text-red-600" />
-              Delete Lead?
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to delete{" "}
-              <strong>
-                {leadToDelete?.firstName} {leadToDelete?.lastName}
-              </strong>
-              ?
-              <span className="block mt-2 text-red-600 font-medium">
-                This action cannot be undone.
-              </span>
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={cancelDeleteLead}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={confirmDeleteLead}
-              className="bg-red-600 hover:bg-red-700 focus:ring-red-600"
-              disabled={deleteLeadMutation.isPending}
-            >
-              {deleteLeadMutation.isPending ? "Deleting..." : "Delete Lead"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {/* Delete Dialog */}
+      <DeleteConfirmDialog
+        open={isDeleteDialogOpen}
+        onOpenChange={setIsDeleteDialogOpen}
+        title="Delete Lead?"
+        description={<strong>{leadToDelete?.firstName} {leadToDelete?.lastName}</strong>}
+        onConfirm={confirmDeleteLead}
+        onCancel={cancelDeleteLead}
+        isPending={deleteLeadMutation.isPending}
+        confirmLabel="Delete Lead"
+      />
     </div>
   );
 }

@@ -9,6 +9,16 @@ export interface Company {
   ytdSpend?: string;
   taxExempt?: boolean;
   defaultTaxCodeId?: string;
+  accountNumber?: string;
+  assignedUserId?: string;
+  defaultTerms?: string;
+  assignedUser?: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+    profileImageUrl?: string;
+  } | null;
   socialMediaLinks?: {
     linkedin?: string;
     twitter?: string;
@@ -29,4 +39,5 @@ export interface Company {
   }>;
   lastSocialMediaSync?: string;
   customFields?: Record<string, string>;
+  addresses?: any[];
 }

@@ -141,6 +141,14 @@ const PurchaseOrderTemplate = forwardRef<HTMLDivElement, PurchaseOrderTemplatePr
             </div>
           </div>
 
+          {/* Payment Terms */}
+          {order?.paymentTerms && (
+            <div className="text-sm mb-4">
+              <span className="font-bold text-gray-800">Payment Terms: </span>
+              <span className="text-gray-700">{order.paymentTerms.replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase())}</span>
+            </div>
+          )}
+
           {/* Shipping Address */}
           {shipToAddr && (
             <div className="mb-6">

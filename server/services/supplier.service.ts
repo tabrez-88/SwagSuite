@@ -57,6 +57,10 @@ export class SupplierService {
     return result;
   }
 
+  async getById(id: string) {
+    return supplierRepository.getById(id);
+  }
+
   async create(data: InsertSupplier) {
     return supplierRepository.create(data);
   }

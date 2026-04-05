@@ -1,6 +1,4 @@
-import { useState } from "react";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
+import { useState, useMemo } from "react";
 import { useLocation } from "wouter";
 import {
   useCompanies as useCompaniesQuery,
@@ -9,40 +7,24 @@ import {
   useDeleteCompany,
 } from "@/services/companies";
 import type { Company } from "@/services/companies";
-import { companyFormSchema, type CompanyFormData } from "@/schemas/crm.schemas";
+import type { CompanyFormData } from "@/schemas/crm.schemas";
+
+export type SortField = "name" | "industry" | "ytdSpend" | "engagementLevel" | "createdAt";
+export type SortDirection = "asc" | "desc";
+
 export function useCompaniesPage() {
   const [searchQuery, setSearchQuery] = useState("");
-  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isFormDialogOpen, setIsFormDialogOpen] = useState(false);
   const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);
   const [filterIndustry, setFilterIndustry] = useState<string>("all");
   const [filterEngagement, setFilterEngagement] = useState<string>("all");
   const [viewMode, setViewMode] = useState<"cards" | "list">("cards");
-  const [isCompanyDetailOpen, setIsCompanyDetailOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [companyToDelete, setCompanyToDelete] = useState<Company | null>(null);
-  const [editCustomFields, setEditCustomFields] = useState<Record<string, string>>({});
-  const [newCustomFieldKey, setNewCustomFieldKey] = useState("");
-  const [newCustomFieldValue, setNewCustomFieldValue] = useState("");
+  const [sortField, setSortField] = useState<SortField>("createdAt");
+  const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
 
   const [, setLocation] = useLocation();
-
-  const form = useForm<CompanyFormData>({
-    resolver: zodResolver(companyFormSchema),
-    defaultValues: {
-      name: "",
-      email: "",
-      phone: "",
-      website: "",
-      industry: "",
-      notes: "",
-      linkedinUrl: "",
-      twitterUrl: "",
-      facebookUrl: "",
-      instagramUrl: "",
-      otherSocialUrl: "",
-    },
-  });
 
   const { data: companies = [], isLoading } = useCompaniesQuery();
 
@@ -50,26 +32,24 @@ export function useCompaniesPage() {
   const updateCompanyMutation = useUpdateCompany();
   const deleteCompanyMutation = useDeleteCompany();
 
-  const handleCreateCompany = (data: CompanyFormData) => {
-    createCompanyMutation.mutate(
-      {
-        ...data,
-        customFields: editCustomFields,
-      } as any,
-      {
-        onSuccess: () => {
-          setIsCreateModalOpen(false);
-          form.reset();
-          setEditCustomFields({});
-          setNewCustomFieldKey("");
-          setNewCustomFieldValue("");
-        },
-      }
-    );
+  // Custom fields state for the dialog
+  const [editCustomFields, setEditCustomFields] = useState<Record<string, string>>({});
+
+  const handleOpenCreate = () => {
+    setSelectedCompany(null);
+    setEditCustomFields({});
+    setIsFormDialogOpen(true);
   };
 
-  const handleUpdateCompany = (data: CompanyFormData) => {
+  const handleOpenEdit = (company: Company) => {
+    setSelectedCompany(company);
+    setEditCustomFields(company.customFields ? { ...company.customFields } : {});
+    setIsFormDialogOpen(true);
+  };
+
+  const handleFormSubmit = (data: CompanyFormData) => {
     if (selectedCompany) {
+      // Edit mode
       updateCompanyMutation.mutate(
         {
           id: selectedCompany.id,
@@ -80,9 +60,22 @@ export function useCompaniesPage() {
         } as any,
         {
           onSuccess: () => {
-            setIsEditModalOpen(false);
+            setIsFormDialogOpen(false);
             setSelectedCompany(null);
-            form.reset();
+          },
+        }
+      );
+    } else {
+      // Create mode
+      createCompanyMutation.mutate(
+        {
+          ...data,
+          customFields: editCustomFields,
+        } as any,
+        {
+          onSuccess: () => {
+            setIsFormDialogOpen(false);
+            setEditCustomFields({});
           },
         }
       );
@@ -92,48 +85,6 @@ export function useCompaniesPage() {
   const handleDeleteCompany = (company: Company) => {
     setCompanyToDelete(company);
     setIsDeleteDialogOpen(true);
-  };
-
-  const handleEditCompany = (company: Company) => {
-    setSelectedCompany(company);
-
-    form.reset({
-      name: company.name,
-      email: company.email || "",
-      phone: company.phone || "",
-      website: company.website || "",
-      industry: company.industry || "",
-      notes: company.notes || "",
-      linkedinUrl: company.socialMediaLinks?.linkedin || "",
-      twitterUrl: company.socialMediaLinks?.twitter || "",
-      facebookUrl: company.socialMediaLinks?.facebook || "",
-      instagramUrl: company.socialMediaLinks?.instagram || "",
-      otherSocialUrl: company.socialMediaLinks?.other || "",
-    });
-
-    setEditCustomFields(company.customFields ? { ...company.customFields } : {});
-    setNewCustomFieldKey("");
-    setNewCustomFieldValue("");
-    setIsEditModalOpen(true);
-  };
-
-  // Custom field helpers
-  const addCustomField = () => {
-    if (newCustomFieldKey.trim()) {
-      setEditCustomFields({ ...editCustomFields, [newCustomFieldKey.trim()]: newCustomFieldValue });
-      setNewCustomFieldKey("");
-      setNewCustomFieldValue("");
-    }
-  };
-
-  const updateCustomFieldValue = (key: string, value: string) => {
-    setEditCustomFields({ ...editCustomFields, [key]: value });
-  };
-
-  const removeCustomField = (key: string) => {
-    const updated = { ...editCustomFields };
-    delete updated[key];
-    setEditCustomFields(updated);
   };
 
   const handleConfirmDelete = () => {
@@ -152,37 +103,57 @@ export function useCompaniesPage() {
     setIsDeleteDialogOpen(false);
   };
 
-  const handleOpenDetailFromList = (company: Company) => {
-    setSelectedCompany(company);
-    setIsCompanyDetailOpen(true);
-  };
-
-  const handleEditFromDetail = () => {
-    if (selectedCompany) {
-      handleEditCompany(selectedCompany);
-      setIsCompanyDetailOpen(false);
-    }
-  };
-
   const handleNavigateToCompany = (companyId: string) => {
     setLocation(`/crm/companies/${companyId}`);
   };
 
-  // Filter companies based on search query and filters
-  const filteredCompanies = companies.filter((company: Company) => {
-    const matchesSearch =
-      company.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      company.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      company.industry?.toLowerCase().includes(searchQuery.toLowerCase());
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortDirection((prev) => (prev === "asc" ? "desc" : "asc"));
+    } else {
+      setSortField(field);
+      setSortDirection("asc");
+    }
+  };
 
-    const matchesIndustry =
-      filterIndustry === "all" || company.industry === filterIndustry;
-    const matchesEngagement =
-      filterEngagement === "all" ||
-      company.engagementLevel === filterEngagement;
+  // Filter and sort companies
+  const filteredCompanies = useMemo(() => {
+    let result = companies.filter((company: Company) => {
+      const matchesSearch =
+        company.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        company.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        company.industry?.toLowerCase().includes(searchQuery.toLowerCase());
 
-    return matchesSearch && matchesIndustry && matchesEngagement;
-  });
+      const matchesIndustry =
+        filterIndustry === "all" || company.industry === filterIndustry;
+      const matchesEngagement =
+        filterEngagement === "all" ||
+        company.engagementLevel === filterEngagement;
+
+      return matchesSearch && matchesIndustry && matchesEngagement;
+    });
+
+    // Sort
+    result = [...result].sort((a, b) => {
+      const dir = sortDirection === "asc" ? 1 : -1;
+      switch (sortField) {
+        case "name":
+          return dir * a.name.localeCompare(b.name);
+        case "industry":
+          return dir * (a.industry || "").localeCompare(b.industry || "");
+        case "ytdSpend":
+          return dir * (parseFloat(a.ytdSpend || "0") - parseFloat(b.ytdSpend || "0"));
+        case "engagementLevel":
+          return dir * (a.engagementLevel || "").localeCompare(b.engagementLevel || "");
+        case "createdAt":
+          return dir * (new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime());
+        default:
+          return 0;
+      }
+    });
+
+    return result;
+  }, [companies, searchQuery, filterIndustry, filterEngagement, sortField, sortDirection]);
 
   const formatCurrency = (amount: string | undefined) => {
     if (!amount) return "$0";
@@ -197,10 +168,8 @@ export function useCompaniesPage() {
     // State
     searchQuery,
     setSearchQuery,
-    isCreateModalOpen,
-    setIsCreateModalOpen,
-    isEditModalOpen,
-    setIsEditModalOpen,
+    isFormDialogOpen,
+    setIsFormDialogOpen,
     selectedCompany,
     filterIndustry,
     setFilterIndustry,
@@ -208,14 +177,14 @@ export function useCompaniesPage() {
     setFilterEngagement,
     viewMode,
     setViewMode,
-    isCompanyDetailOpen,
-    setIsCompanyDetailOpen,
     isDeleteDialogOpen,
     setIsDeleteDialogOpen,
     companyToDelete,
 
-    // Form
-    form,
+    // Sort
+    sortField,
+    sortDirection,
+    handleSort,
 
     // Data
     companies,
@@ -228,25 +197,17 @@ export function useCompaniesPage() {
     deleteCompanyMutation,
 
     // Handlers
-    handleCreateCompany,
-    handleUpdateCompany,
+    handleOpenCreate,
+    handleOpenEdit,
+    handleFormSubmit,
     handleDeleteCompany,
-    handleEditCompany,
     handleConfirmDelete,
     handleCancelDelete,
-    handleOpenDetailFromList,
-    handleEditFromDetail,
     handleNavigateToCompany,
 
-    // Custom Fields (Edit modal)
+    // Custom Fields
     editCustomFields,
-    newCustomFieldKey,
-    setNewCustomFieldKey,
-    newCustomFieldValue,
-    setNewCustomFieldValue,
-    addCustomField,
-    updateCustomFieldValue,
-    removeCustomField,
+    setEditCustomFields,
 
     // Utilities
     formatCurrency,

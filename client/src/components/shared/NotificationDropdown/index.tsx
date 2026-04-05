@@ -53,7 +53,7 @@ export function NotificationDropdown() {
     handleNotificationClick,
     handleDeleteConfirm,
     handleDeleteRequest,
-    handleNavigateToOrder,
+    handleNavigateToProject,
     handleViewAll,
   } = useNotifications();
 
@@ -139,7 +139,7 @@ export function NotificationDropdown() {
                           className="h-6 w-6"
                           onClick={(e) => {
                             e.stopPropagation();
-                            handleNavigateToOrder(notification.orderId!);
+                            handleNavigateToProject(notification.orderId!);
                           }}
                         >
                           <ExternalLink className="h-3 w-3" />

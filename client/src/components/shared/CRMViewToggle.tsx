@@ -31,7 +31,6 @@ export function CRMViewToggle({ viewMode, onViewModeChange }: CRMViewToggleProps
           <List className="h-4 w-4" />
         </Button>
       </div>
-      <Separator orientation="vertical" className="h-8" />
     </div>
   );
 }

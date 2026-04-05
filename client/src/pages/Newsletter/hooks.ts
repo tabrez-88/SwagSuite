@@ -1,8 +1,9 @@
 import { useState } from "react";
+import { useTabParam } from "@/hooks/useTabParam";
 import type { DashboardStats, Campaign, RecentActivity } from "./types";
 
 export function useNewsletter() {
-  const [activeTab, setActiveTab] = useState("dashboard");
+  const [activeTab, setActiveTab] = useTabParam("dashboard");
 
   // Mock data for development - will be replaced with real API calls
   const dashboardStats: DashboardStats = {

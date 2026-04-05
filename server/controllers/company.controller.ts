@@ -39,4 +39,14 @@ export class CompanyController {
     await companyService.delete(req.params.id, getUserId(req));
     res.status(204).send();
   }
+
+  static async getActivities(req: Request, res: Response) {
+    const activities = await companyService.getActivities(req.params.id);
+    res.json(activities);
+  }
+
+  static async getProjects(req: Request, res: Response) {
+    const projects = await companyService.getProjects(req.params.id);
+    res.json(projects);
+  }
 }

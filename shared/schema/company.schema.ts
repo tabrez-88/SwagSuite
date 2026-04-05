@@ -41,6 +41,10 @@ export const companies = pgTable("companies", {
   // Customer scoring and analytics
   customerScore: integer("customer_score").default(0),
   engagementLevel: varchar("engagement_level"), // high, medium, low
+  // Account & team
+  accountNumber: varchar("account_number"),
+  assignedUserId: varchar("assigned_user_id"),
+  defaultTerms: varchar("default_terms"), // Net 30, Credit Card, COD, etc.
   customFields: jsonb("custom_fields"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),

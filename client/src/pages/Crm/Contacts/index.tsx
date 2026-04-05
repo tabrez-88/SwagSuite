@@ -5,28 +5,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
-import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { LEAD_SOURCES } from "@/constants/leadSources";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
   DropdownMenu,
@@ -47,26 +31,16 @@ import {
   Edit,
   MoreHorizontal,
   Truck,
-  AlertTriangle,
   Target,
   BarChart3,
 } from "lucide-react";
 import { CRMViewToggle } from "@/components/shared/CRMViewToggle";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+import { useLocation } from "wouter";
 import type { Contact } from "@/services/contacts";
-import type { ContactFormData } from "@/schemas/crm.schemas";
-import type { Company, Supplier } from "./types";
 import { useContactsPage } from "./hooks";
-import type { UseFormReturn } from "react-hook-form";
+import { ContactFormDialog } from "./components/ContactFormDialog";
+import { DeleteConfirmDialog } from "../components/DeleteConfirmDialog";
+import { SortableTableHead } from "../components/SortableTableHead";
 
 function getAssociationBadge(contact: Contact) {
   if (contact.companyId) {
@@ -88,225 +62,13 @@ function getAssociationBadge(contact: Contact) {
   return null;
 }
 
-function ContactFormFields({
-  form,
-  associationType,
-  companies,
-  suppliers,
-}: {
-  form: UseFormReturn<ContactFormData>;
-  associationType: string;
-  companies: Company[];
-  suppliers: Supplier[];
-}) {
-  return (
-    <>
-      <div className="grid grid-cols-2 gap-4">
-        <FormField
-          control={form.control}
-          name="firstName"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>First Name *</FormLabel>
-              <FormControl>
-                <Input placeholder="Enter first name" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="lastName"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Last Name *</FormLabel>
-              <FormControl>
-                <Input placeholder="Enter last name" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-      </div>
-
-      <div className="grid grid-cols-2 gap-4">
-        <FormField
-          control={form.control}
-          name="email"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Email</FormLabel>
-              <FormControl>
-                <Input type="email" placeholder="Enter email" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="phone"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Phone</FormLabel>
-              <FormControl>
-                <Input placeholder="Enter phone number" {...field} />
-              </FormControl>
-            </FormItem>
-          )}
-        />
-      </div>
-
-      <div className="grid grid-cols-2 gap-4">
-        <FormField
-          control={form.control}
-          name="title"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Job Title</FormLabel>
-              <FormControl>
-                <Input placeholder="Enter job title" {...field} />
-              </FormControl>
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="leadSource"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Lead Source</FormLabel>
-              <Select onValueChange={field.onChange} value={field.value}>
-                <FormControl>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select source" />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent>
-                  {LEAD_SOURCES.map((source) => (
-                    <SelectItem key={source} value={source}>
-                      {source}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </FormItem>
-          )}
-        />
-      </div>
-
-      <FormField
-        control={form.control}
-        name="associationType"
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel>Associated With</FormLabel>
-            <Select onValueChange={field.onChange} value={field.value}>
-              <FormControl>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select association" />
-                </SelectTrigger>
-              </FormControl>
-              <SelectContent>
-                <SelectItem value="none">No association</SelectItem>
-                <SelectItem value="company">Company</SelectItem>
-                <SelectItem value="vendor">Vendor</SelectItem>
-              </SelectContent>
-            </Select>
-          </FormItem>
-        )}
-      />
-
-      {associationType === "company" && (
-        <FormField
-          control={form.control}
-          name="companyId"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Company *</FormLabel>
-              <Select onValueChange={field.onChange} value={field.value}>
-                <FormControl>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select company" />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent>
-                  {companies.map((company) => (
-                    <SelectItem key={company.id} value={company.id}>
-                      {company.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-      )}
-
-      {associationType === "vendor" && (
-        <FormField
-          control={form.control}
-          name="supplierId"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Vendor *</FormLabel>
-              <Select onValueChange={field.onChange} value={field.value}>
-                <FormControl>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select vendor" />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent>
-                  {suppliers.map((supplier) => (
-                    <SelectItem key={supplier.id} value={supplier.id}>
-                      {supplier.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-      )}
-
-      <FormField
-        control={form.control}
-        name="isPrimary"
-        render={({ field }) => (
-          <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
-            <FormControl>
-              <input
-                type="checkbox"
-                checked={field.value}
-                onChange={field.onChange}
-                className="h-4 w-4 rounded border-gray-300"
-              />
-            </FormControl>
-            <div className="space-y-1 leading-none">
-              <FormLabel>Primary Contact</FormLabel>
-              <p className="text-sm text-muted-foreground">
-                Set this person as the primary contact
-              </p>
-            </div>
-          </FormItem>
-        )}
-      />
-    </>
-  );
-}
-
 export default function Contacts() {
   const {
     searchQuery,
     setSearchQuery,
-    isCreateModalOpen,
-    setIsCreateModalOpen,
-    isEditModalOpen,
-    setIsEditModalOpen,
-    editingContact,
+    isFormDialogOpen,
+    setIsFormDialogOpen,
+    selectedContact,
     filterType,
     setFilterType,
     viewMode,
@@ -314,13 +76,9 @@ export default function Contacts() {
     isDeleteDialogOpen,
     setIsDeleteDialogOpen,
     contactToDelete,
-    form,
-    editForm,
-    associationType,
-    editAssociationType,
-    onSubmit,
-    handleEditContact,
-    onEditSubmit,
+    sortField,
+    sortDirection,
+    handleSort,
     isLoading,
     companies,
     suppliers,
@@ -329,10 +87,15 @@ export default function Contacts() {
     createContactMutation,
     updateContactMutation,
     deleteContactMutation,
+    handleOpenCreate,
+    handleOpenEdit,
+    handleFormSubmit,
     handleDeleteContact,
     handleConfirmDelete,
     handleCancelDelete,
   } = useContactsPage();
+
+  const [, setLocation] = useLocation();
 
   return (
     <div className="space-y-6">
@@ -344,45 +107,13 @@ export default function Contacts() {
             Manage all your contacts from companies and vendors
           </p>
         </div>
-        <Dialog open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen}>
-          <DialogTrigger asChild>
-            <Button className="bg-swag-primary hover:bg-swag-primary/90">
-              <Plus className="mr-2" size={16} />
-              Add Contact
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>Add New Contact</DialogTitle>
-            </DialogHeader>
-            <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                <ContactFormFields
-                  form={form}
-                  associationType={associationType}
-                  companies={companies}
-                  suppliers={suppliers}
-                />
-                <div className="flex justify-end gap-2 pt-4">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => setIsCreateModalOpen(false)}
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    type="submit"
-                    disabled={createContactMutation.isPending}
-                    className="bg-swag-primary hover:bg-swag-primary/90"
-                  >
-                    {createContactMutation.isPending ? "Creating..." : "Create Contact"}
-                  </Button>
-                </div>
-              </form>
-            </Form>
-          </DialogContent>
-        </Dialog>
+        <Button
+          className="bg-swag-primary hover:bg-swag-primary/90"
+          onClick={handleOpenCreate}
+        >
+          <Plus className="mr-2" size={16} />
+          Add Contact
+        </Button>
       </div>
 
       {/* Search and Filters */}
@@ -549,17 +280,17 @@ export default function Contacts() {
                       <Button
                         variant="default"
                         size="sm"
-                        onClick={() => window.location.href = `/crm/contacts/${contact.id}`}
+                        onClick={() => setLocation(`/crm/contacts/${contact.id}`)}
                         className="bg-swag-primary hover:bg-swag-primary/90"
                       >
                         <Eye className="mr-1" size={12} />
                         View
-                      </Button> 
+                      </Button>
                       <div className="flex items-center gap-1">
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => handleEditContact(contact)}
+                          onClick={() => handleOpenEdit(contact)}
                         >
                           <Edit className="mr-1" size={12} />
                           Edit
@@ -588,11 +319,35 @@ export default function Contacts() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Contact</TableHead>
-                      <TableHead>Company / Vendor</TableHead>
+                      <SortableTableHead
+                        label="Contact"
+                        field="name"
+                        currentSortField={sortField}
+                        currentSortDirection={sortDirection}
+                        onSort={handleSort}
+                      />
+                      <SortableTableHead
+                        label="Company / Vendor"
+                        field="company"
+                        currentSortField={sortField}
+                        currentSortDirection={sortDirection}
+                        onSort={handleSort}
+                      />
                       <TableHead>Contact Info</TableHead>
-                      <TableHead>Title</TableHead>
-                      <TableHead>Lead Source</TableHead>
+                      <SortableTableHead
+                        label="Title"
+                        field="title"
+                        currentSortField={sortField}
+                        currentSortDirection={sortDirection}
+                        onSort={handleSort}
+                      />
+                      <SortableTableHead
+                        label="Lead Source"
+                        field="leadSource"
+                        currentSortField={sortField}
+                        currentSortDirection={sortDirection}
+                        onSort={handleSort}
+                      />
                       <TableHead className="w-[100px]">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -601,6 +356,7 @@ export default function Contacts() {
                       <TableRow
                         key={contact.id}
                         className="hover:bg-muted/50 cursor-pointer"
+                        onClick={() => setLocation(`/crm/contacts/${contact.id}`)}
                       >
                         <TableCell>
                           <div className="flex items-center space-x-3">
@@ -652,23 +408,34 @@ export default function Contacts() {
                         <TableCell>
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="sm">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={(e) => e.stopPropagation()}
+                              >
                                 <MoreHorizontal className="h-4 w-4" />
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => handleEditContact(contact)}>
+                              <DropdownMenuItem onClick={(e) => {
+                                e.stopPropagation();
+                                handleOpenEdit(contact);
+                              }}>
                                 <Edit className="h-4 w-4 mr-2" />
                                 Edit
                               </DropdownMenuItem>
-                              <DropdownMenuItem
-                                onClick={() => window.location.href = `/crm/contacts/${contact.id}`}
-                              >
+                              <DropdownMenuItem onClick={(e) => {
+                                e.stopPropagation();
+                                setLocation(`/crm/contacts/${contact.id}`);
+                              }}>
                                 <Eye className="h-4 w-4 mr-2" />
                                 View Details
                               </DropdownMenuItem>
                               <DropdownMenuItem
-                                onClick={() => handleDeleteContact(contact)}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteContact(contact);
+                                }}
                                 className="text-red-600"
                               >
                                 <Trash2 className="h-4 w-4 mr-2" />
@@ -697,7 +464,7 @@ export default function Contacts() {
                 ? "Try adjusting your search terms or create a new contact."
                 : "Get started by adding your first contact."}
             </p>
-            <Button onClick={() => setIsCreateModalOpen(true)} className="bg-swag-primary hover:bg-swag-primary/90">
+            <Button onClick={handleOpenCreate} className="bg-swag-primary hover:bg-swag-primary/90">
               <Plus className="mr-2" size={16} />
               Add Contact
             </Button>
@@ -705,70 +472,28 @@ export default function Contacts() {
         </Card>
       )}
 
-      {/* Edit Contact Dialog */}
-      <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
-        <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Edit Contact</DialogTitle>
-          </DialogHeader>
-          <Form {...editForm}>
-            <form onSubmit={editForm.handleSubmit(onEditSubmit)} className="space-y-4">
-              <ContactFormFields
-                form={editForm}
-                associationType={editAssociationType}
-                companies={companies}
-                suppliers={suppliers}
-              />
-              <div className="flex justify-end gap-2 pt-4">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setIsEditModalOpen(false)}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  type="submit"
-                  disabled={updateContactMutation.isPending}
-                  className="bg-swag-primary hover:bg-swag-primary/90"
-                >
-                  {updateContactMutation.isPending ? "Saving..." : "Save Changes"}
-                </Button>
-              </div>
-            </form>
-          </Form>
-        </DialogContent>
-      </Dialog>
+      {/* Contact Form Dialog (Create / Edit) */}
+      <ContactFormDialog
+        open={isFormDialogOpen}
+        onOpenChange={setIsFormDialogOpen}
+        contact={selectedContact}
+        onSubmit={handleFormSubmit}
+        isPending={selectedContact ? updateContactMutation.isPending : createContactMutation.isPending}
+        companies={companies}
+        suppliers={suppliers}
+      />
 
       {/* Delete Confirmation Dialog */}
-      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2">
-              <AlertTriangle className="w-5 h-5 text-red-600" />
-              Delete Contact?
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to delete <strong>{contactToDelete?.firstName} {contactToDelete?.lastName}</strong>?
-              <span className="block mt-2 text-red-600 font-medium">
-                This action cannot be undone.
-              </span>
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={handleCancelDelete}>
-              Cancel
-            </AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleConfirmDelete}
-              className="bg-red-600 hover:bg-red-700 focus:ring-red-600"
-              disabled={deleteContactMutation.isPending}
-            >
-              {deleteContactMutation.isPending ? "Deleting..." : "Delete Contact"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <DeleteConfirmDialog
+        open={isDeleteDialogOpen}
+        onOpenChange={setIsDeleteDialogOpen}
+        title="Delete Contact?"
+        description={<strong>{contactToDelete?.firstName} {contactToDelete?.lastName}</strong>}
+        onConfirm={handleConfirmDelete}
+        onCancel={handleCancelDelete}
+        isPending={deleteContactMutation.isPending}
+        confirmLabel="Delete Contact"
+      />
     </div>
   );
 }

@@ -12,6 +12,7 @@ export * from './lead.schema';
 export * from './client.schema';
 export * from './supplier.schema';
 export * from './supplier-address.schema';
+export * from './paymentTerms.schema';
 
 // Products
 export * from './product.schema';

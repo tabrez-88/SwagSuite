@@ -113,7 +113,11 @@ const InvoiceTemplate = forwardRef<HTMLDivElement, InvoiceTemplateProps>(
             <div className="grid grid-cols-3 gap-4 text-sm">
               <div>
                 <span className="text-gray-500">Payment Terms:</span>
-                <span className="ml-2 font-medium">Net 30</span>
+                <span className="ml-2 font-medium">
+                  {order?.paymentTerms
+                    ? order.paymentTerms.replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase())
+                    : "Net 30"}
+                </span>
               </div>
               <div>
                 <span className="text-gray-500">Status:</span>

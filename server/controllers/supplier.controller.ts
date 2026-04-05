@@ -8,6 +8,14 @@ export class SupplierController {
     res.json(suppliers);
   }
 
+  static async getById(req: Request, res: Response) {
+    const supplier = await supplierService.getById(req.params.id);
+    if (!supplier) {
+      return res.status(404).json({ message: "Supplier not found" });
+    }
+    res.json(supplier);
+  }
+
   static async create(req: Request, res: Response) {
     const data = createSupplierRequest.parse(req.body);
     const supplier = await supplierService.create(data);

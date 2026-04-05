@@ -8,7 +8,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { EditableText, EditableDate, EditableTextarea } from "@/components/shared/InlineEditable";
+import { EditableText, EditableDate, EditableSelect, EditableTextarea } from "@/components/shared/InlineEditable";
 import EditableAddress from "@/components/shared/EditableAddress";
 import ProjectInfoBar from "@/components/layout/ProjectInfoBar";
 import {
@@ -40,6 +40,7 @@ import type { QuoteSectionProps } from "./types";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getQueryFn, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { usePaymentTerms } from "@/services/payment-terms";
 
 export default function QuoteSection(props: QuoteSectionProps) {
   const queryClient = useQueryClient();
@@ -79,6 +80,8 @@ export default function QuoteSection(props: QuoteSectionProps) {
     handleConversionSuccess,
     isQuoteStale,
   } = useQuoteSection(props);
+
+  const { data: paymentTermsOptions = [] } = usePaymentTerms();
 
   const { data: taxCodes } = useQuery<any[]>({
     queryKey: ["/api/tax-codes"],
@@ -186,12 +189,12 @@ export default function QuoteSection(props: QuoteSectionProps) {
             </div>
             <div className="flex justify-between items-center">
               <span className="text-sm text-muted-foreground">Payment Terms</span>
-              <EditableText
+              <EditableSelect
                 value={(order as any)?.paymentTerms || ""}
                 field="paymentTerms"
                 onSave={updateField}
-                placeholder="e.g. Net 30"
-                emptyText="Net 30"
+                options={paymentTermsOptions.map((t: any) => ({ value: t.name, label: t.name }))}
+                emptyOption="Not Set"
                 isLocked={isLocked}
                 isPending={isFieldPending}
               />

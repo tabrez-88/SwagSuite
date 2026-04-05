@@ -87,10 +87,10 @@ export function useNotifications() {
       markAsReadMutation.mutate(notification.id);
     }
 
-    // Navigate to related page if orderId exists
+    // Navigate to related page if projectId exists
     if (notification.orderId) {
       setIsOpen(false);
-      navigate(`/orders/${notification.orderId}`);
+      navigate(`/projects/${notification.orderId}`);
     }
   };
 
@@ -107,8 +107,8 @@ export function useNotifications() {
     setIsDeleteDialogOpen(true);
   };
 
-  const handleNavigateToOrder = (projectId: string) => {
-    navigate(`/orders/${projectId}`);
+  const handleNavigateToProject = (projectId: string) => {
+    navigate(`/projects/${projectId}`);
     setIsOpen(false);
   };
 
@@ -132,7 +132,7 @@ export function useNotifications() {
     handleNotificationClick,
     handleDeleteConfirm,
     handleDeleteRequest,
-    handleNavigateToOrder,
+    handleNavigateToProject,
     handleViewAll,
   };
 }

@@ -252,6 +252,7 @@ interface EditableSelectProps extends EditableBaseProps {
   onSave: (fields: Record<string, any>) => void;
   options: SelectOption[];
   placeholder?: string;
+  emptyOption?: string;
 }
 
 export function EditableSelect({
@@ -260,17 +261,19 @@ export function EditableSelect({
   onSave,
   options,
   placeholder = "Select...",
+  emptyOption,
   isLocked,
   isPending,
   className,
 }: EditableSelectProps) {
   const handleChange = (newValue: string) => {
-    if (newValue !== value) {
-      onSave({ [field]: newValue });
+    const resolved = newValue === "__empty__" ? "" : newValue;
+    if (resolved !== value) {
+      onSave({ [field]: resolved });
     }
   };
 
-  const currentLabel = options.find((o) => o.value === value)?.label || value || placeholder;
+  const currentLabel = options.find((o) => o.value === value)?.label || value || emptyOption || placeholder;
 
   if (isLocked) {
     return <span className={cn("text-sm", className)}>{currentLabel}</span>;
@@ -278,11 +281,14 @@ export function EditableSelect({
 
   return (
     <div className={cn("inline-flex items-center gap-1", className)}>
-      <Select value={value} onValueChange={handleChange} disabled={isPending}>
+      <Select value={value || "__empty__"} onValueChange={handleChange} disabled={isPending}>
         <SelectTrigger className="h-7 text-sm border-dashed w-auto min-w-[100px]">
           <SelectValue placeholder={placeholder} />
         </SelectTrigger>
         <SelectContent>
+          {emptyOption && (
+            <SelectItem value="__empty__" className="text-muted-foreground">{emptyOption}</SelectItem>
+          )}
           {options.map((opt) => (
             <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
           ))}

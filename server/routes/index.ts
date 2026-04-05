@@ -29,6 +29,7 @@ import miscRoutes from "./misc.routes";
 import projectRoutes from "./project.routes";
 import decoratorMatrixRoutes from "./decoratorMatrix.routes";
 import taxRoutes from "./tax.routes";
+import paymentTermsRoutes from "./paymentTerms.routes";
 
 /**
  * Register all modular route files.
@@ -107,6 +108,9 @@ export function registerModularRoutes(app: Express) {
 
   // Tax Codes
   app.use(taxRoutes);
+
+  // Payment Terms
+  app.use(paymentTermsRoutes);
 
   // Vendor Approvals
   app.use(vendorApprovalRoutes);

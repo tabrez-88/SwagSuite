@@ -1,56 +1,23 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { contactFormSchema, type ContactFormData } from "@/schemas/crm.schemas";
 import { useContacts as useContactsQuery, useCreateContact, useUpdateContact, useDeleteContact } from "@/services/contacts";
 import type { Contact } from "@/services/contacts";
+import type { ContactFormData } from "@/schemas/crm.schemas";
 import type { Company, Supplier, LeadSourceReport } from "./types";
+
+export type SortField = "name" | "company" | "email" | "title" | "leadSource";
+export type SortDirection = "asc" | "desc";
 
 export function useContactsPage() {
   const [searchQuery, setSearchQuery] = useState("");
-  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [editingContact, setEditingContact] = useState<Contact | null>(null);
+  const [isFormDialogOpen, setIsFormDialogOpen] = useState(false);
+  const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
   const [filterType, setFilterType] = useState<string>("all");
   const [viewMode, setViewMode] = useState<"cards" | "list">("cards");
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [contactToDelete, setContactToDelete] = useState<Contact | null>(null);
-
-  const form = useForm<ContactFormData>({
-    resolver: zodResolver(contactFormSchema),
-    defaultValues: {
-      firstName: "",
-      lastName: "",
-      email: "",
-      phone: "",
-      title: "",
-      leadSource: "",
-      isPrimary: false,
-      associationType: "none",
-      companyId: "",
-      supplierId: "",
-    },
-  });
-
-  const editForm = useForm<ContactFormData>({
-    resolver: zodResolver(contactFormSchema),
-    defaultValues: {
-      firstName: "",
-      lastName: "",
-      email: "",
-      phone: "",
-      title: "",
-      leadSource: "",
-      isPrimary: false,
-      associationType: "none",
-      companyId: "",
-      supplierId: "",
-    },
-  });
-
-  const editAssociationType = editForm.watch("associationType");
-  const associationType = form.watch("associationType");
+  const [sortField, setSortField] = useState<SortField>("name");
+  const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
 
   const { data: contacts = [], isLoading } = useContactsQuery();
 
@@ -70,68 +37,55 @@ export function useContactsPage() {
   const updateContactMutation = useUpdateContact();
   const deleteContactMutation = useDeleteContact();
 
-  const onSubmit = (data: ContactFormData) => {
-    createContactMutation.mutate(data, {
-      onSuccess: () => {
-        setIsCreateModalOpen(false);
-        form.reset();
-      },
-    });
+  const handleOpenCreate = () => {
+    setSelectedContact(null);
+    setIsFormDialogOpen(true);
   };
 
-  const handleEditContact = (contact: Contact) => {
-    setEditingContact(contact);
-    const assocType = contact.companyId
-      ? "company"
-      : contact.supplierId
-        ? "vendor"
-        : "none";
-    editForm.reset({
-      firstName: contact.firstName,
-      lastName: contact.lastName,
-      email: contact.email || "",
-      phone: contact.phone || "",
-      title: contact.title || "",
-      leadSource: contact.leadSource || "",
-      isPrimary: contact.isPrimary || false,
-      associationType: assocType as "company" | "vendor" | "none",
-      companyId: contact.companyId || "",
-      supplierId: contact.supplierId || "",
-    });
-    setIsEditModalOpen(true);
+  const handleOpenEdit = (contact: Contact) => {
+    setSelectedContact(contact);
+    setIsFormDialogOpen(true);
   };
 
-  const onEditSubmit = (data: ContactFormData) => {
-    if (!editingContact) return;
-    const payload: Record<string, unknown> = {
-      firstName: data.firstName,
-      lastName: data.lastName,
-      email: data.email || undefined,
-      phone: data.phone || undefined,
-      title: data.title || undefined,
-      leadSource: data.leadSource || undefined,
-      isPrimary: data.isPrimary,
-    };
-    if (data.associationType === "company" && data.companyId) {
-      payload.companyId = data.companyId;
-      payload.supplierId = null;
-    } else if (data.associationType === "vendor" && data.supplierId) {
-      payload.supplierId = data.supplierId;
-      payload.companyId = null;
-    } else {
-      payload.companyId = null;
-      payload.supplierId = null;
-    }
-    updateContactMutation.mutate(
-      { id: editingContact.id, data: payload as any },
-      {
-        onSuccess: () => {
-          setIsEditModalOpen(false);
-          setEditingContact(null);
-          editForm.reset();
-        },
+  const handleFormSubmit = (data: ContactFormData) => {
+    if (selectedContact) {
+      // Edit mode
+      const payload: Record<string, unknown> = {
+        firstName: data.firstName,
+        lastName: data.lastName,
+        email: data.email || undefined,
+        phone: data.phone || undefined,
+        title: data.title || undefined,
+        leadSource: data.leadSource || undefined,
+        isPrimary: data.isPrimary,
+      };
+      if (data.associationType === "company" && data.companyId) {
+        payload.companyId = data.companyId;
+        payload.supplierId = null;
+      } else if (data.associationType === "vendor" && data.supplierId) {
+        payload.supplierId = data.supplierId;
+        payload.companyId = null;
+      } else {
+        payload.companyId = null;
+        payload.supplierId = null;
       }
-    );
+      updateContactMutation.mutate(
+        { id: selectedContact.id, data: payload as any },
+        {
+          onSuccess: () => {
+            setIsFormDialogOpen(false);
+            setSelectedContact(null);
+          },
+        }
+      );
+    } else {
+      // Create mode
+      createContactMutation.mutate(data, {
+        onSuccess: () => {
+          setIsFormDialogOpen(false);
+        },
+      });
+    }
   };
 
   const handleDeleteContact = (contact: Contact) => {
@@ -155,32 +109,62 @@ export function useContactsPage() {
     setIsDeleteDialogOpen(false);
   };
 
-  const filteredContacts = contacts.filter((contact: Contact) => {
-    const fullName = `${contact.firstName} ${contact.lastName}`.toLowerCase();
-    const matchesSearch =
-      fullName.includes(searchQuery.toLowerCase()) ||
-      contact.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      contact.companyName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      contact.supplierName?.toLowerCase().includes(searchQuery.toLowerCase());
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortDirection((prev) => (prev === "asc" ? "desc" : "asc"));
+    } else {
+      setSortField(field);
+      setSortDirection("asc");
+    }
+  };
 
-    const matchesType =
-      filterType === "all" ||
-      (filterType === "company" && contact.companyId) ||
-      (filterType === "vendor" && contact.supplierId) ||
-      (filterType === "unlinked" && !contact.companyId && !contact.supplierId);
+  const filteredContacts = useMemo(() => {
+    let result = contacts.filter((contact: Contact) => {
+      const fullName = `${contact.firstName} ${contact.lastName}`.toLowerCase();
+      const matchesSearch =
+        fullName.includes(searchQuery.toLowerCase()) ||
+        contact.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        contact.companyName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        contact.supplierName?.toLowerCase().includes(searchQuery.toLowerCase());
 
-    return matchesSearch && matchesType;
-  });
+      const matchesType =
+        filterType === "all" ||
+        (filterType === "company" && contact.companyId) ||
+        (filterType === "vendor" && contact.supplierId) ||
+        (filterType === "unlinked" && !contact.companyId && !contact.supplierId);
+
+      return matchesSearch && matchesType;
+    });
+
+    // Sort
+    result = [...result].sort((a, b) => {
+      const dir = sortDirection === "asc" ? 1 : -1;
+      switch (sortField) {
+        case "name":
+          return dir * `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`);
+        case "company":
+          return dir * (a.companyName || a.supplierName || "").localeCompare(b.companyName || b.supplierName || "");
+        case "email":
+          return dir * (a.email || "").localeCompare(b.email || "");
+        case "title":
+          return dir * (a.title || "").localeCompare(b.title || "");
+        case "leadSource":
+          return dir * (a.leadSource || "").localeCompare(b.leadSource || "");
+        default:
+          return 0;
+      }
+    });
+
+    return result;
+  }, [contacts, searchQuery, filterType, sortField, sortDirection]);
 
   return {
     // State
     searchQuery,
     setSearchQuery,
-    isCreateModalOpen,
-    setIsCreateModalOpen,
-    isEditModalOpen,
-    setIsEditModalOpen,
-    editingContact,
+    isFormDialogOpen,
+    setIsFormDialogOpen,
+    selectedContact,
     filterType,
     setFilterType,
     viewMode,
@@ -189,14 +173,10 @@ export function useContactsPage() {
     setIsDeleteDialogOpen,
     contactToDelete,
 
-    // Form
-    form,
-    editForm,
-    associationType,
-    editAssociationType,
-    onSubmit,
-    handleEditContact,
-    onEditSubmit,
+    // Sort
+    sortField,
+    sortDirection,
+    handleSort,
 
     // Data
     contacts,
@@ -212,6 +192,9 @@ export function useContactsPage() {
     deleteContactMutation,
 
     // Handlers
+    handleOpenCreate,
+    handleOpenEdit,
+    handleFormSubmit,
     handleDeleteContact,
     handleConfirmDelete,
     handleCancelDelete,

@@ -6,6 +6,8 @@ export interface Vendor {
   website?: string;
   contactPerson?: string;
   paymentTerms?: string;
+  defaultTerms?: string;
+  accountNumber?: string;
   notes?: string;
   isPreferred?: boolean;
   doNotOrder?: boolean;

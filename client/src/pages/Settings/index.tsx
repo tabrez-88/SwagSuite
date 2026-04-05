@@ -19,8 +19,9 @@ import {
   ToggleRight,
   Users,
   FileText,
+  CreditCard,
 } from "lucide-react";
-import { useState } from "react";
+import { useTabParam } from "@/hooks/useTabParam";
 import { FeaturesTab } from "./FeaturesTab";
 import { UsersTab } from "./UsersTab";
 import { EmailReportsTab } from "./EmailReportsTab";
@@ -36,11 +37,11 @@ import { ImportTab } from "./ImportTab";
 import { DecoratorMatrixTab } from "./DecoratorMatrixTab";
 import { TaxCodesTab } from "./TaxCodesTab";
 import { EmailTemplatesTab } from "./EmailTemplatesTab";
+import { PaymentTermsTab } from "./PaymentTermsTab";
 
 export default function Settings() {
   const { user, isLoading: authLoading } = useAuth();
-  const urlParams = new URLSearchParams(window.location.search);
-  const [activeTab, setActiveTab] = useState(urlParams.get("tab") || "features");
+  const [activeTab, setActiveTab] = useTabParam("features");
 
   // Load admin settings from backend
   const { data: adminSettings, isLoading: settingsLoading } = useQuery({
@@ -163,6 +164,10 @@ export default function Settings() {
             <FileText className="w-4 h-4" />
             Email Templates
           </TabsTrigger>
+          <TabsTrigger value="payment-terms" className="flex items-center gap-2">
+            <CreditCard className="w-4 h-4" />
+            Payment Terms
+          </TabsTrigger>
           <TabsTrigger value="import" className="flex items-center gap-2">
             <Brain className="w-4 h-4" />
             Data Import
@@ -219,6 +224,10 @@ export default function Settings() {
 
         <TabsContent value="email-templates" className="space-y-6">
           <EmailTemplatesTab />
+        </TabsContent>
+
+        <TabsContent value="payment-terms" className="space-y-6">
+          <PaymentTermsTab />
         </TabsContent>
 
         <TabsContent value="import" className="space-y-6">

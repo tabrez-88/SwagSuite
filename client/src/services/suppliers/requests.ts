@@ -24,6 +24,8 @@ export async function updateVendor({
     website: data.website,
     contactPerson: data.contactPerson,
     paymentTerms: data.paymentTerms,
+    defaultTerms: data.defaultTerms,
+    accountNumber: data.accountNumber,
     notes: data.notes,
     isPreferred: data.isPreferred,
     doNotOrder: data.doNotOrder,
