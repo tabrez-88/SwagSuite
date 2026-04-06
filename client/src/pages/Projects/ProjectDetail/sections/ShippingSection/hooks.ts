@@ -201,6 +201,51 @@ export function useShippingSection(projectId: string, data: ProjectData) {
     }
   };
 
+  // Auto-populate address when changing destination to "client"
+  const handleDestinationChange = (destination: string) => {
+    setEditShippingForm(f => {
+      const updated = { ...f, shippingDestination: destination };
+      // Auto-fill from order shipping address or default company address when selecting "client"
+      if (destination === "client" && !f.shipToAddress?.street) {
+        if (parsedAddress?.street) {
+          updated.shipToAddress = {
+            contactName: parsedAddress.contactName || "",
+            companyName: parsedAddress.companyName || "",
+            street: parsedAddress.street || "",
+            street2: parsedAddress.street2 || "",
+            city: parsedAddress.city || "",
+            state: parsedAddress.state || "",
+            zipCode: parsedAddress.zipCode || "",
+            country: parsedAddress.country || "",
+            email: parsedAddress.email || "",
+            phone: parsedAddress.phone || "",
+          };
+          updated.shipToAddressId = "";
+        } else if (companyAddresses.length > 0) {
+          const defaultAddr = companyAddresses.find((a: any) => a.isDefault && (a.addressType === "shipping" || a.addressType === "both"))
+            || companyAddresses.find((a: any) => a.addressType === "shipping" || a.addressType === "both")
+            || companyAddresses[0];
+          if (defaultAddr) {
+            updated.shipToAddress = {
+              contactName: (defaultAddr as any).contactName || "",
+              companyName: (defaultAddr as any).companyNameOnDocs || (defaultAddr as any).addressName || "",
+              street: (defaultAddr as any).street || "",
+              street2: (defaultAddr as any).street2 || "",
+              city: (defaultAddr as any).city || "",
+              state: (defaultAddr as any).state || "",
+              zipCode: (defaultAddr as any).zipCode || "",
+              country: (defaultAddr as any).country || "",
+              email: (defaultAddr as any).email || "",
+              phone: (defaultAddr as any).phone || "",
+            };
+            updated.shipToAddressId = (defaultAddr as any).id || "";
+          }
+        }
+      }
+      return updated;
+    });
+  };
+
   // Update a free-form address field
   const updateAddressField = (leg: "leg1" | "leg2", field: keyof ShippingAddressData, value: string) => {
     if (leg === "leg1") {
@@ -376,7 +421,7 @@ export function useShippingSection(projectId: string, data: ProjectData) {
     // Edit dialog
     editingItemId, editingItem, editShippingForm, setEditShippingForm,
     openEditDialog, closeEditDialog, handleEditSave,
-    selectStoredAddress, updateAddressField, getAddressSummary,
+    selectStoredAddress, updateAddressField, handleDestinationChange, getAddressSummary,
     companyAddresses, supplierAddresses,
 
     // Shipment form state

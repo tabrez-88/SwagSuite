@@ -134,6 +134,27 @@
       "when": 1775464946257,
       "tag": "0018_real_karma",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1775635200000,
+      "tag": "0019_charge_pricing",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1775721600000,
+      "tag": "0020_order_number_format",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1775721700000,
+      "tag": "0021_seed_email_templates",
+      "breakpoints": true
     }
   ]
 }

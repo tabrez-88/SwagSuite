@@ -312,7 +312,8 @@ export function useDocumentEditor({
       }
     }
 
-    pdf.save(`${doc.documentType}-${fields.documentNumber}.pdf`);
+    const typeLabel = (doc.documentType || "document").replace(/_/g, "-").replace(/\b\w/g, (c: string) => c.toUpperCase());
+    pdf.save(`${typeLabel}-${fields.documentNumber}.pdf`);
   };
 
   const handleSave = () => {

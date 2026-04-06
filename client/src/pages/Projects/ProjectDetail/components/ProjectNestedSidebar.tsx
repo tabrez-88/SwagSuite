@@ -40,8 +40,8 @@ const navItems: NavItem[] = [
   { name: "Sales Order", href: "sales-order", icon: ShoppingCart, showCount: true, stageGate: "sales_order" },
   { name: "Shipping", href: "shipping", icon: Truck, stageGate: "sales_order" },
   { name: "POs", href: "pos", icon: ClipboardList, stageGate: "sales_order", requiresClientApproval: true },
-  { name: "Invoice", href: "invoice", icon: Receipt, stageGate: "invoice" },
-  { name: "Bills", href: "bills", icon: FileText, stageGate: "invoice" },
+  { name: "Invoice", href: "invoice", icon: Receipt, stageGate: "sales_order", requiresClientApproval: true },
+  { name: "Bills", href: "bills", icon: FileText, stageGate: "sales_order", requiresClientApproval: true },
   { name: "Feedback", href: "feedback", icon: Star },
 ];
 

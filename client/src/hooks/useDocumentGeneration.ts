@@ -132,7 +132,8 @@ export function useDocumentGeneration(projectId: string) {
       const pdfBlob = pdf.output("blob");
 
       const formData = new FormData();
-      formData.append("pdf", pdfBlob, `${documentType}-${documentNumber}.pdf`);
+      const typeLabel = documentType.replace(/_/g, "-").replace(/\b\w/g, (c: string) => c.toUpperCase());
+      formData.append("pdf", pdfBlob, `${typeLabel}-${documentNumber}.pdf`);
       formData.append("documentType", documentType);
       formData.append("documentNumber", documentNumber);
       formData.append("vendorId", vendorId || "");

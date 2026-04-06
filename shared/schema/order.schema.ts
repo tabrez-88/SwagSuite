@@ -53,7 +53,7 @@ export const orders = pgTable("orders", {
   nextActionType: varchar("next_action_type"),
   nextActionNotes: text("next_action_notes"),
   customerPo: varchar("customer_po"),
-  paymentTerms: varchar("payment_terms").default("Net 30"),
+  paymentTerms: varchar("payment_terms").default("Credit Card"),
   currency: varchar("currency").default("USD"),
   taxRate: decimal("tax_rate", { precision: 5, scale: 2 }).default("0"),
   defaultTaxCodeId: varchar("default_tax_code_id"), // Tax code applied to this order
@@ -160,7 +160,11 @@ export const orderAdditionalCharges = pgTable("order_additional_charges", {
   description: varchar("description").notNull(),
   chargeType: varchar("charge_type").default("flat"), // flat, percentage
   chargeCategory: varchar("charge_category").default("fixed"), // run (per unit) or fixed (one-time)
-  amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
+  amount: decimal("amount", { precision: 10, scale: 2 }).notNull(), // Legacy: treated as retailPrice
+  netCost: decimal("net_cost", { precision: 10, scale: 4 }).default("0"), // Vendor cost per unit
+  retailPrice: decimal("retail_price", { precision: 10, scale: 2 }), // Client price per unit (overrides amount when set)
+  margin: decimal("margin", { precision: 5, scale: 2 }), // Margin % between netCost and retailPrice
+  quantity: integer("quantity").default(1), // For fixed charges (run charges use item qty)
   isVendorCharge: boolean("is_vendor_charge").default(false),
   displayToClient: boolean("display_to_client").default(true),
   includeInUnitPrice: boolean("include_in_unit_price").default(false), // Run: "Include in price", Fixed: "Subtract from margin"

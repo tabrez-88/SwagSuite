@@ -455,14 +455,25 @@ export function usePurchaseOrdersSection({ projectId, data, isLocked }: Purchase
 
       const emailBodyFull = `${formData.body}\n\n---\nArtwork Proofs for Approval:\n\n${linksList}`;
 
+      // Collect proof + original artwork files as attachments
+      const proofAttachments = artworks
+        .filter((art: any) => art.proofFilePath || art.filePath)
+        .map((art: any) => ({
+          fileUrl: art.proofFilePath || art.filePath,
+          fileName: art.proofFileName || art.fileName || `proof-${art.name || "artwork"}.pdf`,
+        }));
+
       await apiRequest("POST", `/api/projects/${projectId}/communications`, {
         communicationType: "client_email", direction: "sent",
+        fromEmail: formData.from || undefined,
+        fromName: formData.fromName || undefined,
         recipientEmail: formData.to, recipientName: formData.toName,
         subject: `Artwork Proofs for Approval - Order #${(order as any)?.orderNumber || ""} (${artworks.length} item${artworks.length > 1 ? "s" : ""})`,
         body: emailBodyFull,
         cc: formData.cc || undefined,
         bcc: formData.bcc || undefined,
         metadata: { type: "proof_approval_batch", artworkIds: artworks.map(a => a.id), approvalLinks: approvalLinks.map(l => l.url) },
+        additionalAttachments: proofAttachments.length > 0 ? proofAttachments : undefined,
       });
 
       return approvalLinks;

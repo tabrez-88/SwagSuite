@@ -3,7 +3,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
 import {
   CheckCircle2,
   XCircle,
@@ -11,7 +10,6 @@ import {
   AlertCircle,
   FileText,
   Download,
-  Package,
   Calendar,
   DollarSign,
 } from "lucide-react";
@@ -280,51 +278,6 @@ export default function QuoteApprovalPage() {
             </CardContent>
           </Card>
         )}
-
-        {/* Order Items */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Package className="w-5 h-5" />
-              Order Items ({approval.items.length})
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="divide-y">
-              {approval.items.map((item, index) => (
-                <div key={item.id || index} className="py-4 first:pt-0 last:pb-0">
-                  <div className="flex gap-4 items-start">
-                    {item.productImageUrl && (
-                      <div className="w-16 h-16 flex-shrink-0 border rounded bg-white overflow-hidden">
-                        <img src={item.productImageUrl} alt="" className="w-full h-full object-contain" />
-                      </div>
-                    )}
-                    <div className="flex-1">
-                      <p className="font-medium">{item.productName || 'Product'}</p>
-                      {item.productSku && <p className="text-sm text-gray-500">SKU: {item.productSku}</p>}
-                      <div className="flex gap-3 mt-1 text-sm text-gray-600">
-                        <span>Qty: {item.quantity}</span>
-                        {item.color && <span>Color: {item.color}</span>}
-                        {item.size && <span>Size: {item.size}</span>}
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <p className="font-medium">${parseFloat(item.totalPrice || "0").toFixed(2)}</p>
-                      <p className="text-sm text-gray-500">${parseFloat(item.unitPrice || "0").toFixed(2)} each</p>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <Separator className="my-4" />
-
-            <div className="flex justify-between items-center text-lg font-bold">
-              <span>Total</span>
-              <span className={isSalesOrder ? "text-emerald-600" : "text-blue-600"}>${quoteTotal.toFixed(2)}</span>
-            </div>
-          </CardContent>
-        </Card>
 
         {/* Approval Actions */}
         {isPending && (

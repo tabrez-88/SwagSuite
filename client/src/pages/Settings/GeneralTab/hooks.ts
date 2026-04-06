@@ -14,6 +14,8 @@ const DEFAULT_GENERAL_SETTINGS: GeneralSettings = {
   minimumMargin: "15",
   maxOrderValue: "50000",
   requireApprovalOver: "5000",
+  orderNumberPrefix: "ORD",
+  orderNumberDigits: "3",
 };
 
 export function useGeneralTab(adminSettings: any) {
@@ -75,6 +77,8 @@ export function useGeneralTab(adminSettings: any) {
         minimumMargin: s.minimumMargin || prev.minimumMargin,
         maxOrderValue: s.maxOrderValue || prev.maxOrderValue,
         requireApprovalOver: s.requireApprovalOver || prev.requireApprovalOver,
+        orderNumberPrefix: s.orderNumberPrefix || prev.orderNumberPrefix,
+        orderNumberDigits: String(s.orderNumberDigits || prev.orderNumberDigits),
       }));
     }
   }, [adminSettings]);
@@ -102,6 +106,8 @@ export function useGeneralTab(adminSettings: any) {
         minimumMargin: generalSettings.minimumMargin,
         maxOrderValue: generalSettings.maxOrderValue,
         requireApprovalOver: generalSettings.requireApprovalOver,
+        orderNumberPrefix: generalSettings.orderNumberPrefix,
+        orderNumberDigits: parseInt(generalSettings.orderNumberDigits) || 3,
       });
       queryClient.invalidateQueries({ queryKey: ["/api/admin/settings"] });
 

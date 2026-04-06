@@ -53,6 +53,8 @@ export function useSendSO({
       await apiRequest("POST", `/api/projects/${projectId}/communications`, {
         communicationType: "client_email",
         direction: "sent",
+        fromEmail: formData.from || undefined,
+        fromName: formData.fromName || undefined,
         recipientEmail: formData.to,
         recipientName: formData.toName || recipientName,
         subject: formData.subject,

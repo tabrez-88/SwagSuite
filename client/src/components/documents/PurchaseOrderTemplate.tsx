@@ -23,14 +23,16 @@ interface PurchaseOrderTemplateProps {
   poNumber: string;
   artworkItems?: any[];
   allArtworkCharges?: Record<string, any[]>;
+  allItemCharges?: Record<string, any[]>;
   vendorIHD?: string | null;
   vendorAddress?: VendorAddressData | null;
   poType?: "supplier" | "decorator"; // supplier = blank goods (or all-in-one), decorator = decoration only
   decoratorAddress?: VendorAddressData | null; // Ship-to address for blank goods → decorator
+  sellerName?: string;
 }
 
 const PurchaseOrderTemplate = forwardRef<HTMLDivElement, PurchaseOrderTemplateProps>(
-  ({ order, vendor, vendorItems, poNumber, artworkItems = [], allArtworkCharges = {}, vendorIHD, vendorAddress, poType = "supplier", decoratorAddress }, ref) => {
+  ({ order, vendor, vendorItems, poNumber, artworkItems = [], allArtworkCharges = {}, allItemCharges = {}, vendorIHD, vendorAddress, poType = "supplier", decoratorAddress, sellerName }, ref) => {
     // Effective supplier IHD: vendor-specific → order-level fallback
     const effectiveIHD = vendorIHD || order?.supplierInHandsDate;
     const shippingAddr = (() => {
@@ -116,7 +118,7 @@ const PurchaseOrderTemplate = forwardRef<HTMLDivElement, PurchaseOrderTemplatePr
               )}
             </div>
             <div className="text-right">
-              <h2 className="text-2xl font-bold mb-1">SwagSuite</h2>
+              <h2 className="text-2xl font-bold mb-1">{sellerName || "Liquid Screen Design"}</h2>
               <p className="text-sm text-gray-600">Purchaser</p>
             </div>
           </div>
@@ -251,6 +253,23 @@ const PurchaseOrderTemplate = forwardRef<HTMLDivElement, PurchaseOrderTemplatePr
                                 <td className="py-1.5 text-xs text-right">${cost.toFixed(2)}</td>
                                 <td className="py-1.5 text-xs text-right font-medium">${itemTotal.toFixed(2)}</td>
                               </tr>
+                              {/* Per-item charges on PO (show netCost for vendor) */}
+                              {(allItemCharges[item.id] || []).map((charge: any) => {
+                                const chCost = parseFloat(charge.netCost || "0");
+                                if (chCost <= 0) return null;
+                                const chQty = charge.chargeCategory === "run" ? quantity : (charge.quantity || 1);
+                                return (
+                                  <tr key={charge.id} className="border-b border-gray-100">
+                                    <td className="py-1.5 text-xs text-gray-600">
+                                      {charge.description}
+                                      <span className="text-gray-400 ml-1">({charge.chargeCategory === "run" ? "per unit" : "one-time"})</span>
+                                    </td>
+                                    <td className="py-1.5 text-xs text-center">{chQty}</td>
+                                    <td className="py-1.5 text-xs text-right">${chCost.toFixed(2)}</td>
+                                    <td className="py-1.5 text-xs text-right font-medium">${(chCost * chQty).toFixed(2)}</td>
+                                  </tr>
+                                );
+                              })}
                             </>
                           )}
                           <tr className="border-t border-gray-300">

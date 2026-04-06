@@ -88,6 +88,12 @@ export default function QuoteSection(props: QuoteSectionProps) {
     queryFn: getQueryFn({ on401: "throw" }),
   });
 
+  const { data: branding } = useQuery<any>({
+    queryKey: ["/api/settings/branding"],
+    queryFn: getQueryFn({ on401: "throw" }),
+    staleTime: Infinity,
+  });
+
   const calculateTaxMutation = useMutation({
     mutationFn: async () => {
       const res = await apiRequest("POST", `/api/projects/${props.projectId}/calculate-tax`);
@@ -571,6 +577,7 @@ export default function QuoteSection(props: QuoteSectionProps) {
         allArtworkCharges={data.allArtworkCharges}
         serviceCharges={data.serviceCharges}
         assignedUser={data.assignedUser}
+        sellerName={branding?.companyName}
       />
 
       {/* Document Editor Modal */}

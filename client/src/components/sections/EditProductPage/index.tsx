@@ -64,6 +64,93 @@ interface EditProductPageProps {
   data: ProjectData;
 }
 
+// ── Sizes & Colors Dialog (CommonSKU-style batch line creation) ──
+function SizesColorsDialog({ open, onClose, colors, sizes, onDone }: {
+  open: boolean;
+  onClose: () => void;
+  colors: string[];
+  sizes: string[];
+  onDone: (entries: { color: string; size: string; quantity: number }[]) => void;
+}) {
+  const [selectedColor, setSelectedColor] = useState(colors[0] || "");
+  const effectiveSizes = sizes.length > 0 ? sizes : [""];
+  const [sizeQtys, setSizeQtys] = useState<Record<string, number>>(
+    Object.fromEntries(effectiveSizes.map(s => [s, 0]))
+  );
+
+  const handleDone = () => {
+    const entries = Object.entries(sizeQtys)
+      .filter(([, qty]) => qty > 0)
+      .map(([size, quantity]) => ({ color: selectedColor, size, quantity }));
+    if (entries.length > 0) onDone(entries);
+  };
+
+  const totalQty = Object.values(sizeQtys).reduce((s, q) => s + q, 0);
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Add Sizes & Colors</DialogTitle>
+        </DialogHeader>
+        <div className="flex gap-4 min-h-[250px]">
+          {colors.length > 0 && (
+            <div className="w-1/2 border-r pr-4">
+              <Label className="mb-2 block text-xs font-semibold text-gray-500 uppercase">Color</Label>
+              <div className="max-h-[280px] overflow-y-auto space-y-0.5">
+                {colors.map(c => (
+                  <button
+                    key={c}
+                    type="button"
+                    className={`w-full text-left px-3 py-1.5 rounded text-sm transition-colors ${
+                      selectedColor === c ? "bg-blue-100 text-blue-700 font-medium ring-1 ring-blue-300" : "hover:bg-gray-50"
+                    }`}
+                    onClick={() => setSelectedColor(c)}
+                  >
+                    {c}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          <div className={colors.length > 0 ? "w-1/2" : "w-full"}>
+            <div className="flex justify-between mb-2">
+              <Label className="text-xs font-semibold text-gray-500 uppercase">Size</Label>
+              <Label className="text-xs font-semibold text-gray-500 uppercase">Quantity</Label>
+            </div>
+            <div className="space-y-2">
+              {effectiveSizes.map(s => (
+                <div key={s || "default"} className="flex items-center justify-between gap-3">
+                  <span className="text-sm font-medium">{s || "Default"}</span>
+                  <Input
+                    type="number"
+                    min={0}
+                    className="w-20 h-8 text-sm text-center"
+                    value={sizeQtys[s] || 0}
+                    onChange={(e) => setSizeQtys(prev => ({ ...prev, [s]: parseInt(e.target.value) || 0 }))}
+                  />
+                </div>
+              ))}
+            </div>
+            {totalQty > 0 && (
+              <div className="mt-3 pt-2 border-t text-xs text-gray-500 text-right">
+                Total: <strong className="text-gray-800">{totalQty} units</strong>
+                {selectedColor && <span className="ml-2">in {selectedColor}</span>}
+              </div>
+            )}
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button disabled={totalQty === 0} onClick={handleDone}>
+            Add {totalQty > 0 ? `${totalQty} Items` : ""}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export default function EditProductPage({ projectId, itemId, data }: EditProductPageProps) {
   const editProductPage = useEditProductPage(projectId, itemId, data);
   const [showMatrixDialog, setShowMatrixDialog] = useState(false);
@@ -209,10 +296,16 @@ export default function EditProductPage({ projectId, itemId, data }: EditProduct
                 {editProductPage.isPriceLocked ? <Lock className="w-3 h-3 mr-1" /> : <LockOpen className="w-3 h-3 mr-1" />}
                 {editProductPage.isPriceLocked ? "Price Locked" : "Lock Price"}
               </Button>
-              <Button variant="outline" size="sm" onClick={editProductPage.addLine}>
+              <Button variant="outline" size="sm" onClick={() => editProductPage.addLine()}>
                 <Plus className="w-3 h-3 mr-1" />
                 Add Line
               </Button>
+              {(editProductPage.productCatalog.colors.length > 0 || editProductPage.productCatalog.sizes.length > 0) && (
+                <Button variant="default" size="sm" onClick={() => editProductPage.setShowSizesColors(true)}>
+                  <Grid3X3 className="w-3 h-3 mr-1" />
+                  Add Sizes & Colors
+                </Button>
+              )}
             </div>
           </div>
 
@@ -386,26 +479,30 @@ export default function EditProductPage({ projectId, itemId, data }: EditProduct
               return <p className="text-xs text-gray-400">No charges added</p>;
             }
 
-            const renderCharge = (charge: any) => (
+            const renderCharge = (charge: any) => {
+              const cNetCost = parseFloat(charge.netCost || "0");
+              const cRetail = parseFloat(charge.retailPrice || charge.amount || "0");
+              const cMargin = parseFloat(charge.margin || "0");
+              const cQty = charge.chargeCategory === "run" ? (editProductPage.lineTotals.qty || 1) : (charge.quantity || 1);
+              return (
               <div key={charge.id} className="flex items-center justify-between rounded-md border bg-white px-3 py-2 text-sm">
-                <div className="flex items-center gap-2">
-                  <span className="font-medium">{charge.description}</span>
-                  <Badge variant="outline" className="text-[10px]">
-                    {charge.chargeType === "percentage" ? <Percent className="w-2.5 h-2.5 mr-0.5" /> : <DollarSign className="w-2.5 h-2.5 mr-0.5" />}
-                    {charge.chargeType}
-                  </Badge>
-                  {charge.isVendorCharge && (
-                    <Badge variant="secondary" className="text-[10px]">vendor</Badge>
-                  )}
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="font-medium truncate">{charge.description}</span>
                   {charge.includeInUnitPrice && (
-                    <Badge variant="outline" className="text-[10px] border-blue-200 text-blue-600">
-                      {charge.chargeCategory === "run" ? "included in price" : "absorbed in margin"}
+                    <Badge variant="outline" className="text-[10px] border-blue-200 text-blue-600 shrink-0">
+                      {charge.chargeCategory === "run" ? "in price" : "in margin"}
                     </Badge>
                   )}
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-3 shrink-0">
+                  {cNetCost > 0 && (
+                    <span className="text-xs text-gray-400">Cost: ${cNetCost.toFixed(2)}</span>
+                  )}
+                  {cMargin > 0 && (
+                    <span className={`text-xs ${cMargin >= 40 ? "text-green-600" : cMargin >= 30 ? "text-yellow-600" : "text-red-600"}`}>{cMargin.toFixed(1)}%</span>
+                  )}
                   <span className={`font-semibold ${charge.includeInUnitPrice ? "text-gray-400 line-through" : ""}`}>
-                    ${parseFloat(charge.amount || "0").toFixed(2)}
+                    ${cRetail.toFixed(2)}{cQty > 1 ? ` x${cQty}` : ""}
                   </span>
                   <Button
                     variant="ghost" size="sm" className="h-6 w-6 p-0"
@@ -417,6 +514,10 @@ export default function EditProductPage({ projectId, itemId, data }: EditProduct
                         chargeType: charge.chargeType || "flat",
                         chargeCategory: charge.chargeCategory || "fixed",
                         amount: parseFloat(charge.amount || "0"),
+                        netCost: parseFloat(charge.netCost || "0"),
+                        retailPrice: parseFloat(charge.retailPrice || charge.amount || "0"),
+                        margin: parseFloat(charge.margin || "0"),
+                        quantity: charge.quantity || 1,
                         isVendorCharge: charge.isVendorCharge || false,
                         displayToClient: charge.displayToClient !== false,
                         includeInUnitPrice: charge.includeInUnitPrice || false,
@@ -449,6 +550,7 @@ export default function EditProductPage({ projectId, itemId, data }: EditProduct
                 </div>
               </div>
             );
+            };
 
             return (
               <div className="space-y-4">
@@ -472,6 +574,53 @@ export default function EditProductPage({ projectId, itemId, data }: EditProduct
           })()}
         </CardContent>
       </Card>
+
+      {/* Per-Item Summary (CommonSKU-style: Subtotal / Tax / Total) */}
+      {(() => {
+        const subtotal = editProductPage.lineTotals.revenue + editProductPage.totalCharges;
+        const currentTaxCode = (taxCodes || []).find((tc: any) => tc.id === editProductPage.editItemData.taxCodeId);
+        const taxRate = currentTaxCode ? parseFloat(currentTaxCode.rate || "0") : 0;
+        const taxLabel = currentTaxCode ? `${currentTaxCode.label} (${taxRate}%)` : "No Tax";
+        const taxAmount = subtotal * (taxRate / 100);
+        const total = subtotal + taxAmount;
+
+        return (
+          <div className="flex justify-end">
+            <div className="w-72 bg-gray-50 rounded-lg border p-4 space-y-2">
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-600">Subtotal</span>
+                <span className="font-medium">${subtotal.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between items-center text-sm">
+                <div className="flex items-center gap-2">
+                  <span className="text-gray-600">Tax</span>
+                  <Select
+                    value={editProductPage.editItemData.taxCodeId || "none"}
+                    onValueChange={(val) => editProductPage.setEditItemData((d: any) => ({ ...d, taxCodeId: val === "none" ? "" : val }))}
+                  >
+                    <SelectTrigger className="h-7 w-[140px] text-xs">
+                      <SelectValue placeholder="Select tax" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Exempt (0%)</SelectItem>
+                      {(taxCodes || []).map((tc: any) => (
+                        <SelectItem key={tc.id} value={tc.id}>
+                          {tc.label} ({parseFloat(tc.rate)}%)
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <span className="font-medium">${taxAmount.toFixed(2)}</span>
+              </div>
+              <div className="border-t pt-2 flex justify-between text-sm font-bold">
+                <span>Total</span>
+                <span>${total.toFixed(2)}</span>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Artwork */}
       <Card>
@@ -541,8 +690,8 @@ export default function EditProductPage({ projectId, itemId, data }: EditProduct
               </div>
             </div>
             <Button variant="outline" size="sm" onClick={() => editProductPage.setPickingArtwork(true)}>
-              <Upload className="w-3 h-3 mr-1" />
-              Add Artwork
+              <Plus className="w-3 h-3 mr-1" />
+              Decoration Location
             </Button>
           </div>
 
@@ -871,10 +1020,54 @@ export default function EditProductPage({ projectId, itemId, data }: EditProduct
               })}
             </div>
           ) : (
-            <p className="text-xs text-gray-400">No artwork yet — click "Add Artwork" to upload</p>
+            <p className="text-xs text-gray-400">No decorations yet — click "+ Decoration Location" to add imprint locations (front, back, sleeve, etc.)</p>
           )}
         </CardContent>
       </Card>
+
+      {/* Decoration Margin Summary */}
+      {editProductPage.artworks.length > 0 && (() => {
+        let decoRevenue = 0;
+        let decoCost = 0;
+        editProductPage.artworks.forEach((art: any) => {
+          const charges = editProductPage.allArtworkCharges[art.id] || [];
+          charges.forEach((c: any) => {
+            const retail = parseFloat(c.retailPrice || "0");
+            const cost = parseFloat(c.netCost || "0");
+            const qty = c.chargeCategory === "run" ? (editProductPage.lineTotals.qty || 1) : (c.quantity || 1);
+            decoRevenue += retail * qty;
+            decoCost += cost * qty;
+          });
+        });
+        if (decoRevenue === 0 && decoCost === 0) return null;
+        const decoMargin = decoRevenue > 0 ? ((decoRevenue - decoCost) / decoRevenue) * 100 : 0;
+        const decoProfit = decoRevenue - decoCost;
+        return (
+          <div className="flex justify-end">
+            <div className="w-72 bg-purple-50/60 rounded-lg border border-purple-100 p-4 space-y-1">
+              <p className="text-xs font-semibold text-purple-700 uppercase tracking-wide mb-2">Decoration Summary</p>
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-600">Revenue</span>
+                <span className="font-medium">${decoRevenue.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-600">Cost</span>
+                <span className="font-medium">${decoCost.toFixed(2)}</span>
+              </div>
+              <div className="border-t border-purple-200 pt-1 flex justify-between text-sm">
+                <span className="text-gray-600">Margin</span>
+                <span className={`font-bold ${decoMargin >= 40 ? "text-green-600" : decoMargin >= 30 ? "text-yellow-600" : "text-red-600"}`}>
+                  {decoMargin.toFixed(1)}%
+                </span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-600">Profit</span>
+                <span className="font-bold">${decoProfit.toFixed(2)}</span>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Bottom save bar */}
       <div className="flex items-center justify-end gap-2 pb-8">
@@ -932,28 +1125,87 @@ export default function EditProductPage({ projectId, itemId, data }: EditProduct
                 placeholder={editProductPage.newCharge.chargeCategory === "run" ? "e.g., Setup Fee per unit, Imprint Charge" : "e.g., Screen Setup, PMS Color Match"}
               />
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            {/* Quantity (for fixed charges) */}
+            {editProductPage.newCharge.chargeCategory === "fixed" && (
               <div>
-                <Label>Type</Label>
-                <Select value={editProductPage.newCharge.chargeType} onValueChange={(v) => editProductPage.setNewCharge(c => ({ ...c, chargeType: v }))}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="flat">Flat Fee</SelectItem>
-                    <SelectItem value="percentage">Percentage</SelectItem>
-                  </SelectContent>
-                </Select>
+                <Label>Quantity</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  value={editProductPage.newCharge.quantity}
+                  onChange={(e) => editProductPage.setNewCharge(c => ({ ...c, quantity: parseInt(e.target.value) || 1 }))}
+                />
               </div>
+            )}
+            {/* Net Cost / Margin / Retail Price (CommonSKU-style) */}
+            <div className="grid grid-cols-3 gap-3">
               <div>
-                <Label>Amount *</Label>
+                <Label>Net Cost *</Label>
                 <Input
                   type="number"
                   step="0.01"
                   min={0}
-                  value={editProductPage.newCharge.amount}
-                  onChange={(e) => editProductPage.setNewCharge(c => ({ ...c, amount: parseFloat(e.target.value) || 0 }))}
+                  value={editProductPage.newCharge.netCost || ""}
+                  placeholder="0.00"
+                  onChange={(e) => {
+                    const cost = parseFloat(e.target.value) || 0;
+                    editProductPage.setNewCharge(c => {
+                      const m = c.margin || 0;
+                      const retail = m > 0 && m < 100 ? parseFloat((cost / (1 - m / 100)).toFixed(2)) : cost;
+                      return { ...c, netCost: cost, retailPrice: retail, amount: retail };
+                    });
+                  }}
+                />
+              </div>
+              <div>
+                <Label>Margin %</Label>
+                <Input
+                  type="number"
+                  step="0.5"
+                  min={0}
+                  max={99.99}
+                  value={editProductPage.newCharge.margin || ""}
+                  placeholder="0"
+                  onChange={(e) => {
+                    const m = parseFloat(e.target.value) || 0;
+                    editProductPage.setNewCharge(c => {
+                      const cost = c.netCost || 0;
+                      const retail = cost > 0 && m > 0 && m < 100 ? parseFloat((cost / (1 - m / 100)).toFixed(2)) : cost;
+                      return { ...c, margin: m, retailPrice: retail, amount: retail };
+                    });
+                  }}
+                />
+              </div>
+              <div>
+                <Label>Retail Price *</Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  min={0}
+                  value={editProductPage.newCharge.retailPrice || ""}
+                  placeholder="0.00"
+                  onChange={(e) => {
+                    const retail = parseFloat(e.target.value) || 0;
+                    editProductPage.setNewCharge(c => {
+                      const cost = c.netCost || 0;
+                      const m = retail > 0 && cost > 0 ? parseFloat(((retail - cost) / retail * 100).toFixed(2)) : 0;
+                      return { ...c, retailPrice: retail, margin: m, amount: retail };
+                    });
+                  }}
                 />
               </div>
             </div>
+            {/* Margin preview */}
+            {editProductPage.newCharge.netCost > 0 && editProductPage.newCharge.retailPrice > 0 && (
+              <div className="text-xs text-gray-500 bg-gray-50 rounded px-3 py-1.5 flex justify-between">
+                <span>Profit: <strong className={editProductPage.newCharge.margin >= 40 ? "text-green-600" : editProductPage.newCharge.margin >= 30 ? "text-yellow-600" : "text-red-600"}>
+                  ${(editProductPage.newCharge.retailPrice - editProductPage.newCharge.netCost).toFixed(2)}
+                </strong></span>
+                <span>Margin: <strong className={editProductPage.newCharge.margin >= 40 ? "text-green-600" : editProductPage.newCharge.margin >= 30 ? "text-yellow-600" : "text-red-600"}>
+                  {editProductPage.newCharge.margin.toFixed(1)}%
+                </strong></span>
+              </div>
+            )}
             <div className="flex items-center gap-2">
               <input type="checkbox" id="ep-vendor-charge" checked={editProductPage.newCharge.isVendorCharge} onChange={(e) => editProductPage.setNewCharge(c => ({ ...c, isVendorCharge: e.target.checked }))} className="rounded border-gray-300" />
               <Label htmlFor="ep-vendor-charge" className="font-normal text-sm">This is a vendor charge (cost, not revenue)</Label>
@@ -974,13 +1226,17 @@ export default function EditProductPage({ projectId, itemId, data }: EditProduct
           <DialogFooter>
             <Button variant="outline" onClick={() => { editProductPage.setShowAddCharge(false); editProductPage.setEditingCharge(null); }}>Cancel</Button>
             <Button
-              disabled={!editProductPage.newCharge.description || editProductPage.newCharge.amount <= 0 || editProductPage.addChargeMutation.isPending || editProductPage.updateChargeMutation.isPending}
+              disabled={!editProductPage.newCharge.description || (editProductPage.newCharge.retailPrice <= 0 && editProductPage.newCharge.amount <= 0) || editProductPage.addChargeMutation.isPending || editProductPage.updateChargeMutation.isPending}
               onClick={() => {
                 const chargeData = {
                   description: editProductPage.newCharge.description,
                   chargeType: editProductPage.newCharge.chargeType,
                   chargeCategory: editProductPage.newCharge.chargeCategory,
-                  amount: editProductPage.newCharge.amount.toFixed(2),
+                  amount: (editProductPage.newCharge.retailPrice || editProductPage.newCharge.amount).toFixed(2),
+                  netCost: editProductPage.newCharge.netCost.toFixed(4),
+                  retailPrice: (editProductPage.newCharge.retailPrice || editProductPage.newCharge.amount).toFixed(2),
+                  margin: editProductPage.newCharge.margin.toFixed(2),
+                  quantity: editProductPage.newCharge.chargeCategory === "fixed" ? editProductPage.newCharge.quantity : 1,
                   isVendorCharge: editProductPage.newCharge.isVendorCharge,
                   displayToClient: editProductPage.newCharge.includeInUnitPrice ? false : editProductPage.newCharge.displayToClient,
                   includeInUnitPrice: editProductPage.newCharge.includeInUnitPrice,
@@ -988,7 +1244,7 @@ export default function EditProductPage({ projectId, itemId, data }: EditProduct
                 const onSuccess = () => {
                   editProductPage.setShowAddCharge(false);
                   editProductPage.setEditingCharge(null);
-                  editProductPage.setNewCharge({ description: "", chargeType: "flat", chargeCategory: "fixed", amount: 0, isVendorCharge: false, displayToClient: true, includeInUnitPrice: false });
+                  editProductPage.setNewCharge({ description: "", chargeType: "flat", chargeCategory: "fixed", amount: 0, netCost: 0, retailPrice: 0, margin: 0, quantity: 1, isVendorCharge: false, displayToClient: true, includeInUnitPrice: false });
                 };
                 if (editProductPage.editingCharge) {
                   editProductPage.updateChargeMutation.mutate({
@@ -1225,6 +1481,30 @@ export default function EditProductPage({ projectId, itemId, data }: EditProduct
           />
         );
       })()}
+
+      {/* ADD SIZES & COLORS DIALOG */}
+      {editProductPage.showSizesColors && (
+        <SizesColorsDialog
+          open={editProductPage.showSizesColors}
+          onClose={() => editProductPage.setShowSizesColors(false)}
+          colors={editProductPage.productCatalog.colors}
+          sizes={editProductPage.productCatalog.sizes}
+          onDone={(entries) => {
+            const defaultCost = editProductPage.editableLines[0]?.cost || 0;
+            const defaultPrice = editProductPage.editableLines[0]?.unitPrice || 0;
+            entries.forEach(({ color, size, quantity }) => {
+              editProductPage.addLine({
+                color,
+                size,
+                quantity,
+                cost: defaultCost,
+                unitPrice: defaultPrice,
+              });
+            });
+            editProductPage.setShowSizesColors(false);
+          }}
+        />
+      )}
     </div>
   );
 }

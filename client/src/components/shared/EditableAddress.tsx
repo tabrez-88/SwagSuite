@@ -30,6 +30,7 @@ export interface AddressData {
   contactName?: string;
   email?: string;
   street?: string;
+  street2?: string;
   address?: string;
   city?: string;
   state?: string;
@@ -97,6 +98,7 @@ export default function EditableAddress({
     contactName: "",
     email: "",
     street: "",
+    street2: "",
     city: "",
     state: "",
     zipCode: "",
@@ -113,6 +115,7 @@ export default function EditableAddress({
       contactName: companyAddr.companyNameOnDocs || formData.contactName || contactFullName,
       email: primaryContact?.email || formData.email || "",
       street: companyAddr.street || "",
+      street2: (companyAddr as any).street2 || "",
       city: companyAddr.city || "",
       state: companyAddr.state || "",
       zipCode: companyAddr.zipCode || "",
@@ -131,6 +134,7 @@ export default function EditableAddress({
           contactName: addr.contactName || "",
           email: addr.email || "",
           street: addr.street || addr.address || "",
+          street2: addr.street2 || "",
           city: addr.city || "",
           state: addr.state || "",
           zipCode: addr.zipCode || "",
@@ -150,6 +154,7 @@ export default function EditableAddress({
           contactName: contactFullName,
           email: primaryContact?.email || "",
           street: "",
+          street2: "",
           city: "",
           state: "",
           zipCode: "",
@@ -171,6 +176,7 @@ export default function EditableAddress({
       onSave({
         [field]: JSON.stringify({
           street: formData.street,
+          street2: formData.street2,
           city: formData.city,
           state: formData.state,
           zipCode: formData.zipCode,
@@ -227,6 +233,7 @@ export default function EditableAddress({
                           contactName: billingAddr.contactName || "",
                           email: billingAddr.email || "",
                           street: billingAddr.street || billingAddr.address || "",
+                          street2: billingAddr.street2 || "",
                           city: billingAddr.city || "",
                           state: billingAddr.state || "",
                           zipCode: billingAddr.zipCode || "",
@@ -284,6 +291,10 @@ export default function EditableAddress({
                 placeholder="123 Main St"
               />
             </div>
+            <div>
+              <Label className="text-xs">Apt / Suite / Unit</Label>
+              <Input value={formData.street2} onChange={(e) => handleFieldChange("street2", e.target.value)} placeholder="Apt 4B, Suite 200, etc." className="h-8 text-sm" />
+            </div>
             <div className="grid grid-cols-3 gap-3">
               <div>
                 <Label className="text-xs">City</Label>
@@ -328,6 +339,7 @@ export default function EditableAddress({
         ) : hasAddress ? (
           <div className="text-sm">
             {displayStreet && <p>{displayStreet}</p>}
+            {addr.street2 && <p>{addr.street2}</p>}
             {displayLine2 && <p>{displayLine2}</p>}
             {addr.contactName && <p className="text-gray-500 mt-1">Attn: {addr.contactName}</p>}
             {addr.email && <p className="text-gray-500">{addr.email}</p>}

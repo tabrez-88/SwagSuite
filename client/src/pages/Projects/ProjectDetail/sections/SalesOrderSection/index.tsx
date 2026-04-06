@@ -63,6 +63,12 @@ export default function SalesOrderSection(props: SalesOrderSectionProps) {
     queryFn: getQueryFn({ on401: "throw" }),
   });
 
+  const { data: branding } = useQuery<any>({
+    queryKey: ["/api/settings/branding"],
+    queryFn: getQueryFn({ on401: "throw" }),
+    staleTime: Infinity,
+  });
+
   const calculateTaxMutation = useMutation({
     mutationFn: async () => {
       const res = await apiRequest("POST", `/api/projects/${projectId}/calculate-tax`);
@@ -511,6 +517,7 @@ export default function SalesOrderSection(props: SalesOrderSectionProps) {
         allArtworkCharges={hook.data.allArtworkCharges}
         serviceCharges={hook.data.serviceCharges}
         assignedUser={hook.data.assignedUser}
+        sellerName={branding?.companyName}
       />
 
       {/* Document Editor Modal */}

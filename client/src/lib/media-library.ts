@@ -33,16 +33,23 @@ export interface ActivityAttachment {
 
 export function getCloudinaryThumbnail(url: string, width = 200, height = 200): string {
   if (!url.includes("cloudinary.com")) return url;
-  return url.replace("/upload/", `/upload/w_${width},h_${height},c_fill,q_auto,f_auto/`);
+  const cleanUrl = url.split("?")[0].toLowerCase();
+  // Design files (AI/EPS/PSD) need explicit PNG conversion + page 1 extraction
+  const isDesignFile = /\.(ai|eps|psd)$/.test(cleanUrl);
+  const format = isDesignFile ? "f_png,pg_1" : "f_auto";
+  return url.replace("/upload/", `/upload/w_${width},h_${height},c_fill,q_auto,${format}/`);
 }
 
 export function isImageFile(mimeType: string | null, url?: string | null): boolean {
   if (mimeType?.startsWith("image/")) return true;
-  // Fallback: detect from URL or file extension when mimeType is missing
-  if (!mimeType && url) {
+  if (url) {
     const cleanUrl = url.split("?")[0].split("#")[0].toLowerCase();
-    return /\.(jpe?g|png|gif|webp|svg|bmp|ico|tiff?)$/.test(cleanUrl) ||
-      cleanUrl.includes("/image/upload/"); // Cloudinary image URLs
+    // Standard image extensions
+    if (/\.(jpe?g|png|gif|webp|svg|bmp|ico|tiff?)$/.test(cleanUrl)) return true;
+    // Cloudinary image uploads (includes design files that Cloudinary can render)
+    if (cleanUrl.includes("/image/upload/")) return true;
+    // Design files on Cloudinary — renderable as thumbnails via f_png transform
+    if (cleanUrl.includes("cloudinary.com") && /\.(ai|eps|psd)$/.test(cleanUrl)) return true;
   }
   return false;
 }

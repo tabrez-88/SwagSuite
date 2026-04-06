@@ -283,26 +283,30 @@ export default function OrderItemCard({ item, productSection }: OrderItemCardPro
                 const runCharges = charges.filter((c: any) => c.chargeCategory === "run");
                 const fixedCharges = charges.filter((c: any) => c.chargeCategory !== "run");
 
-                const renderCharge = (charge: any) => (
+                const renderCharge = (charge: any) => {
+                  const cNetCost = parseFloat(charge.netCost || "0");
+                  const cRetail = parseFloat(charge.retailPrice || charge.amount || "0");
+                  const cMargin = parseFloat(charge.margin || "0");
+                  const cQty = charge.chargeCategory === "run" ? (item.quantity || 1) : (charge.quantity || 1);
+                  return (
                   <div key={charge.id} className="flex items-center justify-between rounded-md border bg-white px-3 py-2 text-sm">
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium">{charge.description}</span>
-                      <Badge variant="outline" className="text-[10px]">
-                        {charge.chargeType === "percentage" ? <Percent className="w-2.5 h-2.5 mr-0.5" /> : <DollarSign className="w-2.5 h-2.5 mr-0.5" />}
-                        {charge.chargeType}
-                      </Badge>
-                      {charge.isVendorCharge && (
-                        <Badge variant="secondary" className="text-[10px]">vendor</Badge>
-                      )}
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="font-medium truncate">{charge.description}</span>
                       {charge.includeInUnitPrice && (
-                        <Badge variant="outline" className="text-[10px] border-blue-200 text-blue-600">
-                          {charge.chargeCategory === "run" ? "included in price" : "absorbed in margin"}
+                        <Badge variant="outline" className="text-[10px] border-blue-200 text-blue-600 shrink-0">
+                          {charge.chargeCategory === "run" ? "in price" : "in margin"}
                         </Badge>
                       )}
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-3 shrink-0">
+                      {cNetCost > 0 && (
+                        <span className="text-xs text-gray-400">Cost: ${cNetCost.toFixed(2)}</span>
+                      )}
+                      {cMargin > 0 && (
+                        <span className={`text-xs ${cMargin >= 40 ? "text-green-600" : cMargin >= 30 ? "text-yellow-600" : "text-red-600"}`}>{cMargin.toFixed(1)}%</span>
+                      )}
                       <span className={`font-semibold ${charge.includeInUnitPrice ? "text-gray-400 line-through" : ""}`}>
-                        ${parseFloat(charge.amount || "0").toFixed(2)}
+                        ${cRetail.toFixed(2)}{cQty > 1 ? ` x${cQty}` : ""}
                       </span>
                       {charge.displayToClient !== false
                         ? <Eye className="w-3 h-3 text-blue-400" />
@@ -310,7 +314,8 @@ export default function OrderItemCard({ item, productSection }: OrderItemCardPro
                       }
                     </div>
                   </div>
-                );
+                  );
+                };
 
                 return (
                   <div className="space-y-3">

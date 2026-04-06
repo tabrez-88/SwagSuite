@@ -134,17 +134,17 @@ export function useEditProductPage(projectId: string, itemId: string, data: Proj
     setEditableLines(prev => prev.map(l => l.id === id ? { ...l, ...updates } : l));
   }, []);
 
-  const addLine = () => {
+  const addLine = (initial?: { color?: string; size?: string; quantity?: number; cost?: number; unitPrice?: number }) => {
     const lastLine = editableLines[editableLines.length - 1];
     setEditableLines(prev => [...prev, {
       id: crypto.randomUUID(),
       isExisting: false,
       orderItemId: itemId,
-      color: "",
-      size: "",
-      quantity: 1,
-      cost: lastLine?.cost || 0,
-      unitPrice: lastLine?.unitPrice || 0,
+      color: initial?.color || "",
+      size: initial?.size || "",
+      quantity: initial?.quantity || 1,
+      cost: initial?.cost ?? lastLine?.cost ?? 0,
+      unitPrice: initial?.unitPrice ?? lastLine?.unitPrice ?? 0,
     }]);
   };
 
@@ -192,12 +192,30 @@ export function useEditProductPage(projectId: string, itemId: string, data: Proj
     { qty: 0, cost: 0, revenue: 0 }
   );
 
-  const totalCharges = charges
-    .filter((c: any) => !c.includeInUnitPrice)
-    .reduce((s, c) => s + parseFloat(c.amount || "0"), 0);
+  // Charge revenue: retailPrice for displayToClient charges (not includeInUnitPrice)
+  const chargeRevenue = charges
+    .filter((c: any) => !c.includeInUnitPrice && c.displayToClient !== false)
+    .reduce((s, c) => {
+      const retail = parseFloat(c.retailPrice || c.amount || "0");
+      const qty = c.chargeCategory === "run" ? (lineTotals.qty || 1) : (c.quantity || 1);
+      return s + retail * qty;
+    }, 0);
 
-  const margin = (lineTotals.revenue + totalCharges) > 0
-    ? (((lineTotals.revenue + totalCharges) - lineTotals.cost) / (lineTotals.revenue + totalCharges)) * 100
+  // Charge cost: netCost for ALL charges (including absorbed ones)
+  const chargeCost = charges.reduce((s, c) => {
+    const cost = parseFloat(c.netCost || "0");
+    const qty = c.chargeCategory === "run" ? (lineTotals.qty || 1) : (c.quantity || 1);
+    return s + cost * qty;
+  }, 0);
+
+  // Legacy: total charges for display (backward compat)
+  const totalCharges = chargeRevenue;
+
+  // Overall margin: (total revenue - total cost) / total revenue
+  const totalRevenue = lineTotals.revenue + chargeRevenue;
+  const totalCost = lineTotals.cost + chargeCost;
+  const margin = totalRevenue > 0
+    ? ((totalRevenue - totalCost) / totalRevenue) * 100
     : 0;
 
   // ── Dirty check ──
@@ -269,7 +287,20 @@ export function useEditProductPage(projectId: string, itemId: string, data: Proj
   // ── Charge dialog ──
   const [showAddCharge, setShowAddCharge] = useState(false);
   const [editingCharge, setEditingCharge] = useState<any>(null); // charge being edited, or null for add mode
-  const [newCharge, setNewCharge] = useState({ description: "", chargeType: "flat", chargeCategory: "fixed" as "run" | "fixed", amount: 0, isVendorCharge: false, displayToClient: true, includeInUnitPrice: false });
+  const [newCharge, setNewCharge] = useState({ description: "", chargeType: "flat", chargeCategory: "fixed" as "run" | "fixed", amount: 0, netCost: 0, retailPrice: 0, margin: 0, quantity: 1, isVendorCharge: false, displayToClient: true, includeInUnitPrice: false });
+
+  // ── Add Sizes & Colors dialog ──
+  const [showSizesColors, setShowSizesColors] = useState(false);
+
+  // Get available colors/sizes from product catalog
+  const productCatalog = useMemo(() => {
+    if (!item) return { colors: [] as string[], sizes: [] as string[] };
+    const currentProduct = allProducts.find((p: any) => p.id === item.productId);
+    return {
+      colors: (currentProduct?.colors || []) as string[],
+      sizes: (currentProduct?.sizes || []) as string[],
+    };
+  }, [item, allProducts]);
 
   // ── Artwork file picker (for adding additional files to existing artwork) ──
   const [addingFileToArtworkId, setAddingFileToArtworkId] = useState<string | null>(null);
@@ -566,5 +597,9 @@ export function useEditProductPage(projectId: string, itemId: string, data: Proj
     isSaving,
     hasChanges,
     itemId,
+    // Sizes & Colors dialog
+    showSizesColors,
+    setShowSizesColors,
+    productCatalog,
   };
 }

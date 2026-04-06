@@ -60,7 +60,8 @@ export default function GeneratedDocumentCard({
     if (doc.fileUrl) {
       const link = document.createElement("a");
       link.href = doc.fileUrl;
-      let fileName = doc.fileName || `${doc.documentType}-${doc.documentNumber}`;
+      const typeLabel = (doc.documentType || "document").replace(/_/g, "-").replace(/\b\w/g, (c: string) => c.toUpperCase());
+      let fileName = doc.fileName || `${typeLabel}-${doc.documentNumber}`;
       if (!fileName.toLowerCase().endsWith(".pdf")) {
         fileName = fileName.replace(/\.[^/.]+$/, "") + ".pdf";
       }

@@ -407,7 +407,7 @@ export default function ShippingSection({ projectId, data, isLocked }: ShippingS
                 <div>
                   <Label>Ship To *</Label>
                   <Select value={h.editShippingForm.shippingDestination}
-                    onValueChange={(v) => h.setEditShippingForm(f => ({ ...f, shippingDestination: v }))}>
+                    onValueChange={(v) => h.handleDestinationChange(v)}>
                     <SelectTrigger><SelectValue placeholder="Select destination" /></SelectTrigger>
                     <SelectContent>
                       {SHIP_TO_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}

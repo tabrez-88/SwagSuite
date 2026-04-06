@@ -699,6 +699,7 @@ export default function PurchaseOrdersSection({ projectId, data, isLocked }: Pur
             poNumber={poNumber}
             artworkItems={h.getVendorArtworks(vendorKey)}
             allArtworkCharges={data.allArtworkCharges}
+            allItemCharges={data.allItemCharges || {}}
             vendorIHD={h.getVendorDoc(vendorKey)?.metadata?.supplierIHD || null}
             vendorAddress={h.getVendorDefaultAddress(po.vendor.id)}
             poType={isDecorator ? "decorator" : "supplier"}

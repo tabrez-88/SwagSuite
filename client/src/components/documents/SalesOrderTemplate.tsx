@@ -14,10 +14,11 @@ interface SalesOrderTemplateProps {
   allArtworkCharges?: Record<string, any[]>;
   serviceCharges?: any[];
   assignedUser?: { firstName?: string; lastName?: string; email?: string; profileImageUrl?: string } | null;
+  sellerName?: string;
 }
 
 const SalesOrderTemplate = forwardRef<HTMLDivElement, SalesOrderTemplateProps>(
-  ({ order, orderItems, companyName, primaryContact, allArtworkItems = {}, allItemCharges = {}, allArtworkCharges = {}, serviceCharges = [], assignedUser }, ref) => {
+  ({ order, orderItems, companyName, primaryContact, allArtworkItems = {}, allItemCharges = {}, allArtworkCharges = {}, serviceCharges = [], assignedUser, sellerName }, ref) => {
     const subtotal = orderItems.reduce((sum: number, item: any) => {
       return sum + (parseFloat(item.totalPrice) || 0);
     }, 0);
@@ -69,8 +70,7 @@ const SalesOrderTemplate = forwardRef<HTMLDivElement, SalesOrderTemplateProps>(
               )}
             </div>
             <div className="text-right">
-              <h2 className="text-2xl font-bold mb-1">SwagSuite</h2>
-              <p className="text-sm text-gray-600">Your Promotional Products Partner</p>
+              <h2 className="text-2xl font-bold mb-1">{sellerName || "Liquid Screen Design"}</h2>
               {order?.isFirm && (
                 <div className="mt-2 inline-flex items-center justify-center px-4 py-1.5 bg-blue-100 text-blue-800 text-xs font-bold uppercase tracking-wider rounded">
                   FIRM ORDER
@@ -95,6 +95,7 @@ const SalesOrderTemplate = forwardRef<HTMLDivElement, SalesOrderTemplateProps>(
                   <p>{primaryContact.firstName} {primaryContact.lastName}</p>
                 )}
                 {billingAddr?.street && <p>{billingAddr.street}</p>}
+                {billingAddr?.street2 && <p>{billingAddr.street2}</p>}
                 {billingAddr && (
                   <p>{[billingAddr.city, billingAddr.state, billingAddr.zipCode].filter(Boolean).join(", ")}</p>
                 )}
@@ -113,10 +114,14 @@ const SalesOrderTemplate = forwardRef<HTMLDivElement, SalesOrderTemplateProps>(
                   <>
                     <p className="font-semibold">{companyName}</p>
                     {shippingAddr.contactName && <p>{shippingAddr.contactName}</p>}
+                    {!shippingAddr.contactName && primaryContact && (
+                      <p>{primaryContact.firstName} {primaryContact.lastName}</p>
+                    )}
                     {(shippingAddr.street || shippingAddr.address) && <p>{shippingAddr.street || shippingAddr.address}</p>}
+                    {shippingAddr.street2 && <p>{shippingAddr.street2}</p>}
                     <p>{[shippingAddr.city, shippingAddr.state, shippingAddr.zipCode].filter(Boolean).join(", ")}</p>
-                    {shippingAddr.email && <p>{shippingAddr.email}</p>}
-                    {shippingAddr.phone && <p>{shippingAddr.phone}</p>}
+                    {(shippingAddr.email || primaryContact?.email) && <p>{shippingAddr.email || primaryContact?.email}</p>}
+                    {(shippingAddr.phone || primaryContact?.phone) && <p>{shippingAddr.phone || primaryContact?.phone}</p>}
                   </>
                 ) : (
                   <p className="text-gray-400">Not specified</p>
@@ -171,7 +176,6 @@ const SalesOrderTemplate = forwardRef<HTMLDivElement, SalesOrderTemplateProps>(
                   {/* Product name as section header */}
                   <h3 className="text-base font-bold text-gray-900 mb-3 pb-1 border-b border-gray-300">
                     {item.productName}
-                    {item.productSku && <span className="text-xs font-normal text-gray-500 ml-2">SKU: {item.productSku}</span>}
                   </h3>
                   {(item.description || item.productDescription) && (
                     <p className="text-xs text-gray-600 mb-2 leading-relaxed">{item.description || item.productDescription}</p>
@@ -216,17 +220,18 @@ const SalesOrderTemplate = forwardRef<HTMLDivElement, SalesOrderTemplateProps>(
                           </tr>
                           {/* Per-item charges (run/fixed) */}
                           {itemCharges.map((charge: any) => {
-                            const chargeAmt = parseFloat(charge.amount || "0");
+                            const chargeAmt = parseFloat(charge.retailPrice || charge.amount || "0");
+                            const chargeQty = charge.chargeCategory === "run" ? quantity : (charge.quantity || 1);
                             return (
                               <tr key={charge.id} className="border-b border-gray-100">
                                 <td className="py-1.5 text-xs text-gray-600">
                                   {charge.description}
                                   {charge.chargeCategory === "run" && <span className="text-gray-400 ml-1">(per unit)</span>}
                                 </td>
-                                <td className="py-1.5 text-xs text-center">{charge.chargeCategory === "run" ? quantity : 1}</td>
+                                <td className="py-1.5 text-xs text-center">{chargeQty}</td>
                                 <td className="py-1.5 text-xs text-right">${chargeAmt.toFixed(2)}</td>
                                 <td className="py-1.5 text-xs text-right font-medium">
-                                  ${(charge.chargeCategory === "run" ? chargeAmt * quantity : chargeAmt).toFixed(2)}
+                                  ${(chargeAmt * chargeQty).toFixed(2)}
                                 </td>
                               </tr>
                             );

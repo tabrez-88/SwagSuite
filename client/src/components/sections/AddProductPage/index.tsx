@@ -39,6 +39,7 @@ export default function AddProductPage({ projectId, data }: AddProductPageProps)
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground h-4 w-4" />
               <Input
+                autoFocus
                 value={h.searchQuery}
                 onChange={(e) => h.setSearchQuery(e.target.value)}
                 onKeyDown={h.handleKeyDown}
@@ -51,7 +52,7 @@ export default function AddProductPage({ projectId, data }: AddProductPageProps)
               Search
             </Button>
           </div>
-          <p className="text-xs text-muted-foreground">{hint}</p>
+          <p className="text-xs text-muted-foreground">{hint} Press Enter to search.</p>
         </CardContent>
       </Card>
     );
@@ -319,11 +320,11 @@ export default function AddProductPage({ projectId, data }: AddProductPageProps)
         <h2 className="text-xl font-semibold">Add Product to Order</h2>
       </div>
 
-      {/* Syncing overlay */}
+      {/* Syncing overlay — inline toast-style instead of blocking */}
       {h.isSyncing && (
-        <div className="flex flex-col items-center justify-center py-8">
-          <Loader2 className="w-8 h-8 animate-spin text-blue-500 mb-2" />
-          <p className="text-sm text-muted-foreground">Syncing product to catalog...</p>
+        <div className="flex items-center gap-2 p-3 bg-blue-50 border border-blue-200 rounded-lg mb-2">
+          <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
+          <p className="text-sm text-blue-700">Syncing product to catalog...</p>
         </div>
       )}
 
@@ -358,9 +359,10 @@ export default function AddProductPage({ projectId, data }: AddProductPageProps)
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground h-4 w-4" />
                 <Input
+                  autoFocus
                   value={h.catalogFilter}
                   onChange={(e) => h.setCatalogFilter(e.target.value)}
-                  placeholder="Filter by name, SKU, or description..."
+                  placeholder="Type to search by name, SKU, or description..."
                   className="pl-10"
                 />
               </div>

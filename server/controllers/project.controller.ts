@@ -33,7 +33,18 @@ async function recalculateOrderTotals(orderId: string) {
     : [];
   const additionalChargesTotal = allCharges
     .filter((c: any) => c.displayToClient && !c.includeInUnitPrice)
-    .reduce((sum: number, c: any) => sum + parseFloat(c.amount || "0"), 0);
+    .reduce((sum: number, c: any) => {
+      const retail = parseFloat(c.retailPrice || c.amount || "0");
+      if (c.chargeCategory === "run") {
+        // Run charges: retail per unit * item quantity
+        const parentItem = allItems.find(i => i.id === c.orderItemId);
+        const qty = parentItem?.quantity || 1;
+        return sum + retail * qty;
+      }
+      // Fixed charges: retail * charge quantity
+      const qty = c.quantity || 1;
+      return sum + retail * qty;
+    }, 0);
 
   // Batch fetch artwork charges (per-artwork imprint/setup costs)
   const allArtworks = itemIds.length > 0

@@ -85,8 +85,14 @@ export class ProjectRepository {
     let orderNumber = order.orderNumber;
 
     if (!orderNumber) {
+      // Fetch configurable prefix from company settings
+      const { companySettings } = await import("@shared/schema");
+      const [settings] = await db.select().from(companySettings).limit(1);
+      const configPrefix = settings?.orderNumberPrefix || "ORD";
+      const digits = settings?.orderNumberDigits || 3;
+
       const currentYear = new Date().getFullYear();
-      const prefix = `ORD-${currentYear}-`;
+      const prefix = `${configPrefix}-${currentYear}-`;
 
       // Get the highest order number for current year
       const lastOrder = await db
@@ -98,12 +104,13 @@ export class ProjectRepository {
 
       let nextNumber = 1;
       if (lastOrder.length > 0 && lastOrder[0].orderNumber) {
-        // Extract number from last order (e.g., "ORD-2026-030" -> 30)
-        const lastNumber = parseInt(lastOrder[0].orderNumber.split('-')[2]);
-        nextNumber = lastNumber + 1;
+        // Extract number from last order (e.g., "LSD-2026-030" -> 30)
+        const parts = lastOrder[0].orderNumber.split('-');
+        const lastNumber = parseInt(parts[parts.length - 1]);
+        if (!isNaN(lastNumber)) nextNumber = lastNumber + 1;
       }
 
-      orderNumber = `${prefix}${String(nextNumber).padStart(3, '0')}`;
+      orderNumber = `${prefix}${String(nextNumber).padStart(digits, '0')}`;
     }
 
     const [newOrder] = await db

@@ -18,9 +18,9 @@ export class SettingsController {
 
   static async updateGeneralSettings(req: Request, res: Response) {
     const userId = getUserId(req);
-    const { timezone, currency, dateFormat, defaultMargin, minimumMargin, maxOrderValue, requireApprovalOver } = req.body;
+    const { timezone, currency, dateFormat, defaultMargin, minimumMargin, maxOrderValue, requireApprovalOver, orderNumberPrefix, orderNumberDigits } = req.body;
     const settings = await settingsService.updateGeneralSettings(
-      { timezone, currency, dateFormat, defaultMargin, minimumMargin, maxOrderValue, requireApprovalOver },
+      { timezone, currency, dateFormat, defaultMargin, minimumMargin, maxOrderValue, requireApprovalOver, orderNumberPrefix, orderNumberDigits },
       userId
     );
     res.json(settings);
