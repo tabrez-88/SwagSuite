@@ -24,6 +24,10 @@ export interface IntegrationSettings {
   taxOriginZip: string;
   taxOriginCountry: string;
   shipmateConnected: boolean;
+  // ShipStation
+  shipstationApiKey: string;
+  shipstationApiSecret: string;
+  shipstationConnected: boolean;
 }
 
 export interface ShowFields {
@@ -35,6 +39,8 @@ export interface ShowFields {
   geoapifyApiKey: boolean;
   stripeSecretKey: boolean;
   taxjarApiKey: boolean;
+  shipstationApiKey: boolean;
+  shipstationApiSecret: boolean;
 }
 
 export interface IntegrationField {

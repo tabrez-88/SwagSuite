@@ -1,6 +1,5 @@
 import { ExternalLink, MessageSquare } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useSocialMediaTab } from "./hooks";
 import type { SocialMediaTabProps } from "./types";
 
@@ -8,22 +7,19 @@ export default function SocialMediaTab({ company }: SocialMediaTabProps) {
   const { getSocialMediaIcon, getPlatformColor } = useSocialMediaTab();
 
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <CardTitle className="flex items-center gap-2">
-            <MessageSquare className="h-5 w-5" />
-            Recent Social Media Activity
-          </CardTitle>
-          {company.lastSocialMediaSync && (
-            <p className="text-xs text-muted-foreground">
-              Last synced: {new Date(company.lastSocialMediaSync).toLocaleString()}
-            </p>
-          )}
+    <div className="space-y-4 bg-white p-6 rounded-lg border">
+      <div className="flex items-center justify-between">
+        <div className="flex gap-2 items-center">
+          <MessageSquare className="h-4 w-4" />
+          <h3 className="text-lg font-semibold">Recent Social Media Activity</h3>
         </div>
-      </CardHeader>
-      <CardContent>
-        {company.socialMediaPosts && company.socialMediaPosts.length > 0 ? (
+        {company.lastSocialMediaSync && (
+          <p className="text-xs text-muted-foreground">
+            Last synced: {new Date(company.lastSocialMediaSync).toLocaleString()}
+          </p>
+        )}
+      </div>
+      {company.socialMediaPosts && company.socialMediaPosts.length > 0 ? (
           <div className="space-y-4">
             {company.socialMediaPosts.map((post: any, index: number) => (
               <div key={index} className="border rounded-lg p-4 space-y-3">
@@ -66,7 +62,6 @@ export default function SocialMediaTab({ company }: SocialMediaTabProps) {
             </p>
           </div>
         )}
-      </CardContent>
-    </Card>
+    </div>
   );
 }

@@ -355,7 +355,7 @@ export default function Companies() {
                               href={company.website}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="text-swag-orange hover:underline truncate"
+                              className="text-primary hover:underline truncate"
                               onClick={(e) => e.stopPropagation()}
                             >
                               {company.website.replace(/^https?:\/\//, "")}

@@ -214,7 +214,7 @@ export default function Vendors() {
                                 className="text-blue-600 hover:underline"
                                 onClick={(e) => e.stopPropagation()}
                               >
-                                Website
+                                {(() => { try { return new URL(vendor.website.startsWith("http") ? vendor.website : `https://${vendor.website}`).hostname.replace("www.", ""); } catch { return vendor.website; } })()}
                               </a>
                             </div>
                           )}
@@ -296,13 +296,6 @@ export default function Vendors() {
                               <span className="text-muted-foreground">YTD: ${vendor.ytdSpend.toLocaleString()}</span>
                             </div>
                           )}
-                        </div>
-
-                        <div className="flex items-center flex-wrap gap-2 justify-between">
-                          <Button variant="outline" className="w-full" size="sm">
-                            <Package className="mr-1" size={12} />
-                            View Products
-                          </Button>
                         </div>
                       </CardContent>
                     </Card>

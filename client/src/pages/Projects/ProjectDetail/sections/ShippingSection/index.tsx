@@ -18,8 +18,10 @@ import {
 import {
   Truck, Plus, MapPin, Edit2, Trash2, ExternalLink, Send,
   Calendar, Clock, Loader2, AlertTriangle, CheckCircle2,
-  Package, Pencil, ChevronDown, ChevronUp, Pin, Save,
+  Package, Pencil, ChevronDown, ChevronUp, Pin, Save, Bell, BellOff, Mail,
 } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import EmailComposer from "@/components/email/EmailComposer";
 import { apiRequest } from "@/lib/queryClient";
 import TimelineWarningBanner from "@/components/shared/TimelineWarningBanner";
@@ -50,6 +52,59 @@ export default function ShippingSection({ projectId, data, isLocked }: ShippingS
         <h2 className="text-xl font-semibold flex items-center gap-2">
           <Truck className="w-5 h-5" /> Shipping
         </h2>
+        <TooltipProvider>
+          <div className="flex items-center gap-4">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="flex items-center gap-2">
+                  {(h.order as any)?.enableShippingNotifications !== false ? (
+                    <Bell className="w-4 h-4 text-blue-600" />
+                  ) : (
+                    <BellOff className="w-4 h-4 text-gray-400" />
+                  )}
+                  <span className="text-xs text-muted-foreground">Notifications</span>
+                  <Switch
+                    checked={(h.order as any)?.enableShippingNotifications !== false}
+                    onCheckedChange={(checked) => {
+                      apiRequest("PATCH", `/api/projects/${projectId}`, {
+                        enableShippingNotifications: checked,
+                      }).then(() => {
+                        h.queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}`] });
+                      });
+                    }}
+                    disabled={isLocked}
+                  />
+                </div>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p className="text-xs">Auto-notify client when shipments are scheduled, shipped, or delivered</p>
+              </TooltipContent>
+            </Tooltip>
+
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="flex items-center gap-2">
+                  <Mail className={`w-4 h-4 ${(h.order as any)?.enableTrackingEmails ? 'text-purple-600' : 'text-gray-400'}`} />
+                  <span className="text-xs text-muted-foreground">Tracking Emails</span>
+                  <Switch
+                    checked={(h.order as any)?.enableTrackingEmails === true}
+                    onCheckedChange={(checked) => {
+                      apiRequest("PATCH", `/api/projects/${projectId}`, {
+                        enableTrackingEmails: checked,
+                      }).then(() => {
+                        h.queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}`] });
+                      });
+                    }}
+                    disabled={isLocked}
+                  />
+                </div>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p className="text-xs">Auto-send tracking update emails to client during delivery (in transit, out for delivery, etc.)</p>
+              </TooltipContent>
+            </Tooltip>
+          </div>
+        </TooltipProvider>
       </div>
 
       <TimelineWarningBanner conflicts={h.timelineConflicts} />

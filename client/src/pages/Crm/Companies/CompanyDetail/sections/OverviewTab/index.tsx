@@ -325,14 +325,14 @@ export default function OverviewTab({
                         </AvatarFallback>
                       </Avatar>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate">
+                        <span className="text-sm font-medium truncate flex items-center gap-1">
                           {contact.firstName} {contact.lastName}
                           {contact.isPrimary && (
-                            <Badge variant="secondary" className="ml-1 text-[10px] px-1 py-0">
+                            <Badge variant="secondary" className="text-[10px] px-1 py-0">
                               Primary
                             </Badge>
                           )}
-                        </p>
+                        </span>
                         {contact.email && (
                           <p className="text-xs text-muted-foreground truncate">{contact.email}</p>
                         )}

@@ -2,10 +2,12 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { useSetDefaultPaymentTerm } from "@/services/payment-terms";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
   DialogContent,
@@ -31,11 +33,12 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Plus, Pencil, Trash2, CreditCard } from "lucide-react";
+import { Plus, Pencil, Trash2, CreditCard, Star } from "lucide-react";
 
 interface PaymentTerm {
   id: string;
   name: string;
+  isDefault: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -99,6 +102,20 @@ export function PaymentTermsTab() {
     },
   });
 
+  const setDefaultMutation = useSetDefaultPaymentTerm();
+
+  const handleSetDefault = (term: PaymentTerm) => {
+    if (term.isDefault) return;
+    setDefaultMutation.mutate(term.id, {
+      onSuccess: () => {
+        toast({ title: `"${term.name}" set as default payment term` });
+      },
+      onError: (err: any) => {
+        toast({ title: "Error", description: err.message, variant: "destructive" });
+      },
+    });
+  };
+
   const openCreate = () => {
     setEditingTerm(null);
     setName("");
@@ -138,7 +155,7 @@ export function PaymentTermsTab() {
         <CardContent>
           <p className="text-sm text-muted-foreground mb-4">
             Create and manage payment terms used across companies, vendors, and orders.
-            These options will appear in dropdown menus throughout the system.
+            The default term will be automatically applied to new orders when no specific term is set.
           </p>
 
           {isLoading ? (
@@ -159,9 +176,31 @@ export function PaymentTermsTab() {
                 <TableBody>
                   {paymentTerms.map((term) => (
                     <TableRow key={term.id}>
-                      <TableCell className="font-medium">{term.name}</TableCell>
+                      <TableCell className="font-medium">
+                        <div className="flex items-center gap-2">
+                          {term.name}
+                          {term.isDefault && (
+                            <Badge variant="secondary" className="text-xs gap-1">
+                              <Star className="w-3 h-3 fill-current" />
+                              Default
+                            </Badge>
+                          )}
+                        </div>
+                      </TableCell>
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-1">
+                          {!term.isDefault && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-xs"
+                              onClick={() => handleSetDefault(term)}
+                              disabled={setDefaultMutation.isPending}
+                            >
+                              <Star className="w-3.5 h-3.5 mr-1" />
+                              Set Default
+                            </Button>
+                          )}
                           <Button variant="ghost" size="sm" onClick={() => openEdit(term)}>
                             <Pencil className="w-3.5 h-3.5" />
                           </Button>

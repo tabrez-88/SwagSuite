@@ -82,6 +82,8 @@ export const orders = pgTable("orders", {
   presentationStatus: varchar("presentation_status").default("open"), // open, client_review, converted, closed
   salesOrderStatus: varchar("sales_order_status").default("new"), // new, pending_client_approval, client_change_requested, client_approved, in_production, shipped, ready_to_invoice
   quoteStatus: varchar("quote_status").default("draft"), // draft, sent, approved, rejected, expired
+  enableShippingNotifications: boolean("enable_shipping_notifications").default(true),
+  enableTrackingEmails: boolean("enable_tracking_emails").default(false), // Phase 2: auto tracking updates to client
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

@@ -29,9 +29,11 @@ import {
   EyeOff,
   FileSpreadsheet,
   Globe,
+  Loader2,
   MapPin,
   Package,
   Save,
+  Ship,
   Slack,
   Trash2,
 } from "lucide-react";
@@ -615,6 +617,164 @@ export function IntegrationsTab() {
                     )}
                   </Button>
                 </div>
+              </div>
+            </div>
+
+            {/* ShipStation */}
+            <div className="p-4 border rounded-lg">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <Ship className="w-5 h-5 text-blue-600" />
+                  <h4 className="font-medium">ShipStation</h4>
+                  <Badge
+                    variant={
+                      hook.integrations.shipstationConnected
+                        ? "default"
+                        : "outline"
+                    }
+                  >
+                    {hook.integrations.shipstationConnected
+                      ? "Connected"
+                      : "Not Connected"}
+                  </Badge>
+                </div>
+              </div>
+              <div className="space-y-3">
+                <p className="text-sm text-gray-600">
+                  Shipping management, label printing, and shipment tracking.
+                  Get your API keys from{" "}
+                  <a
+                    href="https://ss.shipstation.com/#/settings/api"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-primary underline"
+                  >
+                    ShipStation Settings → API Keys
+                  </a>
+                  .
+                </p>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="shipstationApiKey">API Key</Label>
+                    <div className="relative">
+                      <Input
+                        id="shipstationApiKey"
+                        type={
+                          hook.showFields.shipstationApiKey ? "text" : "password"
+                        }
+                        placeholder="Enter ShipStation API key"
+                        value={hook.integrations.shipstationApiKey || ""}
+                        onChange={(e) =>
+                          hook.updateIntegrationField(
+                            "shipstationApiKey",
+                            e.target.value
+                          )
+                        }
+                        className="pr-10"
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
+                        onClick={() =>
+                          hook.toggleFieldVisibility("shipstationApiKey")
+                        }
+                      >
+                        {hook.showFields.shipstationApiKey ? (
+                          <EyeOff className="h-4 w-4 text-gray-500" />
+                        ) : (
+                          <Eye className="h-4 w-4 text-gray-500" />
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="shipstationApiSecret">API Secret</Label>
+                    <div className="relative">
+                      <Input
+                        id="shipstationApiSecret"
+                        type={
+                          hook.showFields.shipstationApiSecret
+                            ? "text"
+                            : "password"
+                        }
+                        placeholder="Enter ShipStation API secret"
+                        value={hook.integrations.shipstationApiSecret || ""}
+                        onChange={(e) =>
+                          hook.updateIntegrationField(
+                            "shipstationApiSecret",
+                            e.target.value
+                          )
+                        }
+                        className="pr-10"
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
+                        onClick={() =>
+                          hook.toggleFieldVisibility("shipstationApiSecret")
+                        }
+                      >
+                        {hook.showFields.shipstationApiSecret ? (
+                          <EyeOff className="h-4 w-4 text-gray-500" />
+                        ) : (
+                          <Eye className="h-4 w-4 text-gray-500" />
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={async () => {
+                    if (!hook.integrations.shipstationApiKey || !hook.integrations.shipstationApiSecret) {
+                      hook.toast({
+                        title: "Missing Credentials",
+                        description: "Please enter both API Key and API Secret first.",
+                        variant: "destructive",
+                      });
+                      return;
+                    }
+                    try {
+                      const res = await fetch("/api/shipstation/test-connection", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        credentials: "include",
+                        body: JSON.stringify({
+                          apiKey: hook.integrations.shipstationApiKey,
+                          apiSecret: hook.integrations.shipstationApiSecret,
+                        }),
+                      });
+                      const data = await res.json();
+                      if (data.success) {
+                        hook.toast({
+                          title: "Connection Successful",
+                          description: "Successfully connected to ShipStation API.",
+                        });
+                        hook.updateIntegrationField("shipstationConnected", "true" as any);
+                      } else {
+                        hook.toast({
+                          title: "Connection Failed",
+                          description: data.message || "Could not connect to ShipStation.",
+                          variant: "destructive",
+                        });
+                      }
+                    } catch {
+                      hook.toast({
+                        title: "Error",
+                        description: "Failed to test ShipStation connection.",
+                        variant: "destructive",
+                      });
+                    }
+                  }}
+                >
+                  <CheckCircle className="w-4 h-4 mr-2" />
+                  Test Connection
+                </Button>
               </div>
             </div>
 

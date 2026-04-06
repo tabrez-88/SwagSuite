@@ -76,7 +76,7 @@ export const CONTACT_DEPARTMENTS = [
   "Marketing",
   "Accounting",
   "Purchasing",
-  "Design",
+  "Design Creative",
   "Operations",
   "IT",
   "HR",

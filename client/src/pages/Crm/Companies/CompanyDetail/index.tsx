@@ -74,7 +74,7 @@ export default function CompanyDetail() {
   return (
     <div className="space-y-6 p-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col md:flex-row md:items-center gap-4 justify-between">
         <div className="flex items-center gap-4">
           <Button
             variant="ghost"
@@ -104,7 +104,7 @@ export default function CompanyDetail() {
             </div>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center justify-end gap-2">
           {company.engagementLevel && (
             <Badge
               className={
@@ -130,13 +130,13 @@ export default function CompanyDetail() {
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-6">
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="contacts">Contacts</TabsTrigger>
-          <TabsTrigger value="addresses">Addresses</TabsTrigger>
-          <TabsTrigger value="projects">Projects</TabsTrigger>
-          <TabsTrigger value="social">Social Media</TabsTrigger>
-          <TabsTrigger value="activity">Activity</TabsTrigger>
+        <TabsList className="flex gap-4 flex-wrap mb-4">
+          <TabsTrigger className="flex-1" value="overview">Overview</TabsTrigger>
+          <TabsTrigger className="flex-1" value="contacts">Contacts</TabsTrigger>
+          <TabsTrigger className="flex-1" value="addresses">Addresses</TabsTrigger>
+          <TabsTrigger className="flex-1" value="projects">Projects</TabsTrigger>
+          <TabsTrigger className="flex-1" value="social">Social Media</TabsTrigger>
+          <TabsTrigger className="flex-1" value="activity">Activity</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="space-y-6">

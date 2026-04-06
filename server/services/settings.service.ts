@@ -88,6 +88,9 @@ export class SettingsService {
       taxOriginState: dbSettings?.taxOriginState || "",
       taxOriginZip: dbSettings?.taxOriginZip || "",
       taxOriginCountry: dbSettings?.taxOriginCountry || "US",
+      shipstationApiKey: dbSettings?.shipstationApiKey || process.env.SHIPSTATION_API_KEY?.trim() || "",
+      shipstationApiSecret: dbSettings?.shipstationApiSecret || process.env.SHIPSTATION_API_SECRET?.trim() || "",
+      shipstationConnected: dbSettings?.shipstationConnected || false,
     };
   }
 
@@ -97,6 +100,12 @@ export class SettingsService {
       settings.stripeConnected = true;
     } else if (settings.stripePublishableKey === "" || settings.stripeSecretKey === "") {
       settings.stripeConnected = false;
+    }
+
+    if (settings.shipstationApiKey && settings.shipstationApiSecret) {
+      settings.shipstationConnected = true;
+    } else if (settings.shipstationApiKey === "" || settings.shipstationApiSecret === "") {
+      settings.shipstationConnected = false;
     }
 
     return settingsRepository.upsertIntegrationSettings(settings, userId);

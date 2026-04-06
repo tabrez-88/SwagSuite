@@ -1,0 +1,105 @@
+[
+  {
+    "status": "draft",
+    "is_featured": false,
+    "name": "Fren.co Coffee & Eatery",
+    "slug": "frenco-coffee-and-eatery-samarinda",
+    "price_range": "Rp 25,000–50,000",
+    "description": "<p>lorem ipsum</p>",
+    "image": [
+      "https://lh3.googleusercontent.com/gps-cs-s/AHVAwer9TdWBX1OLVyiiD9voQ_onu9qsFHp1YLDuolcinBT-ZfIQnBUiSou2sge8lzTHWAIK5n-uSBWWlBSMZ4CDlVpnuas0ptthi4cxRBj93qn4d82r1MsEt6c_zfvnFNoO0syJan-jBw=w1920-h1080",
+      "https://lh3.googleusercontent.com/gps-cs-s/AHVAwepJqxojMJdOTBHROXudsGIikWiAcvFpKn8nRf6TKege8Kjdr5YPt1hd0ZUoATJtHZ65CB8K8w4VkKFyxLiJWgb71lbH5G0B3-7KHSQLNoypESAJsPmR5ogCmCBeuISY1X0JmqgGgQ=w1920-h1080",
+      "https://lh3.googleusercontent.com/gps-cs-s/AHVAwer-cfks0xCZ0dPzUBHaJCpKeVQzPJ6PpOjxeyCs5p5auCUPGZX2as6lsNiYLwxVdm_DctryoKxKKsha39Bw7M4lgKO0BtPLI-l9V70OqXM3_uZRZOhtyQB63a-2D93ZckIJQ_X9Vx_Gvgw6=w1920-h1080",
+      "https://lh3.googleusercontent.com/gps-cs-s/AHVAwerDSOtB5qHvnOHoe58YEAnJ-p7tKd5a4y-has90YOwXQduMMUhVRjcH-aHWAe8SyrstIHPCBK_rMmf_T9tBcemAYCIOee4AsKjbneWT984ck7eTu_O762UMlNnurJmq-VUsFhc6NM-acp1J=w1920-h1080",
+      "https://lh3.googleusercontent.com/gps-cs-s/AHVAweqeWb6GLRS1_nlQn9rdc-Xji9VTiD-Mg_1BjGrVtcJSC2Ktbh3fMd61J4jpco0XfUZ32DxcKzPVIv3hWwfqKLJEefsE_19FZrPYqdPF-Um8iP8xyOfSiDPHcY2o7iwLmUbjSQx6=w1920-h1080",
+      "https://lh3.googleusercontent.com/gps-cs-s/AHVAwepa9tG-jTYPW__y6RcPJp1lNWiTWXA2Mdrfxkwb-tpKYS34fm3y3PlnlVfdYF77SVLSX9u0k962FLSf2IUhvjjoAWnrdwWRSTL58LIhEzEto61nomhHb92mw9K_O28EFaUoIatpzw=w1920-h1080",
+      "https://lh3.googleusercontent.com/gps-cs-s/AHVAweqRv5x7JtGJrGk17KtWvLUd1RY0i6agCrFbSM8KIc22ngBk6HgsPqf9d4paLu86I7-QcQrnRfzkDYzH2gLD3wM4EIIDKah79eTnGmQn2AFkxJYRHyrbFUqNSzJc222lO10sIfYSKnXIWx8D=w1920-h1080",
+      "https://lh3.googleusercontent.com/gps-cs-s/AHVAweqfJ_w8lpP7NBqDKDryuxrKvW22tkeh8yU-rgD8QokbAC5molocDsqWCCngDIQ9-B0Ngab9UO-Cy-NlVIy41vOzf0YUJkwNPjavEMiikoDGqfUzPjZJe1MsU_YAW_nHZ22lc958tw=w1920-h1080",
+      "https://lh3.googleusercontent.com/gps-cs-s/AHVAwepnTH6WzKW5gQZ3gBkSix2i6327JLacB-a6bU7n8X2MHkEaFuO8BQBZ1yutE4hzIMzjCVaCtUkU4yKqFaTJJFZfvI5I82sCbS_B4waa2YQCJO4s8orXFYjVQS2gvER_iEfY9J1F=w1920-h1080",
+      "https://lh3.googleusercontent.com/gps-cs-s/AHVAwepkeLIS7_nsA4Yn0Hc3oCyudygz4q-l-5lw5b7d74BU4uHQk__jLxVhXOtpgQ_uzts02e9AUGKzHV-Sf-P9o3DNkOWDGin2uWLH7X8hG1WbZiHIDxjxDdsySolLrZiWbqNJhtFlT43ElVLU=w1920-h1080",
+      "https://lh3.googleusercontent.com/gps-cs-s/AHVAweoGqRs5NPtpSr8iCj9-6ei8lbQhw1Bjj7j9s5u46BH0Czfv67FqHq6xI-HXXcBI-0mOkQkbrK-C3mZ-eLG0lTI9QqybrBFGfm5yk2eGENohDsYFiehnw-qTTF8b8EUNq_ZNX39a=w1920-h1080",
+      "https://lh3.googleusercontent.com/gps-cs-s/AHVAwerI7zpbztK185zevPmMFUznLf3sAqtxOSiqk6JwFPHpBF02Q2tbwqk7kS8UjdMGZTGYgTDiKT8RV9nDsY4tpaYWjaHUfHk5RMFJ9YJ_FIN0XMfz8YyY5OKD-vMaBfniplWV7scwWQ=w1920-h1080"
+    ],
+    "district": "Air Hitam",
+    "address": "Jl. Siradj Salman No.6a, RW.01, Air Hitam, Kec. Samarinda Ulu, Kota Samarinda, Kalimantan Timur 75124, Indonesia",
+    "opening_time": "10:00",
+    "closing_time": "00:00",
+    "opening_days": [
+      "Monday",
+      "Tuesday",
+      "Wednesday",
+      "Thursday",
+      "Friday",
+      "Saturday",
+      "Sunday"
+    ],
+    "service_options": [
+      "Outdoor seating",
+      "No-contact delivery",
+      "Delivery",
+      "Takeaway",
+      "Dine-in"
+    ],
+    "highlights": [
+      "Great coffee",
+      "Great dessert",
+      "Great tea selection",
+      "Live music",
+      "Live performances"
+    ],
+    "popular_for": [
+      "Lunch",
+      "Dinner",
+      "Solo dining",
+      "Good for working on laptop"
+    ],
+    "offerings": [
+      "Coffee",
+      "Quick bite"
+    ],
+    "dining_options": [
+      "Brunch",
+      "Lunch",
+      "Dinner",
+      "Dessert",
+      "Seating",
+      "Table service"
+    ],
+    "amenities": [
+      "Toilet"
+    ],
+    "atmosphere": [
+      "Casual",
+      "Cosy",
+      "Romantic",
+      "Trendy"
+    ],
+    "crowd": [
+      "Groups",
+      "Tourists",
+      "University students"
+    ],
+    "planning": [
+      "Accepts reservations"
+    ],
+    "payments": [
+      "Credit cards",
+      "Debit cards",
+      "NFC mobile payments"
+    ],
+    "children": [
+      "Good for kids",
+      "High chairs",
+      "Kids' menu"
+    ],
+    "parking": [
+      "Paid parking lot",
+      "Plenty of parking"
+    ],
+    "gmaps_url": "https://maps.app.goo.gl/836wJ6uaRhJ7QxMV6",
+    "latitude": -0.4902509,
+    "longitude": 117.094401,
+    "ig_url": "https://instagram.com/cetroocoffee.samarinda",
+    "tiktok_url": ""
+  }
+]

@@ -51,6 +51,9 @@ export function useIntegrationsTab() {
     taxOriginZip: "",
     taxOriginCountry: "US",
     shipmateConnected: false,
+    shipstationApiKey: "",
+    shipstationApiSecret: "",
+    shipstationConnected: false,
   });
 
   // Visibility state for sensitive fields
@@ -63,6 +66,8 @@ export function useIntegrationsTab() {
     geoapifyApiKey: false,
     stripeSecretKey: false,
     taxjarApiKey: false,
+    shipstationApiKey: false,
+    shipstationApiSecret: false,
   });
 
   // Update integrations when data is loaded
@@ -93,6 +98,9 @@ export function useIntegrationsTab() {
         taxOriginZip: settings.taxOriginZip || "",
         taxOriginCountry: settings.taxOriginCountry || "US",
         shipmateConnected: settings.shipmateConnected || false,
+        shipstationApiKey: settings.shipstationApiKey || "",
+        shipstationApiSecret: settings.shipstationApiSecret || "",
+        shipstationConnected: settings.shipstationConnected || false,
       });
     }
   }, [integrationSettings]);

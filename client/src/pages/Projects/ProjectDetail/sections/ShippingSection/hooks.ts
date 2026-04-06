@@ -412,5 +412,8 @@ export function useShippingSection(projectId: string, data: ProjectData) {
     // Mutation state
     updateItemShippingMutation,
     deleteMutation,
+
+    // Query client for invalidation
+    queryClient,
   };
 }

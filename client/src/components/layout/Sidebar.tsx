@@ -43,7 +43,6 @@ const navigation = [
   { name: "Production Report", href: "/production-report", icon: Factory },
   { name: "Products", href: "/products", icon: Box },
   { name: "Media Library", href: "/media-library", icon: FolderOpen },
-  { name: "Suppliers", href: "/suppliers", icon: Truck },
   { name: "Artwork", href: "/artwork", icon: Palette },
   { name: "Vendor Approvals", href: "/vendor-approvals", icon: ShieldAlert },
   { name: "Errors", href: "/errors", icon: AlertCircle },
@@ -67,7 +66,7 @@ export default function Sidebar() {
     <>
       <SidebarRoot collapsible="icon">
         {/* Logo Section */}
-        <SidebarHeader className="p-4 border-b border-sidebar-border">
+        <SidebarHeader className="p-2 border-b border-sidebar-border">
           <div
             className="flex items-center gap-3 cursor-pointer hover:bg-sidebar-accent rounded-lg p-2 transition-colors group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:p-1"
             onClick={() => setIsPacmanOpen(true)}
@@ -108,7 +107,7 @@ export default function Sidebar() {
                         tooltip={item.name}
                         className={isActive ? "bg-sidebar-primary text-sidebar-primary-foreground hover:bg-sidebar-primary/90 hover:text-sidebar-primary-foreground" : ""}
                       >
-                        <Link href={item.href} onClick={() => setOpenMobile(false)}>
+                        <Link href={item.href} onClick={() => setOpenMobile(false)} className="font-semibold flex items-center gap-2">
                           <item.icon size={20} />
                           <span>{item.name}</span>
                         </Link>

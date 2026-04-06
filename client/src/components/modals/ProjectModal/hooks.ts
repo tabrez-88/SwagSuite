@@ -6,6 +6,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { isUnauthorizedError } from "@/lib/authUtils";
 import type { Company } from "@shared/schema";
 import { useCompanyAddresses } from "@/services/company-addresses";
+import { useDefaultPaymentTermName } from "@/services/payment-terms";
 import type { ProjectModalProps, ProjectFormData } from "./types";
 
 // Normalize various country name/code formats to standard 2-letter codes
@@ -37,7 +38,7 @@ const INITIAL_FORM_DATA: ProjectFormData = {
   supplierNotes: "",
   additionalInformation: "",
   orderDiscount: "0",
-  paymentTerms: "Net 30",
+  paymentTerms: "",
   customerPo: "",
   billingContact: "",
   billingEmail: "",
@@ -66,6 +67,7 @@ export function useProjectModal({ open, onOpenChange, order, initialCompanyId, b
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const defaultPaymentTerm = useDefaultPaymentTermName();
 
   const isEditing = !!order;
   const stage = businessStageId || "presentation";
@@ -158,7 +160,7 @@ export function useProjectModal({ open, onOpenChange, order, initialCompanyId, b
           supplierNotes: (order as any).supplierNotes || "",
           additionalInformation: (order as any).additionalInformation || "",
           orderDiscount: (order as any).orderDiscount || "0",
-          paymentTerms: (order as any).paymentTerms || "Net 30",
+          paymentTerms: (order as any).paymentTerms || defaultPaymentTerm || "",
           customerPo: (order as any).customerPo || "",
           billingContact, billingEmail, billingStreet, billingCity, billingState, billingZipCode, billingCountry, billingPhone,
           shippingContact, shippingEmail, shippingStreet, shippingCity, shippingState, shippingZipCode, shippingCountry, shippingPhone,
@@ -168,11 +170,12 @@ export function useProjectModal({ open, onOpenChange, order, initialCompanyId, b
           ...INITIAL_FORM_DATA,
           companyId: initialCompanyId || "",
           assignedUserId: currentUser?.id || "",
+          paymentTerms: defaultPaymentTerm || "",
         });
       }
       setShowMoreSections(false);
     }
-  }, [open, order, initialCompanyId, currentUser]);
+  }, [open, order, initialCompanyId, currentUser, defaultPaymentTerm]);
 
   // Auto-select contact when editing and contacts load
   useEffect(() => {

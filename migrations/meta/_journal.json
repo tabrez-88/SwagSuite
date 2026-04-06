@@ -120,6 +120,20 @@
       "when": 1775405204034,
       "tag": "0016_giant_white_queen",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1775459892300,
+      "tag": "0017_overjoyed_klaw",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1775464946257,
+      "tag": "0018_real_karma",
+      "breakpoints": true
     }
   ]
 }

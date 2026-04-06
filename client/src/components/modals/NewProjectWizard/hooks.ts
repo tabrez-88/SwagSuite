@@ -6,6 +6,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { isUnauthorizedError } from "@/lib/authUtils";
 import type { Company } from "@shared/schema";
 import { useCompanyAddresses } from "@/services/company-addresses";
+import { useDefaultPaymentTermName } from "@/services/payment-terms";
 import type { NewProjectWizardProps, StartingStage } from "./types";
 
 function normalizeCountryCode(country: string): string {
@@ -25,6 +26,7 @@ export function useNewProjectWizard({ open, onOpenChange, initialCompanyId }: Ne
   const [, setLocation] = useLocation();
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const defaultPaymentTerm = useDefaultPaymentTermName();
 
   // Step tracking
   const [step, setStep] = useState<1 | 2>(1);
@@ -63,7 +65,7 @@ export function useNewProjectWizard({ open, onOpenChange, initialCompanyId }: Ne
   const [sameAsBilling, setSameAsBilling] = useState(false);
 
   // Sales order fields
-  const [paymentTerms, setPaymentTerms] = useState("Net 30");
+  const [paymentTerms, setPaymentTerms] = useState("");
   const [customerPo, setCustomerPo] = useState("");
 
   // Data queries
@@ -109,10 +111,10 @@ export function useNewProjectWizard({ open, onOpenChange, initialCompanyId }: Ne
       setShippingZipCode("");
       setShippingCountry("US");
       setSameAsBilling(false);
-      setPaymentTerms("Net 30");
+      setPaymentTerms(defaultPaymentTerm || "");
       setCustomerPo("");
     }
-  }, [open, initialCompanyId]);
+  }, [open, initialCompanyId, defaultPaymentTerm]);
 
   // Auto-select primary contact when company changes
   useEffect(() => {

@@ -1,6 +1,5 @@
 import { ArrowRight, FileText, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StageBadge } from "@/components/shared/StageBadge";
 import { format } from "date-fns";
 import { useProjectsTab } from "./hooks";
@@ -14,29 +13,26 @@ export default function ProjectsTab({
   const { projectsWithStage, formatCurrency } = useProjectsTab(companyId);
 
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <CardTitle className="flex items-center gap-2">
-            <FileText className="h-5 w-5" />
-            Projects
-          </CardTitle>
-          <Button
-            size="sm"
-            className="bg-swag-primary hover:bg-swag-primary/90"
-            onClick={onCreateProject}
-          >
-            <Plus className="h-4 w-4 mr-1" />
-            New Project
-          </Button>
+    <div className="space-y-4 bg-white p-6 rounded-lg border">
+      <div className="flex items-center justify-between">
+        <div className="flex gap-2 items-center">
+          <FileText className="h-4 w-4" />
+          <h3 className="text-lg font-semibold">Projects</h3>
         </div>
-      </CardHeader>
-      <CardContent>
+        <Button
+          size="sm"
+          className="bg-swag-primary hover:bg-swag-primary/90"
+          onClick={onCreateProject}
+        >
+          <Plus className="h-4 w-4 mr-1" />
+          New Project
+        </Button>
+      </div>
+      <div>
         {projectsWithStage.length > 0 ? (
           <div className="space-y-2">
             <div className="grid grid-cols-12 gap-4 text-xs font-medium text-muted-foreground border-b pb-2">
               <div className="col-span-2">Order #</div>
-              <div className="col-span-3">Title</div>
               <div className="col-span-2">Stage</div>
               <div className="col-span-2">In-Hands Date</div>
               <div className="col-span-2 text-right">Total</div>
@@ -50,9 +46,6 @@ export default function ProjectsTab({
               >
                 <div className="col-span-2 text-sm font-medium text-swag-orange">
                   #{project.orderNumber}
-                </div>
-                <div className="col-span-3 text-sm truncate">
-                  {project.projectName || "Untitled"}
                 </div>
                 <div className="col-span-2">
                   {project._determinedStage && (
@@ -92,7 +85,7 @@ export default function ProjectsTab({
             </Button>
           </div>
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }

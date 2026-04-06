@@ -5,6 +5,8 @@ import {
   varchar,
   text,
   decimal,
+  boolean,
+  jsonb,
 } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -27,6 +29,13 @@ export const orderShipments = pgTable("order_shipments", {
   shipToPhone: varchar("ship_to_phone"),
   status: varchar("status").default("pending"), // pending, shipped, in_transit, delivered, returned
   notes: text("notes"),
+  // ShipStation integration fields
+  shipstationOrderId: varchar("shipstation_order_id"),
+  shipstationShipmentId: varchar("shipstation_shipment_id"),
+  lastTrackingCheck: timestamp("last_tracking_check"),
+  delayAlertSent: boolean("delay_alert_sent").default(false),
+  lastTrackingEmailStatus: varchar("last_tracking_email_status"), // Last status that triggered a tracking email to client
+  shipstationMetadata: jsonb("shipstation_metadata"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

@@ -1,34 +1,22 @@
 import {
-  User,
-  Plus,
-  Edit,
-  Trash2,
-  Mail,
-  Phone,
+  AlertTriangle,
   Briefcase,
+  Building,
+  Edit,
+  Eye,
+  EyeOff,
+  Mail,
+  MailX,
+  Phone,
+  Plus,
   Star,
   StarOff,
-  AlertTriangle,
-  Building,
-  EyeOff,
-  Eye,
-  UserX,
+  User,
   UserCheck,
-  MailX,
+  Users,
+  UserX
 } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { CONTACT_DEPARTMENTS } from "@/schemas/crm.schemas";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -39,6 +27,10 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -55,158 +47,103 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import type { ContactsManagerProps } from "./types";
+import { CONTACT_DEPARTMENTS } from "@/schemas/crm.schemas";
 import { useContactsManager } from "./hooks";
+import type { ContactsManagerProps } from "./types";
 
 // Move ContactFormFields outside to prevent re-creation on every render
 const ContactFormFields = ({ form }: { form: any }) => (
   <>
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-      <FormField
-        control={form.control}
-        name="firstName"
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel>First Name *</FormLabel>
-            <FormControl>
-              <Input placeholder="John" {...field} />
-            </FormControl>
-            <FormMessage />
-          </FormItem>
-        )}
-      />
-
-      <FormField
-        control={form.control}
-        name="lastName"
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel>Last Name *</FormLabel>
-            <FormControl>
-              <Input placeholder="Doe" {...field} />
-            </FormControl>
-            <FormMessage />
-          </FormItem>
-        )}
-      />
-
-      <FormField
-        control={form.control}
-        name="email"
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel>Email</FormLabel>
-            <FormControl>
-              <Input type="email" placeholder="john.doe@company.com" {...field} />
-            </FormControl>
-            <FormMessage />
-          </FormItem>
-        )}
-      />
-
-      <FormField
-        control={form.control}
-        name="phone"
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel>Phone</FormLabel>
-            <FormControl>
-              <Input placeholder="(555) 123-4567" {...field} />
-            </FormControl>
-            <FormMessage />
-          </FormItem>
-        )}
-      />
+      <FormField control={form.control} name="firstName" render={({ field }) => (
+        <FormItem>
+          <FormLabel>First Name *</FormLabel>
+          <FormControl><Input placeholder="John" {...field} /></FormControl>
+          <FormMessage />
+        </FormItem>
+      )} />
+      <FormField control={form.control} name="lastName" render={({ field }) => (
+        <FormItem>
+          <FormLabel>Last Name *</FormLabel>
+          <FormControl><Input placeholder="Doe" {...field} /></FormControl>
+          <FormMessage />
+        </FormItem>
+      )} />
+      <FormField control={form.control} name="email" render={({ field }) => (
+        <FormItem>
+          <FormLabel>Email</FormLabel>
+          <FormControl><Input type="email" placeholder="john.doe@company.com" {...field} /></FormControl>
+          <FormMessage />
+        </FormItem>
+      )} />
+      <FormField control={form.control} name="phone" render={({ field }) => (
+        <FormItem>
+          <FormLabel>Phone</FormLabel>
+          <FormControl><Input placeholder="(555) 123-4567" {...field} /></FormControl>
+          <FormMessage />
+        </FormItem>
+      )} />
     </div>
 
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-      <FormField
-        control={form.control}
-        name="title"
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel>Job Title</FormLabel>
+      <FormField control={form.control} name="title" render={({ field }) => (
+        <FormItem>
+          <FormLabel>Job Title</FormLabel>
+          <FormControl><Input placeholder="Sales Manager" {...field} /></FormControl>
+          <FormMessage />
+        </FormItem>
+      )} />
+      <FormField control={form.control} name="department" render={({ field }) => (
+        <FormItem>
+          <FormLabel>Department</FormLabel>
+          <Select value={field.value || "none"} onValueChange={(v) => field.onChange(v === "none" ? "" : v)}>
             <FormControl>
-              <Input placeholder="Sales Manager" {...field} />
+              <SelectTrigger><SelectValue placeholder="Select department" /></SelectTrigger>
             </FormControl>
-            <FormMessage />
-          </FormItem>
-        )}
-      />
-
-      <FormField
-        control={form.control}
-        name="department"
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel>Department</FormLabel>
-            <Select value={field.value || "none"} onValueChange={(v) => field.onChange(v === "none" ? "" : v)}>
-              <FormControl>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select department" />
-                </SelectTrigger>
-              </FormControl>
-              <SelectContent>
-                <SelectItem value="none">None</SelectItem>
-                {CONTACT_DEPARTMENTS.map((dept) => (
-                  <SelectItem key={dept} value={dept.toLowerCase()}>{dept}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <FormMessage />
-          </FormItem>
-        )}
-      />
+            <SelectContent>
+              <SelectItem value="none">None</SelectItem>
+              {CONTACT_DEPARTMENTS.map((dept) => (
+                <SelectItem key={dept} value={dept.toLowerCase()}>{dept}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <FormMessage />
+        </FormItem>
+      )} />
     </div>
 
     <div className="flex gap-4">
-      <FormField
-        control={form.control}
-        name="isPrimary"
-        render={({ field }) => (
-          <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4 flex-1">
-            <FormControl>
-              <input
-                type="checkbox"
-                checked={field.value}
-                onChange={field.onChange}
-                className="h-4 w-4 rounded border-gray-300"
-              />
-            </FormControl>
-            <div className="space-y-1 leading-none">
-              <FormLabel>Primary Contact</FormLabel>
-              <p className="text-sm text-muted-foreground">
-                Primary contact for the company
-              </p>
-            </div>
-          </FormItem>
-        )}
-      />
-
-      <FormField
-        control={form.control}
-        name="noMarketing"
-        render={({ field }) => (
-          <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4 flex-1">
-            <FormControl>
-              <input
-                type="checkbox"
-                checked={field.value}
-                onChange={field.onChange}
-                className="h-4 w-4 rounded border-gray-300"
-              />
-            </FormControl>
-            <div className="space-y-1 leading-none">
-              <FormLabel>No Marketing</FormLabel>
-              <p className="text-sm text-muted-foreground">
-                Opt out of marketing emails
-              </p>
-            </div>
-          </FormItem>
-        )}
-      />
+      <FormField control={form.control} name="isPrimary" render={({ field }) => (
+        <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4 flex-1">
+          <FormControl>
+            <input type="checkbox" checked={field.value} onChange={field.onChange} className="h-4 w-4 rounded border-gray-300" />
+          </FormControl>
+          <div className="space-y-1 leading-none">
+            <FormLabel>Primary Contact</FormLabel>
+            <p className="text-sm text-muted-foreground">Main point of contact</p>
+          </div>
+        </FormItem>
+      )} />
+      <FormField control={form.control} name="noMarketing" render={({ field }) => (
+        <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4 flex-1">
+          <FormControl>
+            <input type="checkbox" checked={field.value} onChange={field.onChange} className="h-4 w-4 rounded border-gray-300" />
+          </FormControl>
+          <div className="space-y-1 leading-none">
+            <FormLabel>No Marketing</FormLabel>
+            <p className="text-sm text-muted-foreground">Opt out of marketing emails</p>
+          </div>
+        </FormItem>
+      )} />
     </div>
   </>
 );
@@ -234,7 +171,6 @@ export function ContactsManager({ companyId, companyName }: ContactsManagerProps
     handleCreateContact,
     handleUpdateContact,
     handleEditContact,
-    handleDeleteContact,
     handleTogglePrimary,
     handleToggleActive,
     getInitials,
@@ -243,9 +179,12 @@ export function ContactsManager({ companyId, companyName }: ContactsManagerProps
   const inactiveCount = (allContacts as any[]).filter((c: any) => c.isActive === false).length;
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 bg-white p-6 rounded-lg border">
       <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold">Contacts</h3>
+        <div className="flex gap-2 items-center">
+          <Users className="h-4 w-4" />
+          <h3 className="text-lg font-semibold">Contacts</h3>
+        </div>
         <div className="flex items-center gap-2">
           {inactiveCount > 0 && (
             <Button
@@ -258,45 +197,33 @@ export function ContactsManager({ companyId, companyName }: ContactsManagerProps
               {showInactive ? "Hide" : "Show"} Inactive ({inactiveCount})
             </Button>
           )}
-        <Dialog open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen}>
-          <DialogTrigger asChild>
-            <Button size="sm" variant="outline">
-              <Plus className="mr-2 h-4 w-4" />
-              Add Contact
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>Add New Contact</DialogTitle>
-              <DialogDescription>
-                Add a new contact person for {companyName || "this company"}.
-              </DialogDescription>
-            </DialogHeader>
-
-            <Form {...createForm}>
-              <form onSubmit={createForm.handleSubmit(handleCreateContact)} className="space-y-4">
-                <ContactFormFields form={createForm} />
-
-                <div className="flex justify-end gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => setIsCreateModalOpen(false)}
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    type="submit"
-                    disabled={createContactMutation.isPending}
-                    className="bg-swag-primary hover:bg-swag-primary/90"
-                  >
-                    {createContactMutation.isPending ? "Creating..." : "Create Contact"}
-                  </Button>
-                </div>
-              </form>
-            </Form>
-          </DialogContent>
-        </Dialog>
+          <Dialog open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen}>
+            <DialogTrigger asChild>
+              <Button size="sm" variant="outline">
+                <Plus className="mr-2 h-4 w-4" />
+                Add Contact
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Add New Contact</DialogTitle>
+                <DialogDescription>
+                  Add a new contact person for {companyName || "this company"}.
+                </DialogDescription>
+              </DialogHeader>
+              <Form {...createForm}>
+                <form onSubmit={createForm.handleSubmit(handleCreateContact)} className="space-y-4">
+                  <ContactFormFields form={createForm} />
+                  <div className="flex justify-end gap-2">
+                    <Button type="button" variant="outline" onClick={() => setIsCreateModalOpen(false)}>Cancel</Button>
+                    <Button type="submit" disabled={createContactMutation.isPending} className="bg-swag-primary hover:bg-swag-primary/90">
+                      {createContactMutation.isPending ? "Creating..." : "Create Contact"}
+                    </Button>
+                  </div>
+                </form>
+              </Form>
+            </DialogContent>
+          </Dialog>
         </div>
       </div>
 
@@ -306,7 +233,7 @@ export function ContactsManager({ companyId, companyName }: ContactsManagerProps
             <Card key={i}>
               <CardContent className="p-4">
                 <div className="flex items-start gap-3">
-                  <Skeleton className="h-12 w-12 rounded-full" />
+                  <Skeleton className="h-8 w-8 rounded-full" />
                   <div className="flex-1 space-y-2">
                     <Skeleton className="h-4 w-32" />
                     <Skeleton className="h-3 w-24" />
@@ -318,122 +245,97 @@ export function ContactsManager({ companyId, companyName }: ContactsManagerProps
           ))}
         </div>
       ) : contacts.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="flex flex-col gap-4">
           {contacts.map((contact) => {
             const isInactive = contact.isActive === false;
             return (
-            <Card key={contact.id} className={`hover:shadow-md transition-shadow ${isInactive ? "opacity-60" : ""}`}>
-              <CardContent className="p-4">
-                <div className="flex items-start gap-3">
-                  <Avatar className="h-12 w-12">
-                    <AvatarFallback className={isInactive ? "bg-gray-400 text-white" : "bg-swag-primary text-white"}>
-                      {getInitials(contact.firstName, contact.lastName)}
-                    </AvatarFallback>
-                  </Avatar>
+              <Card key={contact.id} className={`hover:shadow-md transition-shadow ${isInactive ? "opacity-60" : ""}`}>
+                <CardContent className="p-4">
+                  <div className="flex items-start gap-3">
+                    <Avatar className="h-8 w-8">
+                      <AvatarFallback className={isInactive ? "bg-gray-400 font-semibold text-white" : "bg-swag-primary font-semibold text-white"}>
+                        {getInitials(contact.firstName, contact.lastName)}
+                      </AvatarFallback>
+                    </Avatar>
 
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1 flex-wrap">
-                      <h4 className={`font-semibold truncate ${isInactive ? "text-gray-500 line-through" : "text-swag-navy"}`}>
-                        {contact.firstName} {contact.lastName}
-                      </h4>
-                      {contact.isPrimary && (
-                        <Badge variant="secondary" className="text-xs bg-yellow-100 text-yellow-800">
-                          <Star className="h-3 w-3 mr-1 fill-current" />
-                          Primary
-                        </Badge>
-                      )}
-                      {isInactive && (
-                        <Badge variant="outline" className="text-xs text-gray-500">
-                          Inactive
-                        </Badge>
-                      )}
-                      {contact.noMarketing && (
-                        <Badge variant="outline" className="text-xs text-orange-600 border-orange-200">
-                          <MailX className="h-3 w-3 mr-1" />
-                          No Marketing
-                        </Badge>
-                      )}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1 flex-wrap">
+                        <h4 className={`font-semibold truncate ${isInactive ? "text-gray-500 line-through" : "text-swag-navy"}`}>
+                          {contact.firstName} {contact.lastName}
+                        </h4>
+                        {contact.isPrimary && (
+                          <Badge variant="secondary" className="text-xs bg-yellow-100 text-yellow-800">
+                            <Star className="h-3 w-3 mr-1 fill-current" />
+                            Primary
+                          </Badge>
+                        )}
+                        {isInactive && (
+                          <Badge variant="outline" className="text-xs text-gray-500">Inactive</Badge>
+                        )}
+                        {contact.noMarketing && (
+                          <Badge variant="outline" className="text-xs text-orange-600 border-orange-200">
+                            <MailX className="h-3 w-3 mr-1" />
+                            No Marketing
+                          </Badge>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
+                        {contact.title && (
+                          <span className="flex items-center gap-1 truncate">
+                            <Briefcase className="h-3 w-3" />
+                            {contact.title}
+                          </span>
+                        )}
+                        {contact.title && contact.department && <span className="text-gray-300">|</span>}
+                        {contact.department && (
+                          <span className="flex items-center text-xs capitalize gap-1 truncate">
+                            <Building className="h-3 w-3" />
+                            {contact.department.charAt(0).toUpperCase() + contact.department.slice(1)}
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="space-y-1">
+                        {contact.email && (
+                          <div className="flex items-center gap-1 text-sm">
+                            <Mail className="h-3 w-3 text-muted-foreground" />
+                            <a href={`mailto:${contact.email}`} className="text-swag-orange hover:underline truncate" onClick={(e) => e.stopPropagation()}>
+                              {contact.email}
+                            </a>
+                          </div>
+                        )}
+                        {contact.phone && (
+                          <div className="flex items-center gap-1 text-sm">
+                            <Phone className="h-3 w-3 text-muted-foreground" />
+                            <a href={`tel:${contact.phone}`} className="text-swag-orange hover:underline" onClick={(e) => e.stopPropagation()}>
+                              {contact.phone}
+                            </a>
+                          </div>
+                        )}
+                      </div>
                     </div>
 
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
-                      {contact.title && (
-                        <span className="flex items-center gap-1 truncate">
-                          <Briefcase className="h-3 w-3" />
-                          {contact.title}
-                        </span>
-                      )}
-                      {contact.title && contact.department && <span className="text-gray-300">|</span>}
-                      {contact.department && (
-                        <span className="flex items-center gap-1 truncate">
-                          <Building className="h-3 w-3" />
-                          {contact.department.charAt(0).toUpperCase() + contact.department.slice(1)}
-                        </span>
-                      )}
+                    <div className="flex gap-1">
+                      <Button variant="ghost" size="sm" onClick={() => handleTogglePrimary(contact)} title={contact.isPrimary ? "Remove as primary" : "Set as primary"}>
+                        {contact.isPrimary ? <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" /> : <StarOff className="h-4 w-4" />}
+                      </Button>
+                      <Button variant="ghost" size="sm" onClick={() => handleEditContact(contact)}>
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleToggleActive(contact)}
+                        title={isInactive ? "Reactivate contact" : "Deactivate contact"}
+                        className={isInactive ? "text-green-600 hover:text-green-700 hover:bg-green-50" : "text-orange-600 hover:text-orange-700 hover:bg-orange-50"}
+                      >
+                        {isInactive ? <UserCheck className="h-4 w-4" /> : <UserX className="h-4 w-4" />}
+                      </Button>
                     </div>
-
-                    <div className="space-y-1">
-                      {contact.email && (
-                        <div className="flex items-center gap-1 text-sm">
-                          <Mail className="h-3 w-3 text-muted-foreground" />
-                          <a
-                            href={`mailto:${contact.email}`}
-                            className="text-swag-orange hover:underline truncate"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            {contact.email}
-                          </a>
-                        </div>
-                      )}
-
-                      {contact.phone && (
-                        <div className="flex items-center gap-1 text-sm">
-                          <Phone className="h-3 w-3 text-muted-foreground" />
-                          <a
-                            href={`tel:${contact.phone}`}
-                            className="text-swag-orange hover:underline"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            {contact.phone}
-                          </a>
-                        </div>
-                      )}
-                    </div>
-
                   </div>
-
-                  <div className="flex flex-col gap-1">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleTogglePrimary(contact)}
-                      title={contact.isPrimary ? "Remove as primary" : "Set as primary"}
-                    >
-                      {contact.isPrimary ? (
-                        <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                      ) : (
-                        <StarOff className="h-4 w-4" />
-                      )}
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleEditContact(contact)}
-                    >
-                      <Edit className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleToggleActive(contact)}
-                      title={isInactive ? "Reactivate contact" : "Deactivate contact"}
-                      className={isInactive ? "text-green-600 hover:text-green-700 hover:bg-green-50" : "text-orange-600 hover:text-orange-700 hover:bg-orange-50"}
-                    >
-                      {isInactive ? <UserCheck className="h-4 w-4" /> : <UserX className="h-4 w-4" />}
-                    </Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
             );
           })}
         </div>
@@ -441,17 +343,11 @@ export function ContactsManager({ companyId, companyName }: ContactsManagerProps
         <Card>
           <CardContent className="p-8 text-center">
             <User className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-            <h4 className="text-lg font-semibold text-muted-foreground mb-2">
-              No contacts yet
-            </h4>
+            <h4 className="text-lg font-semibold text-muted-foreground mb-2">No contacts yet</h4>
             <p className="text-sm text-muted-foreground mb-4">
               Add contact persons to keep track of who you work with at this company
             </p>
-            <Button
-              onClick={() => setIsCreateModalOpen(true)}
-              size="sm"
-              className="bg-swag-orange hover:bg-swag-orange/90"
-            >
+            <Button onClick={() => setIsCreateModalOpen(true)} size="sm" className="bg-swag-orange hover:bg-swag-orange/90">
               <Plus className="h-4 w-4 mr-2" />
               Add First Contact
             </Button>
@@ -464,28 +360,14 @@ export function ContactsManager({ companyId, companyName }: ContactsManagerProps
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Edit Contact</DialogTitle>
-            <DialogDescription>
-              Update the contact information.
-            </DialogDescription>
+            <DialogDescription>Update the contact information.</DialogDescription>
           </DialogHeader>
-
           <Form {...editForm}>
             <form onSubmit={editForm.handleSubmit(handleUpdateContact)} className="space-y-4">
               <ContactFormFields form={editForm} />
-
               <div className="flex justify-end gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setIsEditModalOpen(false)}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  type="submit"
-                  disabled={updateContactMutation.isPending}
-                  className="bg-swag-primary hover:bg-swag-primary/90"
-                >
+                <Button type="button" variant="outline" onClick={() => setIsEditModalOpen(false)}>Cancel</Button>
+                <Button type="submit" disabled={updateContactMutation.isPending} className="bg-swag-primary hover:bg-swag-primary/90">
                   {updateContactMutation.isPending ? "Updating..." : "Update Contact"}
                 </Button>
               </div>
@@ -494,7 +376,7 @@ export function ContactsManager({ companyId, companyName }: ContactsManagerProps
         </DialogContent>
       </Dialog>
 
-      {/* Delete Confirmation Dialog (kept for permanent delete if needed) */}
+      {/* Delete Confirmation Dialog */}
       <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -513,22 +395,12 @@ export function ContactsManager({ companyId, companyName }: ContactsManagerProps
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel
-              onClick={() => {
-                setContactToDelete(null);
-                setIsDeleteDialogOpen(false);
-              }}
-            >
-              Cancel
-            </AlertDialogCancel>
+            <AlertDialogCancel onClick={() => { setContactToDelete(null); setIsDeleteDialogOpen(false); }}>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
                 if (contactToDelete) {
                   deleteContactMutation.mutate(contactToDelete.id, {
-                    onSuccess: () => {
-                      setIsDeleteDialogOpen(false);
-                      setContactToDelete(null);
-                    },
+                    onSuccess: () => { setIsDeleteDialogOpen(false); setContactToDelete(null); },
                   });
                 }
               }}

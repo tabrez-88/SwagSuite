@@ -68,4 +68,13 @@ router.get("/api/sanmar/search", isAuthenticated, asyncHandler(IntegrationContro
 router.get("/api/sanmar/product/:styleId", isAuthenticated, asyncHandler(IntegrationController.getSanmarProductDetails));
 router.post("/api/sanmar/products/sync", isAuthenticated, asyncHandler(IntegrationController.syncSanmarProducts));
 
+// ==================== ShipStation ====================
+router.post("/api/shipstation/test-connection", isAuthenticated, asyncHandler(IntegrationController.testShipStationConnection));
+router.get("/api/shipstation/carriers", isAuthenticated, asyncHandler(IntegrationController.getShipStationCarriers));
+router.get("/api/shipstation/shipments", isAuthenticated, asyncHandler(IntegrationController.getShipStationShipments));
+router.post("/api/shipstation/shipments/sync", isAuthenticated, asyncHandler(IntegrationController.syncShipStationShipments));
+router.post("/api/shipstation/orders/:orderId/push", isAuthenticated, asyncHandler(IntegrationController.pushOrderToShipStation));
+// Webhook endpoint (unauthenticated - ShipStation sends webhooks without auth)
+router.post("/api/shipstation/webhook", asyncHandler(IntegrationController.handleShipStationWebhook));
+
 export default router;

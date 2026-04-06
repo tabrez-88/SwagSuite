@@ -336,6 +336,19 @@ export class ProjectController {
         }
       }
 
+      // Apply default payment term if not set
+      if (!orderData.paymentTerms) {
+        const { db } = await import("../db");
+        const { paymentTerms: paymentTermsTable } = await import("@shared/schema");
+        const { eq: eqPt } = await import("drizzle-orm");
+        const [defaultPt] = await db.select().from(paymentTermsTable)
+          .where(eqPt(paymentTermsTable.isDefault, true))
+          .limit(1);
+        if (defaultPt) {
+          orderData.paymentTerms = defaultPt.name;
+        }
+      }
+
       const dataToValidate = {
         ...orderData,
         // Only set assignedUserId to current user if not provided from frontend

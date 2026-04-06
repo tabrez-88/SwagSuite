@@ -68,6 +68,11 @@ export const integrationSettings = pgTable("integration_settings", {
   taxOriginZip: varchar("tax_origin_zip"),
   taxOriginCountry: varchar("tax_origin_country").default("US"),
 
+  // ShipStation Integration
+  shipstationApiKey: text("shipstation_api_key"),
+  shipstationApiSecret: text("shipstation_api_secret"),
+  shipstationConnected: boolean("shipstation_connected").default(false),
+
   // Metadata
   updatedBy: varchar("updated_by").references(() => users.id),
   createdAt: timestamp("created_at").defaultNow(),

@@ -17,7 +17,6 @@ import {
   Image,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { format } from "date-fns";
 import { useActivityTab } from "./hooks";
 import type { ActivityTabProps } from "./types";
@@ -145,20 +144,17 @@ export default function ActivityTab({ companyId }: ActivityTabProps) {
   const { companyActivities } = useActivityTab(companyId);
 
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <CardTitle className="flex items-center gap-2">
-            <Calendar className="h-5 w-5" />
-            Activity Timeline
-          </CardTitle>
-          <Badge variant="outline" className="text-xs">
-            {companyActivities.length} activities
-          </Badge>
+    <div className="space-y-4 bg-white p-6 rounded-lg border">
+      <div className="flex items-center justify-between">
+        <div className="flex gap-2 items-center">
+          <Calendar className="h-4 w-4" />
+          <h3 className="text-lg font-semibold">Activity Timeline</h3>
         </div>
-      </CardHeader>
-      <CardContent>
-        {companyActivities.length > 0 ? (
+        <Badge variant="outline" className="text-xs">
+          {companyActivities.length} activities
+        </Badge>
+      </div>
+      {companyActivities.length > 0 ? (
           <div className="relative">
             {/* Timeline line */}
             <div className="absolute left-[7px] top-0 bottom-0 w-px bg-border" />
@@ -241,7 +237,6 @@ export default function ActivityTab({ companyId }: ActivityTabProps) {
             </p>
           </div>
         )}
-      </CardContent>
-    </Card>
+    </div>
   );
 }

@@ -17,6 +17,7 @@ import {
 import { useState } from "react";
 import { useDeleteVendor, useTogglePreferred } from "@/services/suppliers";
 import { SupplierAddressesManager } from "@/components/feature/SupplierAddressesManager";
+import { useSupplierAddresses } from "@/services/supplier-addresses";
 import { useVendorDetail } from "./hooks";
 import OverviewTab from "./sections/OverviewTab";
 import ContactsTab from "./sections/ContactsTab";
@@ -42,6 +43,7 @@ export default function VendorDetail() {
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
 
+  const { data: vendorAddresses = [] } = useSupplierAddresses(vendorId);
   const deleteMutation = useDeleteVendor();
   const togglePreferredMutation = useTogglePreferred();
 
@@ -87,12 +89,12 @@ export default function VendorDetail() {
   return (
     <div className="space-y-6 p-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col md:flex-row gap-4 md:items-center justify-between">
         <div className="flex items-center gap-4">
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => setLocation("/crm")}
+            onClick={() => setLocation("/crm?tab=vendors")}
             className="h-8 w-8 p-0"
           >
             <ArrowLeft className="h-4 w-4" />
@@ -111,18 +113,18 @@ export default function VendorDetail() {
                 )}
               </div>
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                {(vendor as any).accountNumber && <span>#{(vendor as any).accountNumber}</span>}
-                {vendor.paymentTerms && (
-                  <>
-                    {(vendor as any).accountNumber && <span>·</span>}
-                    <span>{vendor.paymentTerms}</span>
-                  </>
+                {vendor.paymentTerms && <span>{vendor.paymentTerms}</span>}
+                {vendor.paymentTerms && vendor.website && <span>·</span>}
+                {vendor.website && (
+                  <span>
+                    {(() => { try { return new URL(vendor.website.startsWith("http") ? vendor.website : `https://${vendor.website}`).hostname.replace("www.", ""); } catch { return vendor.website; } })()}
+                  </span>
                 )}
               </div>
             </div>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center justify-end gap-2">
           {vendor.isPreferred && (
             <Badge className="bg-yellow-100 text-yellow-800">
               <Star className="h-3 w-3 mr-1 fill-current" />
@@ -156,15 +158,21 @@ export default function VendorDetail() {
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="contacts">Contacts</TabsTrigger>
-          <TabsTrigger value="addresses">Addresses</TabsTrigger>
-          <TabsTrigger value="products">Products ({vendor.productCount || 0})</TabsTrigger>
+        <TabsList className="flex gap-4 flex-wrap mb-4">
+          <TabsTrigger className="flex-1" value="overview">Overview</TabsTrigger>
+          <TabsTrigger className="flex-1" value="contacts">Contacts</TabsTrigger>
+          <TabsTrigger className="flex-1" value="addresses">Addresses</TabsTrigger>
+          <TabsTrigger className="flex-1" value="products">Products ({vendor.productCount || 0})</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="space-y-6">
-          <OverviewTab vendor={vendor} vendorContacts={vendorContacts} />
+          <OverviewTab
+            vendor={vendor}
+            vendorContacts={vendorContacts}
+            vendorAddresses={vendorAddresses}
+            vendorProducts={vendorProducts}
+            onTabChange={setActiveTab}
+          />
         </TabsContent>
 
         <TabsContent value="contacts" className="space-y-6">

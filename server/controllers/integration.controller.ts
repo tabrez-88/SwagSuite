@@ -7,6 +7,9 @@ import { SageService, getSageCredentials } from "../services/sage.service";
 import { getQuickBooksCredentials } from "../services/quickbooks.service";
 import { getStripeCredentials } from "../services/stripe.service";
 import { getTaxJarCredentials } from "../services/taxjar.service";
+import { ShipStationService, getShipStationCredentials } from "../services/shipstation.service";
+import { notificationScheduler } from "../services/notificationScheduler.service";
+import { shipmentService } from "../services/shipment.service";
 
 // Helper function to get S&S Activewear credentials
 async function getSsActivewearCredentials() {
@@ -695,7 +698,9 @@ export class IntegrationController {
       // HubSpot
       'hubspotApiKey',
       // Slack
-      'slackBotToken', 'slackChannelId'
+      'slackBotToken', 'slackChannelId',
+      // ShipStation
+      'shipstationApiKey', 'shipstationApiSecret'
     ];
 
     // Filter to only allowed keys
@@ -941,6 +946,25 @@ export class IntegrationController {
         isSecret: true,
         value: settings?.sanmarPassword,
         description: 'Your SanMar API password'
+      },
+      // ShipStation
+      {
+        integration: 'shipstation',
+        keyName: 'shipstationApiKey',
+        displayName: 'API Key',
+        isRequired: true,
+        isSecret: true,
+        value: settings?.shipstationApiKey,
+        description: 'Your ShipStation API key'
+      },
+      {
+        integration: 'shipstation',
+        keyName: 'shipstationApiSecret',
+        displayName: 'API Secret',
+        isRequired: true,
+        isSecret: true,
+        value: settings?.shipstationApiSecret,
+        description: 'Your ShipStation API secret'
       }
     ];
     res.json(credentials);
@@ -1018,6 +1042,48 @@ export class IntegrationController {
         return res.status(400).json({ message: "TaxJar not configured" });
       }
       return res.json({ message: "TaxJar connection successful" });
+    }
+
+    // Handle ShipStation connection test
+    if (integration === 'shipstation') {
+      const credentials = await getShipStationCredentials();
+      if (!credentials) {
+        return res.status(400).json({
+          success: false,
+          message: 'ShipStation credentials not configured. Please add your API key and secret in settings.'
+        });
+      }
+
+      try {
+        const service = new ShipStationService(credentials);
+        const isConnected = await service.testConnection();
+
+        if (isConnected) {
+          // Update connection status
+          await integrationRepository.upsertIntegrationSettings({
+            shipstationConnected: true,
+          });
+          return res.json({
+            success: true,
+            message: 'Successfully connected to ShipStation API',
+          });
+        } else {
+          await integrationRepository.upsertIntegrationSettings({
+            shipstationConnected: false,
+          });
+          return res.status(400).json({
+            success: false,
+            message: 'Failed to connect to ShipStation API. Please check your credentials.',
+          });
+        }
+      } catch (error) {
+        console.error('Error testing ShipStation connection:', error);
+        return res.status(500).json({
+          success: false,
+          message: 'Error testing ShipStation connection',
+          details: error instanceof Error ? error.message : 'Unknown error'
+        });
+      }
     }
 
     // Mock connection tests for other integrations
@@ -1417,6 +1483,264 @@ export class IntegrationController {
     } catch (error) {
       console.error("Error syncing SanMar products:", error);
       res.status(500).json({ message: "Failed to sync products" });
+    }
+  }
+
+  // ==================== ShipStation ====================
+
+  static async testShipStationConnection(req: Request, res: Response) {
+    const { apiKey, apiSecret } = req.body;
+
+    if (!apiKey || !apiSecret) {
+      return res.status(400).json({ success: false, message: "API Key and API Secret are required" });
+    }
+
+    try {
+      const service = new ShipStationService({ apiKey, apiSecret });
+      const isConnected = await service.testConnection();
+
+      res.json({ success: isConnected, message: isConnected ? "Connected" : "Connection failed" });
+    } catch (error) {
+      console.error("ShipStation test connection error:", error);
+      res.status(500).json({ success: false, message: "Connection test failed" });
+    }
+  }
+
+  static async getShipStationCarriers(req: Request, res: Response) {
+    const credentials = await getShipStationCredentials();
+    if (!credentials) {
+      return res.status(400).json({ message: "ShipStation not configured" });
+    }
+
+    const service = new ShipStationService(credentials);
+    const carriers = await service.getCarriers();
+    res.json(carriers);
+  }
+
+  static async getShipStationShipments(req: Request, res: Response) {
+    const credentials = await getShipStationCredentials();
+    if (!credentials) {
+      return res.status(400).json({ message: "ShipStation not configured" });
+    }
+
+    const { orderNumber, trackingNumber, page, pageSize } = req.query;
+
+    const service = new ShipStationService(credentials);
+    const result = await service.getShipments({
+      orderNumber: orderNumber as string,
+      trackingNumber: trackingNumber as string,
+      page: page ? Number(page) : undefined,
+      pageSize: pageSize ? Number(pageSize) : undefined,
+    });
+    res.json(result);
+  }
+
+  static async syncShipStationShipments(req: Request, res: Response) {
+    const credentials = await getShipStationCredentials();
+    if (!credentials) {
+      return res.status(400).json({ message: "ShipStation not configured" });
+    }
+
+    const { orderNumber } = req.body;
+
+    try {
+      const service = new ShipStationService(credentials);
+      const result = await service.getShipments({
+        orderNumber: orderNumber as string,
+        pageSize: 100,
+      });
+
+      // Import DB utilities dynamically (existing convention)
+      const { db } = await import("../db");
+      const { orderShipments } = await import("@shared/schema");
+      const { eq } = await import("drizzle-orm");
+
+      let synced = 0;
+      for (const ss of result.shipments) {
+        // Check if we already have this shipment
+        const existing = await db
+          .select()
+          .from(orderShipments)
+          .where(eq(orderShipments.shipstationShipmentId, String(ss.shipmentId)))
+          .limit(1);
+
+        if (existing.length > 0) {
+          // Update existing shipment
+          await db
+            .update(orderShipments)
+            .set({
+              trackingNumber: ss.trackingNumber,
+              carrier: ShipStationService.mapCarrierCode(ss.carrierCode),
+              status: ShipStationService.mapShipmentStatus(ss),
+              shipDate: ss.shipDate ? new Date(ss.shipDate) : undefined,
+              actualDelivery: ss.deliveryDate ? new Date(ss.deliveryDate) : undefined,
+              shippingCost: ss.shipmentCost?.toString(),
+              lastTrackingCheck: new Date(),
+              shipstationMetadata: ss as any,
+              updatedAt: new Date(),
+            })
+            .where(eq(orderShipments.shipstationShipmentId, String(ss.shipmentId)));
+          synced++;
+        }
+        // If no match by shipstation ID, we could try by orderNumber + tracking number
+        // but that's handled in webhook flow or manual linking
+      }
+
+      res.json({ synced, total: result.shipments.length });
+    } catch (error) {
+      console.error("ShipStation sync error:", error);
+      res.status(500).json({ message: "Failed to sync shipments from ShipStation" });
+    }
+  }
+
+  static async pushOrderToShipStation(req: Request, res: Response) {
+    const credentials = await getShipStationCredentials();
+    if (!credentials) {
+      return res.status(400).json({ message: "ShipStation not configured" });
+    }
+
+    const { orderId } = req.params;
+
+    try {
+      const { db } = await import("../db");
+      const { orders, orderItems, products } = await import("@shared/schema");
+      const { eq } = await import("drizzle-orm");
+
+      // Fetch order
+      const [order] = await db.select().from(orders).where(eq(orders.id, orderId)).limit(1);
+      if (!order) {
+        return res.status(404).json({ message: "Order not found" });
+      }
+
+      // Fetch items with product info
+      const items = await db
+        .select({
+          id: orderItems.id,
+          quantity: orderItems.quantity,
+          unitPrice: orderItems.unitPrice,
+          description: orderItems.description,
+          shipToAddress: orderItems.shipToAddress,
+          productName: products.name,
+          sku: products.sku,
+          productImageUrl: products.imageUrl,
+        })
+        .from(orderItems)
+        .leftJoin(products, eq(orderItems.productId, products.id))
+        .where(eq(orderItems.orderId, orderId));
+
+      // Use first item's ship-to address or order-level address
+      const shipToAddress = items[0]?.shipToAddress
+        || (order.shippingAddress ? JSON.parse(order.shippingAddress) : null)
+        || {};
+
+      const ssOrder = ShipStationService.mapToShipStationOrder(order, items, shipToAddress);
+      const service = new ShipStationService(credentials);
+      const created = await service.createOrUpdateOrder(ssOrder);
+
+      res.json({
+        success: true,
+        shipstationOrderId: created.orderId,
+        message: "Order pushed to ShipStation",
+      });
+    } catch (error) {
+      console.error("Error pushing order to ShipStation:", error);
+      res.status(500).json({ message: "Failed to push order to ShipStation" });
+    }
+  }
+
+  static async handleShipStationWebhook(req: Request, res: Response) {
+    // ShipStation webhooks send a resource_url - we fetch the actual data from that URL
+    const payload = req.body as { resource_url?: string; resource_type?: string };
+
+    if (!payload?.resource_url) {
+      return res.status(400).json({ message: "Invalid webhook payload" });
+    }
+
+    try {
+      const credentials = await getShipStationCredentials();
+      if (!credentials) {
+        console.error("ShipStation webhook received but no credentials configured");
+        return res.status(200).json({ message: "Acknowledged (no credentials)" });
+      }
+
+      const service = new ShipStationService(credentials);
+
+      if (payload.resource_type === "SHIP_NOTIFY") {
+        // Fetch the shipment data from the resource URL
+        const shipmentData = await service.fetchWebhookResource<any>(payload.resource_url);
+
+        if (shipmentData?.shipments) {
+          const { db } = await import("../db");
+          const { orderShipments, orders } = await import("@shared/schema");
+          const { eq } = await import("drizzle-orm");
+
+          for (const ss of shipmentData.shipments) {
+            // Try to find matching order by orderNumber
+            const [order] = await db
+              .select()
+              .from(orders)
+              .where(eq(orders.orderNumber, ss.orderNumber))
+              .limit(1);
+
+            if (!order) continue;
+
+            // Check if shipment already exists
+            const existing = await db
+              .select()
+              .from(orderShipments)
+              .where(eq(orderShipments.shipstationShipmentId, String(ss.shipmentId)))
+              .limit(1);
+
+            if (existing.length > 0) {
+              // Update
+              await db
+                .update(orderShipments)
+                .set({
+                  trackingNumber: ss.trackingNumber,
+                  carrier: ShipStationService.mapCarrierCode(ss.carrierCode),
+                  status: "shipped",
+                  shipDate: ss.shipDate ? new Date(ss.shipDate) : new Date(),
+                  shippingCost: ss.shipmentCost?.toString(),
+                  lastTrackingCheck: new Date(),
+                  shipstationMetadata: ss as any,
+                  updatedAt: new Date(),
+                })
+                .where(eq(orderShipments.id, existing[0].id));
+
+              // Trigger notifications + SO auto-transition
+              await shipmentService.checkShipmentAutoTransition(order.id, "shipped");
+              notificationScheduler.sendShippingNotificationToClient(order.id, existing[0].id, 'shipped').catch(() => {});
+            } else {
+              // Create new shipment record
+              const [newShipment] = await db.insert(orderShipments).values({
+                orderId: order.id,
+                carrier: ShipStationService.mapCarrierCode(ss.carrierCode),
+                trackingNumber: ss.trackingNumber,
+                status: "shipped",
+                shipDate: ss.shipDate ? new Date(ss.shipDate) : new Date(),
+                shippingCost: ss.shipmentCost?.toString(),
+                shipstationOrderId: String(ss.orderId),
+                shipstationShipmentId: String(ss.shipmentId),
+                lastTrackingCheck: new Date(),
+                shipstationMetadata: ss as any,
+              }).returning();
+
+              // Trigger notifications + SO auto-transition
+              await shipmentService.checkShipmentAutoTransition(order.id, "shipped");
+              if (newShipment) {
+                notificationScheduler.sendShippingNotificationToClient(order.id, newShipment.id, 'shipped').catch(() => {});
+              }
+            }
+          }
+        }
+      }
+
+      // Always respond 200 to acknowledge webhook
+      res.status(200).json({ message: "Webhook processed" });
+    } catch (error) {
+      console.error("ShipStation webhook processing error:", error);
+      // Still respond 200 to prevent webhook retries
+      res.status(200).json({ message: "Webhook acknowledged with errors" });
     }
   }
 }
