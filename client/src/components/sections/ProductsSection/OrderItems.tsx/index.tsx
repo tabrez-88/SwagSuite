@@ -36,6 +36,9 @@ import { useState } from "react";
 import { useLocation } from "wouter";
 import type { useProductsSection } from "../hooks";
 
+/** "full_front" → "Full Front", "screen_print" → "Screen Print" */
+const formatLabel = (s: string) => s.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+
 interface OrderItemCardProps {
   item: any;
   productSection: ReturnType<typeof useProductsSection>;
@@ -354,7 +357,10 @@ export default function OrderItemCard({ item, productSection }: OrderItemCardPro
                     <div key={art.id} className="border rounded-lg bg-white overflow-hidden">
                       <div className="p-2 flex gap-3 items-center">
                         {/* Thumbnail */}
-                        <div className="w-14 h-14 flex-shrink-0 bg-gray-50 rounded border overflow-hidden flex items-center justify-center">
+                        <div
+                          className={`w-14 h-14 flex-shrink-0 bg-gray-50 rounded border overflow-hidden flex items-center justify-center ${art.filePath ? "cursor-pointer hover:ring-2 hover:ring-blue-300 transition-shadow" : ""}`}
+                          onClick={() => art.filePath && productSection.setPreviewFile({ name: art.name || art.fileName || "Artwork", url: art.filePath })}
+                        >
                           {art.filePath ? (
                             (() => {
                               const ext = art.filePath.split("?")[0].split(".").pop()?.toLowerCase();
@@ -370,13 +376,16 @@ export default function OrderItemCard({ item, productSection }: OrderItemCardPro
                         </div>
                         {/* Info */}
                         <div className="flex-1 min-w-0">
-                          <p className="text-[11px] font-medium truncate">{art.name}</p>
+                          <p
+                            className={`text-[11px] font-medium truncate ${art.filePath ? "cursor-pointer hover:text-blue-600 hover:underline" : ""}`}
+                            onClick={() => art.filePath && productSection.setPreviewFile({ name: art.name || art.fileName || "Artwork", url: art.filePath })}
+                          >{art.name}</p>
                           <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
                             <Badge variant="outline" className={`text-[9px] ${art.status === "approved" ? "border-green-300 text-green-700" : art.status === "rejected" ? "border-red-300 text-red-700" : "border-yellow-300 text-yellow-700"}`}>
-                              {art.status}
+                              {formatLabel(art.status)}
                             </Badge>
-                            {art.location && <span className="text-[9px] text-gray-400">{art.location}</span>}
-                            {art.artworkType && <span className="text-[9px] text-gray-400">· {art.artworkType}</span>}
+                            {art.location && <span className="text-[9px] text-gray-400">{formatLabel(art.location)}</span>}
+                            {art.artworkType && <span className="text-[9px] text-gray-400">· {formatLabel(art.artworkType)}</span>}
                             {artCharges.length > 0 && (
                               <Badge variant="secondary" className="text-[9px]">
                                 <DollarSign className="w-2.5 h-2.5 mr-0.5" />{artCharges.length}
@@ -390,7 +399,7 @@ export default function OrderItemCard({ item, productSection }: OrderItemCardPro
                         <div className="border-t bg-gray-50/50 px-3 py-1.5 text-[10px] text-gray-500 space-y-0.5">
                           {artCharges.map((c: any) => (
                             <div key={c.id} className="flex justify-between">
-                              <span>{c.chargeName} <span className="text-gray-400">({c.chargeCategory === "run" ? "per unit" : "one-time"})</span></span>
+                              <span>{formatLabel(c.chargeName)} <span className="text-gray-400">({c.chargeCategory === "run" ? "per unit" : "one-time"})</span></span>
                               <span className="font-medium text-gray-700">${parseFloat(c.retailPrice || "0").toFixed(2)}</span>
                             </div>
                           ))}

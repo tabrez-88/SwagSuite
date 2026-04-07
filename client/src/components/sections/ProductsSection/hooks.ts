@@ -57,6 +57,9 @@ export function useProductsSection({ projectId, data, isLocked }: ProductsSectio
   const [marginWarningAction, setMarginWarningAction] = useState<(() => void) | null>(null);
   const [marginWarningValue, setMarginWarningValue] = useState<number>(0);
 
+  // Artwork preview state
+  const [previewFile, setPreviewFile] = useState<{ name: string; url: string } | null>(null);
+
   // Artwork upload state
   const [pickingArtworkForItem, setPickingArtworkForItem] = useState<string | null>(null);
   const [artPickedFile, setArtPickedFile] = useState<{ orderItemId: string; filePath: string; fileName: string } | null>(null);
@@ -495,6 +498,9 @@ export function useProductsSection({ projectId, data, isLocked }: ProductsSectio
     // Lines
     addLineMutation,
     deleteLineMutation,
+    // Artwork preview
+    previewFile,
+    setPreviewFile,
     // Artwork
     pickingArtworkForItem,
     setPickingArtworkForItem,

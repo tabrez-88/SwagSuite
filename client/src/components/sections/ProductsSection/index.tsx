@@ -41,6 +41,7 @@ import { useProductsSection } from "./hooks";
 import OrderItemCard from "./OrderItems.tsx";
 import type { ProductsSectionProps } from "./types";
 import { Separator } from "@/components/ui/separator";
+import { FilePreviewModal } from "@/components/modals/FilePreviewModal.tsx";
 
 export default function ProductsSection({ projectId, data, isLocked }: ProductsSectionProps) {
   const productSection = useProductsSection({ projectId, data, isLocked });
@@ -637,6 +638,18 @@ export default function ProductsSection({ projectId, data, isLocked }: ProductsS
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      {productSection.previewFile && (
+        <FilePreviewModal
+          open={true}
+          file={{
+            fileName: productSection.previewFile.name,
+            originalName: productSection.previewFile.name,
+            filePath: productSection.previewFile.url,
+            mimeType: productSection.previewFile.url.match(/\.(png|jpg|jpeg|gif|webp|svg)$/i) ? "image/png" : "application/pdf",
+          }}
+          onClose={() => productSection.setPreviewFile(null)}
+        />
+      )}
     </div>
   );
 }
