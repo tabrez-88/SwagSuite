@@ -186,7 +186,7 @@ export function PacmanGame({ isOpen, onClose }: PacmanGameProps) {
                             </span>
                             <span className="truncate max-w-32">{entry.name}</span>
                           </span>
-                          <span className="font-mono text-yellow-600 dark:text-yellow-400">
+                          <span className="text-yellow-600 dark:text-yellow-400">
                             {entry.score}
                           </span>
                         </div>

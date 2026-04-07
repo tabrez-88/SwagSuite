@@ -21,6 +21,10 @@ export const syncProductRequest = z.object({
   sizes: z.array(z.string()).optional(),
   imageUrl: z.string().optional(),
   source: z.string().optional(),
+  pricingTiers: z.array(z.object({
+    quantity: z.number(),
+    cost: z.number(),
+  })).optional(),
 });
 export type SyncProductRequest = z.infer<typeof syncProductRequest>;
 

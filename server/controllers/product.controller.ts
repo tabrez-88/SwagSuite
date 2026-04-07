@@ -45,4 +45,28 @@ export class ProductController {
     await productService.delete(req.params.id);
     res.json({ message: "Product deleted successfully" });
   }
+
+  static async getOrdersByProduct(req: Request, res: Response) {
+    const { db } = await import("../db");
+    const { orderItems, orders, companies } = await import("@shared/schema");
+    const { eq } = await import("drizzle-orm");
+
+    const results = await db
+      .select({
+        id: orders.id,
+        orderNumber: orders.orderNumber,
+        companyName: companies.name,
+        quantity: orderItems.quantity,
+        unitPrice: orderItems.unitPrice,
+        totalPrice: orderItems.totalPrice,
+        createdAt: orders.createdAt,
+      })
+      .from(orderItems)
+      .innerJoin(orders, eq(orderItems.orderId, orders.id))
+      .leftJoin(companies, eq(orders.companyId, companies.id))
+      .where(eq(orderItems.productId, req.params.id))
+      .orderBy(orders.createdAt);
+
+    res.json(results);
+  }
 }

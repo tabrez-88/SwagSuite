@@ -42,13 +42,14 @@ WHERE NOT EXISTS (SELECT 1 FROM "email_templates" WHERE "template_type" = 'invoi
 
 INSERT INTO "email_templates" ("id", "template_type", "name", "subject", "body", "is_default", "is_active")
 SELECT gen_random_uuid(), 'purchase_order', 'Default Purchase Order', 'Purchase Order {{poNumber}} — {{companyName}}',
-  'Hi,
+  'Hi {{vendorContactName}},
 
-Please find the attached purchase order {{poNumber}} for order #{{orderNumber}}.
+Attached is our PO and related artwork for this order. Please see the PO for in-hands date and associated details.
 
-Please confirm receipt and provide an estimated ship date. In-hands date: {{supplierInHandsDate}}.
+Please do not rush-ship unless specified. If there is an issue with the in-hands date, please let us know. If you have any questions, please don''t hesitate to be in touch. When the order is ready for shipment, please make sure to send us the necessary tracking information.
 
-Thank you,
+Many thanks,
+
 {{senderName}}
 {{companyName}}', true, true
 WHERE NOT EXISTS (SELECT 1 FROM "email_templates" WHERE "template_type" = 'purchase_order');

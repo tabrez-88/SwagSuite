@@ -246,24 +246,24 @@ function SageIntegrationComponent() {
               <div className="grid grid-cols-2 gap-4 p-4 bg-muted/50 rounded-lg">
                 <div>
                   <span className="text-xs font-medium text-muted-foreground">SPC Code</span>
-                  <p className="text-sm font-mono">{selectedProduct.productId}</p>
+                  <p className="text-sm">{selectedProduct.productId}</p>
                 </div>
                 {selectedProduct.productNumber && (
                   <div>
                     <span className="text-xs font-medium text-muted-foreground">Item Number</span>
-                    <p className="text-sm font-mono">{selectedProduct.productNumber}</p>
+                    <p className="text-sm">{selectedProduct.productNumber}</p>
                   </div>
                 )}
                 {selectedProduct.asiNumber && (
                   <div>
                     <span className="text-xs font-medium text-muted-foreground">ASI Number</span>
-                    <p className="text-sm font-mono">{selectedProduct.asiNumber}</p>
+                    <p className="text-sm">{selectedProduct.asiNumber}</p>
                   </div>
                 )}
                 {selectedProduct.supplierId && (
                   <div>
                     <span className="text-xs font-medium text-muted-foreground">Supplier ID</span>
-                    <p className="text-sm font-mono">{selectedProduct.supplierId}</p>
+                    <p className="text-sm">{selectedProduct.supplierId}</p>
                   </div>
                 )}
               </div>

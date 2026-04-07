@@ -1,3 +1,4 @@
+import React, { useState } from "react";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -5,7 +6,9 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -15,6 +18,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import {
   Calculator,
   ChevronDown,
@@ -28,10 +38,10 @@ import {
   MapPin,
   Package,
   Palette,
+  Pencil,
   Send,
 } from "lucide-react";
 import { format } from "date-fns";
-import { EditableText, EditableDate, EditableSelect, EditableTextarea } from "@/components/shared/InlineEditable";
 import EditableAddress from "@/components/shared/EditableAddress";
 import ProjectInfoBar from "@/components/layout/ProjectInfoBar";
 import TimelineWarningBanner from "@/components/shared/TimelineWarningBanner";
@@ -57,6 +67,7 @@ export default function SalesOrderSection(props: SalesOrderSectionProps) {
   const { toast } = useToast();
 
   const { data: paymentTermsOptions = [] } = usePaymentTerms();
+  const [showEditDialog, setShowEditDialog] = useState(false);
 
   const { data: taxCodes } = useQuery<any[]>({
     queryKey: ["/api/tax-codes"],
@@ -161,108 +172,52 @@ export default function SalesOrderSection(props: SalesOrderSectionProps) {
       {/* Collapsible Order Info Section */}
       {!hook.isInfoCollapsed && (
         <>
-          {/* Order Details Card */}
+          {/* Order Details Card — read-only display */}
           <Card>
             <CardHeader className="py-3">
-              <CardTitle className="text-sm flex items-center gap-2">
-                <ClipboardList className="w-4 h-4" />
-                Order Details
-              </CardTitle>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <ClipboardList className="w-4 h-4" />
+                  Order Details
+                </CardTitle>
+                {!hook.isLocked && (
+                  <Button variant="outline" size="sm" className="gap-1.5 h-8" onClick={() => setShowEditDialog(true)}>
+                    <Pencil className="w-3.5 h-3.5" />
+                    Edit
+                  </Button>
+                )}
+              </div>
             </CardHeader>
             <CardContent className="space-y-4">
               {/* Introduction / Notes */}
               <div>
                 <p className="text-xs font-medium text-gray-500 mb-1">Introduction</p>
-                <EditableTextarea
-                  value={hook.order.notes || ""}
-                  field="notes"
-                  onSave={hook.updateField}
-                  placeholder="Order introduction / notes..."
-                  emptyText="No introduction"
-                  rows={2}
-                  isLocked={hook.isLocked}
-                  isPending={hook.isFieldPending}
-                />
+                <p className="text-sm text-gray-700 whitespace-pre-wrap">{hook.order.notes || <span className="text-gray-400 italic">No introduction</span>}</p>
               </div>
 
               {/* Terms, Dates, Firm */}
               <div className="grid grid-cols-2 md:grid-cols-3 gap-x-8 gap-y-3">
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-muted-foreground">Payment Terms</span>
-                  <EditableSelect
-                    value={(hook.order as any)?.paymentTerms || ""}
-                    field="paymentTerms"
-                    onSave={hook.updateField}
-                    options={paymentTermsOptions.map((t: any) => ({ value: t.name, label: t.name }))}
-                    emptyOption="Not Set"
-                    isLocked={hook.isLocked}
-                    isPending={hook.isFieldPending}
-                  />
+                  <span className="text-sm font-medium">{(hook.order as any)?.paymentTerms || "—"}</span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-muted-foreground">Customer PO</span>
-                  <EditableText
-                    value={(hook.order as any)?.customerPo || ""}
-                    field="customerPo"
-                    onSave={hook.updateField}
-                    placeholder="PO #"
-                    emptyText="Not set"
-                    isLocked={hook.isLocked}
-                    isPending={hook.isFieldPending}
-                  />
+                  <span className="text-sm font-medium">{(hook.order as any)?.customerPo || "—"}</span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-muted-foreground">Default Margin</span>
-                  <EditableText
-                    value={String((hook.order as any)?.margin || "")}
-                    field="margin"
-                    onSave={hook.updateField}
-                    type="number"
-                    suffix="%"
-                    placeholder="0"
-                    emptyText="Not set"
-                    isLocked={hook.isLocked}
-                    isPending={hook.isFieldPending}
-                  />
+                  <span className="text-sm font-medium">{(hook.order as any)?.margin ? `${(hook.order as any).margin}%` : "—"}</span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-muted-foreground">Discount</span>
-                  <EditableText
-                    value={(hook.order as any)?.orderDiscount || ""}
-                    field="orderDiscount"
-                    onSave={hook.updateField}
-                    type="number"
-                    suffix="%"
-                    placeholder="0"
-                    emptyText="None"
-                    isLocked={hook.isLocked}
-                    isPending={hook.isFieldPending}
-                  />
+                  <span className="text-sm font-medium">{(hook.order as any)?.orderDiscount ? `${(hook.order as any).orderDiscount}%` : "—"}</span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-muted-foreground">Tax Code</span>
-                  {hook.isLocked ? (
-                    <span className="text-sm">
-                      {taxCodes?.find((tc: any) => String(tc.id) === (hook.order as any)?.defaultTaxCodeId)?.label || "None"}
-                    </span>
-                  ) : (
-                    <Select
-                      value={(hook.order as any)?.defaultTaxCodeId || "none"}
-                      onValueChange={(val) => hook.updateField({ defaultTaxCodeId: val === "none" ? null : val })}
-                    >
-                      <SelectTrigger className="w-[180px] h-8 text-sm">
-                        <SelectValue placeholder="Select tax code" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">None</SelectItem>
-                        {(taxCodes || []).map((tc: any) => (
-                          <SelectItem key={tc.id} value={String(tc.id)}>
-                            {tc.label} {tc.rate ? `(${tc.rate}%)` : ""}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  )}
+                  <span className="text-sm font-medium">
+                    {taxCodes?.find((tc: any) => String(tc.id) === (hook.order as any)?.defaultTaxCodeId)?.label || "None"}
+                  </span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-muted-foreground">Tax</span>
@@ -308,47 +263,29 @@ export default function SalesOrderSection(props: SalesOrderSectionProps) {
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-muted-foreground">In-Hands Date</span>
-                  <EditableDate
-                    value={hook.order.inHandsDate}
-                    field="inHandsDate"
-                    onSave={hook.updateField}
-                    isLocked={hook.isLocked}
-                    isPending={hook.isFieldPending}
-                  />
+                  <span className="text-sm font-medium">
+                    {hook.order.inHandsDate ? format(new Date(hook.order.inHandsDate), "MMM d, yyyy") : "—"}
+                  </span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-muted-foreground">Event Date</span>
-                  <EditableDate
-                    value={hook.order.eventDate}
-                    field="eventDate"
-                    onSave={hook.updateField}
-                    isLocked={hook.isLocked}
-                    isPending={hook.isFieldPending}
-                  />
+                  <span className="text-sm font-medium">
+                    {hook.order.eventDate ? format(new Date(hook.order.eventDate), "MMM d, yyyy") : "—"}
+                  </span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-muted-foreground">Supplier In-Hands</span>
-                  <EditableDate
-                    value={(hook.order as any)?.supplierInHandsDate}
-                    field="supplierInHandsDate"
-                    onSave={hook.updateField}
-                    isLocked={hook.isLocked}
-                    isPending={hook.isFieldPending}
-                  />
+                  <span className="text-sm font-medium">
+                    {(hook.order as any)?.supplierInHandsDate ? format(new Date((hook.order as any).supplierInHandsDate), "MMM d, yyyy") : "—"}
+                  </span>
                 </div>
               </div>
 
-              {/* Firm / Rush toggles */}
-              <div className="flex items-center gap-6">
-                <div className="flex items-center gap-2">
-                  <Checkbox
-                    id="isFirmSO"
-                    checked={(hook.order as any)?.isFirm || false}
-                    onCheckedChange={(checked) => hook.updateField({ isFirm: !!checked })}
-                    disabled={hook.isLocked}
-                  />
-                  <Label htmlFor="isFirmSO" className="text-sm font-normal cursor-pointer">Firm Order</Label>
-                </div>
+              {/* Firm / Rush badges */}
+              <div className="flex items-center gap-3">
+                {(hook.order as any)?.isFirm && (
+                  <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">Firm Order</Badge>
+                )}
                 {(hook.order as any)?.isRush && (
                   <Badge variant="destructive" className="text-xs">Rush Order</Badge>
                 )}
@@ -358,33 +295,26 @@ export default function SalesOrderSection(props: SalesOrderSectionProps) {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
                 <div>
                   <p className="text-xs font-medium text-gray-500 mb-1">Supplier Notes</p>
-                  <EditableTextarea
-                    value={(hook.order as any)?.supplierNotes || ""}
-                    field="supplierNotes"
-                    onSave={hook.updateField}
-                    placeholder="Notes visible to suppliers on POs..."
-                    emptyText="No supplier notes"
-                    rows={2}
-                    isLocked={hook.isLocked}
-                    isPending={hook.isFieldPending}
-                  />
+                  <p className="text-sm text-gray-700 whitespace-pre-wrap">{(hook.order as any)?.supplierNotes || <span className="text-gray-400 italic">No supplier notes</span>}</p>
                 </div>
                 <div>
                   <p className="text-xs font-medium text-gray-500 mb-1">Additional Information</p>
-                  <EditableTextarea
-                    value={(hook.order as any)?.additionalInformation || ""}
-                    field="additionalInformation"
-                    onSave={hook.updateField}
-                    placeholder="Other relevant details..."
-                    emptyText="No additional info"
-                    rows={2}
-                    isLocked={hook.isLocked}
-                    isPending={hook.isFieldPending}
-                  />
+                  <p className="text-sm text-gray-700 whitespace-pre-wrap">{(hook.order as any)?.additionalInformation || <span className="text-gray-400 italic">No additional info</span>}</p>
                 </div>
               </div>
             </CardContent>
           </Card>
+
+          {/* SO Details Edit Dialog */}
+          <SOEditDialog
+            open={showEditDialog}
+            onOpenChange={setShowEditDialog}
+            order={hook.order}
+            updateField={hook.updateField}
+            isFieldPending={hook.isFieldPending}
+            paymentTermsOptions={paymentTermsOptions}
+            taxCodes={taxCodes || []}
+          />
 
           {/* Addresses */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -483,27 +413,9 @@ export default function SalesOrderSection(props: SalesOrderSectionProps) {
         </CardContent>
       </Card>
 
-      {/* Products / Artwork Tabs */}
-      <Tabs defaultValue="products" className="w-full">
-        <TabsList>
-          <TabsTrigger value="products" className="gap-1">
-            <Package className="w-4 h-4" />
-            Products
-          </TabsTrigger>
-          <TabsTrigger value="artwork" className="gap-1">
-            <Palette className="w-4 h-4" />
-            Artwork
-          </TabsTrigger>
-        </TabsList>
 
-        <TabsContent value="products" className="mt-4">
-          <ProductsSection projectId={projectId} data={hook.data} isLocked={hook.isLocked} />
-        </TabsContent>
+      <ProductsSection projectId={projectId} data={hook.data} isLocked={hook.isLocked} />
 
-        <TabsContent value="artwork" className="mt-4">
-          <SalesOrderArtwork hook={hook} />
-        </TabsContent>
-      </Tabs>
 
       {/* Hidden SO template for PDF generation */}
       <SalesOrderTemplate
@@ -745,5 +657,203 @@ function SalesOrderArtwork({ hook }: { hook: ReturnType<typeof useSalesOrderSect
         />
       )}
     </div>
+  );
+}
+
+// ── SO Details Edit Dialog ────────────────────────────────────────
+function SOEditDialog({
+  open,
+  onOpenChange,
+  order,
+  updateField,
+  isFieldPending,
+  paymentTermsOptions,
+  taxCodes,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  order: any;
+  updateField: (fields: Record<string, any>, options?: any) => void;
+  isFieldPending: boolean;
+  paymentTermsOptions: any[];
+  taxCodes: any[];
+}) {
+  const { toast } = useToast();
+  const [form, setForm] = useState<Record<string, any>>({});
+
+  // Populate form when dialog opens
+  React.useEffect(() => {
+    if (open) {
+      setForm({
+        notes: order?.notes || "",
+        paymentTerms: order?.paymentTerms || "",
+        customerPo: order?.customerPo || "",
+        margin: order?.margin || "",
+        orderDiscount: order?.orderDiscount || "",
+        defaultTaxCodeId: order?.defaultTaxCodeId || "none",
+        inHandsDate: order?.inHandsDate ? new Date(order.inHandsDate).toISOString().split("T")[0] : "",
+        eventDate: order?.eventDate ? new Date(order.eventDate).toISOString().split("T")[0] : "",
+        supplierInHandsDate: order?.supplierInHandsDate ? new Date(order.supplierInHandsDate).toISOString().split("T")[0] : "",
+        isFirm: order?.isFirm || false,
+        supplierNotes: order?.supplierNotes || "",
+        additionalInformation: order?.additionalInformation || "",
+      });
+    }
+  }, [open]);
+
+  const handleSave = () => {
+    const payload: Record<string, any> = { ...form };
+    if (payload.defaultTaxCodeId === "none") payload.defaultTaxCodeId = null;
+    if (!payload.inHandsDate) payload.inHandsDate = null;
+    if (!payload.eventDate) payload.eventDate = null;
+    if (!payload.supplierInHandsDate) payload.supplierInHandsDate = null;
+    updateField(payload, {
+      onSuccess: () => {
+        toast({ title: "Order details updated" });
+        onOpenChange(false);
+      },
+      onError: (error: Error) => {
+        toast({ title: "Failed to update", description: error.message, variant: "destructive" });
+      },
+    });
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Edit Order Details</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4 py-2">
+          <div>
+            <Label className="text-xs text-gray-500">Introduction / Notes</Label>
+            <Textarea
+              value={form.notes || ""}
+              onChange={(e) => setForm({ ...form, notes: e.target.value })}
+              placeholder="Order introduction / notes..."
+              className="mt-1 min-h-[60px]"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label className="text-xs text-gray-500">Payment Terms</Label>
+              <Select value={form.paymentTerms || ""} onValueChange={(val) => setForm({ ...form, paymentTerms: val })}>
+                <SelectTrigger className="mt-1"><SelectValue placeholder="Select terms" /></SelectTrigger>
+                <SelectContent>
+                  {paymentTermsOptions.map((t: any) => (
+                    <SelectItem key={t.name} value={t.name}>{t.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-xs text-gray-500">Customer PO</Label>
+              <Input
+                value={form.customerPo || ""}
+                onChange={(e) => setForm({ ...form, customerPo: e.target.value })}
+                placeholder="PO #"
+                className="mt-1"
+              />
+            </div>
+            <div>
+              <Label className="text-xs text-gray-500">Default Margin (%)</Label>
+              <Input
+                type="number"
+                value={form.margin || ""}
+                onChange={(e) => setForm({ ...form, margin: e.target.value })}
+                placeholder="0"
+                className="mt-1"
+              />
+            </div>
+            <div>
+              <Label className="text-xs text-gray-500">Discount (%)</Label>
+              <Input
+                type="number"
+                value={form.orderDiscount || ""}
+                onChange={(e) => setForm({ ...form, orderDiscount: e.target.value })}
+                placeholder="0"
+                className="mt-1"
+              />
+            </div>
+            <div>
+              <Label className="text-xs text-gray-500">Tax Code</Label>
+              <Select value={form.defaultTaxCodeId || "none"} onValueChange={(val) => setForm({ ...form, defaultTaxCodeId: val })}>
+                <SelectTrigger className="mt-1"><SelectValue placeholder="Select tax code" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">None</SelectItem>
+                  {taxCodes.map((tc: any) => (
+                    <SelectItem key={tc.id} value={String(tc.id)}>
+                      {tc.label} {tc.rate ? `(${tc.rate}%)` : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-xs text-gray-500">In-Hands Date</Label>
+              <Input
+                type="date"
+                value={form.inHandsDate || ""}
+                onChange={(e) => setForm({ ...form, inHandsDate: e.target.value })}
+                className="mt-1"
+              />
+            </div>
+            <div>
+              <Label className="text-xs text-gray-500">Event Date</Label>
+              <Input
+                type="date"
+                value={form.eventDate || ""}
+                onChange={(e) => setForm({ ...form, eventDate: e.target.value })}
+                className="mt-1"
+              />
+            </div>
+            <div>
+              <Label className="text-xs text-gray-500">Supplier In-Hands Date</Label>
+              <Input
+                type="date"
+                value={form.supplierInHandsDate || ""}
+                onChange={(e) => setForm({ ...form, supplierInHandsDate: e.target.value })}
+                className="mt-1"
+              />
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="isFirmEdit"
+              checked={form.isFirm || false}
+              onCheckedChange={(checked) => setForm({ ...form, isFirm: !!checked })}
+            />
+            <Label htmlFor="isFirmEdit" className="text-sm font-normal cursor-pointer">Firm Order</Label>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label className="text-xs text-gray-500">Supplier Notes</Label>
+              <Textarea
+                value={form.supplierNotes || ""}
+                onChange={(e) => setForm({ ...form, supplierNotes: e.target.value })}
+                placeholder="Notes visible to suppliers on POs..."
+                className="mt-1 min-h-[60px]"
+              />
+            </div>
+            <div>
+              <Label className="text-xs text-gray-500">Additional Information</Label>
+              <Textarea
+                value={form.additionalInformation || ""}
+                onChange={(e) => setForm({ ...form, additionalInformation: e.target.value })}
+                placeholder="Other relevant details..."
+                className="mt-1 min-h-[60px]"
+              />
+            </div>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button onClick={handleSave} disabled={isFieldPending}>
+            {isFieldPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+            Save Changes
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

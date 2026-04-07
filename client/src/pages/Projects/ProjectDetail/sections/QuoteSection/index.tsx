@@ -1,6 +1,10 @@
+import React, { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -8,7 +12,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { EditableText, EditableDate, EditableSelect, EditableTextarea } from "@/components/shared/InlineEditable";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import EditableAddress from "@/components/shared/EditableAddress";
 import ProjectInfoBar from "@/components/layout/ProjectInfoBar";
 import {
@@ -21,6 +31,7 @@ import {
   FileText,
   Loader2,
   MapPin,
+  Pencil,
   Send,
   XCircle,
 } from "lucide-react";
@@ -82,6 +93,7 @@ export default function QuoteSection(props: QuoteSectionProps) {
   } = useQuoteSection(props);
 
   const { data: paymentTermsOptions = [] } = usePaymentTerms();
+  const [showEditDialog, setShowEditDialog] = useState(false);
 
   const { data: taxCodes } = useQuery<any[]>({
     queryKey: ["/api/tax-codes"],
@@ -143,13 +155,21 @@ export default function QuoteSection(props: QuoteSectionProps) {
 
       </div>
 
-      {/* Quote Details — inline editable fields */}
+      {/* Quote Details — read-only display */}
       <Card>
         <CardHeader className="py-3">
-          <CardTitle className="text-sm flex items-center gap-2">
-            <ClipboardList className="w-4 h-4" />
-            Quote Details
-          </CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <ClipboardList className="w-4 h-4" />
+              Quote Details
+            </CardTitle>
+            {!isLocked && (
+              <Button variant="outline" size="sm" className="gap-1.5 h-8" onClick={() => setShowEditDialog(true)}>
+                <Pencil className="w-3.5 h-3.5" />
+                Edit
+              </Button>
+            )}
+          </div>
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="grid grid-cols-2 gap-x-8 gap-y-2">
@@ -163,84 +183,33 @@ export default function QuoteSection(props: QuoteSectionProps) {
             </div>
             <div className="flex justify-between items-center">
               <span className="text-sm text-muted-foreground">In-Hands Date</span>
-              <EditableDate
-                value={(order as any)?.inHandsDate}
-                field="inHandsDate"
-                onSave={updateField}
-                isLocked={isLocked}
-                isPending={isFieldPending}
-              />
+              <span className="text-sm font-medium">
+                {(order as any)?.inHandsDate ? format(new Date((order as any).inHandsDate), "MMM d, yyyy") : "—"}
+              </span>
             </div>
             <div className="flex justify-between items-center">
               <span className="text-sm text-muted-foreground">Supplier In-Hands</span>
-              <EditableDate
-                value={(order as any)?.supplierInHandsDate}
-                field="supplierInHandsDate"
-                onSave={updateField}
-                isLocked={isLocked}
-                isPending={isFieldPending}
-              />
+              <span className="text-sm font-medium">
+                {(order as any)?.supplierInHandsDate ? format(new Date((order as any).supplierInHandsDate), "MMM d, yyyy") : "—"}
+              </span>
             </div>
             <div className="flex justify-between items-center">
               <span className="text-sm text-muted-foreground">Customer PO</span>
-              <EditableText
-                value={(order as any)?.customerPo || ""}
-                field="customerPo"
-                onSave={updateField}
-                placeholder="Enter PO #"
-                emptyText="Not set"
-                isLocked={isLocked}
-                isPending={isFieldPending}
-              />
+              <span className="text-sm font-medium">{(order as any)?.customerPo || "—"}</span>
             </div>
             <div className="flex justify-between items-center">
               <span className="text-sm text-muted-foreground">Payment Terms</span>
-              <EditableSelect
-                value={(order as any)?.paymentTerms || ""}
-                field="paymentTerms"
-                onSave={updateField}
-                options={paymentTermsOptions.map((t: any) => ({ value: t.name, label: t.name }))}
-                emptyOption="Not Set"
-                isLocked={isLocked}
-                isPending={isFieldPending}
-              />
+              <span className="text-sm font-medium">{(order as any)?.paymentTerms || "—"}</span>
             </div>
             <div className="flex justify-between items-center">
               <span className="text-sm text-muted-foreground">Currency</span>
-              <EditableText
-                value={(order as any)?.currency || "USD"}
-                field="currency"
-                onSave={updateField}
-                placeholder="USD"
-                emptyText="USD"
-                isLocked={isLocked}
-                isPending={isFieldPending}
-              />
+              <span className="text-sm font-medium">{(order as any)?.currency || "USD"}</span>
             </div>
             <div className="flex justify-between items-center">
               <span className="text-sm text-muted-foreground">Tax Code</span>
-              {isLocked ? (
-                <span className="text-sm">
-                  {taxCodes?.find((tc: any) => String(tc.id) === (order as any)?.defaultTaxCodeId)?.label || "None"}
-                </span>
-              ) : (
-                <Select
-                  value={(order as any)?.defaultTaxCodeId || "none"}
-                  onValueChange={(val) => updateField({ defaultTaxCodeId: val === "none" ? null : val })}
-                >
-                  <SelectTrigger className="w-[180px] h-8 text-sm">
-                    <SelectValue placeholder="Select tax code" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">None</SelectItem>
-                    {(taxCodes || []).map((tc: any) => (
-                      <SelectItem key={tc.id} value={String(tc.id)}>
-                        {tc.label} {tc.rate ? `(${tc.rate}%)` : ""}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
+              <span className="text-sm font-medium">
+                {taxCodes?.find((tc: any) => String(tc.id) === (order as any)?.defaultTaxCodeId)?.label || "None"}
+              </span>
             </div>
             <div className="flex justify-between items-center">
               <span className="text-sm text-muted-foreground">Tax</span>
@@ -284,78 +253,35 @@ export default function QuoteSection(props: QuoteSectionProps) {
                 )}
               </div>
             </div>
-            {/* Discount field hidden — schema retained, feature not yet finalized
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-muted-foreground">Discount</span>
-              <EditableText
-                value={(order as any)?.orderDiscount || ""}
-                field="orderDiscount"
-                onSave={updateField}
-                type="number"
-                suffix="%"
-                placeholder="0"
-                emptyText="None"
-                isLocked={isLocked}
-                isPending={isFieldPending}
-              />
-            </div>
-            */}
-            {/* <div className="flex items-center gap-3 col-span-2">
-              <Checkbox
-                id="isFirm"
-                checked={(order as any)?.isFirm || false}
-                onCheckedChange={(checked) => updateField({ isFirm: !!checked })}
-                disabled={isLocked}
-              />
-              <Label htmlFor="isFirm" className="text-sm font-normal cursor-pointer">
-                Firm In-Hands Date (cannot be adjusted)
-              </Label>
-            </div> */}
           </div>
           <Separator className="my-2" />
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
             <div className="col-span-2">
               <p className="text-xs font-medium text-gray-500 mb-1">Introduction</p>
-              <EditableTextarea
-                value={(order as any)?.quoteIntroduction || ""}
-                field="quoteIntroduction"
-                onSave={updateField}
-                placeholder="Introduction message for the quote (visible to client)..."
-                emptyText="No introduction"
-                rows={3}
-                isLocked={isLocked}
-                isPending={isFieldPending}
-              />
+              <p className="text-sm text-gray-700 whitespace-pre-wrap">{(order as any)?.quoteIntroduction || <span className="text-gray-400 italic">No introduction</span>}</p>
             </div>
             <div>
               <p className="text-xs font-medium text-gray-500 mb-1">Supplier Notes</p>
-              <EditableTextarea
-                value={(order as any)?.supplierNotes || ""}
-                field="supplierNotes"
-                onSave={updateField}
-                placeholder="Notes visible to suppliers on POs..."
-                emptyText="No supplier notes"
-                rows={2}
-                isLocked={isLocked}
-                isPending={isFieldPending}
-              />
+              <p className="text-sm text-gray-700 whitespace-pre-wrap">{(order as any)?.supplierNotes || <span className="text-gray-400 italic">No supplier notes</span>}</p>
             </div>
             <div>
               <p className="text-xs font-medium text-gray-500 mb-1">Additional Information</p>
-              <EditableTextarea
-                value={(order as any)?.additionalInformation || ""}
-                field="additionalInformation"
-                onSave={updateField}
-                placeholder="Other relevant details..."
-                emptyText="No additional info"
-                rows={2}
-                isLocked={isLocked}
-                isPending={isFieldPending}
-              />
+              <p className="text-sm text-gray-700 whitespace-pre-wrap">{(order as any)?.additionalInformation || <span className="text-gray-400 italic">No additional info</span>}</p>
             </div>
           </div>
         </CardContent>
       </Card>
+
+      {/* Quote Details Edit Dialog */}
+      <QuoteEditDialog
+        open={showEditDialog}
+        onOpenChange={setShowEditDialog}
+        order={order}
+        updateField={updateField}
+        isFieldPending={isFieldPending}
+        paymentTermsOptions={paymentTermsOptions}
+        taxCodes={taxCodes || []}
+      />
 
       {/* Addresses */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -623,5 +549,171 @@ export default function QuoteSection(props: QuoteSectionProps) {
         />
       )}
     </div>
+  );
+}
+
+// ── Quote Details Edit Dialog ─────────────────────────────────────
+function QuoteEditDialog({
+  open,
+  onOpenChange,
+  order,
+  updateField,
+  isFieldPending,
+  paymentTermsOptions,
+  taxCodes,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  order: any;
+  updateField: (fields: Record<string, any>, options?: any) => void;
+  isFieldPending: boolean;
+  paymentTermsOptions: any[];
+  taxCodes: any[];
+}) {
+  const { toast } = useToast();
+  const [form, setForm] = useState<Record<string, any>>({});
+
+  // Populate form when dialog opens
+  React.useEffect(() => {
+    if (open) {
+      setForm({
+        inHandsDate: order?.inHandsDate ? new Date(order.inHandsDate).toISOString().split("T")[0] : "",
+        supplierInHandsDate: order?.supplierInHandsDate ? new Date(order.supplierInHandsDate).toISOString().split("T")[0] : "",
+        customerPo: order?.customerPo || "",
+        paymentTerms: order?.paymentTerms || "",
+        currency: order?.currency || "USD",
+        defaultTaxCodeId: order?.defaultTaxCodeId || "none",
+        quoteIntroduction: order?.quoteIntroduction || "",
+        supplierNotes: order?.supplierNotes || "",
+        additionalInformation: order?.additionalInformation || "",
+      });
+    }
+  }, [open]);
+
+  const handleSave = () => {
+    const payload: Record<string, any> = { ...form };
+    if (payload.defaultTaxCodeId === "none") payload.defaultTaxCodeId = null;
+    if (!payload.inHandsDate) payload.inHandsDate = null;
+    if (!payload.supplierInHandsDate) payload.supplierInHandsDate = null;
+    updateField(payload, {
+      onSuccess: () => {
+        toast({ title: "Quote details updated" });
+        onOpenChange(false);
+      },
+      onError: (error: Error) => {
+        toast({ title: "Failed to update", description: error.message, variant: "destructive" });
+      },
+    });
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Edit Quote Details</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4 py-2">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label className="text-xs text-gray-500">In-Hands Date</Label>
+              <Input
+                type="date"
+                value={form.inHandsDate || ""}
+                onChange={(e) => setForm({ ...form, inHandsDate: e.target.value })}
+                className="mt-1"
+              />
+            </div>
+            <div>
+              <Label className="text-xs text-gray-500">Supplier In-Hands Date</Label>
+              <Input
+                type="date"
+                value={form.supplierInHandsDate || ""}
+                onChange={(e) => setForm({ ...form, supplierInHandsDate: e.target.value })}
+                className="mt-1"
+              />
+            </div>
+            <div>
+              <Label className="text-xs text-gray-500">Customer PO</Label>
+              <Input
+                value={form.customerPo || ""}
+                onChange={(e) => setForm({ ...form, customerPo: e.target.value })}
+                placeholder="Enter PO #"
+                className="mt-1"
+              />
+            </div>
+            <div>
+              <Label className="text-xs text-gray-500">Payment Terms</Label>
+              <Select value={form.paymentTerms || ""} onValueChange={(val) => setForm({ ...form, paymentTerms: val })}>
+                <SelectTrigger className="mt-1"><SelectValue placeholder="Select terms" /></SelectTrigger>
+                <SelectContent>
+                  {paymentTermsOptions.map((t: any) => (
+                    <SelectItem key={t.name} value={t.name}>{t.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-xs text-gray-500">Currency</Label>
+              <Input
+                value={form.currency || ""}
+                onChange={(e) => setForm({ ...form, currency: e.target.value })}
+                placeholder="USD"
+                className="mt-1"
+              />
+            </div>
+            <div>
+              <Label className="text-xs text-gray-500">Tax Code</Label>
+              <Select value={form.defaultTaxCodeId || "none"} onValueChange={(val) => setForm({ ...form, defaultTaxCodeId: val })}>
+                <SelectTrigger className="mt-1"><SelectValue placeholder="Select tax code" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">None</SelectItem>
+                  {taxCodes.map((tc: any) => (
+                    <SelectItem key={tc.id} value={String(tc.id)}>
+                      {tc.label} {tc.rate ? `(${tc.rate}%)` : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div>
+            <Label className="text-xs text-gray-500">Introduction</Label>
+            <Textarea
+              value={form.quoteIntroduction || ""}
+              onChange={(e) => setForm({ ...form, quoteIntroduction: e.target.value })}
+              placeholder="Introduction message for the quote (visible to client)..."
+              className="mt-1 min-h-[80px]"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label className="text-xs text-gray-500">Supplier Notes</Label>
+              <Textarea
+                value={form.supplierNotes || ""}
+                onChange={(e) => setForm({ ...form, supplierNotes: e.target.value })}
+                placeholder="Notes visible to suppliers on POs..."
+                className="mt-1 min-h-[60px]"
+              />
+            </div>
+            <div>
+              <Label className="text-xs text-gray-500">Additional Information</Label>
+              <Textarea
+                value={form.additionalInformation || ""}
+                onChange={(e) => setForm({ ...form, additionalInformation: e.target.value })}
+                placeholder="Other relevant details..."
+                className="mt-1 min-h-[60px]"
+              />
+            </div>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button onClick={handleSave} disabled={isFieldPending}>
+            {isFieldPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+            Save Changes
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

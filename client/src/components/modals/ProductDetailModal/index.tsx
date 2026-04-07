@@ -40,7 +40,7 @@ export function ProductDetailModal({ open, onOpenChange, product, supplierName, 
               <Package className="w-6 h-6" />
               {product.name}
               {product.sku && (
-                <Badge variant="outline" className="font-mono">
+                <Badge variant="outline">
                   {product.sku}
                 </Badge>
               )}
@@ -84,13 +84,13 @@ export function ProductDetailModal({ open, onOpenChange, product, supplierName, 
                 {product.sku && (
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium text-gray-600">SKU:</span>
-                    <Badge variant="outline" className="font-mono">{product.sku}</Badge>
+                    <Badge variant="outline">{product.sku}</Badge>
                   </div>
                 )}
                 {product.supplierSku && (
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium text-gray-600">Supplier SKU:</span>
-                    <Badge variant="outline" className="font-mono">{product.supplierSku}</Badge>
+                    <Badge variant="outline">{product.supplierSku}</Badge>
                   </div>
                 )}
                 {product.productType && (

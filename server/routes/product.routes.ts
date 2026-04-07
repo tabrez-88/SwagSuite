@@ -12,5 +12,6 @@ router.post("/api/products", isAuthenticated, asyncHandler(ProductController.cre
 router.get("/api/products/:id", isAuthenticated, asyncHandler(ProductController.getById));
 router.patch("/api/products/:id", isAuthenticated, asyncHandler(ProductController.update));
 router.delete("/api/products/:id", isAuthenticated, asyncHandler(ProductController.delete));
+router.get("/api/products/:id/orders", isAuthenticated, asyncHandler(ProductController.getOrdersByProduct));
 
 export default router;

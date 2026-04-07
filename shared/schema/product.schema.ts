@@ -6,6 +6,7 @@ import {
   text,
   integer,
   decimal,
+  jsonb,
 } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -38,6 +39,7 @@ export const products = pgTable("products", {
   leadTime: integer("lead_time"), // days
   imageUrl: varchar("image_url"),
   productType: varchar("product_type").default("apparel"), // apparel, hard_goods, promotional
+  pricingTiers: jsonb("pricing_tiers"), // Supplier quantity break pricing: [{ quantity: 24, cost: 44.82 }, ...]
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

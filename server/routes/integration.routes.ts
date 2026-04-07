@@ -35,6 +35,9 @@ router.post("/api/integrations/sage/products/sync", isAuthenticated, asyncHandle
 router.get("/api/sage/products", isAuthenticated, asyncHandler(IntegrationController.getSageProductsList));
 router.get("/api/sage/products/:id", isAuthenticated, asyncHandler(IntegrationController.getSageProductById));
 
+// SAGE product pricing detail (105 API)
+router.get("/api/sage/product-pricing/:prodEId", isAuthenticated, asyncHandler(IntegrationController.getSageProductPricing));
+
 // ==================== Unified Product Search ====================
 router.get("/api/integrations/products/search", isAuthenticated, asyncHandler(IntegrationController.searchUnifiedProducts));
 

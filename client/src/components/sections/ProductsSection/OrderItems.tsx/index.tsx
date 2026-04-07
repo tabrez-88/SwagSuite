@@ -35,9 +35,7 @@ import {
 import { useState } from "react";
 import { useLocation } from "wouter";
 import type { useProductsSection } from "../hooks";
-
-/** "full_front" → "Full Front", "screen_print" → "Screen Print" */
-const formatLabel = (s: string) => s.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+import { formatLabel } from "@/lib/utils";
 
 interface OrderItemCardProps {
   item: any;

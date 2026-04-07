@@ -23,9 +23,13 @@ interface DecoratorMatrixDialogProps {
   onClose: () => void;
   supplierId: string;
   supplierName: string;
+  artworkId?: string;
+  artworkMethod?: string;
+  quantity?: number;
+  projectId?: string | number;
 }
 
-export default function DecoratorMatrixDialog({ open, supplierId, supplierName, onClose }: DecoratorMatrixDialogProps) {
+export default function DecoratorMatrixDialog({ open, supplierId, supplierName, onClose, artworkId, artworkMethod, quantity, projectId }: DecoratorMatrixDialogProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [, navigate] = useLocation();
@@ -101,7 +105,39 @@ export default function DecoratorMatrixDialog({ open, supplierId, supplierName, 
     },
   });
 
+  const updateEntryMutation = useMutation({
+    mutationFn: async ({ matrixId, entryId, updates }: { matrixId: string; entryId: string; updates: any }) => {
+      const res = await apiRequest("PATCH", `/api/matrices/${matrixId}/entries/${entryId}`, updates);
+      return res.json();
+    },
+    onSuccess: () => {
+      if (selectedMatrixId) queryClient.invalidateQueries({ queryKey: [`/api/matrices/${selectedMatrixId}`] });
+    },
+  });
+
+  const applyToArtworkMutation = useMutation({
+    mutationFn: async ({ artworkId, supplierId, quantity }: { artworkId: string; supplierId: string; quantity: number }) => {
+      const res = await apiRequest("POST", "/api/matrices/apply", { artworkId, supplierId, quantity });
+      return res.json();
+    },
+    onSuccess: (data) => {
+      if (projectId) {
+        queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/items-with-details`] });
+      }
+      if (data.applied) {
+        toast({ title: "Matrix applied", description: `${data.charges.length} charge(s) from "${data.matrixName}"` });
+        onClose();
+      } else {
+        toast({ title: "Could not apply", description: data.message, variant: "destructive" });
+      }
+    },
+    onError: () => {
+      toast({ title: "Failed to apply matrix", variant: "destructive" });
+    },
+  });
+
   const [newEntry, setNewEntry] = useState({ minQuantity: 1, maxQuantity: "", setupCost: "0", runCost: "0", additionalColorCost: "0", colorCount: 1 });
+  const [newSimpleEntry, setNewSimpleEntry] = useState({ rowLabel: "", unitCost: "0", minQuantity: 1, maxQuantity: "" });
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
@@ -212,28 +248,152 @@ export default function DecoratorMatrixDialog({ open, supplierId, supplierName, 
                 </Badge>
               </div>
 
-              {/* Non-table types: show simplified view with link to settings */}
+              {/* Non-table types */}
               {matrixDetail.matrixType && matrixDetail.matrixType !== "run_charge_table" ? (
-                <div className="border rounded-lg p-4 space-y-2">
-                  {(matrixDetail.entries || []).map((entry: any) => (
-                    <div key={entry.id} className="flex items-center justify-between text-sm py-1 border-b last:border-0">
-                      <span>{entry.rowLabel || "—"}</span>
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium">${parseFloat(entry.unitCost || "0").toFixed(2)}</span>
-                        {entry.perUnit && <span className="text-xs text-muted-foreground">{entry.perUnit}</span>}
-                        <Button variant="ghost" size="sm" className="h-5 w-5 p-0"
-                          onClick={() => deleteEntryMutation.mutate({ matrixId: matrixDetail.id, entryId: entry.id })}>
-                          <Trash2 className="w-3 h-3 text-muted-foreground" />
+                <div className="border rounded-lg overflow-hidden">
+                  {/* Header row for fixed_charge_table (has qty columns) */}
+                  {matrixDetail.matrixType === "fixed_charge_table" ? (
+                    <table className="w-full text-sm">
+                      <thead className="bg-gray-50 border-b">
+                        <tr>
+                          <th className="text-left p-2.5 font-medium text-xs">Label</th>
+                          <th className="text-left p-2.5 font-medium text-xs w-20">Min Qty</th>
+                          <th className="text-left p-2.5 font-medium text-xs w-20">Max Qty</th>
+                          <th className="text-right p-2.5 font-medium text-xs w-24">Unit Cost</th>
+                          <th className="w-8"></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(matrixDetail.entries || []).map((entry: any) => (
+                          <tr key={entry.id} className="border-b last:border-0">
+                            <td className="p-1.5">
+                              <input className="text-xs w-full bg-transparent border-0 outline-none focus:bg-white focus:ring-1 focus:ring-blue-300 rounded px-1 py-0.5"
+                                defaultValue={entry.rowLabel || ""} placeholder="Label"
+                                onBlur={(e) => {
+                                  const val = e.target.value.trim();
+                                  if (val !== (entry.rowLabel || "")) updateEntryMutation.mutate({ matrixId: matrixDetail.id, entryId: entry.id, updates: { rowLabel: val } });
+                                }} />
+                            </td>
+                            <td className="p-1.5">
+                              <input type="number" min={0} className="h-7 text-xs w-full bg-transparent border-0 outline-none focus:bg-white focus:ring-1 focus:ring-blue-300 rounded px-1"
+                                defaultValue={entry.minQuantity} onBlur={(e) => {
+                                  const val = parseInt(e.target.value) || 0;
+                                  if (val !== entry.minQuantity) updateEntryMutation.mutate({ matrixId: matrixDetail.id, entryId: entry.id, updates: { minQuantity: val } });
+                                }} />
+                            </td>
+                            <td className="p-1.5">
+                              <input type="number" min={0} placeholder="∞" className="h-7 text-xs w-full bg-transparent border-0 outline-none focus:bg-white focus:ring-1 focus:ring-blue-300 rounded px-1"
+                                defaultValue={entry.maxQuantity ?? ""} onBlur={(e) => {
+                                  const val = e.target.value ? parseInt(e.target.value) : null;
+                                  if (val !== entry.maxQuantity) updateEntryMutation.mutate({ matrixId: matrixDetail.id, entryId: entry.id, updates: { maxQuantity: val } });
+                                }} />
+                            </td>
+                            <td className="p-1.5">
+                              <input type="number" step="0.01" min={0} className="h-7 text-xs text-right w-full bg-transparent border-0 outline-none focus:bg-white focus:ring-1 focus:ring-blue-300 rounded px-1"
+                                defaultValue={parseFloat(entry.unitCost || "0").toFixed(2)} onBlur={(e) => {
+                                  const val = e.target.value;
+                                  if (val !== entry.unitCost) updateEntryMutation.mutate({ matrixId: matrixDetail.id, entryId: entry.id, updates: { unitCost: val } });
+                                }} />
+                            </td>
+                            <td className="p-1.5">
+                              <Button variant="ghost" size="sm" className="h-5 w-5 p-0"
+                                onClick={() => deleteEntryMutation.mutate({ matrixId: matrixDetail.id, entryId: entry.id })}>
+                                <Trash2 className="w-3 h-3 text-gray-400" />
+                              </Button>
+                            </td>
+                          </tr>
+                        ))}
+                        {/* Add entry row */}
+                        <tr className="bg-gray-50/50">
+                          <td className="p-1.5">
+                            <Input className="h-7 text-xs" placeholder="e.g. Tape charge"
+                              value={newSimpleEntry.rowLabel} onChange={(e) => setNewSimpleEntry(p => ({ ...p, rowLabel: e.target.value }))} />
+                          </td>
+                          <td className="p-1.5">
+                            <Input className="h-7 text-xs" type="number" min={0}
+                              value={newSimpleEntry.minQuantity} onChange={(e) => setNewSimpleEntry(p => ({ ...p, minQuantity: parseInt(e.target.value) || 0 }))} />
+                          </td>
+                          <td className="p-1.5">
+                            <Input className="h-7 text-xs" type="number" min={0} placeholder="∞"
+                              value={newSimpleEntry.maxQuantity} onChange={(e) => setNewSimpleEntry(p => ({ ...p, maxQuantity: e.target.value }))} />
+                          </td>
+                          <td className="p-1.5">
+                            <Input className="h-7 text-xs text-right" type="number" step="0.01" min={0}
+                              value={newSimpleEntry.unitCost} onChange={(e) => setNewSimpleEntry(p => ({ ...p, unitCost: e.target.value }))} />
+                          </td>
+                          <td className="p-1.5">
+                            <Button variant="default" size="sm" className="h-7 w-7 p-0"
+                              disabled={!newSimpleEntry.rowLabel || addEntryMutation.isPending}
+                              onClick={() => {
+                                addEntryMutation.mutate({
+                                  matrixId: matrixDetail.id,
+                                  entry: {
+                                    rowLabel: newSimpleEntry.rowLabel,
+                                    unitCost: newSimpleEntry.unitCost,
+                                    minQuantity: newSimpleEntry.minQuantity,
+                                    maxQuantity: newSimpleEntry.maxQuantity ? parseInt(newSimpleEntry.maxQuantity) : null,
+                                  },
+                                });
+                                setNewSimpleEntry({ rowLabel: "", unitCost: "0", minQuantity: 1, maxQuantity: "" });
+                              }}>
+                              <Plus className="w-3 h-3" />
+                            </Button>
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  ) : (
+                    /* run_charge_per_item / fixed_charge_list: simple label + cost */
+                    <div className="p-4 space-y-2">
+                      {(matrixDetail.entries || []).map((entry: any) => (
+                        <div key={entry.id} className="flex items-center gap-2 text-sm py-1 border-b last:border-0">
+                          <input
+                            className="flex-1 text-sm bg-transparent border-0 outline-none focus:bg-white focus:ring-1 focus:ring-blue-300 rounded px-1 py-0.5"
+                            defaultValue={entry.rowLabel || ""} placeholder="Label"
+                            onBlur={(e) => {
+                              const val = e.target.value.trim();
+                              if (val !== (entry.rowLabel || "")) updateEntryMutation.mutate({ matrixId: matrixDetail.id, entryId: entry.id, updates: { rowLabel: val } });
+                            }}
+                          />
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-muted-foreground">$</span>
+                            <input type="number" step="0.01" min={0}
+                              className="w-20 text-sm text-right font-medium bg-transparent border-0 outline-none focus:bg-white focus:ring-1 focus:ring-blue-300 rounded px-1 py-0.5"
+                              defaultValue={parseFloat(entry.unitCost || "0").toFixed(2)}
+                              onBlur={(e) => {
+                                const val = e.target.value;
+                                if (val !== entry.unitCost) updateEntryMutation.mutate({ matrixId: matrixDetail.id, entryId: entry.id, updates: { unitCost: val } });
+                              }}
+                            />
+                            {entry.perUnit && <span className="text-xs text-muted-foreground">{entry.perUnit}</span>}
+                            <Button variant="ghost" size="sm" className="h-5 w-5 p-0"
+                              onClick={() => deleteEntryMutation.mutate({ matrixId: matrixDetail.id, entryId: entry.id })}>
+                              <Trash2 className="w-3 h-3 text-muted-foreground" />
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                      {/* Add entry row */}
+                      <div className="flex items-center gap-2 pt-2 border-t">
+                        <Input className="flex-1 h-7 text-xs" placeholder={matrixDetail.matrixType === "run_charge_per_item" ? "e.g. Poly bagging" : "e.g. Screen setup"}
+                          value={newSimpleEntry.rowLabel} onChange={(e) => setNewSimpleEntry(p => ({ ...p, rowLabel: e.target.value }))} />
+                        <span className="text-xs text-muted-foreground">$</span>
+                        <Input className="w-20 h-7 text-xs text-right" type="number" step="0.01" min={0}
+                          value={newSimpleEntry.unitCost} onChange={(e) => setNewSimpleEntry(p => ({ ...p, unitCost: e.target.value }))} />
+                        <Button variant="default" size="sm" className="h-7 w-7 p-0"
+                          disabled={!newSimpleEntry.rowLabel || addEntryMutation.isPending}
+                          onClick={() => {
+                            addEntryMutation.mutate({
+                              matrixId: matrixDetail.id,
+                              entry: { rowLabel: newSimpleEntry.rowLabel, unitCost: newSimpleEntry.unitCost },
+                            });
+                            setNewSimpleEntry({ rowLabel: "", unitCost: "0", minQuantity: 1, maxQuantity: "" });
+                          }}>
+                          <Plus className="w-3 h-3" />
                         </Button>
                       </div>
                     </div>
-                  ))}
-                  <p className="text-xs text-muted-foreground pt-2">
-                    For full editing capabilities, use{" "}
-                    <button className="underline" onClick={() => { onClose(); navigate("/settings?tab=decorator-matrix"); }}>
-                      Settings → Decorator Matrix
-                    </button>.
-                  </p>
+                  )}
                 </div>
               ) : (
                 /* Run charge table: existing behavior */
@@ -253,13 +413,49 @@ export default function DecoratorMatrixDialog({ open, supplierId, supplierName, 
                   <tbody>
                     {(matrixDetail.entries || []).map((entry: any) => (
                       <tr key={entry.id} className="border-b last:border-0">
-                        <td className="p-2.5 text-xs">{entry.minQuantity}</td>
-                        <td className="p-2.5 text-xs">{entry.maxQuantity ?? "∞"}</td>
-                        <td className="p-2.5 text-xs">{entry.colorCount}</td>
-                        <td className="p-2.5 text-xs text-right">${parseFloat(entry.setupCost || "0").toFixed(2)}</td>
-                        <td className="p-2.5 text-xs text-right">${parseFloat(entry.runCost || "0").toFixed(2)}</td>
-                        <td className="p-2.5 text-xs text-right">${parseFloat(entry.additionalColorCost || "0").toFixed(2)}</td>
-                        <td className="p-2.5">
+                        <td className="p-1.5">
+                          <input type="number" min={0} className="h-7 text-xs w-full bg-transparent border-0 outline-none focus:bg-white focus:ring-1 focus:ring-blue-300 rounded px-1"
+                            defaultValue={entry.minQuantity} onBlur={(e) => {
+                              const val = parseInt(e.target.value) || 0;
+                              if (val !== entry.minQuantity) updateEntryMutation.mutate({ matrixId: matrixDetail.id, entryId: entry.id, updates: { minQuantity: val } });
+                            }} />
+                        </td>
+                        <td className="p-1.5">
+                          <input type="number" min={0} placeholder="∞" className="h-7 text-xs w-full bg-transparent border-0 outline-none focus:bg-white focus:ring-1 focus:ring-blue-300 rounded px-1"
+                            defaultValue={entry.maxQuantity ?? ""} onBlur={(e) => {
+                              const val = e.target.value ? parseInt(e.target.value) : null;
+                              if (val !== entry.maxQuantity) updateEntryMutation.mutate({ matrixId: matrixDetail.id, entryId: entry.id, updates: { maxQuantity: val } });
+                            }} />
+                        </td>
+                        <td className="p-1.5">
+                          <input type="number" min={1} className="h-7 text-xs w-full bg-transparent border-0 outline-none focus:bg-white focus:ring-1 focus:ring-blue-300 rounded px-1"
+                            defaultValue={entry.colorCount} onBlur={(e) => {
+                              const val = parseInt(e.target.value) || 1;
+                              if (val !== entry.colorCount) updateEntryMutation.mutate({ matrixId: matrixDetail.id, entryId: entry.id, updates: { colorCount: val } });
+                            }} />
+                        </td>
+                        <td className="p-1.5">
+                          <input type="number" step="0.01" min={0} className="h-7 text-xs text-right w-full bg-transparent border-0 outline-none focus:bg-white focus:ring-1 focus:ring-blue-300 rounded px-1"
+                            defaultValue={parseFloat(entry.setupCost || "0").toFixed(2)} onBlur={(e) => {
+                              const val = e.target.value;
+                              if (val !== entry.setupCost) updateEntryMutation.mutate({ matrixId: matrixDetail.id, entryId: entry.id, updates: { setupCost: val } });
+                            }} />
+                        </td>
+                        <td className="p-1.5">
+                          <input type="number" step="0.01" min={0} className="h-7 text-xs text-right w-full bg-transparent border-0 outline-none focus:bg-white focus:ring-1 focus:ring-blue-300 rounded px-1"
+                            defaultValue={parseFloat(entry.runCost || "0").toFixed(2)} onBlur={(e) => {
+                              const val = e.target.value;
+                              if (val !== entry.runCost) updateEntryMutation.mutate({ matrixId: matrixDetail.id, entryId: entry.id, updates: { runCost: val } });
+                            }} />
+                        </td>
+                        <td className="p-1.5">
+                          <input type="number" step="0.01" min={0} className="h-7 text-xs text-right w-full bg-transparent border-0 outline-none focus:bg-white focus:ring-1 focus:ring-blue-300 rounded px-1"
+                            defaultValue={parseFloat(entry.additionalColorCost || "0").toFixed(2)} onBlur={(e) => {
+                              const val = e.target.value;
+                              if (val !== entry.additionalColorCost) updateEntryMutation.mutate({ matrixId: matrixDetail.id, entryId: entry.id, updates: { additionalColorCost: val } });
+                            }} />
+                        </td>
+                        <td className="p-1.5">
                           <Button variant="ghost" size="sm" className="h-5 w-5 p-0"
                             onClick={() => deleteEntryMutation.mutate({ matrixId: matrixDetail.id, entryId: entry.id })}>
                             <Trash2 className="w-3 h-3 text-gray-400" />
@@ -317,6 +513,20 @@ export default function DecoratorMatrixDialog({ open, supplierId, supplierName, 
                   </tbody>
                 </table>
               </div>
+              )}
+
+              {/* Apply to Artwork button */}
+              {artworkId && matrixDetail && (matrixDetail.entries || []).length > 0 && (
+                <Button
+                  className="w-full mt-3"
+                  disabled={applyToArtworkMutation.isPending}
+                  onClick={() => {
+                    applyToArtworkMutation.mutate({ artworkId, supplierId, quantity: quantity || 1 });
+                  }}
+                >
+                  <Grid3X3 className="w-4 h-4 mr-2" />
+                  {applyToArtworkMutation.isPending ? "Applying..." : `Apply "${matrixDetail.name}" to Artwork`}
+                </Button>
               )}
             </div>
           )}

@@ -155,6 +155,20 @@
       "when": 1775721700000,
       "tag": "0021_seed_email_templates",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1775721800000,
+      "tag": "0022_pricing_tiers",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1775808200000,
+      "tag": "0023_update_po_email_template",
+      "breakpoints": true
     }
   ]
 }

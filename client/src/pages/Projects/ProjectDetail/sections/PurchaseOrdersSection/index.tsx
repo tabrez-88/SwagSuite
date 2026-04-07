@@ -31,17 +31,19 @@ import { getCloudinaryThumbnail } from "@/lib/media-library";
 import FilePickerDialog from "@/components/modals/FilePickerDialog";
 import { FilePreviewModal } from "@/components/modals/FilePreviewModal";
 import { EditableDate } from "@/components/shared/InlineEditable";
+import { useAutoFillSender } from "@/components/email/useAutoFillSender";
 import type { PurchaseOrdersSectionProps } from "./types";
 import { usePurchaseOrdersSection } from "./hooks";
 
 export default function PurchaseOrdersSection({ projectId, data, isLocked }: PurchaseOrdersSectionProps) {
   const h = usePurchaseOrdersSection({ projectId, data, isLocked });
   const { toast } = useToast();
+  const sender = useAutoFillSender();
 
   // Merge data for PO email template
   const poMergeData = useMemo(() => ({
-    companyName: "",
-    senderName: "",
+    companyName: h.data.companyName || "",
+    senderName: sender.name || "",
     vendorName: h.emailPOVendor?.vendor.name || "",
     vendorContactName: h.emailPOVendor?.vendor.contactPerson || h.emailPOVendor?.vendor.name || "",
     orderNumber: (h.order as any)?.orderNumber || "",
@@ -50,16 +52,16 @@ export default function PurchaseOrdersSection({ projectId, data, isLocked }: Pur
       const ihd = h.emailPOVendor?.doc?.metadata?.supplierIHD || (h.order as any)?.supplierInHandsDate;
       return ihd ? new Date(ihd).toLocaleDateString() : "";
     })(),
-  }), [h.emailPOVendor, h.order]);
+  }), [h.emailPOVendor, h.order, h.data, sender]);
 
   // Merge data for Proof email template
   const proofMergeData = useMemo(() => ({
     companyName: h.data.companyName || "",
-    senderName: "",
+    senderName: sender.name || "",
     recipientName: h.data.primaryContact ? `${h.data.primaryContact.firstName} ${h.data.primaryContact.lastName}` : "",
     recipientFirstName: h.data.primaryContact?.firstName || "there",
     artworkList: h.sendProofArts.map((a: any) => `  - ${a.productName} (${a.location || a.artworkType || "Artwork"})`).join("\n"),
-  }), [h.data, h.sendProofArts]);
+  }), [h.data, h.sendProofArts, sender]);
 
   return (
     <div className="space-y-5">

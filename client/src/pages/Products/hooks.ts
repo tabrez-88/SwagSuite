@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useLocation } from "wouter";
 import { useDeleteProduct } from "@/services/products";
 import { supplierKeys } from "@/services/suppliers/keys";
 import { productKeys } from "@/services/products/keys";
@@ -25,6 +26,7 @@ export const parseArrayField = (field: any): string[] => {
 };
 
 export function useProducts() {
+  const [, setLocation] = useLocation();
   const [searchQuery, setSearchQuery] = useState("");
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
@@ -73,8 +75,7 @@ export function useProducts() {
   };
 
   const handleViewProduct = (product: Product) => {
-    setSelectedProduct(product);
-    setIsDetailModalOpen(true);
+    setLocation(`/products/${product.id}`);
   };
 
   const handleEditFromDetail = (product: Product) => {

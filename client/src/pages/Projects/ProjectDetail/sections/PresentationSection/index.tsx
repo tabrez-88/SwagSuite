@@ -1,3 +1,4 @@
+import React, { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -11,19 +12,27 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { CardHeader, CardTitle } from "@/components/ui/card";
 import {
   ChevronDown,
   ChevronUp,
   Copy as CopyIcon,
-  Edit,
   Eye,
   EyeOff,
   Image,
   ArrowRight,
+  Loader2,
   Package,
   Palette,
+  Pencil,
   Plus,
   Send,
   Type,
@@ -33,6 +42,7 @@ import { format } from "date-fns";
 import type { OrderItemLine } from "@shared/schema";
 import StageConversionDialog from "../../components/StageConversionDialog";
 import SendPresentationDialog from "@/components/modals/SendPresentationDialog";
+import { useToast } from "@/hooks/use-toast";
 import { usePresentationSection, presentationStatuses, calcMargin, marginColor } from "./hooks";
 import ProductPricingEditor from "./components/ProductPricingEditor";
 import ProductPreviewLightbox from "./components/ProductPreviewLightbox";
@@ -42,14 +52,17 @@ import type { PresentationSectionProps } from "./types";
 export default function PresentationSection(props: PresentationSectionProps) {
   const { projectId } = props;
   const hook = usePresentationSection(props);
+  const [showEditDialog, setShowEditDialog] = useState(false);
 
   if (!hook.order) return null;
+
+  const selectedContactObj = hook.contacts?.find((c: any) => c.id === hook.selectedContact);
 
   return (
     <div className="space-y-6">
       {/* Top Info Bar */}
       <div className="flex items-center justify-between flex-wrap gap-4">
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-4 flex-wrap">
           <div>
             <label className="text-xs font-medium text-gray-500 block mb-1">Status</label>
             <Select value={hook.currentStatus} onValueChange={(val) => hook.updateStatusMutation.mutate(val)}>
@@ -75,22 +88,11 @@ export default function PresentationSection(props: PresentationSectionProps) {
           </div>
           <div>
             <label className="text-xs font-medium text-gray-500 block mb-1">Presentation Date</label>
-            <Input
-              type="date"
-              value={hook.presentationDate}
-              onChange={(e) => hook.setPresentationDate(e.target.value)}
-              onBlur={() => hook.saveSetting("presentationDate", hook.presentationDate)}
-              className="w-[160px] h-9"
-            />
+            <span className="text-sm font-medium">{hook.presentationDate ? format(new Date(hook.presentationDate + "T00:00:00"), "MMM d, yyyy") : "—"}</span>
           </div>
           <div>
             <label className="text-xs font-medium text-gray-500 block mb-1">In Hands Date</label>
-            <Input
-              type="date"
-              defaultValue={hook.order.inHandsDate ? format(new Date(hook.order.inHandsDate), "yyyy-MM-dd") : ""}
-              onBlur={hook.handleInHandsDateBlur}
-              className="w-[160px] h-9"
-            />
+            <span className="text-sm font-medium">{hook.order.inHandsDate ? format(new Date(hook.order.inHandsDate), "MMM d, yyyy") : "—"}</span>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -147,61 +149,52 @@ export default function PresentationSection(props: PresentationSectionProps) {
         </div>
       )}
 
-      {/* Collapsible Info Section */}
+      {/* Collapsible Info Section — read-only display */}
       {!hook.isInfoCollapsed && (
         <Card>
-          <CardContent className="pt-6 space-y-5">
-            <div>
-              <label className="text-sm font-medium text-gray-700 block mb-1.5">Introduction</label>
-              <Textarea
-                value={hook.introduction}
-                onChange={(e) => hook.setIntroduction(e.target.value)}
-                onBlur={() => hook.saveSetting("introduction", hook.introduction)}
-                placeholder="Add a message or introduction for this presentation..."
-                className="min-h-[80px] resize-none"
-              />
+          <CardHeader className="py-3">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-sm">Presentation Details</CardTitle>
+              <Button variant="outline" size="sm" className="gap-1.5 h-8" onClick={() => setShowEditDialog(true)}>
+                <Pencil className="w-3.5 h-3.5" />
+                Edit
+              </Button>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div>
+              <label className="text-xs font-medium text-gray-500 block mb-1">Introduction</label>
+              <p className="text-sm text-gray-700 whitespace-pre-wrap">{hook.introduction || <span className="text-gray-400 italic">No introduction</span>}</p>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-2">
               <div>
-                <label className="text-xs font-medium text-gray-500 block mb-1">Client Contact</label>
-                <Select value={hook.selectedContact} onValueChange={(val) => { hook.setSelectedContact(val); hook.saveSetting("clientContactId", val); }}>
-                  <SelectTrigger className="h-9 text-start "><SelectValue className="text-start" placeholder="Select contact" /></SelectTrigger>
-                  <SelectContent>
-                    {hook.contacts?.map((contact: any) => (
-                      <SelectItem key={contact.id} value={contact.id}>{contact.firstName} | {contact.email}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <label className="text-xs font-medium text-gray-500 block mb-0.5">Client Contact</label>
+                <span className="text-sm font-medium">{selectedContactObj ? `${selectedContactObj.firstName}` : "—"}</span>
               </div>
               <div>
-                <label className="text-xs font-medium text-gray-500 block mb-1">Expiry Date</label>
-                <Input
-                  type="date"
-                  value={hook.expiryDate}
-                  onChange={(e) => hook.setExpiryDate(e.target.value)}
-                  onBlur={() => hook.saveSetting("expiryDate", hook.expiryDate || null)}
-                  className="h-9"
-                />
+                <label className="text-xs font-medium text-gray-500 block mb-0.5">Expiry Date</label>
+                <span className="text-sm font-medium">{hook.expiryDate ? format(new Date(hook.expiryDate + "T00:00:00"), "MMM d, yyyy") : "—"}</span>
               </div>
               <div>
-                <label className="text-xs font-medium text-gray-500 block mb-1">Currency</label>
-                <Select value={hook.currency} onValueChange={(val) => { hook.setCurrency(val); hook.saveSetting("currency", val); }}>
-                  <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="USD">USD</SelectItem>
-                    <SelectItem value="CAD">CAD</SelectItem>
-                    <SelectItem value="EUR">EUR</SelectItem>
-                  </SelectContent>
-                </Select>
+                <label className="text-xs font-medium text-gray-500 block mb-0.5">Currency</label>
+                <span className="text-sm font-medium">{hook.currency || "USD"}</span>
               </div>
-              <div className="flex items-center gap-2 pb-1">
-                <input type="checkbox" id="hidePricing" checked={hook.hidePricing} onChange={(e) => { hook.setHidePricing(e.target.checked); hook.saveSetting("hidePricing", e.target.checked); }} className="rounded border-gray-300" />
-                <label htmlFor="hidePricing" className="text-sm text-gray-600">Hide Pricing</label>
+              <div>
+                <label className="text-xs font-medium text-gray-500 block mb-0.5">Hide Pricing</label>
+                <span className="text-sm font-medium">{hook.hidePricing ? "Yes" : "No"}</span>
               </div>
             </div>
           </CardContent>
         </Card>
       )}
+
+      {/* Presentation Edit Dialog */}
+      <PresentationEditDialog
+        open={showEditDialog}
+        onOpenChange={setShowEditDialog}
+        hook={hook}
+        projectId={projectId}
+      />
 
       {/* Products / Artwork Tabs */}
       <Tabs defaultValue="products" className="w-full">
@@ -628,5 +621,162 @@ function DetailedView({ items, hidePricing, onEdit, onPreview, onToggleVisibilit
         );
       })}
     </div>
+  );
+}
+
+// ── Presentation Edit Dialog ──────────────────────────────────────
+function PresentationEditDialog({
+  open,
+  onOpenChange,
+  hook,
+  projectId,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  hook: ReturnType<typeof usePresentationSection>;
+  projectId: string;
+}) {
+  const { toast } = useToast();
+  const [form, setForm] = useState<Record<string, any>>({});
+  const [isSaving, setIsSaving] = useState(false);
+
+  // Populate form when dialog opens
+  React.useEffect(() => {
+    if (open) {
+      setForm({
+        inHandsDate: hook.order?.inHandsDate ? format(new Date(hook.order.inHandsDate), "yyyy-MM-dd") : "",
+        introduction: hook.introduction || "",
+        clientContactId: hook.selectedContact || "",
+        expiryDate: hook.expiryDate || "",
+        currency: hook.currency || "USD",
+        hidePricing: hook.hidePricing || false,
+      });
+    }
+  }, [open]);
+
+  const handleSave = async () => {
+    setIsSaving(true);
+    try {
+      // Save presentation settings (stageData)
+      const presSettings: Record<string, any> = {
+        introduction: form.introduction,
+        clientContactId: form.clientContactId,
+        expiryDate: form.expiryDate || null,
+        currency: form.currency,
+        hidePricing: form.hidePricing,
+      };
+
+      // Update local state in hook
+      hook.setIntroduction(form.introduction);
+      hook.setSelectedContact(form.clientContactId);
+      hook.setExpiryDate(form.expiryDate);
+      hook.setCurrency(form.currency);
+      hook.setHidePricing(form.hidePricing);
+
+      // Save presentation stageData settings
+      hook.saveSettingsMutation.mutate(presSettings, {
+        onSuccess: () => {
+          toast({ title: "Presentation details updated" });
+        },
+        onError: (error: Error) => {
+          toast({ title: "Failed to update", description: error.message, variant: "destructive" });
+        },
+      });
+
+      // Save inHandsDate as a separate order field if changed
+      const currentIHD = hook.order?.inHandsDate ? format(new Date(hook.order.inHandsDate), "yyyy-MM-dd") : "";
+      if (form.inHandsDate !== currentIHD) {
+        const { apiRequest } = await import("@/lib/queryClient");
+        await apiRequest("PATCH", `/api/projects/${projectId}`, {
+          inHandsDate: form.inHandsDate || null,
+        });
+      }
+
+      onOpenChange(false);
+    } catch (error: any) {
+      toast({ title: "Failed to update", description: error.message, variant: "destructive" });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Edit Presentation Details</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4 py-2">
+          <div>
+            <Label className="text-xs text-gray-500">In-Hands Date</Label>
+            <Input
+              type="date"
+              value={form.inHandsDate || ""}
+              onChange={(e) => setForm({ ...form, inHandsDate: e.target.value })}
+              className="mt-1"
+            />
+          </div>
+          <div>
+            <Label className="text-xs text-gray-500">Introduction</Label>
+            <Textarea
+              value={form.introduction || ""}
+              onChange={(e) => setForm({ ...form, introduction: e.target.value })}
+              placeholder="Add a message or introduction for this presentation..."
+              className="mt-1 min-h-[80px]"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label className="text-xs text-gray-500">Client Contact</Label>
+              <Select value={form.clientContactId || ""} onValueChange={(val) => setForm({ ...form, clientContactId: val })}>
+                <SelectTrigger className="mt-1"><SelectValue placeholder="Select contact" /></SelectTrigger>
+                <SelectContent>
+                  {hook.contacts?.map((contact: any) => (
+                    <SelectItem key={contact.id} value={contact.id}>{contact.firstName} | {contact.email}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-xs text-gray-500">Expiry Date</Label>
+              <Input
+                type="date"
+                value={form.expiryDate || ""}
+                onChange={(e) => setForm({ ...form, expiryDate: e.target.value })}
+                className="mt-1"
+              />
+            </div>
+            <div>
+              <Label className="text-xs text-gray-500">Currency</Label>
+              <Select value={form.currency || "USD"} onValueChange={(val) => setForm({ ...form, currency: val })}>
+                <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="USD">USD</SelectItem>
+                  <SelectItem value="CAD">CAD</SelectItem>
+                  <SelectItem value="EUR">EUR</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center gap-2 mt-6">
+              <input
+                type="checkbox"
+                id="hidePricingEdit"
+                checked={form.hidePricing || false}
+                onChange={(e) => setForm({ ...form, hidePricing: e.target.checked })}
+                className="rounded border-gray-300"
+              />
+              <label htmlFor="hidePricingEdit" className="text-sm text-gray-600">Hide Pricing</label>
+            </div>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button onClick={handleSave} disabled={isSaving}>
+            {isSaving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+            Save Changes
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

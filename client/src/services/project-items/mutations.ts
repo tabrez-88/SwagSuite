@@ -274,8 +274,6 @@ export function useApplyMatrixPricing(projectId: string | number) {
       invalidate();
       if (data.applied) {
         toast({ title: `Matrix pricing applied`, description: `${data.charges.length} charge(s) from "${data.matrixName}"` });
-      } else {
-        toast({ title: "No matrix pricing found", description: data.message, variant: "destructive" });
       }
     },
     onError: () => toast({ title: "Failed to apply matrix pricing", variant: "destructive" }),

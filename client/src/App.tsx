@@ -15,6 +15,7 @@ import VendorDetail from "@/pages/Crm/Vendors/VendorDetail";
 import ProjectsPage from "@/pages/Projects";
 import ProjectDetailPage from "@/pages/Projects/ProjectDetail";
 import Products from "@/pages/Products";
+import ProductCatalogDetailPage from "@/pages/Products/ProductDetail";
 import ProductionReport from "@/pages/ProductionReport";
 import Suppliers from "@/pages/Suppliers";
 import Reports from "@/pages/Reports";
@@ -162,6 +163,7 @@ function Router() {
             <Route path="/projects/:projectId" component={ProjectDetailPage} />
             <Route path="/projects/:projectId/*" component={ProjectDetailPage} />
             <Route path="/production-report" component={ProductionReport} />
+            <Route path="/products/:id" component={ProductCatalogDetailPage} />
             <Route path="/products" component={Products} />
             <Route path="/media-library" component={MediaLibraryPage} />
             <Route path="/suppliers" component={Suppliers} />

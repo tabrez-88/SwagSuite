@@ -551,6 +551,45 @@ export class IntegrationController {
     }
   }
 
+  /** GET /api/sage/product-pricing/:prodEId — Fetch full pricing tiers from SAGE 105 API */
+  static async getSageProductPricing(req: Request, res: Response) {
+    try {
+      const { prodEId } = req.params;
+      if (!prodEId) return res.status(400).json({ message: "prodEId required" });
+
+      const credentials = await getSageCredentials();
+      if (!credentials) return res.status(400).json({ message: "SAGE credentials not configured" });
+
+      const sageService = new SageService(credentials);
+      const detail = await sageService.getFullProductDetail(prodEId, false);
+      if (!detail) return res.status(404).json({ message: "Product not found in SAGE" });
+
+      // Parse qty/prc/net arrays into normalized tiers
+      const qty = Array.isArray(detail.qty) ? detail.qty.map((q: string) => parseInt(q) || 0).filter((q: number) => q > 0) : [];
+      const prc = Array.isArray(detail.prc) ? detail.prc.filter((p: string) => p !== '') : [];
+      const net = Array.isArray(detail.net) ? detail.net.filter((n: string) => n !== '') : [];
+
+      const pricingTiers = qty.map((q: number, i: number) => ({
+        quantity: q,
+        cost: parseFloat(net[i] || prc[i] || "0"),
+        listPrice: parseFloat(prc[i] || "0"),
+      })).filter((t: any) => t.quantity > 0 && t.cost > 0);
+
+      res.json({
+        prodEId,
+        pricingTiers,
+        setupCharges: {
+          setupChg: parseFloat(detail.setupChg || "0"),
+          screenChg: parseFloat(detail.screenChg || "0"),
+          plateChg: parseFloat(detail.plateChg || "0"),
+        },
+      });
+    } catch (error) {
+      console.error("Error fetching SAGE product pricing:", error);
+      res.status(500).json({ message: "Failed to fetch SAGE pricing", error: error instanceof Error ? error.message : "Unknown error" });
+    }
+  }
+
   // ==================== Unified Product Search ====================
 
   static async searchUnifiedProducts(req: Request, res: Response) {

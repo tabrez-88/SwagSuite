@@ -30,8 +30,9 @@ export class ProductService {
     sizes?: string[];
     imageUrl?: string;
     source?: string;
+    pricingTiers?: { quantity: number; cost: number }[];
   }) {
-    const { name, sku, supplierName, description, basePrice, category, colors, imageUrl, source } = data;
+    const { name, sku, supplierName, description, basePrice, category, colors, imageUrl, source, pricingTiers } = data;
 
     // Find or create the supplier/vendor
     let supplier = await supplierRepository.getByName(supplierName);
@@ -66,7 +67,11 @@ export class ProductService {
         imageUrl: imageUrl || null,
         productType: source === 'ss_activewear' ? 'apparel' : 'promotional',
         minimumQuantity: 1,
-      });
+        pricingTiers: pricingTiers && pricingTiers.length > 0 ? pricingTiers : undefined,
+      } as any);
+    } else if (pricingTiers && pricingTiers.length > 0) {
+      // Update existing product with pricing tiers if not already set
+      await productRepository.update(product.id, { pricingTiers } as any);
     }
 
     return {

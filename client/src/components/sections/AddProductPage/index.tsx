@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import { IMPRINT_LOCATIONS, IMPRINT_METHODS } from "@/constants/imprintOptions";
 import { marginColorClass, isBelowMinimum, calcMarginPercent } from "@/hooks/useMarginSettings";
+import TierPricingPanel from "@/components/sections/TierPricingPanel";
 import type { AddProductPageProps, ProductResult } from "./types";
 import { useAddProductPage } from "./hooks";
 
@@ -717,6 +718,16 @@ export default function AddProductPage({ projectId, data }: AddProductPageProps)
                 </div>
               </div>
 
+              {/* Supplier Pricing Tiers */}
+              {h.selectedProduct?.pricingTiers && h.selectedProduct.pricingTiers.length > 0 && (
+                <TierPricingPanel
+                  tiers={h.selectedProduct.pricingTiers}
+                  defaultMargin={parseFloat(String(h.marginSettings?.defaultMargin || "40"))}
+                  totalQuantity={h.configTotalQty}
+                  onApplyTier={h.applyTierToConfigLines}
+                />
+              )}
+
               {/* Size/Color Line Items */}
               <div>
                 <div className="flex items-center justify-between mb-3">
@@ -731,13 +742,12 @@ export default function AddProductPage({ projectId, data }: AddProductPageProps)
                   <table className="w-full text-sm">
                     <thead className="bg-muted/50 border-b">
                       <tr>
-                        <th className="text-left p-3 font-medium">Color</th>
-                        <th className="text-left p-3 font-medium">Size</th>
-                        <th className="text-right p-3 font-medium w-24">Qty</th>
-                        <th className="text-right p-3 font-medium w-28">Unit Cost</th>
-                        <th className="text-right p-3 font-medium w-28">Unit Price</th>
+                        <th className="text-left p-3 font-medium">Color/Size</th>
+                        <th className="text-right p-3 font-medium w-20">QTY</th>
+                        <th className="text-right p-3 font-medium w-28">Net Cost</th>
                         <th className="text-right p-3 font-medium w-24">Margin</th>
-                        <th className="text-right p-3 font-medium w-28">Line Total</th>
+                        <th className="text-right p-3 font-medium w-28">Retail</th>
+                        <th className="text-right p-3 font-medium w-28">Total</th>
                         <th className="w-10"></th>
                       </tr>
                     </thead>
@@ -745,100 +755,78 @@ export default function AddProductPage({ projectId, data }: AddProductPageProps)
                       {h.configLines.map((line) => {
                         const lineTotal = line.quantity * line.unitPrice;
                         const lineMargin = calcMarginPercent(line.unitCost, line.unitPrice);
+                        const colorSizeLabel = [line.color, line.size].filter(Boolean).join(" / ") || "—";
                         return (
                           <tr key={line.id} className={`border-b last:border-0 ${isBelowMinimum(lineMargin, h.marginSettings) ? "bg-red-50/30" : ""}`}>
+                            {/* Color/Size — datalist for autocomplete */}
                             <td className="p-2">
-                              <>
-                                <Input
-                                  className="h-8 text-xs"
-                                  value={line.color}
-                                  onChange={(e) => h.updateConfigLine(line.id, "color", e.target.value)}
-                                  placeholder="Color"
-                                  list={`colors-${line.id}`}
-                                />
-                                {h.selectedProduct!.colors && h.selectedProduct!.colors.length > 0 && (
-                                  <datalist id={`colors-${line.id}`}>
-                                    {h.selectedProduct!.colors.map(c => (
-                                      <option key={c} value={c} />
-                                    ))}
-                                  </datalist>
-                                )}
-                              </>
+                              <div className="flex gap-1">
+                                <div className="relative flex-1">
+                                  <Input className="h-8 text-xs" value={line.color}
+                                    onChange={(e) => h.updateConfigLine(line.id, "color", e.target.value)}
+                                    placeholder="Color" list={`colors-${line.id}`} />
+                                  {(h.selectedProduct?.colors?.length ?? 0) > 0 && (
+                                    <datalist id={`colors-${line.id}`}>
+                                      {h.selectedProduct!.colors!.map(c => <option key={c} value={c} />)}
+                                    </datalist>
+                                  )}
+                                </div>
+                                <div className="relative w-24">
+                                  <Input className="h-8 text-xs" value={line.size}
+                                    onChange={(e) => h.updateConfigLine(line.id, "size", e.target.value)}
+                                    placeholder="Size" list={`sizes-${line.id}`} />
+                                  {(h.selectedProduct?.sizes?.length ?? 0) > 0 && (
+                                    <datalist id={`sizes-${line.id}`}>
+                                      {h.selectedProduct!.sizes!.map(s => <option key={s} value={s} />)}
+                                    </datalist>
+                                  )}
+                                </div>
+                              </div>
                             </td>
+                            {/* QTY */}
                             <td className="p-2">
-                              <>
-                                <Input
-                                  className="h-8 text-xs"
-                                  value={line.size}
-                                  onChange={(e) => h.updateConfigLine(line.id, "size", e.target.value)}
-                                  placeholder="Size"
-                                  list={`sizes-${line.id}`}
-                                />
-                                {h.selectedProduct!.sizes && h.selectedProduct!.sizes.length > 0 && (
-                                  <datalist id={`sizes-${line.id}`}>
-                                    {h.selectedProduct!.sizes.map(s => (
-                                      <option key={s} value={s} />
-                                    ))}
-                                  </datalist>
-                                )}
-                              </>
+                              <Input className="h-8 text-xs text-right" type="number" min={1} value={line.quantity}
+                                onChange={(e) => h.updateConfigLine(line.id, "quantity", parseInt(e.target.value) || 0)} />
                             </td>
-                            <td className="p-2">
-                              <Input
-                                className="h-8 text-xs text-right"
-                                type="number"
-                                min={1}
-                                value={line.quantity}
-                                onChange={(e) => h.updateConfigLine(line.id, "quantity", parseInt(e.target.value) || 0)}
-                              />
-                            </td>
-                            <td className="p-2">
-                              <Input
-                                className="h-8 text-xs text-right"
-                                type="number"
-                                step="0.01"
-                                min={0}
-                                value={line.unitCost}
-                                onChange={(e) => h.handleConfigCostChange(line.id, e)}
-                              />
-                            </td>
-                            <td className="p-2">
-                              <Input
-                                className="h-8 text-xs text-right"
-                                type="number"
-                                step="0.01"
-                                min={0}
-                                value={line.unitPrice}
-                                onChange={(e) => h.updateConfigLine(line.id, "unitPrice", parseFloat(e.target.value) || 0)}
-                              />
-                            </td>
+                            {/* Net Cost */}
                             <td className="p-2">
                               <div className="relative">
-                                <Input
-                                  className={`h-8 text-xs text-right pr-5 ${isBelowMinimum(lineMargin, h.marginSettings) ? "border-red-300 text-red-600" : ""}`}
-                                  type="number"
-                                  step="0.1"
-                                  min={0}
-                                  max={99.9}
+                                <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-400">$</span>
+                                <input className="w-full h-8 text-xs text-right rounded border border-gray-200 bg-white pl-5 pr-2 focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400"
+                                  type="number" step="0.01" min={0} value={line.unitCost}
+                                  onChange={(e) => h.handleConfigCostChange(line.id, e)} />
+                              </div>
+                            </td>
+                            {/* Margin */}
+                            <td className="p-2">
+                              <div className="relative">
+                                <input className={`w-full h-8 text-xs text-right rounded border bg-white px-2 pr-5 focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400 ${isBelowMinimum(lineMargin, h.marginSettings) ? "border-red-300 text-red-600" : "border-gray-200"}`}
+                                  type="number" step="0.1" min={0} max={99.9}
                                   value={parseFloat(lineMargin.toFixed(1))}
-                                  onChange={(e) => h.handleConfigMarginChange(line.id, e)}
-                                />
+                                  onChange={(e) => h.handleConfigMarginChange(line.id, e)} />
                                 <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-400">%</span>
                               </div>
                             </td>
-                            <td className="p-2 text-right">
-                              <span className={`text-xs font-medium ${marginColorClass(lineMargin, h.marginSettings)}`}>${lineTotal.toFixed(2)}</span>
+                            {/* Retail */}
+                            <td className="p-2">
+                              <div className="relative">
+                                <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-400">$</span>
+                                <input className="w-full h-8 text-xs text-right rounded border border-gray-200 bg-white pl-5 pr-2 focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400 font-semibold"
+                                  type="number" step="0.01" min={0} value={line.unitPrice}
+                                  onChange={(e) => h.updateConfigLine(line.id, "unitPrice", parseFloat(e.target.value) || 0)} />
+                              </div>
                             </td>
+                            {/* Total */}
+                            <td className="p-2 text-right">
+                              <span className={`text-xs font-semibold ${marginColorClass(lineMargin, h.marginSettings)}`}>${lineTotal.toFixed(2)}</span>
+                            </td>
+                            {/* Delete */}
                             <td className="p-2">
                               {h.configLines.length > 1 && (
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="h-7 w-7 p-0"
-                                  onClick={() => h.removeConfigLine(line.id)}
-                                >
-                                  <Trash2 className="w-3 h-3 text-red-500" />
-                                </Button>
+                                <button className="w-7 h-7 flex items-center justify-center rounded text-gray-300 hover:text-red-500 hover:bg-red-50"
+                                  onClick={() => h.removeConfigLine(line.id)}>
+                                  <Trash2 className="w-3 h-3" />
+                                </button>
                               )}
                             </td>
                           </tr>
@@ -847,16 +835,16 @@ export default function AddProductPage({ projectId, data }: AddProductPageProps)
                     </tbody>
                     <tfoot className="bg-muted/50 border-t">
                       <tr>
-                        <td colSpan={2} className="p-3 text-sm font-semibold">Totals</td>
+                        <td className="p-3 text-sm font-semibold">Totals</td>
                         <td className="p-3 text-right text-sm font-semibold">{h.configTotalQty}</td>
                         <td className="p-3 text-right text-sm text-muted-foreground">${h.configTotalCost.toFixed(2)}</td>
-                        <td className="p-3"></td>
                         <td className="p-3 text-right">
                           <span className={`text-sm font-semibold ${marginColorClass(h.configMargin, h.marginSettings)}`}>
                             {h.configMargin.toFixed(1)}%
                           </span>
                         </td>
                         <td className="p-3 text-right text-sm font-semibold">${h.configTotalPrice.toFixed(2)}</td>
+                        <td className="p-3 text-right text-sm font-bold">${h.configTotalPrice.toFixed(2)}</td>
                         <td></td>
                       </tr>
                     </tfoot>

@@ -141,12 +141,21 @@ export function useAddProductPage({ projectId, data }: AddProductPageProps) {
       const data = await res.json();
       const results: ProductResult[] = (data.products || []).map((p: any) => {
         let basePrice: number | undefined;
+        let pricingTiers: { quantity: number; cost: number }[] | undefined;
         if (p.pricingStructure) {
           if (typeof p.pricingStructure.minPrice === 'number') {
             basePrice = p.pricingStructure.minPrice;
           } else {
             const numericValues = Object.values(p.pricingStructure).filter((v): v is number => typeof v === 'number');
             if (numericValues.length > 0) basePrice = Math.min(...numericValues);
+          }
+          // Extract quantity break tiers from SAGE pricing structure
+          const qtys = p.pricingStructure.quantities as number[] | undefined;
+          const costs = (p.pricingStructure.netPrices || p.pricingStructure.prices) as string[] | undefined;
+          if (qtys?.length && costs?.length) {
+            pricingTiers = qtys
+              .map((q: number, i: number) => ({ quantity: q, cost: parseFloat(costs![i]) || 0 }))
+              .filter(t => t.quantity > 0 && t.cost > 0);
           }
         }
         return {
@@ -159,6 +168,7 @@ export function useAddProductPage({ projectId, data }: AddProductPageProps) {
           category: p.category,
           imageUrl: p.imageGallery?.[0],
           basePrice,
+          pricingTiers,
           colors: Array.isArray(p.colors) ? p.colors : [],
           sizes: Array.isArray(p.sizes) ? p.sizes : [],
           minQuantity: p.quantityBreaks?.[0],
@@ -182,23 +192,30 @@ export function useAddProductPage({ projectId, data }: AddProductPageProps) {
       const res = await fetch("/api/sanmar/search?" + new URLSearchParams({ q }));
       if (!res.ok) throw new Error("SanMar search failed");
       const products = await res.json();
-      const results: ProductResult[] = (Array.isArray(products) ? products : []).map((p: any) => ({
-        id: p.styleId || p.id || `sanmar_${p.productId}`,
-        source: "sanmar" as const,
-        name: p.productTitle || p.styleName || p.productName,
-        sku: p.styleId || p.productId,
-        description: p.description || p.productDescription,
-        supplierName: p.brandName || "SanMar",
-        category: p.categoryName || p.category,
-        imageUrl: p.productImage || p.thumbnailImage || p.frontFlat,
-        basePrice: p.piecePrice || p.basePrice,
-        baseCost: p.casePrice || p.baseCost,
-        colors: p.colors || [],
-        sizes: p.sizes || [],
-        minQuantity: p.caseSize || 1,
-        decorationMethods: [],
-        rawData: p,
-      }));
+      const results: ProductResult[] = (Array.isArray(products) ? products : []).map((p: any) => {
+        const tiers: { quantity: number; cost: number }[] = [];
+        if (p.piecePrice) tiers.push({ quantity: 1, cost: parseFloat(p.piecePrice) || 0 });
+        if (p.dozenPrice) tiers.push({ quantity: 12, cost: parseFloat(p.dozenPrice) || 0 });
+        if (p.casePrice && p.caseSize) tiers.push({ quantity: parseInt(p.caseSize) || 72, cost: parseFloat(p.casePrice) || 0 });
+        return {
+          id: p.styleId || p.id || `sanmar_${p.productId}`,
+          source: "sanmar" as const,
+          name: p.productTitle || p.styleName || p.productName,
+          sku: p.styleId || p.productId,
+          description: p.description || p.productDescription,
+          supplierName: p.brandName || "SanMar",
+          category: p.categoryName || p.category,
+          imageUrl: p.productImage || p.thumbnailImage || p.frontFlat,
+          basePrice: p.piecePrice || p.basePrice,
+          baseCost: p.casePrice || p.baseCost,
+          pricingTiers: tiers.length > 0 ? tiers.filter(t => t.cost > 0) : undefined,
+          colors: p.colors || [],
+          sizes: p.sizes || [],
+          minQuantity: p.caseSize || 1,
+          decorationMethods: [],
+          rawData: p,
+        };
+      });
       updateTabSearch("sanmar", { results, error: results.length === 0 ? "No SanMar products found. Try a style number (PC54, G500) or brand name (Nike, OGIO)." : null });
     } catch {
       updateTabSearch("sanmar", { error: "Failed to search SanMar. Check your credentials in Settings." });
@@ -229,6 +246,10 @@ export function useAddProductPage({ projectId, data }: AddProductPageProps) {
       }
       const results: ProductResult[] = [];
       for (const [, { base: p, colors, sizes }] of Array.from(styleMap.entries())) {
+        const ssTiers: { quantity: number; cost: number }[] = [];
+        if (p.customerPrice || p.piecePrice) ssTiers.push({ quantity: 1, cost: parseFloat(p.customerPrice || p.piecePrice) || 0 });
+        if (p.dozenPrice) ssTiers.push({ quantity: 12, cost: parseFloat(p.dozenPrice) || 0 });
+        if (p.casePrice && p.caseQty) ssTiers.push({ quantity: parseInt(p.caseQty) || 72, cost: parseFloat(p.casePrice) || 0 });
         results.push({
           id: `ss_${p.styleID}`,
           source: "ss_activewear",
@@ -240,6 +261,7 @@ export function useAddProductPage({ projectId, data }: AddProductPageProps) {
           imageUrl: getSsImageUrl(p),
           basePrice: p.customerPrice || p.piecePrice || p.basePrice,
           baseCost: p.casePrice || p.costPrice,
+          pricingTiers: ssTiers.length > 0 ? ssTiers.filter(t => t.cost > 0) : undefined,
           colors: Array.from(colors),
           sizes: Array.from(sizes),
           minQuantity: 1,
@@ -278,28 +300,52 @@ export function useAddProductPage({ projectId, data }: AddProductPageProps) {
 
     setIsSyncing(true);
     try {
-      const res = await fetch("/api/products/sync-from-supplier", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: product.name,
-          sku: product.sku,
-          supplierName: product.supplierName || "Unknown",
-          description: product.description,
-          basePrice: product.basePrice,
-          category: product.category,
-          colors: product.colors,
-          sizes: product.sizes,
-          imageUrl: product.imageUrl,
-          source: product.source,
-        }),
-      });
+      // For SAGE products without tiers, fetch pricing detail from 105 API in parallel
+      const sageProdEId = product.source === "sage" && !product.pricingTiers?.length
+        ? (product.rawData?.prodEId || "")
+        : "";
 
-      if (!res.ok) throw new Error("Sync failed");
-      const { product: catalogProduct, supplier, isNew } = await res.json();
+      const [syncRes, sagePricingRes] = await Promise.all([
+        fetch("/api/products/sync-from-supplier", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: product.name,
+            sku: product.sku,
+            supplierName: product.supplierName || "Unknown",
+            description: product.description,
+            basePrice: product.basePrice,
+            category: product.category,
+            colors: product.colors,
+            sizes: product.sizes,
+            imageUrl: product.imageUrl,
+            source: product.source,
+            pricingTiers: product.pricingTiers,
+          }),
+        }),
+        sageProdEId
+          ? fetch(`/api/sage/product-pricing/${sageProdEId}`).then(r => r.ok ? r.json() : null).catch(() => null)
+          : Promise.resolve(null),
+      ]);
+
+      if (!syncRes.ok) throw new Error("Sync failed");
+      const { product: catalogProduct, supplier, isNew } = await syncRes.json();
 
       if (isNew) {
         toast({ title: `Product "${product.name}" added to catalog`, description: `Vendor: ${supplier.name}` });
+      }
+
+      // Merge SAGE pricing tiers if fetched
+      let mergedTiers = product.pricingTiers;
+      if (sagePricingRes?.pricingTiers?.length) {
+        mergedTiers = sagePricingRes.pricingTiers;
+        // Also persist tiers to product catalog
+        fetch(`/api/products/${catalogProduct.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ pricingTiers: mergedTiers }),
+        }).catch(() => { /* best-effort */ });
       }
 
       // Invalidate product queries so catalog is up to date
@@ -310,6 +356,7 @@ export function useAddProductPage({ projectId, data }: AddProductPageProps) {
         ...product,
         id: catalogProduct.id,
         supplierName: supplier.name,
+        pricingTiers: mergedTiers,
       });
     } catch {
       toast({ title: "Sync failed", description: "Could not sync product to catalog. Adding directly.", variant: "destructive" });
@@ -365,6 +412,11 @@ export function useAddProductPage({ projectId, data }: AddProductPageProps) {
 
   const removeConfigLine = (id: string) => {
     setConfigLines(prev => prev.filter(l => l.id !== id));
+  };
+
+  // Apply supplier tier cost/price to all config lines
+  const applyTierToConfigLines = (cost: number, price: number) => {
+    setConfigLines(prev => prev.map(line => ({ ...line, unitCost: cost, unitPrice: price })));
   };
 
   // ── Add Product Mutation ──
@@ -835,6 +887,7 @@ export function useAddProductPage({ projectId, data }: AddProductPageProps) {
     addConfigLine,
     updateConfigLine,
     removeConfigLine,
+    applyTierToConfigLines,
     configTotalQty,
     configTotalCost,
     configTotalPrice,

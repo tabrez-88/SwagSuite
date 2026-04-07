@@ -152,6 +152,25 @@ export function useEditProductPage(projectId: string, itemId: string, data: Proj
     setEditableLines(prev => prev.filter(l => l.id !== id));
   };
 
+  // Apply supplier tier cost to all lines + recalculate price
+  const applyTierToLines = useCallback((cost: number, price: number) => {
+    setEditableLines(prev => prev.map(l => ({ ...l, cost, unitPrice: price })));
+  }, []);
+
+  // Save updated pricing tiers to product catalog (debounced)
+  const savePricingTiers = useCallback((tiers: { quantity: number; cost: number }[]) => {
+    if (!item?.productId) return;
+    // Fire-and-forget PATCH to persist tiers
+    fetch(`/api/products/${item.productId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ pricingTiers: tiers }),
+    }).then(() => {
+      queryClient.invalidateQueries({ queryKey: ["/api/products"] });
+    }).catch(() => { /* best-effort */ });
+  }, [item?.productId, queryClient]);
+
   const handleCostChange = useCallback((id: string, e: React.ChangeEvent<HTMLInputElement>) => {
     const newCost = parseFloat(e.target.value) || 0;
     setEditableLines(prev => {
@@ -207,6 +226,16 @@ export function useEditProductPage(projectId: string, itemId: string, data: Proj
     const qty = c.chargeCategory === "run" ? (lineTotals.qty || 1) : (c.quantity || 1);
     return s + cost * qty;
   }, 0);
+
+  // Baked-in run charge retail price per unit (for Client Price column)
+  const bakedInChargePerUnit = charges
+    .filter((c: any) => c.chargeCategory === "run" && c.includeInUnitPrice)
+    .reduce((s, c) => s + parseFloat(c.retailPrice || c.amount || "0"), 0);
+
+  // Run charge cost per unit (for tier panel display)
+  const runChargeCostPerUnit = charges
+    .filter((c: any) => c.chargeCategory === "run")
+    .reduce((s, c) => s + parseFloat(c.netCost || "0"), 0);
 
   // Legacy: total charges for display (backward compat)
   const totalCharges = chargeRevenue;
@@ -292,15 +321,19 @@ export function useEditProductPage(projectId: string, itemId: string, data: Proj
   // ── Add Sizes & Colors dialog ──
   const [showSizesColors, setShowSizesColors] = useState(false);
 
-  // Get available colors/sizes from product catalog
+  // Get available colors/sizes and pricing tiers from product catalog
   const productCatalog = useMemo(() => {
-    if (!item) return { colors: [] as string[], sizes: [] as string[] };
+    if (!item) return { colors: [] as string[], sizes: [] as string[], pricingTiers: [] as { quantity: number; cost: number }[] };
     const currentProduct = allProducts.find((p: any) => p.id === item.productId);
     return {
       colors: (currentProduct?.colors || []) as string[],
       sizes: (currentProduct?.sizes || []) as string[],
+      pricingTiers: (currentProduct?.pricingTiers || []) as { quantity: number; cost: number }[],
     };
   }, [item, allProducts]);
+
+  // ── Artwork preview ──
+  const [previewFile, setPreviewFile] = useState<{ name: string; url: string } | null>(null);
 
   // ── Artwork file picker (for adding additional files to existing artwork) ──
   const [addingFileToArtworkId, setAddingFileToArtworkId] = useState<string | null>(null);
@@ -517,9 +550,13 @@ export function useEditProductPage(projectId: string, itemId: string, data: Proj
     lineTotals,
     margin,
     totalCharges,
+    runChargeCostPerUnit,
+    bakedInChargePerUnit,
     addLine,
     removeLine,
     updateLine,
+    applyTierToLines,
+    savePricingTiers,
     handleCostChange,
     handleMarginChange,
     // Charges
@@ -576,6 +613,8 @@ export function useEditProductPage(projectId: string, itemId: string, data: Proj
     copyingArtworkId,
     setCopyingArtworkId,
     allArtworkFiles: data.allArtworkFiles || {},
+    previewFile,
+    setPreviewFile,
     orderItems,
     // Margin warning
     marginWarningAction,

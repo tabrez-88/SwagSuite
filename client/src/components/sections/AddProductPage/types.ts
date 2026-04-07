@@ -22,6 +22,7 @@ export interface ProductResult {
   sizes?: string[];
   minQuantity?: number;
   decorationMethods?: string[];
+  pricingTiers?: { quantity: number; cost: number }[];
   rawData?: any;
 }
 
