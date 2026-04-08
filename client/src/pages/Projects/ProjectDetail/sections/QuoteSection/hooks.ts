@@ -1,9 +1,10 @@
-import { useState, useMemo, useRef } from "react";
+import { useState, useMemo } from "react";
 import { useToast } from "@/hooks/use-toast";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
+import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
+import { apiRequest, getQueryFn } from "@/lib/queryClient";
 import { useInlineEdit } from "@/hooks/useInlineEdit";
 import { useDocumentGeneration, buildItemsHash } from "@/hooks/useDocumentGeneration";
+import { buildQuotePdf } from "@/components/documents/pdf/builders";
 import { quoteStatuses } from "./types";
 import type { QuoteSectionProps } from "./types";
 
@@ -13,8 +14,14 @@ export function useQuoteSection({ projectId, data, lockStatus }: QuoteSectionPro
   const queryClient = useQueryClient();
   const [showConversionDialog, setShowConversionDialog] = useState(false);
   const [previewDocument, setPreviewDocument] = useState<any>(null);
+  const [showLivePreview, setShowLivePreview] = useState(false);
   const [showSendDialog, setShowSendDialog] = useState(false);
-  const quoteRef = useRef<HTMLDivElement>(null);
+
+  const { data: branding } = useQuery<any>({
+    queryKey: ["/api/settings/branding"],
+    queryFn: getQueryFn({ on401: "throw" }),
+    staleTime: Infinity,
+  });
 
   const {
     quoteDocuments,
@@ -59,11 +66,28 @@ export function useQuoteSection({ projectId, data, lockStatus }: QuoteSectionPro
     return storedHash !== currentQuoteHash;
   };
 
+  // Build the react-pdf Document element on demand. Reused for both saving
+  // (passed to generateDocument) and live preview (PdfPreviewDialog).
+  const buildQuoteDoc = () =>
+    buildQuotePdf({
+      order,
+      orderItems,
+      companyName,
+      primaryContact,
+      allItemLines: data.allItemLines,
+      allArtworkItems,
+      allItemCharges: data.allItemCharges,
+      allArtworkCharges: data.allArtworkCharges,
+      serviceCharges: data.serviceCharges,
+      assignedUser: data.assignedUser,
+      sellerName: branding?.companyName,
+    });
+
   const handleGenerateQuote = async () => {
-    if (!quoteRef.current || orderItems.length === 0) return;
+    if (orderItems.length === 0) return;
     try {
       await generateDocument({
-        elementRef: quoteRef.current,
+        pdfDocument: buildQuoteDoc(),
         documentType: "quote",
         documentNumber: (order as any)?.orderNumber || "DRAFT",
         itemsHash: currentQuoteHash,
@@ -73,6 +97,8 @@ export function useQuoteSection({ projectId, data, lockStatus }: QuoteSectionPro
       // Error handled by hook
     }
   };
+
+  const handlePreviewLive = () => setShowLivePreview(true);
 
   const handleRegenerateQuote = async (docId: string) => {
     await deleteDocument(docId);
@@ -164,9 +190,10 @@ export function useQuoteSection({ projectId, data, lockStatus }: QuoteSectionPro
     quoteDocuments,
     isGenerating,
     isDeleting,
-    quoteRef,
     deleteDocument,
     createQuoteApproval,
+    buildQuoteDoc,
+    branding,
 
     // Inline edit
     updateField,
@@ -182,12 +209,15 @@ export function useQuoteSection({ projectId, data, lockStatus }: QuoteSectionPro
     setPreviewDocument,
     showSendDialog,
     setShowSendDialog,
+    showLivePreview,
+    setShowLivePreview,
 
     // Handlers
     handleGenerateQuote,
     handleRegenerateQuote,
     handleGetApprovalLink,
     handleConversionSuccess,
+    handlePreviewLive,
     isQuoteStale,
   };
 }

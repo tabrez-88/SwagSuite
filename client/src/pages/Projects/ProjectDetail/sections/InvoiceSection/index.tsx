@@ -24,8 +24,8 @@ import { format } from "date-fns";
 import LockBanner from "@/components/shared/LockBanner";
 import ProjectInfoBar from "@/components/layout/ProjectInfoBar";
 import SendInvoiceDialog from "@/components/modals/SendInvoiceDialog";
-import InvoiceTemplate from "@/components/documents/InvoiceTemplate";
 import GeneratedDocumentCard from "@/components/documents/GeneratedDocumentCard";
+import { PdfPreviewDialog } from "@/components/documents/pdf/PdfPreviewDialog";
 import { DocumentEditor } from "@/components/feature/DocumentEditor";
 import {
   Dialog,
@@ -421,16 +421,13 @@ export default function InvoiceSection(props: InvoiceSectionProps) {
         </Card>
       )}
 
-      {/* Hidden Invoice Template for PDF generation */}
+      {/* Live PDF preview (uses react-pdf PDFViewer — same renderer as save) */}
       {h.invoice && (
-        <InvoiceTemplate
-          ref={h.templateRef}
-          invoice={{ ...h.invoice, notes: h.invoiceNotes }}
-          order={h.order}
-          orderItems={h.orderItems}
-          companyName={h.companyName}
-          primaryContact={h.primaryContact}
-          serviceCharges={h.serviceCharges}
+        <PdfPreviewDialog
+          open={h.showLivePreview}
+          onOpenChange={h.setShowLivePreview}
+          title={`Invoice Preview — ${h.invoice.invoiceNumber || ""}`}
+          document={h.showLivePreview ? h.buildInvoiceDoc() : null}
         />
       )}
 

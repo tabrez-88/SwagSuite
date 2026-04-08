@@ -38,9 +38,9 @@ import {
 import { format } from "date-fns";
 import LockBanner from "@/components/shared/LockBanner";
 import StageConversionDialog from "../../components/StageConversionDialog";
-import QuoteTemplate from "@/components/documents/QuoteTemplate";
 import GeneratedDocumentCard from "@/components/documents/GeneratedDocumentCard";
 import { DocumentEditor } from "@/components/feature/DocumentEditor";
+import { PdfPreviewDialog } from "@/components/documents/pdf/PdfPreviewDialog";
 import SendQuoteDialog from "@/components/modals/SendQuoteDialog";
 import ProductsSection from "@/components/sections/ProductsSection";
 import { Separator } from "@/components/ui/separator";
@@ -73,9 +73,12 @@ export default function QuoteSection(props: QuoteSectionProps) {
     quoteDocuments,
     isGenerating,
     isDeleting,
-    quoteRef,
     deleteDocument,
     createQuoteApproval,
+    buildQuoteDoc,
+    showLivePreview,
+    setShowLivePreview,
+    handlePreviewLive,
     updateField,
     isFieldPending,
     updateStatusMutation,
@@ -98,12 +101,6 @@ export default function QuoteSection(props: QuoteSectionProps) {
   const { data: taxCodes } = useQuery<any[]>({
     queryKey: ["/api/tax-codes"],
     queryFn: getQueryFn({ on401: "throw" }),
-  });
-
-  const { data: branding } = useQuery<any>({
-    queryKey: ["/api/settings/branding"],
-    queryFn: getQueryFn({ on401: "throw" }),
-    staleTime: Infinity,
   });
 
   const calculateTaxMutation = useMutation({
@@ -491,19 +488,12 @@ export default function QuoteSection(props: QuoteSectionProps) {
         </CardContent>
       </Card>
 
-      {/* Hidden quote template for PDF generation */}
-      <QuoteTemplate
-        ref={quoteRef}
-        order={order}
-        orderItems={orderItems}
-        companyName={companyName}
-        primaryContact={primaryContact}
-        allArtworkItems={allArtworkItems}
-        allItemCharges={data.allItemCharges}
-        allArtworkCharges={data.allArtworkCharges}
-        serviceCharges={data.serviceCharges}
-        assignedUser={data.assignedUser}
-        sellerName={branding?.companyName}
+      {/* Live PDF preview (uses react-pdf PDFViewer — same renderer as save) */}
+      <PdfPreviewDialog
+        open={showLivePreview}
+        onOpenChange={setShowLivePreview}
+        title={`Quote Preview — ${(order as any)?.orderNumber || ""}`}
+        document={showLivePreview ? buildQuoteDoc() : null}
       />
 
       {/* Document Editor Modal */}

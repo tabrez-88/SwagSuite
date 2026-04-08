@@ -36,6 +36,16 @@ import { registerInMediaLibrary } from "../utils/registerInMediaLibrary";
  *
  * See docs/pricing-calculation-spec.md for the full spec.
  */
+
+/** Get the parent orderId from an order item id */
+async function getOrderIdFromItemId(itemId: string): Promise<string | null> {
+  const { db } = await import("../db");
+  const { orderItems } = await import("@shared/schema");
+  const { eq } = await import("drizzle-orm");
+  const [item] = await db.select().from(orderItems).where(eq(orderItems.id, itemId));
+  return item?.orderId || null;
+}
+
 async function recalculateOrderTotals(orderId: string) {
   const { db } = await import("../db");
   const { orderServiceCharges, orderAdditionalCharges, orderShipments, companies, artworkItems, artworkCharges, taxCodes, integrationSettings } = await import("@shared/schema");
@@ -63,9 +73,10 @@ async function recalculateOrderTotals(orderId: string) {
   const allCharges = itemIds.length > 0
     ? await db.select().from(orderAdditionalCharges).where(inArray(orderAdditionalCharges.orderItemId, itemIds))
     : [];
-  // Sell total: only client-visible charges that are NOT baked into unit price
+  // Sell total: only client-visible charges that are NOT baked into unit price.
+  // Treat null/undefined displayToClient as visible (matches client `c.displayToClient !== false`)
   const additionalChargesTotal = allCharges
-    .filter((c: any) => c.displayToClient && !c.includeInUnitPrice)
+    .filter((c: any) => c.displayToClient !== false && !c.includeInUnitPrice)
     .reduce((sum: number, c: any) => {
       const parentItem = allItems.find(i => i.id === c.orderItemId);
       const itemQty = parentItem?.quantity || 1;
@@ -1319,7 +1330,7 @@ export class ProjectController {
   static async deleteArtwork(req: Request, res: Response) {
     try {
       const { db } = await import("../db");
-      const { artworkItems } = await import("@shared/schema");
+      const { artworkItems, orderItems: orderItemsTbl } = await import("@shared/schema");
       const { eq, and } = await import("drizzle-orm");
 
       await db
@@ -1330,6 +1341,10 @@ export class ProjectController {
             eq(artworkItems.orderItemId, req.params.itemId)
           )
         );
+
+      // Recalculate order totals (deleted artwork removes its charges)
+      const [item] = await db.select().from(orderItemsTbl).where(eq(orderItemsTbl.id, req.params.itemId));
+      if (item?.orderId) await recalculateOrderTotals(item.orderId);
 
       res.json({ message: "Artwork deleted successfully" });
     } catch (error) {
@@ -1455,12 +1470,22 @@ export class ProjectController {
   static async createArtworkCharge(req: Request, res: Response) {
     try {
       const { db } = await import("../db");
-      const { insertArtworkChargeSchema } = await import("@shared/schema");
+      const { insertArtworkChargeSchema, artworkItems } = await import("@shared/schema");
+      const { eq } = await import("drizzle-orm");
       const validated = insertArtworkChargeSchema.parse({
         ...req.body,
         artworkItemId: req.params.artworkId,
       });
       const [charge] = await db.insert((await import("@shared/schema")).artworkCharges).values(validated).returning();
+
+      // Trigger order total recalc so overview/PDF stay in sync
+      const { orderItems: orderItemsTbl } = await import("@shared/schema");
+      const [parentArtwork] = await db.select().from(artworkItems).where(eq(artworkItems.id, req.params.artworkId));
+      if (parentArtwork) {
+        const [item] = await db.select().from(orderItemsTbl).where(eq(orderItemsTbl.id, parentArtwork.orderItemId));
+        if (item?.orderId) await recalculateOrderTotals(item.orderId);
+      }
+
       res.status(201).json(charge);
     } catch (error) {
       console.error("Error creating artwork charge:", error);
@@ -1471,7 +1496,7 @@ export class ProjectController {
   static async updateArtworkCharge(req: Request, res: Response) {
     try {
       const { db } = await import("../db");
-      const { artworkCharges } = await import("@shared/schema");
+      const { artworkCharges, artworkItems } = await import("@shared/schema");
       const { eq, and } = await import("drizzle-orm");
       const [updated] = await db
         .update(artworkCharges)
@@ -1479,6 +1504,15 @@ export class ProjectController {
         .where(and(eq(artworkCharges.id, req.params.chargeId), eq(artworkCharges.artworkItemId, req.params.artworkId)))
         .returning();
       if (!updated) return res.status(404).json({ message: "Charge not found" });
+
+      // Trigger order total recalc so overview/PDF stay in sync
+      const { orderItems: orderItemsTbl } = await import("@shared/schema");
+      const [parentArtwork] = await db.select().from(artworkItems).where(eq(artworkItems.id, req.params.artworkId));
+      if (parentArtwork) {
+        const [item] = await db.select().from(orderItemsTbl).where(eq(orderItemsTbl.id, parentArtwork.orderItemId));
+        if (item?.orderId) await recalculateOrderTotals(item.orderId);
+      }
+
       res.json(updated);
     } catch (error) {
       console.error("Error updating artwork charge:", error);
@@ -1489,9 +1523,23 @@ export class ProjectController {
   static async deleteArtworkCharge(req: Request, res: Response) {
     try {
       const { db } = await import("../db");
-      const { artworkCharges } = await import("@shared/schema");
+      const { artworkCharges, artworkItems } = await import("@shared/schema");
       const { eq, and } = await import("drizzle-orm");
+
+      // Capture orderId BEFORE delete
+      const { orderItems: orderItemsTbl } = await import("@shared/schema");
+      const [parentArtwork] = await db.select().from(artworkItems).where(eq(artworkItems.id, req.params.artworkId));
+      let orderId: string | null = null;
+      if (parentArtwork) {
+        const [item] = await db.select().from(orderItemsTbl).where(eq(orderItemsTbl.id, parentArtwork.orderItemId));
+        orderId = item?.orderId || null;
+      }
+
       await db.delete(artworkCharges).where(and(eq(artworkCharges.id, req.params.chargeId), eq(artworkCharges.artworkItemId, req.params.artworkId)));
+
+      // Trigger order total recalc so overview/PDF stay in sync
+      if (orderId) await recalculateOrderTotals(orderId);
+
       res.status(204).send();
     } catch (error) {
       console.error("Error deleting artwork charge:", error);
@@ -1588,6 +1636,11 @@ export class ProjectController {
         orderItemId: req.params.itemId,
       });
       const charge = await projectRepository.createOrderAdditionalCharge(validatedData);
+
+      // Recalc order totals so Overview/PDF stay synced
+      const orderId = await getOrderIdFromItemId(req.params.itemId);
+      if (orderId) await recalculateOrderTotals(orderId);
+
       res.status(201).json(charge);
     } catch (error) {
       console.error("Error creating order additional charge:", error);
@@ -1599,6 +1652,11 @@ export class ProjectController {
     try {
       if (await checkLockByOrderItemId(req.params.itemId, res)) return;
       const charge = await projectRepository.updateOrderAdditionalCharge(req.params.chargeId, req.body);
+
+      // Recalc order totals so Overview/PDF stay synced
+      const orderId = await getOrderIdFromItemId(req.params.itemId);
+      if (orderId) await recalculateOrderTotals(orderId);
+
       res.json(charge);
     } catch (error) {
       console.error("Error updating order additional charge:", error);
@@ -1610,6 +1668,11 @@ export class ProjectController {
     try {
       if (await checkLockByOrderItemId(req.params.itemId, res)) return;
       await projectRepository.deleteOrderAdditionalCharge(req.params.chargeId);
+
+      // Recalc order totals so Overview/PDF stay synced
+      const orderId = await getOrderIdFromItemId(req.params.itemId);
+      if (orderId) await recalculateOrderTotals(orderId);
+
       res.status(204).send();
     } catch (error) {
       console.error("Error deleting order additional charge:", error);

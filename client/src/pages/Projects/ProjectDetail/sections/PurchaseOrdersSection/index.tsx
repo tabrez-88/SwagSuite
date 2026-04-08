@@ -24,8 +24,8 @@ import { useToast } from "@/hooks/use-toast";
 import EmailComposer from "@/components/email/EmailComposer";
 import type { EmailContact } from "@/components/email/types";
 import type { OrderItemLine } from "@shared/schema";
-import PurchaseOrderTemplate from "@/components/documents/PurchaseOrderTemplate";
 import GeneratedDocumentCard from "@/components/documents/GeneratedDocumentCard";
+import { PdfPreviewDialog } from "@/components/documents/pdf/PdfPreviewDialog";
 import { DocumentEditor } from "@/components/feature/DocumentEditor";
 import { getCloudinaryThumbnail } from "@/lib/media-library";
 import FilePickerDialog from "@/components/modals/FilePickerDialog";
@@ -224,6 +224,10 @@ export default function PurchaseOrdersSection({ projectId, data, isLocked }: Pur
 
                       {/* Actions */}
                       <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
+                        <Button variant="outline" size="sm" className="h-7 text-xs gap-1"
+                          onClick={() => h.handlePreviewPO(vendorKey)}>
+                          <Eye className="w-3 h-3" /> Preview
+                        </Button>
                         {!vendorDoc ? (
                           <Button variant="default" size="sm" className="h-7 text-xs gap-1"
                             onClick={() => h.handleGeneratePO(vendorKey, po.vendor.name)}
@@ -685,29 +689,13 @@ export default function PurchaseOrdersSection({ projectId, data, isLocked }: Pur
         </div>
       )}
 
-      {/* Hidden PO templates for PDF generation */}
-      {h.vendorPOs.map((po) => {
-        const vendorKey = po.vendor.vendorKey || po.vendor.id;
-        const isDecorator = po.vendor.role === "decorator";
-        const suffix = isDecorator ? `DEC-${po.vendor.id.substring(0, 4).toUpperCase()}` : po.vendor.id.substring(0, 4).toUpperCase();
-        const poNumber = `${(h.order as any)?.orderNumber || h.projectId}-${suffix}`;
-        return (
-          <PurchaseOrderTemplate
-            key={vendorKey}
-            ref={(el) => { h.poRefs.current[vendorKey] = el; }}
-            order={h.order}
-            vendor={po.vendor}
-            vendorItems={po.items}
-            poNumber={poNumber}
-            artworkItems={h.getVendorArtworks(vendorKey)}
-            allArtworkCharges={data.allArtworkCharges}
-            allItemCharges={data.allItemCharges || {}}
-            vendorIHD={h.getVendorDoc(vendorKey)?.metadata?.supplierIHD || null}
-            vendorAddress={h.getVendorDefaultAddress(po.vendor.id)}
-            poType={isDecorator ? "decorator" : "supplier"}
-          />
-        );
-      })}
+      {/* Live PDF preview for vendor POs (uses react-pdf PDFViewer) */}
+      <PdfPreviewDialog
+        open={!!h.previewVendorKey}
+        onOpenChange={(open) => !open && h.setPreviewVendorKey(null)}
+        title={`PO Preview — ${h.previewVendorKey || ""}`}
+        document={h.previewVendorKey ? h.buildVendorPoDoc(h.previewVendorKey) : null}
+      />
 
       {/* Email PO to Vendor Dialog */}
       <Dialog open={!!h.emailPOVendor} onOpenChange={(open) => !open && h.setEmailPOVendor(null)}>

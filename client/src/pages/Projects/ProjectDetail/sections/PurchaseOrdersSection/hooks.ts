@@ -1,9 +1,10 @@
-import { useState, useMemo, useCallback, useRef } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, getQueryFn } from "@/lib/queryClient";
 import type { OrderItemLine } from "@shared/schema";
 import { useDocumentGeneration, buildItemsHash } from "@/hooks/useDocumentGeneration";
+import { buildPurchaseOrderPdf } from "@/components/documents/pdf/builders";
 import { useProductionStages } from "@/hooks/useProductionStages";
 import { useInlineEdit } from "@/hooks/useInlineEdit";
 import type { EmailFormData } from "@/components/email/types";
@@ -36,7 +37,13 @@ export function usePurchaseOrdersSection({ projectId, data, isLocked }: Purchase
     }
     return map;
   }, [productionStages]);
-  const poRefs = useRef<Record<string, HTMLDivElement | null>>({});
+
+  const { data: branding } = useQuery<any>({
+    queryKey: ["/api/settings/branding"],
+    queryFn: getQueryFn({ on401: "throw" }),
+    staleTime: Infinity,
+  });
+  const [previewVendorKey, setPreviewVendorKey] = useState<string | null>(null);
 
   const [expandedVendors, setExpandedVendors] = useState<Set<string>>(new Set());
   const [previewPO, setPreviewPO] = useState<VendorPO | null>(null);
@@ -244,6 +251,36 @@ export function usePurchaseOrdersSection({ projectId, data, isLocked }: Purchase
 
   // ── Mutations ──
 
+  // Build a `<PurchaseOrderPdf>` element for a specific vendor PO. Used by both
+  // generation (mutation upload) and live preview.
+  const buildVendorPoDoc = useCallback((vendorKey: string) => {
+    const vendor = orderVendors.find((v: any) => (v.vendorKey || v.id) === vendorKey);
+    if (!vendor) return null;
+    const isDecorator = vendor.role === "decorator";
+    const items = isDecorator
+      ? orderItems.filter((i: any) => i.decoratorType === "third_party" && i.decoratorId === vendor.id)
+      : orderItems.filter((i: any) => i.supplierId === vendor.id);
+    const vendorId = vendor.id || vendorKey;
+    const suffix = isDecorator ? `DEC-${vendorId.substring(0, 4).toUpperCase()}` : vendorId.substring(0, 4).toUpperCase();
+    const poNumber = `${(order as any)?.orderNumber || projectId}-${suffix}`;
+    return buildPurchaseOrderPdf({
+      order,
+      vendor,
+      vendorItems: items,
+      poNumber,
+      artworkItems: getVendorArtworks(vendorKey),
+      allArtworkCharges: (data as any).allArtworkCharges || {},
+      allItemCharges: (data as any).allItemCharges || {},
+      vendorIHD: getVendorDoc(vendorKey)?.metadata?.supplierIHD || null,
+      vendorAddress: getVendorDefaultAddress(vendor.id),
+      poType: isDecorator ? "decorator" : "supplier",
+      sellerName: branding?.companyName,
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orderVendors, orderItems, order, data, branding]);
+
+  const handlePreviewPO = (vendorKey: string) => setPreviewVendorKey(vendorKey);
+
   const handleGeneratePO = async (vendorKey: string, vendorNameStr: string) => {
     const vendor = orderVendors.find((v: any) => (v.vendorKey || v.id) === vendorKey);
     const vendorId = vendor?.id || vendorKey;
@@ -266,14 +303,14 @@ export function usePurchaseOrdersSection({ projectId, data, isLocked }: Purchase
       });
       return;
     }
-    const ref = poRefs.current[vendorKey];
-    if (!ref) return;
+    const pdfDoc = buildVendorPoDoc(vendorKey);
+    if (!pdfDoc) return;
     const suffix = isDecorator ? `DEC-${vendorId.substring(0, 4).toUpperCase()}` : vendorId.substring(0, 4).toUpperCase();
     const poNumber = `${(order as any)?.orderNumber || projectId}-${suffix}`;
     setGeneratingVendorId(vendorKey);
     try {
       const newDoc = await generateDocument({
-        elementRef: ref,
+        pdfDocument: pdfDoc,
         documentType: "purchase_order",
         documentNumber: poNumber,
         vendorId: vendorId, // actual supplier UUID for FK
@@ -585,7 +622,11 @@ export function usePurchaseOrdersSection({ projectId, data, isLocked }: Purchase
     PO_STAGES,
     PO_STATUSES,
     PROOF_STATUSES,
-    poRefs,
+    // PDF preview
+    buildVendorPoDoc,
+    handlePreviewPO,
+    previewVendorKey,
+    setPreviewVendorKey,
     // Vendors
     vendorPOs,
     grandTotalCost,

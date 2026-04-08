@@ -1,11 +1,10 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, type ReactElement } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
-import { preloadAndConvertImages } from "@/lib/imageUtils";
-import html2canvas from "html2canvas";
-import jsPDF from "jspdf";
+import { pdf } from "@react-pdf/renderer";
 
-// Build a fingerprint string for items + order-level fields to detect changes
+// Build a fingerprint string for items + order-level fields to detect changes.
+// Stored in document metadata so we can flag stale PDFs after edits.
 export function buildItemsHash(items: any[], type: "quote" | "po" | "sales_order", order?: any): string {
   const sorted = [...items].sort((a, b) => (a.id || "").localeCompare(b.id || ""));
   const itemsData = sorted.map((i) => ({
@@ -24,7 +23,12 @@ export function buildItemsHash(items: any[], type: "quote" | "po" | "sales_order
 }
 
 interface GenerateDocumentParams {
-  elementRef: HTMLDivElement | null;
+  /**
+   * A react-pdf `<Document>` element (e.g. `<QuotePdf {...props} />`).
+   * Will be rendered to a Blob via `pdf().toBlob()` — no DOM mounting needed,
+   * runs entirely in the browser.
+   */
+  pdfDocument: ReactElement;
   documentType: "quote" | "purchase_order" | "sales_order" | "invoice";
   documentNumber: string;
   vendorId?: string;
@@ -32,18 +36,28 @@ interface GenerateDocumentParams {
   itemsHash?: string;
 }
 
+/**
+ * Render a react-pdf Document to a Blob suitable for upload. Exposed as a
+ * standalone helper so DocumentEditor's "Download" button can reuse it
+ * without going through the mutation.
+ */
+export async function renderPdfBlob(pdfDocument: ReactElement): Promise<Blob> {
+  // `pdf()` returns an instance with a `toBlob()` method. Type cast keeps
+  // TS happy across react-pdf versions where the signature varies slightly.
+  const instance = pdf(pdfDocument as any);
+  return instance.toBlob();
+}
+
 export function useDocumentGeneration(projectId: string) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [isGenerating, setIsGenerating] = useState(false);
 
-  // Fetch generated documents
   const { data: documents = [] } = useQuery<any[]>({
     queryKey: [`/api/projects/${projectId}/documents`],
     enabled: !!projectId,
   });
 
-  // Fetch quote approvals
   const { data: quoteApprovals = [] } = useQuery<any[]>({
     queryKey: [`/api/projects/${projectId}/quote-approvals`],
     enabled: !!projectId,
@@ -54,82 +68,20 @@ export function useDocumentGeneration(projectId: string) {
   const poDocuments = documents.filter((d: any) => d.documentType === "purchase_order");
   const invoiceDocuments = documents.filter((d: any) => d.documentType === "invoice");
 
-  // Generate PDF and upload
   const generateDocumentMutation = useMutation({
-    mutationFn: async ({ elementRef, documentType, documentNumber, vendorId, vendorName, itemsHash }: GenerateDocumentParams) => {
-      if (!elementRef) throw new Error("Template element not found");
-
+    mutationFn: async ({
+      pdfDocument,
+      documentType,
+      documentNumber,
+      vendorId,
+      vendorName,
+      itemsHash,
+    }: GenerateDocumentParams) => {
       setIsGenerating(true);
 
-      // Temporarily make element visible for capture
-      const originalVisibility = elementRef.style.visibility;
-      elementRef.style.visibility = "visible";
-
-      // Convert cross-origin images to base64 so html2canvas can capture them
-      const restoreImages = await preloadAndConvertImages(elementRef);
-
-      // Small delay to let the DOM settle after image replacement
-      await new Promise((resolve) => setTimeout(resolve, 300));
-
-      let canvas: HTMLCanvasElement;
-      try {
-        canvas = await html2canvas(elementRef, {
-          scale: 2,
-          useCORS: true,
-          logging: false,
-          backgroundColor: "#ffffff",
-          allowTaint: true,
-          foreignObjectRendering: false,
-        });
-      } finally {
-        // Restore original image src attributes
-        restoreImages();
-        elementRef.style.visibility = originalVisibility;
-      }
-
-      if (canvas.width === 0 || canvas.height === 0) {
-        throw new Error("Failed to capture document - canvas is empty");
-      }
-
-      const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4", compress: true });
-
-      const pageWidth = 210;
-      const pageHeight = 297;
-      const imgWidth = pageWidth;
-      const imgHeight = (canvas.height * imgWidth) / canvas.width;
-
-      if (imgHeight <= pageHeight) {
-        // Content fits on one page
-        const imgData = canvas.toDataURL("image/png", 1.0);
-        pdf.addImage(imgData, "PNG", 0, 0, imgWidth, imgHeight);
-      } else {
-        // Multi-page: split canvas into page-sized chunks
-        const pxPerMm = canvas.width / pageWidth;
-        const pageHeightPx = Math.floor(pageHeight * pxPerMm);
-        const totalPages = Math.ceil(canvas.height / pageHeightPx);
-
-        for (let page = 0; page < totalPages; page++) {
-          if (page > 0) pdf.addPage();
-
-          const sourceY = page * pageHeightPx;
-          const sourceHeight = Math.min(pageHeightPx, canvas.height - sourceY);
-          if (sourceHeight <= 0) break;
-
-          // Create a cropped canvas for this page
-          const pageCanvas = document.createElement("canvas");
-          pageCanvas.width = canvas.width;
-          pageCanvas.height = sourceHeight;
-          const ctx = pageCanvas.getContext("2d");
-          if (!ctx) continue;
-          ctx.drawImage(canvas, 0, sourceY, canvas.width, sourceHeight, 0, 0, canvas.width, sourceHeight);
-
-          const pageImgData = pageCanvas.toDataURL("image/png", 1.0);
-          const sliceHeightMm = (sourceHeight * pageWidth) / canvas.width;
-          pdf.addImage(pageImgData, "PNG", 0, 0, pageWidth, sliceHeightMm);
-        }
-      }
-
-      const pdfBlob = pdf.output("blob");
+      // Render the React-PDF tree directly to a Blob — no DOM mounting,
+      // no html2canvas raster step. Output is a true vector PDF.
+      const pdfBlob = await renderPdfBlob(pdfDocument);
 
       const formData = new FormData();
       const typeLabel = documentType.replace(/_/g, "-").replace(/\b\w/g, (c: string) => c.toUpperCase());
@@ -166,7 +118,6 @@ export function useDocumentGeneration(projectId: string) {
     },
   });
 
-  // Delete document
   const deleteDocumentMutation = useMutation({
     mutationFn: async (documentId: string) => {
       const response = await fetch(`/api/documents/${documentId}`, {
@@ -184,7 +135,6 @@ export function useDocumentGeneration(projectId: string) {
     },
   });
 
-  // Create quote approval
   const createQuoteApprovalMutation = useMutation({
     mutationFn: async (data: { clientEmail: string; clientName: string; documentId?: string; pdfPath?: string; quoteTotal?: string }) => {
       const response = await fetch(`/api/projects/${projectId}/quote-approvals`, {

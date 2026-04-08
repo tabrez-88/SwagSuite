@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useUpdateArtworkCharge } from "@/services/project-items";
+import { useMarginSettings } from "@/hooks/useMarginSettings";
 import {
   Dialog,
   DialogContent,
@@ -47,6 +48,12 @@ export default function MatrixChargePicker({
   const queryClient = useQueryClient();
   const [, navigate] = useLocation();
   const updateChargeMutation = useUpdateArtworkCharge(projectId);
+  const marginSettings = useMarginSettings();
+
+  // Use the explicit charge margin if set, otherwise fall back to company default.
+  // Without this, applying matrix on a new charge (margin=0) would set retailPrice = netCost
+  // which means selling at cost (0% margin).
+  const effectiveMargin = currentMargin > 0 ? currentMargin : marginSettings.defaultMargin;
 
   // Fetch all matrices for supplier
   const { data: allMatrices = [], isLoading: matricesLoading } = useQuery<any[]>({
@@ -131,7 +138,8 @@ export default function MatrixChargePicker({
   const handleApply = () => {
     if (!selectedEntry) return;
     const netCost = getEntryCost(selectedEntry);
-    const margin = currentMargin;
+    // Recalculate retailPrice from netCost using effective margin (charge margin or company default)
+    const margin = effectiveMargin;
     const retailPrice = margin > 0 && margin < 100 ? netCost / (1 - margin / 100) : netCost;
     const newChargeName = getEntryLabel(selectedEntry);
 
@@ -141,6 +149,7 @@ export default function MatrixChargePicker({
       updates: {
         netCost: netCost.toFixed(2),
         retailPrice: retailPrice.toFixed(2),
+        margin: margin.toFixed(2),
         chargeName: newChargeName,
       },
     }, {
@@ -372,14 +381,15 @@ export default function MatrixChargePicker({
                 <span className="text-gray-600">Selected cost:</span>
                 <span className="font-bold">${getEntryCost(selectedEntry).toFixed(2)}</span>
               </div>
-              {currentMargin > 0 && (
-                <div className="flex justify-between">
-                  <span className="text-gray-600">With {currentMargin}% margin:</span>
-                  <span className="font-semibold">
-                    ${(getEntryCost(selectedEntry) / (1 - currentMargin / 100)).toFixed(2)}
-                  </span>
-                </div>
-              )}
+              <div className="flex justify-between">
+                <span className="text-gray-600">
+                  Sell with {effectiveMargin.toFixed(1)}% margin
+                  {currentMargin === 0 && <span className="text-gray-400"> (default)</span>}:
+                </span>
+                <span className="font-semibold text-green-700">
+                  ${(getEntryCost(selectedEntry) / (1 - effectiveMargin / 100)).toFixed(2)}
+                </span>
+              </div>
               <div className="flex justify-between">
                 <span className="text-gray-600">Charge name:</span>
                 <span className="font-medium">{getEntryLabel(selectedEntry)}</span>

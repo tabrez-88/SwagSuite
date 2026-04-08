@@ -46,8 +46,8 @@ import EditableAddress from "@/components/shared/EditableAddress";
 import ProjectInfoBar from "@/components/layout/ProjectInfoBar";
 import TimelineWarningBanner from "@/components/shared/TimelineWarningBanner";
 import LockBanner from "@/components/shared/LockBanner";
-import SalesOrderTemplate from "@/components/documents/SalesOrderTemplate";
 import GeneratedDocumentCard from "@/components/documents/GeneratedDocumentCard";
+import { PdfPreviewDialog } from "@/components/documents/pdf/PdfPreviewDialog";
 import { DocumentEditor } from "@/components/feature/DocumentEditor";
 import { FilePreviewModal } from "@/components/modals/FilePreviewModal";
 import { getCloudinaryThumbnail } from "@/lib/media-library";
@@ -72,12 +72,6 @@ export default function SalesOrderSection(props: SalesOrderSectionProps) {
   const { data: taxCodes } = useQuery<any[]>({
     queryKey: ["/api/tax-codes"],
     queryFn: getQueryFn({ on401: "throw" }),
-  });
-
-  const { data: branding } = useQuery<any>({
-    queryKey: ["/api/settings/branding"],
-    queryFn: getQueryFn({ on401: "throw" }),
-    staleTime: Infinity,
   });
 
   const calculateTaxMutation = useMutation({
@@ -417,19 +411,12 @@ export default function SalesOrderSection(props: SalesOrderSectionProps) {
       <ProductsSection projectId={projectId} data={hook.data} isLocked={hook.isLocked} />
 
 
-      {/* Hidden SO template for PDF generation */}
-      <SalesOrderTemplate
-        ref={hook.soRef}
-        order={hook.order}
-        orderItems={hook.orderItems}
-        companyName={hook.companyName}
-        primaryContact={hook.primaryContact}
-        allArtworkItems={hook.allArtworkItems}
-        allItemCharges={hook.data.allItemCharges}
-        allArtworkCharges={hook.data.allArtworkCharges}
-        serviceCharges={hook.data.serviceCharges}
-        assignedUser={hook.data.assignedUser}
-        sellerName={branding?.companyName}
+      {/* Live PDF preview (uses react-pdf PDFViewer — same renderer as save) */}
+      <PdfPreviewDialog
+        open={hook.showLivePreview}
+        onOpenChange={hook.setShowLivePreview}
+        title={`Sales Order Preview — ${(hook.order as any)?.orderNumber || ""}`}
+        document={hook.showLivePreview ? hook.buildSODoc() : null}
       />
 
       {/* Document Editor Modal */}

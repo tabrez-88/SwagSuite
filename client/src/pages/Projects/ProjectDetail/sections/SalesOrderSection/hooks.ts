@@ -1,11 +1,12 @@
-import { useState, useMemo, useRef } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useState, useMemo } from "react";
+import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, getQueryFn } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useInlineEdit } from "@/hooks/useInlineEdit";
 import { hasTimelineConflict } from "@/lib/dateUtils";
 import { useDocumentGeneration, buildItemsHash } from "@/hooks/useDocumentGeneration";
+import { buildSalesOrderPdf } from "@/components/documents/pdf/builders";
 import type { SalesOrderSectionProps } from "./types";
 import { salesOrderStatuses, proofStatuses } from "./types";
 
@@ -33,9 +34,15 @@ export function useSalesOrderSection({ projectId, data, lockStatus }: SalesOrder
   const [isInfoCollapsed, setIsInfoCollapsed] = useState(false);
   const [previewDocument, setPreviewDocument] = useState<any>(null);
   const [showSendDialog, setShowSendDialog] = useState(false);
+  const [showLivePreview, setShowLivePreview] = useState(false);
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  const soRef = useRef<HTMLDivElement>(null);
+
+  const { data: branding } = useQuery<any>({
+    queryKey: ["/api/settings/branding"],
+    queryFn: getQueryFn({ on401: "throw" }),
+    staleTime: Infinity,
+  });
 
   const {
     soDocuments,
@@ -87,11 +94,26 @@ export function useSalesOrderSection({ projectId, data, lockStatus }: SalesOrder
     return storedHash !== currentSOHash;
   };
 
+  const buildSODoc = () =>
+    buildSalesOrderPdf({
+      order,
+      orderItems,
+      companyName,
+      primaryContact,
+      allItemLines: data.allItemLines,
+      allArtworkItems,
+      allItemCharges: data.allItemCharges,
+      allArtworkCharges: data.allArtworkCharges,
+      serviceCharges: data.serviceCharges,
+      assignedUser: data.assignedUser,
+      sellerName: branding?.companyName,
+    });
+
   const handleGenerateSO = async () => {
-    if (!soRef.current || orderItems.length === 0) return;
+    if (orderItems.length === 0) return;
     try {
       await generateDocument({
-        elementRef: soRef.current,
+        pdfDocument: buildSODoc(),
         documentType: "sales_order",
         documentNumber: (order as any)?.orderNumber || "DRAFT",
         itemsHash: currentSOHash,
@@ -101,6 +123,8 @@ export function useSalesOrderSection({ projectId, data, lockStatus }: SalesOrder
       // Error handled by hook
     }
   };
+
+  const handlePreviewLive = () => setShowLivePreview(true);
 
   const handleRegenerateSO = async (docId: string) => {
     await deleteDocument(docId);
@@ -184,9 +208,11 @@ export function useSalesOrderSection({ projectId, data, lockStatus }: SalesOrder
     }, {});
   }, [artworks]);
 
+  // Use server-calculated order.total (includes charges + decoration + tax + shipping)
+  // instead of naive sum(unitPrice × qty) which would miss everything except product lines.
   const soTotal = useMemo(() => {
-    return orderItems.reduce((sum: number, item: any) => sum + (parseFloat(item.unitPrice) || 0) * (item.quantity || 0), 0);
-  }, [orderItems]);
+    return parseFloat((order as any)?.total || "0");
+  }, [order]);
 
   const contactsList = useMemo(() => {
     return (contacts || []).map((c: any) => ({
@@ -215,8 +241,11 @@ export function useSalesOrderSection({ projectId, data, lockStatus }: SalesOrder
     timelineConflicts,
     previewDocument,
     showSendDialog,
+    showLivePreview,
+    setShowLivePreview,
     isInfoCollapsed,
-    soRef,
+    buildSODoc,
+    branding,
     isFieldPending,
     contactsList,
     soTotal,
@@ -240,6 +269,7 @@ export function useSalesOrderSection({ projectId, data, lockStatus }: SalesOrder
     setPreviewDocument,
     setShowSendDialog,
     handleGenerateSO,
+    handlePreviewLive,
     handleRegenerateSO,
     handleGetApprovalLink,
     handleDuplicate,

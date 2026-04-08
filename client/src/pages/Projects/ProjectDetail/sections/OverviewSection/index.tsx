@@ -353,12 +353,12 @@ export default function OverviewSection(props: OverviewSectionProps) {
                 <CardContent className="space-y-2">
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-500">Subtotal</span>
-                    <span>${Number(order.subtotal || 0).toLocaleString()}</span>
+                    <span>${Number(order.subtotal || 0).toFixed(2)}</span>
                   </div>
                   {Number((order as any)?.shipping || 0) > 0 && (
                     <div className="flex justify-between text-sm">
                       <span className="text-gray-500">Shipping</span>
-                      <span>${Number((order as any).shipping || 0).toLocaleString()}</span>
+                      <span>${Number((order as any).shipping || 0).toFixed(2)}</span>
                     </div>
                   )}
                   {(() => {
@@ -382,7 +382,7 @@ export default function OverviewSection(props: OverviewSectionProps) {
                   })()}
                   <div className="flex justify-between text-sm font-bold border-t pt-2">
                     <span>Total</span>
-                    <span>${Number(order.total || 0).toLocaleString()}</span>
+                    <span>${Number(order.total || 0).toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-500">Margin</span>

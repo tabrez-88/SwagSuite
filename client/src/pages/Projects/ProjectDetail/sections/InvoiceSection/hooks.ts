@@ -1,4 +1,6 @@
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { getQueryFn } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import {
   useCreateInvoice,
@@ -9,6 +11,7 @@ import {
 } from "@/services/invoices";
 import { differenceInDays } from "date-fns";
 import { useDocumentGeneration, buildItemsHash } from "@/hooks/useDocumentGeneration";
+import { buildInvoicePdf } from "@/components/documents/pdf/builders";
 import type { InvoiceSectionProps } from "./types";
 
 function getEditedItem(_id: string, item: any) {
@@ -40,10 +43,15 @@ export function useInvoiceSection({ projectId, data }: InvoiceSectionProps) {
   const [paymentReference, setPaymentReference] = useState("");
   const [paymentAmount, setPaymentAmount] = useState("");
   const [previewDoc, setPreviewDoc] = useState<any>(null);
+  const [showLivePreview, setShowLivePreview] = useState(false);
   const [invoiceNotes, setInvoiceNotes] = useState("");
   const [notesInitialized, setNotesInitialized] = useState(false);
 
-  const templateRef = useRef<HTMLDivElement>(null);
+  const { data: branding } = useQuery<any>({
+    queryKey: ["/api/settings/branding"],
+    queryFn: getQueryFn({ on401: "throw" }),
+    staleTime: Infinity,
+  });
 
   // Document generation hook
   const { invoiceDocuments, isGenerating, generateDocument, deleteDocument, isDeleting } = useDocumentGeneration(projectId);
@@ -94,12 +102,23 @@ export function useInvoiceSection({ projectId, data }: InvoiceSectionProps) {
   const manualPaymentMutation = useRecordManualPayment(projectId);
   const stripePaymentMutation = useCreateStripePayment(projectId);
 
+  const buildInvoiceDoc = () =>
+    buildInvoicePdf({
+      invoice: { ...invoice, notes: invoiceNotes },
+      order,
+      orderItems,
+      companyName,
+      primaryContact,
+      serviceCharges,
+      sellerName: branding?.companyName,
+    });
+
   // Generate local PDF
   const handleGeneratePdf = async () => {
-    if (!invoice || !templateRef.current) return;
+    if (!invoice) return;
     try {
       await generateDocument({
-        elementRef: templateRef.current,
+        pdfDocument: buildInvoiceDoc(),
         documentType: "invoice",
         documentNumber: invoice.invoiceNumber,
         itemsHash: currentItemsHash,
@@ -109,6 +128,8 @@ export function useInvoiceSection({ projectId, data }: InvoiceSectionProps) {
       // Error handled by hook
     }
   };
+
+  const handlePreviewLive = () => setShowLivePreview(true);
 
   // Derived values
   const hasStripePdf = !!invoice?.stripeInvoicePdfUrl;
@@ -214,8 +235,11 @@ export function useInvoiceSection({ projectId, data }: InvoiceSectionProps) {
     formattedContacts,
 
     // Document state
-    templateRef,
     invoiceDocuments,
+    buildInvoiceDoc,
+    showLivePreview,
+    setShowLivePreview,
+    handlePreviewLive,
     latestInvoiceDoc,
     isDocStale,
     isGenerating,

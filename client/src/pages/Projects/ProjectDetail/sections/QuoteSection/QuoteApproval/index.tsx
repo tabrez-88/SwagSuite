@@ -86,7 +86,8 @@ export default function QuoteApprovalPage() {
     return <Clock className="w-8 h-8 text-yellow-600" />;
   };
 
-  const quoteTotal = parseFloat(approval.quoteTotal || approval.orderTotal || "0");
+  // Prefer live order.total (includes tax + always up to date) over the stale quoteTotal snapshot
+  const quoteTotal = parseFloat(approval.orderTotal || approval.quoteTotal || "0");
   const headerGradient = isSalesOrder ? "from-emerald-50 to-white" : "from-blue-50 to-white";
 
   return (
