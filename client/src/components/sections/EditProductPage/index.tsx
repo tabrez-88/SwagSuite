@@ -1,4 +1,5 @@
 import DecoratorMatrixDialog from "@/components/modals/DecoratorMatrixDialog";
+import MatrixChargePicker from "@/components/modals/MatrixChargePicker";
 import { FilePreviewModal } from "@/components/modals/FilePreviewModal";
 import TierPricingPanel from "@/components/sections/TierPricingPanel";
 import FilePickerDialog from "@/components/modals/FilePickerDialog";
@@ -29,6 +30,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { IMPRINT_LOCATIONS, IMPRINT_METHODS } from "@/constants/imprintOptions";
 import { isBelowMinimum } from "@/hooks/useMarginSettings";
+import { getDecorationSubtotal, calcMarginPercent } from "@/lib/pricing";
 import { getCloudinaryThumbnail } from "@/lib/media-library";
 import { getQueryFn } from "@/lib/queryClient";
 import type { ProjectData } from "@/types/project-types";
@@ -222,6 +224,14 @@ export default function EditProductPage({ projectId, itemId, data }: EditProduct
   const editProductPage = useEditProductPage(projectId, itemId, data);
   const [showMatrixDialog, setShowMatrixDialog] = useState(false);
   const [showPricingTiers, setShowPricingTiers] = useState(false);
+  const [matrixPickerTarget, setMatrixPickerTarget] = useState<{
+    artworkId: string;
+    chargeId: string;
+    chargeName: string;
+    chargeType: "run" | "fixed";
+    artworkMethod?: string;
+    currentMargin?: number;
+  } | null>(null);
 
   const { data: taxCodes } = useQuery<any[]>({
     queryKey: ["/api/tax-codes"],
@@ -838,7 +848,8 @@ export default function EditProductPage({ projectId, itemId, data }: EditProduct
                     {/* CommonSKU-style inline charge rows */}
                     <div className="border-t">
                       {/* Column headers */}
-                      <div className="grid grid-cols-[1fr_50px_80px_65px_80px_130px_28px] gap-0 items-center px-3 py-1 bg-gray-50 border-b text-[9px] font-medium text-gray-500 uppercase tracking-wider">
+                      <div className="grid grid-cols-[20px_1fr_50px_80px_65px_80px_130px_28px] gap-0 items-center px-3 py-1 bg-gray-50 border-b text-[9px] font-medium text-gray-500 uppercase tracking-wider">
+                        <span></span>
                         <span>Charge</span>
                         <span className="text-center">Qty</span>
                         <span className="text-right">Cost</span>
@@ -856,7 +867,22 @@ export default function EditProductPage({ projectId, itemId, data }: EditProduct
                         const cRetail = parseFloat(charge.retailPrice || "0");
                         const cQty = charge.quantity || (isRun ? editProductPage.lineTotals.qty || 1 : 1);
                         return (
-                          <div key={charge.id} className="grid grid-cols-[1fr_50px_80px_65px_80px_130px_28px] gap-0 items-center px-3 py-1 border-b last:border-0 hover:bg-gray-50/50">
+                          <div key={charge.id} className="grid grid-cols-[20px_1fr_50px_80px_65px_80px_130px_28px] gap-0 items-center px-3 py-1 border-b last:border-0 hover:bg-gray-50/50">
+                            {/* Matrix icon */}
+                            <button
+                              className="w-4 h-4 flex items-center justify-center text-blue-400 hover:text-blue-600"
+                              title="Select pricing from decorator matrix"
+                              onClick={() => setMatrixPickerTarget({
+                                artworkId: art.id,
+                                chargeId: charge.id,
+                                chargeName: charge.chargeName || (isRun ? "Imprint Cost" : "Setup Cost"),
+                                chargeType: isRun ? "run" : "fixed",
+                                artworkMethod: art.artworkType,
+                                currentMargin: cMargin,
+                              })}
+                            >
+                              <Grid3X3 className="w-3 h-3" />
+                            </button>
                             {/* Charge Name — editable */}
                             <input
                               className="text-xs font-medium bg-transparent border-0 outline-none focus:bg-white focus:ring-1 focus:ring-blue-300 rounded px-1 py-0.5 w-full"
@@ -1001,30 +1027,6 @@ export default function EditProductPage({ projectId, itemId, data }: EditProduct
                         >
                           + Fixed charge
                         </button>
-                        {vendorId && (
-                          <button
-                            className={`inline-flex items-center gap-1 font-medium ${
-                              !art.artworkType ? "text-gray-400 cursor-not-allowed" : "text-blue-600 hover:text-blue-800 hover:underline"
-                            }`}
-                            title={!art.artworkType ? "Set imprint method first" : "Apply decorator matrix pricing to all charges"}
-                            onClick={() => {
-                              if (!art.artworkType) return;
-                              editProductPage.applyMatrixMutation.mutate(
-                                { artworkId: art.id, supplierId: vendorId, quantity: editProductPage.lineTotals.qty || 1 },
-                                {
-                                  onSuccess: (data: any) => {
-                                    if (!data.applied) {
-                                      setShowMatrixDialog(true);
-                                    }
-                                  },
-                                }
-                              );
-                            }}
-                          >
-                            <Grid3X3 className="w-3 h-3" />
-                            {editProductPage.applyMatrixMutation.isPending ? "Applying..." : "Apply Matrix"}
-                          </button>
-                        )}
                         <button
                           className="text-blue-600 hover:text-blue-800 hover:underline ml-auto"
                           onClick={() => editProductPage.setCopyingArtworkId(art.id)}
@@ -1045,57 +1047,133 @@ export default function EditProductPage({ projectId, itemId, data }: EditProduct
 
       {/* Unified Summary — CommonSKU style: Margin (left) + Subtotal/Tax/Total (right) */}
       {(() => {
-        // Product revenue + charges
-        const subtotal = editProductPage.lineTotals.revenue + editProductPage.totalCharges;
-        // Tax
-        const currentTaxCode = (taxCodes || []).find((tc: any) => tc.id === editProductPage.editItemData.taxCodeId);
-        const taxRate = currentTaxCode ? parseFloat(currentTaxCode.rate || "0") : 0;
-        const taxAmount = subtotal * (taxRate / 100);
-        const total = subtotal + taxAmount;
-        // Decoration
-        let decoRevenue = 0, decoCost = 0;
+        // ── Pricing breakdown (3 layers: Product → Charges → Decoration) ──
+
+        // Layer 1: Product (lines) — already calculated in hook
+        const productSellTotal = editProductPage.productSubtotal.productSellTotal;
+        const productCostTotal = editProductPage.productSubtotal.productCostTotal;
+        const itemTotalQty = editProductPage.productSubtotal.totalQty;
+
+        // Layer 2: Charges (setup fees, etc.) — already calculated in hook
+        const chargeSellTotal = editProductPage.chargeSubtotal.chargeSellTotal;
+        const chargeCostTotal = editProductPage.chargeSubtotal.chargeCostTotal;
+
+        // Layer 3: Decoration (artwork imprint charges) — collect from all artworks
+        const decoCharges: any[] = [];
         editProductPage.artworks.forEach((art: any) => {
           const charges = editProductPage.allArtworkCharges[art.id] || [];
-          charges.forEach((c: any) => {
-            const retail = parseFloat(c.retailPrice || "0");
-            const cost = parseFloat(c.netCost || "0");
-            const qty = c.chargeCategory === "run" ? (editProductPage.lineTotals.qty || 1) : (c.quantity || 1);
-            decoRevenue += retail * qty;
-            decoCost += cost * qty;
-          });
+          charges.forEach((c: any) => decoCharges.push(c));
         });
-        // Overall margin (product + decoration)
-        const totalRevenue = subtotal + decoRevenue;
-        const totalCostAll = editProductPage.lineTotals.cost + parseFloat(String(editProductPage.totalCharges || 0)) + decoCost;
-        const overallMargin = totalRevenue > 0 ? ((totalRevenue - totalCostAll) / totalRevenue) * 100 : 0;
-        const marginAmount = totalRevenue - totalCostAll;
+        const decoSub = getDecorationSubtotal(decoCharges, itemTotalQty);
+        const decoSellTotal = decoSub.decoSellTotal;
+        const decoCostTotal = decoSub.decoCostTotal;
+
+        // ── Combined totals ──
+        const productPlusCharges = productSellTotal + chargeSellTotal;
+        const itemSellGrandTotal = productPlusCharges + decoSellTotal;     // pre-tax client total
+        const itemCostGrandTotal = productCostTotal + chargeCostTotal + decoCostTotal;
+        const itemProfitTotal = itemSellGrandTotal - itemCostGrandTotal;
+        const itemMarginPercent = calcMarginPercent(itemSellGrandTotal, itemCostGrandTotal);
+
+        // ── Tax (applied to entire pre-tax total: product + charges + deco) ──
+        // Falls back to order-level defaultTaxCodeId when item has no override
+        const effectiveTaxCodeId = editProductPage.editItemData.taxCodeId || (data.order as any)?.defaultTaxCodeId;
+        const currentTaxCode = effectiveTaxCodeId
+          ? (taxCodes || []).find((tc: any) => tc.id === effectiveTaxCodeId)
+          : null;
+        const taxRate = currentTaxCode ? parseFloat(currentTaxCode.rate || "0") : 0;
+        const taxAmount = itemSellGrandTotal * (taxRate / 100);
+
+        // ── Final total ──
+        const grandTotalWithTax = itemSellGrandTotal + taxAmount;
+
+        // ── Decoration-only margin (for the breakdown display) ──
+        const decoMarginPercent = calcMarginPercent(decoSellTotal, decoCostTotal);
 
         return (
-          <div className="flex justify-between items-center gap-4 bg-primary p-4 rounded-lg">
-            {/* Left: Margin summary */}
-            <div className="bg-white rounded-lg border p-4 space-y-1.5 w-64">
+          <div className="flex justify-between items-start gap-4 bg-primary p-4 rounded-lg">
+            {/* Left: Margin summary with full breakdown */}
+            <div className="bg-white rounded-lg border p-4 space-y-1.5 w-80">
               <div className="flex justify-between text-sm">
-                <span className="text-gray-600">Margin</span>
-                <span className={`font-bold ${overallMargin >= 40 ? "text-green-600" : overallMargin >= 30 ? "text-yellow-600" : "text-red-600"}`}>
-                  {overallMargin.toFixed(1)}%
+                <span className="text-gray-600">Overall Margin</span>
+                <span className={`font-bold ${itemMarginPercent >= 40 ? "text-green-600" : itemMarginPercent >= 30 ? "text-yellow-600" : "text-red-600"}`}>
+                  {itemMarginPercent.toFixed(1)}%
                 </span>
               </div>
               <div className="flex justify-between text-sm">
-                <span className="text-gray-600">Margin Amount</span>
-                <span className="font-semibold">${marginAmount.toFixed(2)}</span>
+                <span className="text-gray-600">Profit</span>
+                <span className={`font-semibold ${itemProfitTotal < 0 ? "text-red-600" : ""}`}>${itemProfitTotal.toFixed(2)}</span>
               </div>
-              {decoRevenue > 0 && (
-                <>
-                  <div className="border-t pt-1.5 mt-1.5" />
-                  <div className="flex justify-between text-xs text-gray-500">
-                    <span>Product margin</span>
-                    <span>{editProductPage.margin.toFixed(1)}%</span>
+
+              {/* Detailed breakdown */}
+              <div className="border-t pt-2 mt-2 space-y-1.5">
+                {/* Product layer */}
+                <div>
+                  <div className="flex justify-between text-[11px] text-gray-600">
+                    <span className="font-medium">Product</span>
+                    <span className={`font-semibold ${editProductPage.margin >= 30 ? "text-green-600" : editProductPage.margin >= 0 ? "text-yellow-600" : "text-red-600"}`}>
+                      {editProductPage.margin.toFixed(1)}%
+                    </span>
                   </div>
-                  <div className="flex justify-between text-xs text-gray-500">
-                    <span>Decoration margin</span>
-                    <span>{(decoRevenue > 0 ? ((decoRevenue - decoCost) / decoRevenue * 100) : 0).toFixed(1)}%</span>
+                  <div className="flex justify-between text-[10px] text-gray-400 pl-2">
+                    <span>cost ${productCostTotal.toFixed(2)} → sell ${productSellTotal.toFixed(2)}</span>
+                    <span>${(productSellTotal - productCostTotal).toFixed(2)}</span>
                   </div>
-                </>
+                </div>
+
+                {/* Charges layer */}
+                {(chargeSellTotal > 0 || chargeCostTotal > 0) && (
+                  <div>
+                    <div className="flex justify-between text-[11px] text-gray-600">
+                      <span className="font-medium">Charges</span>
+                      <span className={`font-semibold ${calcMarginPercent(chargeSellTotal, chargeCostTotal) >= 30 ? "text-green-600" : calcMarginPercent(chargeSellTotal, chargeCostTotal) >= 0 ? "text-yellow-600" : "text-red-600"}`}>
+                        {calcMarginPercent(chargeSellTotal, chargeCostTotal).toFixed(1)}%
+                      </span>
+                    </div>
+                    <div className="flex justify-between text-[10px] text-gray-400 pl-2">
+                      <span>cost ${chargeCostTotal.toFixed(2)} → sell ${chargeSellTotal.toFixed(2)}</span>
+                      <span>${(chargeSellTotal - chargeCostTotal).toFixed(2)}</span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Decoration layer */}
+                {(decoSellTotal > 0 || decoCostTotal > 0) && (
+                  <div>
+                    <div className="flex justify-between text-[11px] text-gray-600">
+                      <span className="font-medium">Decoration</span>
+                      <span className={`font-semibold ${decoMarginPercent >= 30 ? "text-green-600" : decoMarginPercent >= 0 ? "text-yellow-600" : "text-red-600"}`}>
+                        {decoMarginPercent.toFixed(1)}%
+                        {decoMarginPercent < 0 && <span className="ml-1" title="Decoration cost exceeds sell price">⚠</span>}
+                      </span>
+                    </div>
+                    <div className="flex justify-between text-[10px] text-gray-400 pl-2">
+                      <span>cost ${decoCostTotal.toFixed(2)} → sell ${decoSellTotal.toFixed(2)}</span>
+                      <span className={decoSellTotal - decoCostTotal < 0 ? "text-red-500" : ""}>
+                        ${(decoSellTotal - decoCostTotal).toFixed(2)}
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Total row */}
+                <div className="border-t pt-1.5 mt-1.5">
+                  <div className="flex justify-between text-[11px] font-semibold text-gray-700">
+                    <span>Total</span>
+                    <span>${itemSellGrandTotal.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between text-[10px] text-gray-400 pl-2">
+                    <span>cost ${itemCostGrandTotal.toFixed(2)}</span>
+                    <span>profit ${itemProfitTotal.toFixed(2)}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Warning if deco is selling at loss */}
+              {decoMarginPercent < 0 && decoSellTotal > 0 && (
+                <div className="mt-2 pt-2 border-t border-red-200 text-[10px] text-red-700 bg-red-50 -mx-4 -mb-4 px-4 py-2 rounded-b-lg">
+                  ⚠ Decoration is selling at a loss. Cost (${decoCostTotal.toFixed(2)}) exceeds sell price (${decoSellTotal.toFixed(2)}). Check your matrix pricing or update retail prices.
+                </div>
               )}
             </div>
 
@@ -1103,25 +1181,33 @@ export default function EditProductPage({ projectId, itemId, data }: EditProduct
             <div className="bg-gray-50 rounded-lg border p-4 space-y-2 w-72">
               <div className="flex justify-between text-sm">
                 <span className="text-gray-600">Subtotal</span>
-                <span className="font-medium">${subtotal.toFixed(2)}</span>
+                <span className="font-medium">${productPlusCharges.toFixed(2)}</span>
               </div>
-              {decoRevenue > 0 && (
+              {decoSellTotal > 0 && (
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-600">Decoration</span>
-                  <span className="font-medium">${decoRevenue.toFixed(2)}</span>
+                  <span className="font-medium">${decoSellTotal.toFixed(2)}</span>
                 </div>
               )}
               <div className="flex justify-between items-center text-sm">
                 <div className="flex items-center gap-2">
                   <span className="text-gray-600">Tax</span>
                   <Select
-                    value={editProductPage.editItemData.taxCodeId || "none"}
-                    onValueChange={(val) => editProductPage.setEditItemData((d: any) => ({ ...d, taxCodeId: val === "none" ? "" : val }))}
+                    value={editProductPage.editItemData.taxCodeId || "inherit"}
+                    onValueChange={(val) => editProductPage.setEditItemData((d: any) => ({ ...d, taxCodeId: val === "inherit" ? "" : val }))}
                   >
-                    <SelectTrigger className="h-7 w-[140px] text-xs">
+                    <SelectTrigger className="h-7 w-[160px] text-xs">
                       <SelectValue placeholder="Select tax" />
                     </SelectTrigger>
                     <SelectContent>
+                      <SelectItem value="inherit">
+                        {(() => {
+                          const orderTc = (data.order as any)?.defaultTaxCodeId
+                            ? (taxCodes || []).find((tc: any) => tc.id === (data.order as any).defaultTaxCodeId)
+                            : null;
+                          return orderTc ? `Order default (${parseFloat(orderTc.rate)}%)` : "No tax";
+                        })()}
+                      </SelectItem>
                       {(taxCodes || []).map((tc: any) => (
                         <SelectItem key={tc.id} value={tc.id}>
                           {tc.label} ({parseFloat(tc.rate)}%)
@@ -1134,7 +1220,7 @@ export default function EditProductPage({ projectId, itemId, data }: EditProduct
               </div>
               <div className="border-t pt-2 flex justify-between text-sm font-bold">
                 <span>Total</span>
-                <span>${(total + decoRevenue).toFixed(2)}</span>
+                <span>${grandTotalWithTax.toFixed(2)}</span>
               </div>
             </div>
           </div>
@@ -1554,6 +1640,33 @@ export default function EditProductPage({ projectId, itemId, data }: EditProduct
             artworkMethod={editProductPage.artworks.length === 1 ? editProductPage.artworks[0]?.artworkType : undefined}
             quantity={editProductPage.lineTotals.qty || 1}
             projectId={editProductPage.projectId}
+          />
+        );
+      })()}
+
+      {/* PER-CHARGE MATRIX PICKER */}
+      {matrixPickerTarget && (() => {
+        const vendorId = editProductPage.editItemData.decoratorType === "third_party"
+          ? editProductPage.editItemData.decoratorId
+          : editProductPage.item?.supplierId;
+        const vendorName = editProductPage.editItemData.decoratorType === "third_party"
+          ? editProductPage.suppliers.find((s: any) => s.id === editProductPage.editItemData.decoratorId)?.name || "Decorator"
+          : itemSupplier?.name || "Supplier";
+        if (!vendorId) return null;
+        return (
+          <MatrixChargePicker
+            open={true}
+            onClose={() => setMatrixPickerTarget(null)}
+            supplierId={vendorId}
+            supplierName={vendorName}
+            chargeType={matrixPickerTarget.chargeType}
+            artworkId={matrixPickerTarget.artworkId}
+            chargeId={matrixPickerTarget.chargeId}
+            chargeName={matrixPickerTarget.chargeName}
+            currentMargin={matrixPickerTarget.currentMargin}
+            quantity={editProductPage.lineTotals.qty || 1}
+            projectId={editProductPage.projectId}
+            artworkMethod={matrixPickerTarget.artworkMethod}
           />
         );
       })()}

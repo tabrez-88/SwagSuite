@@ -1,7 +1,3 @@
-import { useState } from "react";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { useToast } from "@/hooks/use-toast";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -12,6 +8,9 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { format } from "date-fns";
 import {
   AlertTriangle,
   CheckCircle2,
@@ -23,7 +22,7 @@ import {
   ShoppingCart,
   Trash2,
 } from "lucide-react";
-import { format } from "date-fns";
+import { useState } from "react";
 
 function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -52,28 +51,9 @@ export default function GeneratedDocumentCard({
   isDeleting,
   isRegenerating,
 }: GeneratedDocumentCardProps) {
-  const { toast } = useToast();
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const isProtected = doc.status === "approved" || doc.status === "sent";
 
-  const handleDownload = () => {
-    if (doc.fileUrl) {
-      const link = document.createElement("a");
-      link.href = doc.fileUrl;
-      const typeLabel = (doc.documentType || "document").replace(/_/g, "-").replace(/\b\w/g, (c: string) => c.toUpperCase());
-      let fileName = doc.fileName || `${typeLabel}-${doc.documentNumber}`;
-      if (!fileName.toLowerCase().endsWith(".pdf")) {
-        fileName = fileName.replace(/\.[^/.]+$/, "") + ".pdf";
-      }
-      link.download = fileName;
-      link.target = "_blank";
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    } else {
-      toast({ title: "Error", description: "PDF file not available", variant: "destructive" });
-    }
-  };
 
   return (
     <>
@@ -145,12 +125,8 @@ export default function GeneratedDocumentCard({
             <Eye className="w-4 h-4 mr-1" />
             Preview
           </Button>
-          <Button variant="outline" size="sm" onClick={handleDownload}>
-            <Download className="w-4 h-4 mr-1" />
-            Download
-          </Button>
           <Button
-            variant="outline"
+            variant="destructive"
             size="sm"
             onClick={() => setShowDeleteDialog(true)}
             disabled={isDeleting}

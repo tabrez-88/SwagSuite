@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { getQueryFn } from "@/lib/queryClient";
 import {
   useDeleteProjectItem,
   useDuplicateProjectItem,
@@ -14,15 +15,27 @@ import {
   useToggleChargeDisplay,
   useCreateArtwork,
   useDeleteArtwork,
+  useCreateArtworkCharge,
 } from "@/services/project-items";
 import * as orderItemRequests from "@/services/project-items/requests";
 import { projectKeys } from "@/services/projects/keys";
 import type { OrderItemLine, OrderAdditionalCharge } from "@shared/schema";
 import { useMarginSettings, marginColorClass, marginBgClass, isBelowMinimum, calcMarginPercent, applyMargin } from "@/hooks/useMarginSettings";
+import {
+  getItemPricing,
+  type PricingLine,
+  type ProductCharge,
+  type DecorationCharge,
+  type ItemPricingBreakdown,
+} from "@/lib/pricing";
 import type { ProductsSectionProps } from "./types";
 
 export function useProductsSection({ projectId, data, isLocked }: ProductsSectionProps) {
   const marginSettings = useMarginSettings();
+  const { data: taxCodes } = useQuery<any[]>({
+    queryKey: ["/api/tax-codes"],
+    queryFn: getQueryFn({ on401: "throw" }),
+  });
   const [currentLocation] = useLocation();
   const isQuoteContext = currentLocation.includes("/quote");
   const addProductPath = isQuoteContext
@@ -30,7 +43,7 @@ export function useProductsSection({ projectId, data, isLocked }: ProductsSectio
     : `/projects/${projectId}/sales-order/add`;
   const {
     orderItems, allProducts, allArtworkItems, suppliers,
-    allItemLines, allItemCharges, allArtworkCharges,
+    allItemLines, allItemCharges, allArtworkCharges, order,
   } = data;
   const [, setLocation] = useLocation();
   const { toast } = useToast();
@@ -100,6 +113,7 @@ export function useProductsSection({ projectId, data, isLocked }: ProductsSectio
   const toggleChargeDisplayMutation = useToggleChargeDisplay(projectId);
   const createArtworkMutation = useCreateArtwork(projectId);
   const deleteArtworkMutation = useDeleteArtwork(projectId);
+  const createArtworkChargeMutation = useCreateArtworkCharge(projectId);
 
   // ── Helpers ──
 
@@ -123,55 +137,71 @@ export function useProductsSection({ projectId, data, isLocked }: ProductsSectio
   const marginColor = (m: number) => marginColorClass(m, marginSettings);
   const marginBg = (m: number) => marginBgClass(m, marginSettings);
 
-  // Calculate item-level totals using lines if available
-  const getItemTotals = (item: any) => {
-    const lines: OrderItemLine[] = allItemLines[item.id] || [];
-    const charges: OrderAdditionalCharge[] = allItemCharges[item.id] || [];
+  // ── Item-level pricing (shared utility) ──
 
-    let totalQty = 0;
-    let totalCost = 0;
-    let totalRevenue = 0;
-
-    if (lines.length > 0) {
-      lines.forEach(l => {
-        const qty = l.quantity || 0;
-        const cost = parseFloat(l.cost || "0");
-        const price = parseFloat(l.unitPrice || "0");
-        totalQty += qty;
-        totalCost += qty * cost;
-        totalRevenue += qty * price;
-      });
-    } else {
-      totalQty = item.quantity || 0;
-      totalCost = totalQty * (parseFloat(item.cost || "0"));
-      totalRevenue = totalQty * (parseFloat(item.unitPrice || "0"));
+  /** Collect all artwork/decoration charges for an item (flatten artwork→charges) */
+  const getItemDecoCharges = (itemId: string): DecorationCharge[] => {
+    const artworks = allArtworkItems[itemId] || [];
+    const decoCharges: DecorationCharge[] = [];
+    for (const art of artworks) {
+      const charges = allArtworkCharges[art.id] || [];
+      for (const c of charges) {
+        decoCharges.push(c as DecorationCharge);
+      }
     }
-
-    const totalCharges = charges
-      .filter((c: any) => !c.includeInUnitPrice)
-      .reduce((s, c) => s + parseFloat(c.amount || "0"), 0);
-    const margin = (totalRevenue + totalCharges) > 0
-      ? (((totalRevenue + totalCharges) - totalCost) / (totalRevenue + totalCharges)) * 100
-      : 0;
-
-    return { totalQty, totalCost, totalRevenue, totalCharges, margin };
+    return decoCharges;
   };
 
-  // Order-level totals
+  /** Get full pricing breakdown for an item using shared pricing utility */
+  const getItemTotals = (item: any): ItemPricingBreakdown & { taxRate: number; taxAmount: number; grandTotalWithTax: number } => {
+    const lines = (allItemLines[item.id] || []).map((l: OrderItemLine): PricingLine => ({
+      quantity: l.quantity || 0,
+      cost: parseFloat(l.cost || "0"),
+      unitPrice: parseFloat(l.unitPrice || "0"),
+    }));
+    const charges = (allItemCharges[item.id] || []) as ProductCharge[];
+    const decoCharges = getItemDecoCharges(item.id);
+
+    const pricing = getItemPricing(lines, charges, decoCharges, item);
+
+    // Tax: resolve from item's taxCodeId, falling back to order-level defaultTaxCodeId
+    const effectiveTaxCodeId = item.taxCodeId || (order as any)?.defaultTaxCodeId;
+    const itemTaxCode = effectiveTaxCodeId
+      ? (taxCodes || []).find((tc: any) => tc.id === effectiveTaxCodeId)
+      : null;
+    const taxRate = itemTaxCode ? parseFloat(itemTaxCode.rate || "0") : 0;
+    const taxAmount = pricing.itemSellGrandTotal * (taxRate / 100);
+    const grandTotalWithTax = pricing.itemSellGrandTotal + taxAmount;
+
+    return { ...pricing, taxRate, taxAmount, grandTotalWithTax };
+  };
+
+  // ── Order-level totals ──
   const orderTotals = orderItems.reduce(
-    (acc: { subtotal: number; totalCost: number; totalQty: number; totalCharges: number }, item: any) => {
-      const t = getItemTotals(item);
+    (acc, item: any) => {
+      const p = getItemTotals(item);
       return {
-        subtotal: acc.subtotal + t.totalRevenue,
-        totalCost: acc.totalCost + t.totalCost,
-        totalQty: acc.totalQty + t.totalQty,
-        totalCharges: acc.totalCharges + t.totalCharges,
+        orderProductSell: acc.orderProductSell + p.productSellTotal,
+        orderChargeSell: acc.orderChargeSell + p.chargeSellTotal,
+        orderDecoSell: acc.orderDecoSell + p.decoSellTotal,
+        orderCostTotal: acc.orderCostTotal + p.itemCostGrandTotal,
+        orderQtyTotal: acc.orderQtyTotal + p.totalQty,
+        // Backward-compat aliases for existing UI
+        subtotal: acc.subtotal + p.productSellTotal,
+        totalCost: acc.totalCost + p.itemCostGrandTotal,
+        totalQty: acc.totalQty + p.totalQty,
+        totalCharges: acc.totalCharges + p.chargeSellTotal + p.decoSellTotal,
       };
     },
-    { subtotal: 0, totalCost: 0, totalQty: 0, totalCharges: 0 },
+    {
+      orderProductSell: 0, orderChargeSell: 0, orderDecoSell: 0,
+      orderCostTotal: 0, orderQtyTotal: 0,
+      subtotal: 0, totalCost: 0, totalQty: 0, totalCharges: 0,
+    },
   );
-  const orderMargin = (orderTotals.subtotal + orderTotals.totalCharges) > 0
-    ? (((orderTotals.subtotal + orderTotals.totalCharges - orderTotals.totalCost) / (orderTotals.subtotal + orderTotals.totalCharges)) * 100)
+  const orderSellGrandTotal = orderTotals.orderProductSell + orderTotals.orderChargeSell + orderTotals.orderDecoSell;
+  const orderMargin = orderSellGrandTotal > 0
+    ? ((orderSellGrandTotal - orderTotals.orderCostTotal) / orderSellGrandTotal) * 100
     : 0;
 
   // Edit item dialog lines (local copy for editing)
@@ -402,7 +432,42 @@ export function useProductsSection({ projectId, data, isLocked }: ProductsSectio
       artworkType: artUploadMethod || undefined,
       color: artUploadColor || undefined,
       size: artUploadSize || undefined,
-    }, { onSuccess: () => resetArtForm() });
+    }, {
+      onSuccess: (newArtwork: any) => {
+        const method = artUploadMethod || "";
+        resetArtForm();
+        // CommonSKU: auto-create default Imprint Cost (run) + Setup Cost (fixed) charges
+        if (newArtwork?.id) {
+          createArtworkChargeMutation.mutate({
+            artworkId: newArtwork.id,
+            charge: {
+              chargeName: method ? `${method} imprint` : "Imprint Cost",
+              chargeCategory: "run",
+              netCost: "0",
+              margin: "0",
+              retailPrice: "0",
+              quantity: 1,
+              displayMode: "include_in_price",
+            },
+          }, {
+            onSuccess: () => {
+              createArtworkChargeMutation.mutate({
+                artworkId: newArtwork.id,
+                charge: {
+                  chargeName: method ? `${method} setup` : "Setup Cost",
+                  chargeCategory: "fixed",
+                  netCost: "0",
+                  margin: "0",
+                  retailPrice: "0",
+                  quantity: 1,
+                  displayMode: "display_to_client",
+                },
+              });
+            },
+          });
+        }
+      },
+    });
   };
 
   const dismissMarginWarning = () => {

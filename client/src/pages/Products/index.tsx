@@ -93,26 +93,26 @@ export default function Products() {
 
       {/* Main Content */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="grid w-full grid-cols-5">
-          <TabsTrigger value="my-catalog" className="flex items-center gap-2">
+        <TabsList className="flex gap-4 flex-wrap">
+          <TabsTrigger value="my-catalog" className="flex flex-1 items-center gap-2">
             <Package size={16} />
             My Catalog
           </TabsTrigger>
-          <TabsTrigger disabled value="popular" className="flex items-center gap-2">
+          <TabsTrigger disabled value="popular" className="flex flex-1 items-center gap-2">
             <TrendingUp size={16} />
             Popular Items
           </TabsTrigger>
-          <TabsTrigger value="ss-activewear" className="flex items-center gap-2">
+          <TabsTrigger value="sage" className="flex flex-1 items-center gap-2">
+            <Database size={16} />
+            SAGE
+          </TabsTrigger>
+          <TabsTrigger value="ss-activewear" className="flex flex-1 items-center gap-2">
             <ShoppingCart size={16} />
             S&S Activewear
           </TabsTrigger>
-          <TabsTrigger value="sanmar" className="flex items-center gap-2">
+          <TabsTrigger value="sanmar" className="flex flex-1 items-center gap-2">
             <Package size={16} />
             SanMar
-          </TabsTrigger>
-          <TabsTrigger value="sage" className="flex items-center gap-2">
-            <Database size={16} />
-            SAGE
           </TabsTrigger>
         </TabsList>
 

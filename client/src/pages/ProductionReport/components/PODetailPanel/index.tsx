@@ -40,7 +40,6 @@ import {
 import { getStageBadgeClass } from "@/constants/productionStages";
 import { getDateStatus } from "@/lib/dateUtils";
 import { formatAddress } from "@/components/feature/DocumentEditor/types";
-import { getActionTypeBadgeClass } from "@/hooks/useNextActionTypes";
 import type { PODetailPanelProps } from "./types";
 import { usePODetailPanel } from "./hooks";
 

@@ -1,7 +1,30 @@
 import type { InsertProduct } from "@shared/schema";
+import { v2 as cloudinary } from "cloudinary";
 import { productRepository } from "../repositories/product.repository";
 import { supplierRepository } from "../repositories/supplier.repository";
 import { normalizeArrayField } from "../utils/normalizeArrayField";
+
+/**
+ * Upload an external image URL to Cloudinary.
+ * Returns the Cloudinary URL on success, or null on failure.
+ * Useful for S&S Activewear images behind Cloudflare that can't be loaded client-side.
+ */
+async function uploadImageToCloudinary(imageUrl: string, sku?: string): Promise<string | null> {
+  try {
+    const publicId = `product-${sku || Date.now()}`;
+    const result = await cloudinary.uploader.upload(imageUrl, {
+      folder: "swagsuite/product-images",
+      public_id: publicId,
+      overwrite: false,
+      resource_type: "image",
+      timeout: 10000,
+    });
+    return result.secure_url;
+  } catch (err) {
+    console.warn(`[ProductService] Failed to upload product image to Cloudinary: ${err instanceof Error ? err.message : err}`);
+    return null;
+  }
+}
 
 export class ProductService {
   async getAll(supplierId?: string) {
@@ -34,6 +57,15 @@ export class ProductService {
   }) {
     const { name, sku, supplierName, description, basePrice, category, colors, imageUrl, source, pricingTiers } = data;
 
+    // Upload external product images to Cloudinary (S&S, SanMar CDN etc. block client-side loading)
+    let resolvedImageUrl = imageUrl || null;
+    if (resolvedImageUrl && !resolvedImageUrl.includes("cloudinary.com")) {
+      const cloudinaryUrl = await uploadImageToCloudinary(resolvedImageUrl, sku);
+      if (cloudinaryUrl) {
+        resolvedImageUrl = cloudinaryUrl;
+      }
+    }
+
     // Find or create the supplier/vendor
     let supplier = await supplierRepository.getByName(supplierName);
     if (!supplier) {
@@ -64,14 +96,24 @@ export class ProductService {
         supplierId: supplier.id,
         category: category || '',
         colors: Array.isArray(colors) ? colors : null,
-        imageUrl: imageUrl || null,
+        imageUrl: resolvedImageUrl,
         productType: source === 'ss_activewear' ? 'apparel' : 'promotional',
         minimumQuantity: 1,
         pricingTiers: pricingTiers && pricingTiers.length > 0 ? pricingTiers : undefined,
       } as any);
-    } else if (pricingTiers && pricingTiers.length > 0) {
-      // Update existing product with pricing tiers if not already set
-      await productRepository.update(product.id, { pricingTiers } as any);
+    } else {
+      // Update existing product: pricing tiers + re-upload stale external image URLs
+      const updates: Record<string, any> = {};
+      if (pricingTiers && pricingTiers.length > 0) {
+        updates.pricingTiers = pricingTiers;
+      }
+      if (resolvedImageUrl && product.imageUrl && !product.imageUrl.includes("cloudinary.com")) {
+        updates.imageUrl = resolvedImageUrl;
+      }
+      if (Object.keys(updates).length > 0) {
+        await productRepository.update(product.id, updates as any);
+        product = { ...product, ...updates };
+      }
     }
 
     return {

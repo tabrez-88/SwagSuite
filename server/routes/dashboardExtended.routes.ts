@@ -17,9 +17,7 @@ router.post("/api/sync/ytd-spending", isAuthenticated, asyncHandler(DashboardExt
 // Team performance
 router.get("/api/dashboard/team-performance", isAuthenticated, asyncHandler(DashboardExtendedController.getTeamPerformance));
 
-// Popular & suggested products analytics
-router.get("/api/products/popular", isAuthenticated, asyncHandler(DashboardExtendedController.getPopularProducts));
-router.get("/api/products/suggested", isAuthenticated, asyncHandler(DashboardExtendedController.getSuggestedProducts));
+// Popular & suggested products analytics (moved to product.routes.ts to avoid :id param capture)
 
 // Admin suggested products management
 router.post("/api/admin/suggested-products", isAuthenticated, asyncHandler(DashboardExtendedController.createAdminSuggestedProduct));

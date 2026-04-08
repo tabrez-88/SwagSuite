@@ -19,8 +19,6 @@ function SageIntegrationComponent() {
     syncingProducts,
     syncedProducts,
     loadingProducts,
-    testConnectionMutation,
-    syncProductMutation,
     handleSearch,
     handleAddProduct,
     handleViewDetails,
@@ -41,19 +39,6 @@ function SageIntegrationComponent() {
                 Search by product name, number, category, or supplier
               </CardDescription>
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => testConnectionMutation.mutate()}
-              disabled={testConnectionMutation.isPending}
-            >
-              {testConnectionMutation.isPending ? (
-                <Loader2 className="h-4 w-4 animate-spin mr-2" />
-              ) : (
-                <Database className="h-4 w-4 mr-2" />
-              )}
-              Test Connection
-            </Button>
           </div>
         </CardHeader>
         <CardContent className="space-y-4">

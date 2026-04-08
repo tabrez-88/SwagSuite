@@ -249,7 +249,7 @@ export default function AddProductPage({ projectId, data }: AddProductPageProps)
                 onClick={() => h.syncAndOpenConfig(product)}
               >
                 {/* Product Image */}
-                <div className="relative h-32 bg-muted flex items-center justify-center overflow-hidden">
+                <div className="relative h-64 bg-muted flex items-center justify-center overflow-hidden">
                   {product.imageUrl ? (
                     <img
                       src={product.imageUrl}

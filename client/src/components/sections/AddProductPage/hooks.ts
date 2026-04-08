@@ -348,8 +348,9 @@ export function useAddProductPage({ projectId, data }: AddProductPageProps) {
         }).catch(() => { /* best-effort */ });
       }
 
-      // Invalidate product queries so catalog is up to date
+      // Invalidate product + supplier queries so catalog & vendor info is up to date
       queryClient.invalidateQueries({ queryKey: ["/api/products"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/suppliers"] });
 
       // Open config with synced product data (keeps supplier colors/sizes from API)
       openProductConfig({
@@ -506,8 +507,11 @@ export function useAddProductPage({ projectId, data }: AddProductPageProps) {
     onSuccess: () => {
       toast({ title: "Product added to order" });
       queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/items`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/items-with-details`] });
       queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}`] });
       queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/all-item-lines`] });
+      queryClient.invalidateQueries({ queryKey: ["/api/suppliers"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/products"] });
       setSelectedProduct(null);
       setLocation(productsPath);
     },
@@ -638,7 +642,11 @@ export function useAddProductPage({ projectId, data }: AddProductPageProps) {
     onSuccess: () => {
       toast({ title: "Product added to order" });
       queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/items`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/items-with-details`] });
       queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/all-item-lines`] });
+      queryClient.invalidateQueries({ queryKey: ["/api/suppliers"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/products"] });
       setLocation(productsPath);
     },
     onError: (err: any) => {

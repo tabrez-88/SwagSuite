@@ -1,8 +1,10 @@
+import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import ProductModal from "@/components/modals/ProductModal";
+import { FilePreviewModal } from "@/components/modals/FilePreviewModal";
 import TierPricingPanel from "@/components/sections/TierPricingPanel";
 import {
   ArrowLeft,
@@ -38,6 +40,8 @@ export default function ProductDetailPage() {
     parseArrayField,
   } = useProductDetail();
 
+  const [imagePreviewOpen, setImagePreviewOpen] = useState(false);
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -63,94 +67,100 @@ export default function ProductDetailPage() {
   const imprintMethods = parseArrayField(product.imprintMethods);
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-3 sm:p-6 space-y-4 sm:space-y-6">
       {/* Header */}
-      <div className="flex items-start gap-4">
-        <Button variant="ghost" size="sm" onClick={handleBack} className="mt-1">
-          <ArrowLeft className="w-4 h-4" />
-        </Button>
-        <div className="flex gap-4 flex-1">
-          {product.imageUrl ? (
-            <img
-              src={product.imageUrl}
-              alt={product.name}
-              className="w-24 h-24 object-contain rounded-lg border bg-white flex-shrink-0"
-            />
-          ) : (
-            <div className="w-24 h-24 rounded-lg border bg-gray-50 flex items-center justify-center flex-shrink-0">
-              <Box className="w-10 h-10 text-gray-300" />
-            </div>
-          )}
-          <div className="flex-1 min-w-0">
-            <h1 className="text-2xl font-bold text-gray-900 truncate">{product.name}</h1>
-            <div className="flex items-center gap-2 mt-1 flex-wrap">
-              {product.sku && <Badge variant="outline" className="font-mono">{product.sku}</Badge>}
-              {supplierName && (
-                <Badge variant="secondary" className="gap-1">
-                  <Building2 className="w-3 h-3" /> {supplierName}
-                </Badge>
-              )}
-              {product.category && <Badge variant="outline">{product.category}</Badge>}
-              {product.productType && <Badge variant="outline" className="capitalize">{product.productType}</Badge>}
-            </div>
-            {product.description && (
-              <p className="text-sm text-gray-600 mt-2 line-clamp-3">{product.description}</p>
-            )}
-          </div>
-          <div className="flex gap-2 flex-shrink-0">
+      <div className="space-y-3">
+        {/* Back + Actions row */}
+        <div className="flex items-center justify-between">
+          <Button variant="ghost" size="sm" onClick={handleBack}>
+            <ArrowLeft className="w-4 h-4 mr-1" /> Back
+          </Button>
+          <div className="flex gap-2">
             <Button variant="default" size="sm" onClick={() => setIsEditOpen(true)}>
-              <Edit className="w-4 h-4 mr-1" /> Edit Product
+              <Edit className="w-4 h-4 sm:mr-1" /> <span className="hidden sm:inline">Edit Product</span>
             </Button>
             <Button variant="outline" size="sm" className="text-red-600 hover:text-red-700 hover:bg-red-50" onClick={handleDelete}>
               <Trash2 className="w-4 h-4" />
             </Button>
           </div>
         </div>
+
+        {/* Product image + info */}
+        <div className="flex gap-3 sm:gap-4">
+          {product.imageUrl ? (
+            <img
+              src={product.imageUrl}
+              alt={product.name}
+              className="w-16 h-16 sm:w-24 sm:h-24 object-contain rounded-lg border bg-white flex-shrink-0 cursor-pointer hover:opacity-80 transition-opacity"
+              onClick={() => setImagePreviewOpen(true)}
+            />
+          ) : (
+            <div className="w-16 h-16 sm:w-24 sm:h-24 rounded-lg border bg-gray-50 flex items-center justify-center flex-shrink-0">
+              <Box className="w-8 h-8 sm:w-10 sm:h-10 text-gray-300" />
+            </div>
+          )}
+          <div className="flex-1 min-w-0">
+            <h1 className="text-lg sm:text-2xl font-bold text-gray-900 break-words">{product.name}</h1>
+            <div className="flex items-center gap-1.5 sm:gap-2 mt-1 flex-wrap">
+              {product.sku && <Badge variant="outline" className="font-mono text-[10px] sm:text-xs">{product.sku}</Badge>}
+              {supplierName && (
+                <Badge variant="secondary" className="gap-1 text-[10px] sm:text-xs">
+                  <Building2 className="w-3 h-3" /> {supplierName}
+                </Badge>
+              )}
+              {product.category && <Badge variant="outline" className="text-[10px] sm:text-xs">{product.category}</Badge>}
+              {product.productType && <Badge variant="outline" className="capitalize text-[10px] sm:text-xs">{product.productType}</Badge>}
+            </div>
+            {product.description && (
+              <p className="text-xs sm:text-sm text-gray-600 mt-2 line-clamp-2 sm:line-clamp-3">{product.description}</p>
+            )}
+          </div>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
         {/* Left column */}
-        <div className="lg:col-span-2 space-y-6">
+        <div className="lg:col-span-2 space-y-4 sm:space-y-6">
           {/* Product Info Card — all details in one card */}
           <Card>
-            <CardContent className="p-5">
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <CardContent className="p-3 sm:p-5">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
                 {product.basePrice && (
-                  <div className="p-3 bg-green-50 rounded-lg">
+                  <div className="p-2 sm:p-3 bg-green-50 rounded-lg">
                     <div className="flex items-center gap-1.5 mb-1">
                       <DollarSign className="w-3.5 h-3.5 text-green-600" />
                       <span className="text-[10px] text-gray-500 uppercase font-medium">Base Price</span>
                     </div>
-                    <p className="font-bold text-lg text-green-700">${Number(product.basePrice).toFixed(2)}</p>
+                    <p className="font-bold text-base sm:text-lg text-green-700">${Number(product.basePrice).toFixed(2)}</p>
                   </div>
                 )}
-                <div className="p-3 bg-blue-50 rounded-lg">
+                <div className="p-2 sm:p-3 bg-blue-50 rounded-lg">
                   <div className="flex items-center gap-1.5 mb-1">
                     <Package className="w-3.5 h-3.5 text-blue-600" />
                     <span className="text-[10px] text-gray-500 uppercase font-medium">Min Qty</span>
                   </div>
-                  <p className="font-bold text-lg text-blue-700">{product.minimumQuantity || 1}</p>
+                  <p className="font-bold text-base sm:text-lg text-blue-700">{product.minimumQuantity || 1}</p>
                 </div>
                 {product.leadTime && (
-                  <div className="p-3 bg-orange-50 rounded-lg">
+                  <div className="p-2 sm:p-3 bg-orange-50 rounded-lg">
                     <div className="flex items-center gap-1.5 mb-1">
                       <Calendar className="w-3.5 h-3.5 text-orange-600" />
                       <span className="text-[10px] text-gray-500 uppercase font-medium">Lead Time</span>
                     </div>
-                    <p className="font-bold text-lg text-orange-700">{product.leadTime}d</p>
+                    <p className="font-bold text-base sm:text-lg text-orange-700">{product.leadTime}d</p>
                   </div>
                 )}
-                <div className="p-3 bg-purple-50 rounded-lg">
+                <div className="p-2 sm:p-3 bg-purple-50 rounded-lg">
                   <div className="flex items-center gap-1.5 mb-1">
                     <ShoppingCart className="w-3.5 h-3.5 text-purple-600" />
                     <span className="text-[10px] text-gray-500 uppercase font-medium">Orders</span>
                   </div>
-                  <p className="font-bold text-lg text-purple-700">{ordersWithProduct.length}</p>
+                  <p className="font-bold text-base sm:text-lg text-purple-700">{ordersWithProduct.length}</p>
                 </div>
               </div>
 
               {/* Additional details row */}
-              <div className="mt-4 pt-3 border-t grid grid-cols-2 gap-x-6 gap-y-2 text-xs">
+              <div className="mt-3 sm:mt-4 pt-3 border-t grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 text-xs">
                 {product.sku && (
                   <div className="flex justify-between">
                     <span className="text-gray-500">SKU</span>
@@ -181,9 +191,9 @@ export default function ProductDetailPage() {
                     <span>{new Date(product.updatedAt).toLocaleDateString()}</span>
                   </div>
                 )}
-                <div className="flex justify-between">
-                  <span className="text-gray-500">ID</span>
-                  <span className="font-mono text-[10px] text-gray-400">{product.id}</span>
+                <div className="flex justify-between gap-2">
+                  <span className="text-gray-500 flex-shrink-0">ID</span>
+                  <span className="font-mono text-[10px] text-gray-400 truncate">{product.id}</span>
                 </div>
               </div>
             </CardContent>
@@ -200,7 +210,7 @@ export default function ProductDetailPage() {
           {/* Colors & Sizes */}
           {(colors.length > 0 || sizes.length > 0) && (
             <Card>
-              <CardContent className="p-5 space-y-4">
+              <CardContent className="p-3 sm:p-5 space-y-4">
                 {colors.length > 0 && (
                   <div>
                     <div className="flex items-center gap-2 mb-2">
@@ -235,7 +245,7 @@ export default function ProductDetailPage() {
           {/* Imprint Methods */}
           {imprintMethods.length > 0 && (
             <Card>
-              <CardContent className="p-5">
+              <CardContent className="p-3 sm:p-5">
                 <div className="flex items-center gap-2 mb-2">
                   <TrendingUp className="w-4 h-4 text-gray-400" />
                   <span className="text-sm font-medium">Imprint Methods ({imprintMethods.length})</span>
@@ -296,6 +306,20 @@ export default function ProductDetailPage() {
         onOpenChange={(open) => { if (!open) setIsEditOpen(false); }}
         product={product}
       />
+
+      {/* Image Preview Modal */}
+      {product.imageUrl && (
+        <FilePreviewModal
+          open={imagePreviewOpen}
+          onClose={() => setImagePreviewOpen(false)}
+          file={{
+            originalName: product.name,
+            fileName: product.name,
+            filePath: product.imageUrl,
+            mimeType: "image/jpeg",
+          }}
+        />
+      )}
     </div>
   );
 }

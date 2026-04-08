@@ -32,6 +32,17 @@ import {
   calcMarginPercent,
   applyMargin,
 } from "@/hooks/useMarginSettings";
+import {
+  getProductSubtotal,
+  getChargeSubtotal,
+  getDecorationSubtotal,
+  getChargeSellPrice,
+  getChargeEffectiveQty,
+  calcMarginPercent as calcMarginPct,
+  type PricingLine,
+  type ProductCharge,
+  type DecorationCharge,
+} from "@/lib/pricing";
 import type { ProjectData } from "@/types/project-types";
 
 export function useEditProductPage(projectId: string, itemId: string, data: ProjectData) {
@@ -201,51 +212,45 @@ export function useEditProductPage(projectId: string, itemId: string, data: Proj
     });
   }, []);
 
-  // ── Computed totals ──
-  const lineTotals = editableLines.reduce(
-    (acc, l) => ({
-      qty: acc.qty + (l.quantity || 0),
-      cost: acc.cost + (l.quantity || 0) * (l.cost || 0),
-      revenue: acc.revenue + (l.quantity || 0) * (l.unitPrice || 0),
-    }),
-    { qty: 0, cost: 0, revenue: 0 }
-  );
+  // ── Computed totals (using shared pricing utility) ──
 
-  // Charge revenue: retailPrice for displayToClient charges (not includeInUnitPrice)
-  const chargeRevenue = charges
-    .filter((c: any) => !c.includeInUnitPrice && c.displayToClient !== false)
-    .reduce((s, c) => {
-      const retail = parseFloat(c.retailPrice || c.amount || "0");
-      const qty = c.chargeCategory === "run" ? (lineTotals.qty || 1) : (c.quantity || 1);
-      return s + retail * qty;
-    }, 0);
+  // Convert editable lines to PricingLine format
+  const pricingLines: PricingLine[] = editableLines.map(l => ({
+    quantity: l.quantity || 0,
+    cost: l.cost || 0,
+    unitPrice: l.unitPrice || 0,
+  }));
 
-  // Charge cost: netCost for ALL charges (including absorbed ones)
-  const chargeCost = charges.reduce((s, c) => {
-    const cost = parseFloat(c.netCost || "0");
-    const qty = c.chargeCategory === "run" ? (lineTotals.qty || 1) : (c.quantity || 1);
-    return s + cost * qty;
-  }, 0);
+  // Product subtotal (lines only, no charges)
+  const productSub = getProductSubtotal(pricingLines);
+
+  // Charge subtotal (setup fees, etc.)
+  const chargeSub = getChargeSubtotal(charges as ProductCharge[], productSub.totalQty);
+
+  // Backward-compatible lineTotals shape for existing UI references
+  const lineTotals = {
+    qty: productSub.totalQty,
+    cost: productSub.productCostTotal,
+    revenue: productSub.productSellTotal,
+  };
+
+  // Charge sell total (visible to client, not baked into unit price)
+  const totalCharges = chargeSub.chargeSellTotal;
 
   // Baked-in run charge retail price per unit (for Client Price column)
   const bakedInChargePerUnit = charges
     .filter((c: any) => c.chargeCategory === "run" && c.includeInUnitPrice)
-    .reduce((s, c) => s + parseFloat(c.retailPrice || c.amount || "0"), 0);
+    .reduce((s, c) => s + getChargeSellPrice(c), 0);
 
   // Run charge cost per unit (for tier panel display)
   const runChargeCostPerUnit = charges
     .filter((c: any) => c.chargeCategory === "run")
     .reduce((s, c) => s + parseFloat(c.netCost || "0"), 0);
 
-  // Legacy: total charges for display (backward compat)
-  const totalCharges = chargeRevenue;
-
-  // Overall margin: (total revenue - total cost) / total revenue
-  const totalRevenue = lineTotals.revenue + chargeRevenue;
-  const totalCost = lineTotals.cost + chargeCost;
-  const margin = totalRevenue > 0
-    ? ((totalRevenue - totalCost) / totalRevenue) * 100
-    : 0;
+  // Product + charges margin (excludes decoration — decoration shown separately in summary)
+  const productPlusChargeSell = productSub.productSellTotal + chargeSub.chargeSellTotal;
+  const productPlusChargeCost = productSub.productCostTotal + chargeSub.chargeCostTotal;
+  const margin = calcMarginPct(productPlusChargeSell, productPlusChargeCost);
 
   // ── Dirty check ──
   const hasChanges = useMemo(() => {
@@ -552,6 +557,9 @@ export function useEditProductPage(projectId: string, itemId: string, data: Proj
     totalCharges,
     runChargeCostPerUnit,
     bakedInChargePerUnit,
+    // Named pricing breakdown (for summary cards)
+    productSubtotal: productSub,
+    chargeSubtotal: chargeSub,
     addLine,
     removeLine,
     updateLine,

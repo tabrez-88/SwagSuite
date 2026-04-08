@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { isBelowMinimum } from "@/hooks/useMarginSettings";
+import { calcMarginPercent } from "@/lib/pricing";
 import { getCloudinaryThumbnail } from "@/lib/media-library";
 import type { OrderAdditionalCharge, OrderItemLine } from "@shared/schema";
 import {
@@ -24,6 +25,7 @@ import {
   Eye,
   EyeOff,
   FileText,
+  Grid3X3,
   Image,
   Lock,
   Package,
@@ -34,6 +36,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { useLocation } from "wouter";
+import MatrixChargePicker from "@/components/modals/MatrixChargePicker";
 import type { useProductsSection } from "../hooks";
 import { formatLabel } from "@/lib/utils";
 
@@ -44,6 +47,14 @@ interface OrderItemCardProps {
 
 export default function OrderItemCard({ item, productSection }: OrderItemCardProps) {
   const [showCopyConfirm, setShowCopyConfirm] = useState(false);
+  const [matrixPickerTarget, setMatrixPickerTarget] = useState<{
+    artworkId: string;
+    chargeId: string;
+    chargeName: string;
+    chargeType: "run" | "fixed";
+    artworkMethod?: string;
+    currentMargin?: number;
+  } | null>(null);
   const [currentLocation, setLocation] = useLocation();
   const isQuoteContext = currentLocation.includes("/quote");
   const editPath = isQuoteContext
@@ -162,13 +173,25 @@ export default function OrderItemCard({ item, productSection }: OrderItemCardPro
                 </div>
                 <div className="text-center">
                   <p className="text-[10px] text-gray-400 uppercase">Revenue</p>
-                  <p className="font-semibold text-blue-600">${totals.totalRevenue.toFixed(2)}</p>
+                  <p className="font-semibold text-blue-600">${totals.itemSellGrandTotal.toFixed(2)}</p>
                 </div>
+                {totals.taxRate > 0 && (
+                  <div className="text-center">
+                    <p className="text-[10px] text-gray-400 uppercase">Tax ({totals.taxRate}%)</p>
+                    <p className="font-semibold text-gray-500">${totals.taxAmount.toFixed(2)}</p>
+                  </div>
+                )}
+                {totals.taxRate > 0 && (
+                  <div className="text-center">
+                    <p className="text-[10px] text-gray-400 uppercase">Total</p>
+                    <p className="font-bold text-gray-900">${totals.grandTotalWithTax.toFixed(2)}</p>
+                  </div>
+                )}
                 <div className="text-center">
                   <p className="text-[10px] text-gray-400 uppercase">Margin</p>
-                  <p className={`font-semibold ${productSection.marginColor(totals.margin)}`}>
-                    {totals.margin.toFixed(1)}%
-                    {isBelowMinimum(totals.margin, productSection.marginSettings) && (
+                  <p className={`font-semibold ${productSection.marginColor(totals.itemMarginPercent)}`}>
+                    {totals.itemMarginPercent.toFixed(1)}%
+                    {isBelowMinimum(totals.itemMarginPercent, productSection.marginSettings) && (
                       <span title={`Below minimum margin (${productSection.marginSettings.minimumMargin}%)`}><AlertTriangle className="inline w-3 h-3 text-red-500 ml-0.5" /></span>
                     )}
                   </p>
@@ -238,12 +261,12 @@ export default function OrderItemCard({ item, productSection }: OrderItemCardPro
                     <tr>
                       <td colSpan={2} className="p-2.5 font-semibold">Subtotal</td>
                       <td className="p-2.5 text-right font-semibold">{totals.totalQty}</td>
-                      <td className="p-2.5 text-right text-gray-500">${totals.totalCost.toFixed(2)}</td>
+                      <td className="p-2.5 text-right text-gray-500">${totals.productCostTotal.toFixed(2)}</td>
                       <td className="p-2.5"></td>
                       <td className="p-2.5 text-right">
-                        <span className={`font-semibold ${productSection.marginColor(totals.margin)}`}>{totals.margin.toFixed(1)}%</span>
+                        <span className={`font-semibold ${productSection.marginColor(calcMarginPercent(totals.productSellTotal, totals.productCostTotal))}`}>{calcMarginPercent(totals.productSellTotal, totals.productCostTotal).toFixed(1)}%</span>
                       </td>
-                      <td className="p-2.5 text-right font-semibold">${totals.totalRevenue.toFixed(2)}</td>
+                      <td className="p-2.5 text-right font-semibold">${totals.productSellTotal.toFixed(2)}</td>
                     </tr>
                   </tfoot>
                 </table>
@@ -255,7 +278,7 @@ export default function OrderItemCard({ item, productSection }: OrderItemCardPro
                   <span>Qty: <strong className="text-gray-700">{item.quantity}</strong></span>
                   <span>Cost: <strong className="text-gray-700">${(parseFloat(item.cost || "0")).toFixed(2)}</strong></span>
                   <span>Price: <strong className="text-gray-700">${(parseFloat(item.unitPrice || "0")).toFixed(2)}</strong></span>
-                  <span>Total: <strong className="text-blue-600">${totals.totalRevenue.toFixed(2)}</strong></span>
+                  <span>Total: <strong className="text-blue-600">${totals.productSellTotal.toFixed(2)}</strong></span>
                 </div>
               </div>
             )}
@@ -333,7 +356,7 @@ export default function OrderItemCard({ item, productSection }: OrderItemCardPro
                       </div>
                     )}
                     <div className="text-right text-xs text-gray-500 pt-1">
-                      Total Charges: <strong className="text-gray-800">${totals.totalCharges.toFixed(2)}</strong>
+                      Total Charges: <strong className="text-gray-800">${totals.chargeSellTotal.toFixed(2)}</strong>
                     </div>
                   </div>
                 );
@@ -392,23 +415,167 @@ export default function OrderItemCard({ item, productSection }: OrderItemCardPro
                           </div>
                         </div>
                       </div>
-                      {/* Charges */}
-                      {artCharges.length > 0 && (
-                        <div className="border-t bg-gray-50/50 px-3 py-1.5 text-[10px] text-gray-500 space-y-0.5">
-                          {artCharges.map((c: any) => (
-                            <div key={c.id} className="flex justify-between">
-                              <span>{formatLabel(c.chargeName)} <span className="text-gray-400">({c.chargeCategory === "run" ? "per unit" : "one-time"})</span></span>
-                              <span className="font-medium text-gray-700">${parseFloat(c.retailPrice || "0").toFixed(2)}</span>
+                      {/* Charges — informative breakdown per charge */}
+                      {artCharges.length > 0 && (() => {
+                        // Group by category for visual separation
+                        const runArtCharges = artCharges.filter((c: any) => c.chargeCategory === "run");
+                        const fixedArtCharges = artCharges.filter((c: any) => c.chargeCategory === "fixed");
+
+                        // Per-charge totals: sell, cost, margin
+                        const renderArtCharge = (c: any) => {
+                          const isRun = c.chargeCategory === "run";
+                          const qty = isRun ? (totals.totalQty || 1) : (c.quantity || 1);
+                          const sellPerUnit = parseFloat(c.retailPrice || "0");
+                          const costPerUnit = parseFloat(c.netCost || "0");
+                          const sellTotal = sellPerUnit * qty;
+                          const costTotal = costPerUnit * qty;
+                          const profit = sellTotal - costTotal;
+                          const marginPct = sellTotal > 0 ? (profit / sellTotal) * 100 : 0;
+                          const isLoss = profit < 0;
+                          const isHidden = c.displayMode !== "display_to_client";
+
+                          return (
+                            <div key={c.id} className={`border rounded p-2 ${isLoss ? "bg-red-50 border-red-200" : "bg-white"}`}>
+                              <div className="flex items-center justify-between gap-2 mb-1">
+                                <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                                  <button
+                                    className="text-blue-400 hover:text-blue-600 flex-shrink-0"
+                                    title="Select pricing from decorator matrix"
+                                    onClick={() => setMatrixPickerTarget({
+                                      artworkId: art.id,
+                                      chargeId: c.id,
+                                      chargeName: c.chargeName || (isRun ? "Imprint Cost" : "Setup Cost"),
+                                      chargeType: isRun ? "run" : "fixed",
+                                      artworkMethod: art.artworkType,
+                                      currentMargin: parseFloat(c.margin || "0"),
+                                    })}
+                                  >
+                                    <Grid3X3 className="w-3 h-3" />
+                                  </button>
+                                  <span className="font-medium text-gray-800 text-[11px] truncate">{formatLabel(c.chargeName) || (isRun ? "Imprint Cost" : "Setup Cost")}</span>
+                                  <Badge variant="outline" className={`text-[8px] flex-shrink-0 ${isRun ? "border-blue-300 text-blue-700" : "border-purple-300 text-purple-700"}`}>
+                                    {isRun ? "PER UNIT" : "ONE-TIME"}
+                                  </Badge>
+                                  {isHidden && (
+                                    <Badge variant="outline" className="text-[8px] flex-shrink-0 border-gray-300 text-gray-500" title="Hidden from client (absorbed into margin)">
+                                      <EyeOff className="w-2.5 h-2.5" />
+                                    </Badge>
+                                  )}
+                                </div>
+                                <span className={`font-bold text-[11px] flex-shrink-0 ${isLoss ? "text-red-600" : "text-gray-900"}`}>
+                                  ${sellTotal.toFixed(2)}
+                                </span>
+                              </div>
+                              <div className="flex items-center justify-between gap-2 text-[9px] text-gray-500 pl-5">
+                                <span>
+                                  ${costPerUnit.toFixed(2)} cost × {qty} = <span className="text-gray-600">${costTotal.toFixed(2)}</span>
+                                  {" → "}
+                                  ${sellPerUnit.toFixed(2)} sell × {qty}
+                                </span>
+                                <span className={`font-semibold ${isLoss ? "text-red-600" : marginPct >= 30 ? "text-green-600" : "text-yellow-600"}`}>
+                                  {marginPct.toFixed(1)}% margin
+                                  {isLoss && <AlertTriangle className="inline w-2.5 h-2.5 ml-0.5" />}
+                                </span>
+                              </div>
                             </div>
-                          ))}
-                        </div>
-                      )}
+                          );
+                        };
+
+                        // Per-artwork rollup
+                        let artSellTotal = 0;
+                        let artCostTotal = 0;
+                        for (const c of artCharges) {
+                          const isRun = c.chargeCategory === "run";
+                          const qty = isRun ? (totals.totalQty || 1) : (c.quantity || 1);
+                          // Only count display_to_client charges in sell rollup
+                          if (c.displayMode === "display_to_client") {
+                            artSellTotal += parseFloat(c.retailPrice || "0") * qty;
+                          }
+                          artCostTotal += parseFloat(c.netCost || "0") * qty;
+                        }
+                        const artProfit = artSellTotal - artCostTotal;
+                        const artMarginPct = artSellTotal > 0 ? (artProfit / artSellTotal) * 100 : 0;
+                        const artIsLoss = artProfit < 0;
+
+                        return (
+                          <div className="border-t bg-gray-50/50 px-3 py-2 space-y-2">
+                            {/* Method header */}
+                            {art.artworkType && (
+                              <div className="flex items-center gap-1.5 text-[10px] text-gray-500">
+                                <Palette className="w-3 h-3" />
+                                <span>Method: <strong className="text-gray-700">{formatLabel(art.artworkType)}</strong></span>
+                                {art.location && <span>· Location: <strong className="text-gray-700">{formatLabel(art.location)}</strong></span>}
+                              </div>
+                            )}
+
+                            {/* Run charges */}
+                            {runArtCharges.length > 0 && (
+                              <div className="space-y-1">
+                                <p className="text-[9px] font-semibold text-gray-400 uppercase tracking-wide">Per-Unit Charges</p>
+                                {runArtCharges.map(renderArtCharge)}
+                              </div>
+                            )}
+
+                            {/* Fixed charges */}
+                            {fixedArtCharges.length > 0 && (
+                              <div className="space-y-1">
+                                <p className="text-[9px] font-semibold text-gray-400 uppercase tracking-wide">One-Time Charges</p>
+                                {fixedArtCharges.map(renderArtCharge)}
+                              </div>
+                            )}
+
+                            {/* Per-artwork rollup */}
+                            <div className={`flex justify-between items-center pt-1.5 border-t text-[10px] ${artIsLoss ? "text-red-700" : "text-gray-700"}`}>
+                              <span>
+                                Decoration subtotal:
+                                {artIsLoss && (
+                                  <span className="ml-1 text-red-600 font-semibold">⚠ Selling at loss</span>
+                                )}
+                              </span>
+                              <span className="flex items-center gap-2">
+                                <span className="text-gray-500">cost ${artCostTotal.toFixed(2)} →</span>
+                                <strong>${artSellTotal.toFixed(2)}</strong>
+                                <span className={`font-semibold ${artIsLoss ? "text-red-600" : artMarginPct >= 30 ? "text-green-600" : "text-yellow-600"}`}>
+                                  ({artMarginPct.toFixed(1)}%)
+                                </span>
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })()}
                     </div>
                   );
                 })}
               </div>
             </div>
           )}
+          {/* ITEM TOTAL SUMMARY (with tax if applicable) */}
+          <div className="px-6 py-3 border-t bg-gray-100/50">
+            <div className="flex justify-end gap-6 text-xs">
+              <div className="text-right">
+                <span className="text-gray-500">Revenue:</span>{" "}
+                <span className="font-semibold text-blue-600">${totals.itemSellGrandTotal.toFixed(2)}</span>
+              </div>
+              {totals.taxRate > 0 && (
+                <div className="text-right">
+                  <span className="text-gray-500">Tax ({totals.taxRate}%):</span>{" "}
+                  <span className="font-semibold text-gray-600">${totals.taxAmount.toFixed(2)}</span>
+                </div>
+              )}
+              {totals.taxRate > 0 && (
+                <div className="text-right">
+                  <span className="text-gray-500">Total:</span>{" "}
+                  <span className="font-bold text-gray-900">${totals.grandTotalWithTax.toFixed(2)}</span>
+                </div>
+              )}
+              <div className="text-right">
+                <span className="text-gray-500">Margin:</span>{" "}
+                <span className={`font-semibold ${productSection.marginColor(totals.itemMarginPercent)}`}>
+                  {totals.itemMarginPercent.toFixed(1)}%
+                </span>
+              </div>
+            </div>
+          </div>
         </div>
       )}
       {/* Copy Confirmation Dialog */}
@@ -430,6 +597,28 @@ export default function OrderItemCard({ item, productSection }: OrderItemCardPro
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      {/* Per-charge Matrix Picker */}
+      {matrixPickerTarget && (() => {
+        const supplierId = item.supplierId || productSection.allProducts.find((p: any) => p.id === item.productId)?.supplierId;
+        const supplierName = productSection.getItemSupplier(item)?.name || "Supplier";
+        if (!supplierId) return null;
+        return (
+          <MatrixChargePicker
+            open={true}
+            onClose={() => setMatrixPickerTarget(null)}
+            supplierId={supplierId}
+            supplierName={supplierName}
+            chargeType={matrixPickerTarget.chargeType}
+            artworkId={matrixPickerTarget.artworkId}
+            chargeId={matrixPickerTarget.chargeId}
+            chargeName={matrixPickerTarget.chargeName}
+            currentMargin={matrixPickerTarget.currentMargin}
+            quantity={totals.totalQty || 1}
+            projectId={productSection.projectId}
+            artworkMethod={matrixPickerTarget.artworkMethod}
+          />
+        );
+      })()}
     </Card>
   );
 }

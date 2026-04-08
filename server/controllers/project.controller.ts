@@ -16,36 +16,65 @@ import { updateCompanyYtdSpending, updateSupplierYtdSpending } from "../utils/yt
 import { registerInMediaLibrary } from "../utils/registerInMediaLibrary";
 
 // ── Helper: recalculate order totals (items + charges + discount + tax + shipping) ──
+/**
+ * Recalculate and persist all order totals.
+ *
+ * Pricing model (must match client/src/lib/pricing.ts):
+ *
+ *   itemsSubtotal       = SUM(orderItem.totalPrice)              [product lines only]
+ *   additionalCharges   = SUM(charges visible to client where !includeInUnitPrice)
+ *                           - Run charge:   getChargeSellPrice * itemQty
+ *                           - Fixed charge: getChargeSellPrice * chargeQty
+ *   artworkCharges      = SUM(decoration charges where displayMode = "display_to_client")
+ *                           - Run charge:   retailPrice * itemQty
+ *                           - Fixed charge: retailPrice * chargeQty
+ *   serviceCharges      = SUM(unitPrice * qty) for displayToClient service charges
+ *   subtotal            = itemsSubtotal + additionalCharges + artworkCharges + serviceCharges
+ *   shippingTotal       = SUM(shipment.shippingCost)
+ *   tax                 = calculated per tax code / TaxJar
+ *   total               = subtotal + shippingTotal + tax
+ *
+ * See docs/pricing-calculation-spec.md for the full spec.
+ */
 async function recalculateOrderTotals(orderId: string) {
   const { db } = await import("../db");
   const { orderServiceCharges, orderAdditionalCharges, orderShipments, companies, artworkItems, artworkCharges, taxCodes, integrationSettings } = await import("@shared/schema");
   const { eq } = await import("drizzle-orm");
   const { getTaxJarCredentials } = await import("../services/taxjar.service");
 
+  // ── Helper: get sell price (retailPrice takes priority over legacy amount field) ──
+  const getChargeSellPrice = (c: { retailPrice?: string | null; amount?: string | null }) =>
+    parseFloat(c.retailPrice || c.amount || "0");
+
+  // ── Helper: effective qty for a charge (run = item qty, fixed = charge qty) ──
+  const getChargeEffectiveQty = (
+    c: { chargeCategory?: string | null; quantity?: number | null },
+    itemQty: number,
+  ) => (c.chargeCategory === "run" ? itemQty : (c.quantity || 1));
+
+  // ── Step 1: Items subtotal (product lines only — totalPrice is qty × unitPrice from lines) ──
   const allItems = await projectRepository.getOrderItems(orderId);
   const itemsSubtotal = allItems.reduce((sum, item) => sum + parseFloat(item.totalPrice), 0);
 
+  // ── Step 2: Additional charges (setup fees, etc.) ──
   // Batch fetch all additional charges for this order's items (instead of N+1)
   const { inArray } = await import("drizzle-orm");
   const itemIds = allItems.map(item => item.id);
   const allCharges = itemIds.length > 0
     ? await db.select().from(orderAdditionalCharges).where(inArray(orderAdditionalCharges.orderItemId, itemIds))
     : [];
+  // Sell total: only client-visible charges that are NOT baked into unit price
   const additionalChargesTotal = allCharges
     .filter((c: any) => c.displayToClient && !c.includeInUnitPrice)
     .reduce((sum: number, c: any) => {
-      const retail = parseFloat(c.retailPrice || c.amount || "0");
-      if (c.chargeCategory === "run") {
-        // Run charges: retail per unit * item quantity
-        const parentItem = allItems.find(i => i.id === c.orderItemId);
-        const qty = parentItem?.quantity || 1;
-        return sum + retail * qty;
-      }
-      // Fixed charges: retail * charge quantity
-      const qty = c.quantity || 1;
-      return sum + retail * qty;
+      const parentItem = allItems.find(i => i.id === c.orderItemId);
+      const itemQty = parentItem?.quantity || 1;
+      const sellPrice = getChargeSellPrice(c);
+      const effectiveQty = getChargeEffectiveQty(c, itemQty);
+      return sum + sellPrice * effectiveQty;
     }, 0);
 
+  // ── Step 3: Artwork/decoration charges ──
   // Batch fetch artwork charges (per-artwork imprint/setup costs)
   const allArtworks = itemIds.length > 0
     ? await db.select().from(artworkItems).where(inArray(artworkItems.orderItemId, itemIds))
@@ -58,16 +87,16 @@ async function recalculateOrderTotals(orderId: string) {
   const artworkChargesTotal = allArtCharges
     .filter((c: any) => c.displayMode === "display_to_client")
     .reduce((sum: number, c: any) => {
-      const retail = parseFloat(c.retailPrice || "0");
-      const qty = c.chargeCategory === "run"
-        ? (allArtworks.find(a => a.id === c.artworkItemId)
-            ? (allItems.find(i => i.id === allArtworks.find(a => a.id === c.artworkItemId)?.orderItemId)?.quantity || 1)
-            : 1)
-        : (c.quantity || 1);
-      return sum + retail * qty;
+      // Find parent item via artwork → orderItem
+      const parentArtwork = allArtworks.find(a => a.id === c.artworkItemId);
+      const parentItem = parentArtwork ? allItems.find(i => i.id === parentArtwork.orderItemId) : null;
+      const itemQty = parentItem?.quantity || 1;
+      const sellPrice = parseFloat(c.retailPrice || "0");
+      const effectiveQty = getChargeEffectiveQty(c, itemQty);
+      return sum + sellPrice * effectiveQty;
     }, 0);
 
-  // Sum order-level service charges (client-visible)
+  // ── Step 4: Order-level service charges (freight, fulfillment, etc.) ──
   const serviceCharges = await db.select().from(orderServiceCharges).where(eq(orderServiceCharges.orderId, orderId));
   const serviceChargesTotal = serviceCharges
     .filter((c: any) => c.displayToClient)
@@ -77,10 +106,11 @@ async function recalculateOrderTotals(orderId: string) {
       return sum + qty * price;
     }, 0);
 
-  // Sum shipping costs from shipments
+  // ── Step 5: Shipping ──
   const shipments = await db.select().from(orderShipments).where(eq(orderShipments.orderId, orderId));
   const shippingTotal = shipments.reduce((sum: number, s: any) => sum + parseFloat(s.shippingCost || "0"), 0);
 
+  // ── Step 6: Subtotal (everything except tax + shipping) ──
   const subtotal = itemsSubtotal + additionalChargesTotal + serviceChargesTotal + artworkChargesTotal;
   const existingOrder = await projectRepository.getOrder(orderId);
 
