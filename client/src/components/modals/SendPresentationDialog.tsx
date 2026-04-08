@@ -10,6 +10,7 @@ import {
 import { Send } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { appendHtmlBlock } from "@/lib/emailFormat";
 import EmailComposer from "@/components/email/EmailComposer";
 import type { EmailContact, EmailFormData } from "@/components/email/types";
 
@@ -44,7 +45,17 @@ export default function SendPresentationDialog({
       const linkData = await linkRes.json();
       const presentationUrl = linkData.url;
 
-      const emailBody = `${formData.body}\n\n---\nView Presentation: ${presentationUrl}`;
+      const presentationBlock = `
+<hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;">
+<p style="margin: 0 0 12px 0;">
+  <a href="${presentationUrl}" style="display: inline-block; background-color: #2563eb; color: #ffffff; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: 600;">View Presentation</a>
+</p>
+<p style="margin: 0; color: #6b7280; font-size: 12px;">Or copy this link: <a href="${presentationUrl}" style="color: #2563eb;">${presentationUrl}</a></p>`;
+      const emailBody = appendHtmlBlock(formData.body, presentationBlock);
+
+      const userAttachments = formData.attachments?.length
+        ? formData.attachments.map((att) => ({ fileUrl: att.cloudinaryUrl, fileName: att.fileName }))
+        : undefined;
 
       await apiRequest("POST", `/api/projects/${projectId}/communications`, {
         communicationType: "client_email",
@@ -56,6 +67,7 @@ export default function SendPresentationDialog({
         cc: formData.cc || undefined,
         bcc: formData.bcc || undefined,
         metadata: { type: "presentation", presentationUrl },
+        additionalAttachments: userAttachments,
       });
 
       await apiRequest("PATCH", `/api/projects/${projectId}`, {
@@ -97,6 +109,8 @@ export default function SendPresentationDialog({
           templateMergeData={mergeData}
           showAdvancedFields
           richText
+          showAttachments
+          contextProjectId={projectId}
           footerHint="The presentation link will be automatically added to the email."
           onSend={(data) => sendMutation.mutate(data)}
           isSending={sendMutation.isPending}

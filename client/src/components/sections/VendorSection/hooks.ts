@@ -64,6 +64,10 @@ export function useVendorSection(projectId: string, data: ProjectData) {
 
   const sendVendorEmailMutation = useMutation({
     mutationFn: async (formData: EmailFormData & { adHocEmails: string[] }) => {
+      const userAttachments = formData.attachments?.length
+        ? formData.attachments.map((att) => ({ fileUrl: att.cloudinaryUrl, fileName: att.fileName }))
+        : undefined;
+
       const response = await fetch(`/api/projects/${order?.id}/communications`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -80,6 +84,7 @@ export function useVendorSection(projectId: string, data: ProjectData) {
           cc: formData.cc || undefined,
           bcc: formData.bcc || undefined,
           metadata: { vendorId: selectedVendor?.id, vendorName: selectedVendor?.name },
+          additionalAttachments: userAttachments,
         }),
       });
       if (!response.ok) {

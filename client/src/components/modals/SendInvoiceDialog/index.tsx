@@ -124,6 +124,8 @@ export default function SendInvoiceDialog({
           templateMergeData={mergeData}
           showAdvancedFields
           richText
+          showAttachments
+          contextProjectId={projectId}
           footerHint="The invoice PDF will be attached to the email."
           afterBody={reminderSection}
           onSend={(data) => sendMutation.mutate(data)}

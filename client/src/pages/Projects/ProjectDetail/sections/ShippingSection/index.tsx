@@ -732,7 +732,13 @@ export default function ShippingSection({ projectId, data, isLocked }: ShippingS
               }}
               autoFillSender
               richText
+              showAttachments
+              contextProjectId={projectId}
               onSend={async (formData) => {
+                const userAttachments = formData.attachments?.length
+                  ? formData.attachments.map((att) => ({ fileUrl: att.cloudinaryUrl, fileName: att.fileName }))
+                  : undefined;
+
                 await apiRequest("POST", `/api/projects/${projectId}/communications`, {
                   communicationType: "client_email",
                   direction: "sent",
@@ -742,6 +748,7 @@ export default function ShippingSection({ projectId, data, isLocked }: ShippingS
                   body: formData.body,
                   cc: formData.cc || undefined,
                   bcc: formData.bcc || undefined,
+                  additionalAttachments: userAttachments,
                 });
                 h.setNotifyShipment(null);
               }}

@@ -28,6 +28,10 @@ export function useEmailSection(projectId: string, data: ProjectData) {
 
   const sendEmailMutation = useMutation({
     mutationFn: async (formData: EmailFormData & { adHocEmails: string[] }) => {
+      const userAttachments = formData.attachments?.length
+        ? formData.attachments.map((att) => ({ fileUrl: att.cloudinaryUrl, fileName: att.fileName }))
+        : undefined;
+
       const response = await fetch(`/api/projects/${order?.id}/communications`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -43,6 +47,7 @@ export function useEmailSection(projectId: string, data: ProjectData) {
           body: formData.body,
           cc: formData.cc || undefined,
           bcc: formData.bcc || undefined,
+          additionalAttachments: userAttachments,
         }),
       });
       if (!response.ok) {

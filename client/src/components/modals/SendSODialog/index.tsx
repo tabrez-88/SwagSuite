@@ -67,6 +67,8 @@ export default function SendSODialog({
           templateMergeData={mergeData}
           showAdvancedFields
           richText
+          showAttachments
+          contextProjectId={projectId}
           footerHint="The approval link will be automatically added to the email."
           onSend={(data) => sendMutation.mutate(data)}
           isSending={sendMutation.isPending}

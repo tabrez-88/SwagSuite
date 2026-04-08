@@ -36,7 +36,10 @@ export class CommunicationController {
   }
 
   static async sendEmail(req: Request, res: Response) {
-    const { fromEmail, fromName, recipientEmail, recipientName, subject, body, cc, bcc, companyName } = req.body;
+    const {
+      fromEmail, fromName, recipientEmail, recipientName, subject, body, cc, bcc, companyName,
+      additionalAttachments,
+    } = req.body;
 
     if (!recipientEmail || !subject || !body) {
       return res.status(400).json({ error: "recipientEmail, subject, and body are required" });
@@ -45,6 +48,7 @@ export class CommunicationController {
     const userId = getUserId(req);
     await communicationService.sendGeneralEmail(userId, {
       fromEmail, fromName, recipientEmail, recipientName, subject, body, cc, bcc, companyName,
+      additionalAttachments,
     });
 
     res.json({ success: true, message: "Email sent successfully" });

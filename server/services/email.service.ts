@@ -141,37 +141,50 @@ class EmailService {
     attachments?: Array<{ storagePath: string; originalFilename: string; mimeType?: string }>;
     directAttachments?: Array<{ filename: string; content: Buffer; contentType: string }>;
   }) {
-    const html = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      </head>
-      <body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f3f4f6;">
-        <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff;">
-          <div style="background-color: #2563eb; padding: 30px; text-align: center;">
-            <h1 style="color: #ffffff; margin: 0; font-size: 24px;">SwagSuite</h1>
-          </div>
-          <div style="padding: 30px;">
-            <h2 style="color: #1f2937; margin-top: 0;">${data.subject}</h2>
-            ${data.orderNumber || data.companyName ? `
-              <div style="background-color: #f3f4f6; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
-                ${data.orderNumber ? `<p style="margin: 5px 0;"><strong>Order #:</strong> ${data.orderNumber}</p>` : ''}
-                ${data.companyName ? `<p style="margin: 5px 0;"><strong>Company:</strong> ${data.companyName}</p>` : ''}
+    const html = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${this.escapeHtml(data.subject)}</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; background-color: #f3f4f6; -webkit-font-smoothing: antialiased;">
+  <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color: #f3f4f6;">
+    <tr>
+      <td align="center" style="padding: 20px 10px;">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" style="max-width: 600px; background-color: #ffffff; border-radius: 8px; overflow: hidden;">
+          <tr>
+            <td style="background-color: #2563eb; padding: 30px; text-align: center;">
+              <h1 style="color: #ffffff; margin: 0; font-size: 24px; font-family: Arial, sans-serif;">SwagSuite</h1>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 30px;">
+              <h2 style="color: #1f2937; margin: 0 0 20px 0; font-size: 20px; font-family: Arial, sans-serif;">${this.escapeHtml(data.subject)}</h2>
+              ${data.orderNumber || data.companyName ? `
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color: #f3f4f6; border-radius: 8px; margin-bottom: 20px;">
+                <tr><td style="padding: 15px;">
+                  ${data.orderNumber ? `<p style="margin: 5px 0; color: #374151; font-size: 14px;"><strong>Order #:</strong> ${this.escapeHtml(data.orderNumber)}</p>` : ''}
+                  ${data.companyName ? `<p style="margin: 5px 0; color: #374151; font-size: 14px;"><strong>Company:</strong> ${this.escapeHtml(data.companyName)}</p>` : ''}
+                </td></tr>
+              </table>
+              ` : ''}
+              <div style="color: #374151; line-height: 1.6; font-size: 14px; font-family: Arial, sans-serif;">
+                ${this.formatEmailBody(data.body)}
               </div>
-            ` : ''}
-            <div style="color: #374151; line-height: 1.6; font-size: 14px;">
-              ${this.formatEmailBody(data.body)}
-            </div>
-          </div>
-          <div style="background-color: #f9fafb; padding: 20px; text-align: center; border-top: 1px solid #e5e7eb;">
-            <p style="color: #6b7280; font-size: 12px; margin: 0;">Sent from SwagSuite</p>
-          </div>
-        </div>
-      </body>
-      </html>
-    `;
+            </td>
+          </tr>
+          <tr>
+            <td style="background-color: #f9fafb; padding: 20px; text-align: center; border-top: 1px solid #e5e7eb;">
+              <p style="color: #6b7280; font-size: 12px; margin: 0; font-family: Arial, sans-serif;">Sent from SwagSuite</p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
 
     const { transporter, fromEmail: defaultFrom, fromName: defaultFromName } =
       await this.getTransporterForUser(data.userId);
@@ -249,38 +262,51 @@ class EmailService {
     attachments?: Array<{ storagePath: string; originalFilename: string; mimeType?: string }>;
     directAttachments?: Array<{ filename: string; content: Buffer; contentType: string }>;
   }) {
-    const html = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      </head>
-      <body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f3f4f6;">
-        <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff;">
-          <div style="background-color: #059669; padding: 30px; text-align: center;">
-            <h1 style="color: #ffffff; margin: 0; font-size: 24px;">SwagSuite</h1>
-            <p style="color: #d1fae5; margin: 5px 0 0 0; font-size: 14px;">Vendor Communication</p>
-          </div>
-          <div style="padding: 30px;">
-            <h2 style="color: #1f2937; margin-top: 0;">${data.subject}</h2>
-            ${data.orderNumber || data.supplierName ? `
-              <div style="background-color: #f3f4f6; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
-                ${data.orderNumber ? `<p style="margin: 5px 0;"><strong>PO #:</strong> ${data.orderNumber}</p>` : ''}
-                ${data.supplierName ? `<p style="margin: 5px 0;"><strong>Vendor:</strong> ${data.supplierName}</p>` : ''}
+    const html = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${this.escapeHtml(data.subject)}</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; background-color: #f3f4f6; -webkit-font-smoothing: antialiased;">
+  <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color: #f3f4f6;">
+    <tr>
+      <td align="center" style="padding: 20px 10px;">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" style="max-width: 600px; background-color: #ffffff; border-radius: 8px; overflow: hidden;">
+          <tr>
+            <td style="background-color: #059669; padding: 30px; text-align: center;">
+              <h1 style="color: #ffffff; margin: 0; font-size: 24px; font-family: Arial, sans-serif;">SwagSuite</h1>
+              <p style="color: #d1fae5; margin: 5px 0 0 0; font-size: 14px; font-family: Arial, sans-serif;">Vendor Communication</p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 30px;">
+              <h2 style="color: #1f2937; margin: 0 0 20px 0; font-size: 20px; font-family: Arial, sans-serif;">${this.escapeHtml(data.subject)}</h2>
+              ${data.orderNumber || data.supplierName ? `
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color: #f3f4f6; border-radius: 8px; margin-bottom: 20px;">
+                <tr><td style="padding: 15px;">
+                  ${data.orderNumber ? `<p style="margin: 5px 0; color: #374151; font-size: 14px;"><strong>PO #:</strong> ${this.escapeHtml(data.orderNumber)}</p>` : ''}
+                  ${data.supplierName ? `<p style="margin: 5px 0; color: #374151; font-size: 14px;"><strong>Vendor:</strong> ${this.escapeHtml(data.supplierName)}</p>` : ''}
+                </td></tr>
+              </table>
+              ` : ''}
+              <div style="color: #374151; line-height: 1.6; font-size: 14px; font-family: Arial, sans-serif;">
+                ${this.formatEmailBody(data.body)}
               </div>
-            ` : ''}
-            <div style="color: #374151; line-height: 1.6; font-size: 14px;">
-              ${this.formatEmailBody(data.body)}
-            </div>
-          </div>
-          <div style="background-color: #f9fafb; padding: 20px; text-align: center; border-top: 1px solid #e5e7eb;">
-            <p style="color: #6b7280; font-size: 12px; margin: 0;">Sent from SwagSuite</p>
-          </div>
-        </div>
-      </body>
-      </html>
-    `;
+            </td>
+          </tr>
+          <tr>
+            <td style="background-color: #f9fafb; padding: 20px; text-align: center; border-top: 1px solid #e5e7eb;">
+              <p style="color: #6b7280; font-size: 12px; margin: 0; font-family: Arial, sans-serif;">Sent from SwagSuite</p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
 
     const { transporter, fromEmail: defaultFrom, fromName: defaultFromName } =
       await this.getTransporterForUser(data.userId);
@@ -347,31 +373,90 @@ class EmailService {
   }
 
   /**
-   * If body already contains HTML tags, use as-is. Otherwise convert newlines to <br>.
+   * Detect whether body contains real HTML markup (not arbitrary <text>).
+   * Looks for known block/inline tags rather than any "<word>" pattern,
+   * so user content like <john@x.com> or <ORD123> is treated as plain text.
+   */
+  private looksLikeHtml(body: string): boolean {
+    return /<\/?(p|br|div|span|h[1-6]|ul|ol|li|strong|em|b|i|u|a|table|tr|td|th|img|hr|blockquote|pre|code)\b[^>]*>/i.test(body);
+  }
+
+  /**
+   * Escape HTML entities for safe rendering of plain-text content.
+   */
+  private escapeHtml(text: string): string {
+    return text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  /**
+   * Format email body for HTML rendering.
+   * - Pure plain text → escape and convert \n to <br>
+   * - Pure HTML → normalize <p> styling
+   * - Mixed content (HTML + trailing plain text) → normalize HTML and convert
+   *   \n in text segments to <br>, but treat whitespace-only segments between
+   *   tags as insignificant HTML formatting.
    */
   private formatEmailBody(body: string): string {
-    if (/<[a-z][\s\S]*>/i.test(body)) {
-      return body;
+    if (!body) return '';
+
+    if (!this.looksLikeHtml(body)) {
+      // Plain text path: escape, then convert newlines.
+      return this.escapeHtml(body).replace(/\n/g, '<br>');
     }
-    return body.replace(/\n/g, '<br>');
+
+    // HTML path: normalize paragraph margins for Outlook/Gmail compatibility.
+    let html = body
+      // Inject inline margin on <p> tags so Outlook doesn't collapse them
+      .replace(/<p(\s[^>]*)?>/gi, (_match, attrs) => {
+        const a = attrs || '';
+        if (/style\s*=/.test(a)) return `<p${a}>`;
+        return `<p${a} style="margin: 0 0 12px 0;">`;
+      })
+      // Style empty paragraphs (Quill uses <p><br></p> for blank lines)
+      .replace(/<p style="margin: 0 0 12px 0;"><br\s*\/?><\/p>/gi, '<p style="margin: 0 0 12px 0; min-height: 1em;">&nbsp;</p>')
+      // Constrain inline images so they don't overflow on mobile / Outlook
+      .replace(/<img(\s[^>]*)?>/gi, (_match, attrs) => {
+        const a = attrs || '';
+        if (/style\s*=/.test(a)) return `<img${a}>`;
+        return `<img${a} style="max-width: 100%; height: auto; display: block; margin: 12px 0; border: 0;">`;
+      });
+
+    // Convert \n in text segments (mixed-content case). Split by tags so we
+    // don't convert formatting whitespace between adjacent block elements.
+    const parts = html.split(/(<[^>]+>)/g);
+    return parts
+      .map((part) => {
+        if (!part) return part;
+        if (part.startsWith('<')) return part; // tag — leave alone
+        if (/^\s*$/.test(part)) return part.replace(/\n/g, ''); // whitespace-only between tags
+        return part.replace(/\n/g, '<br>'); // real text content
+      })
+      .join('');
   }
 
   /**
    * Strip HTML tags for plain text fallback.
+   * Preserves paragraph and list structure as line breaks.
    */
   private stripHtml(body: string): string {
-    if (!/<[a-z][\s\S]*>/i.test(body)) return body;
+    if (!this.looksLikeHtml(body)) return body;
     return body
       .replace(/<br\s*\/?>/gi, '\n')
-      .replace(/<\/p>/gi, '\n')
-      .replace(/<\/div>/gi, '\n')
-      .replace(/<\/li>/gi, '\n')
+      .replace(/<\/(p|div|h[1-6]|li|tr|blockquote)>/gi, '\n')
+      .replace(/<li[^>]*>/gi, '• ')
+      .replace(/<a[^>]*href=["']([^"']+)["'][^>]*>([^<]*)<\/a>/gi, '$2 ($1)')
       .replace(/<[^>]+>/g, '')
       .replace(/&nbsp;/g, ' ')
       .replace(/&amp;/g, '&')
       .replace(/&lt;/g, '<')
       .replace(/&gt;/g, '>')
       .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'")
       .replace(/\n{3,}/g, '\n\n')
       .trim();
   }

@@ -42,6 +42,10 @@ export default function SendEmailDialog({
 
   const sendEmailMutation = useMutation({
     mutationFn: async (data: EmailFormData & { adHocEmails: string[] }) => {
+      const userAttachments = data.attachments?.length
+        ? data.attachments.map((att) => ({ fileUrl: att.cloudinaryUrl, fileName: att.fileName }))
+        : undefined;
+
       const res = await apiRequest("POST", "/api/send-email", {
         fromEmail: data.from,
         fromName: data.fromName,
@@ -52,6 +56,7 @@ export default function SendEmailDialog({
         cc: data.cc || undefined,
         bcc: data.bcc || undefined,
         companyName: companyName || undefined,
+        additionalAttachments: userAttachments,
       });
       return res.json();
     },
@@ -81,6 +86,7 @@ export default function SendEmailDialog({
           showAdvancedFields
           richText
           showPreview
+          showAttachments
           autoFillSender
           onSend={(data) => sendEmailMutation.mutate(data)}
           isSending={sendEmailMutation.isPending}

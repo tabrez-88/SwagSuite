@@ -32,6 +32,8 @@ export default function EmailSection({ projectId, data }: EmailSectionProps) {
             showAdvancedFields
             richText
             showPreview
+            showAttachments
+            contextProjectId={projectId}
             autoFillSender
             onSend={(data) => h.sendEmailMutation.mutate(data)}
             isSending={h.sendEmailMutation.isPending}

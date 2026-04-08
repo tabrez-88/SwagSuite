@@ -68,6 +68,8 @@ export default function SendQuoteDialog({
           templateMergeData={mergeData}
           showAdvancedFields
           richText
+          showAttachments
+          contextProjectId={projectId}
           footerHint="The quote approval link will be automatically added to the email."
           onSend={(data) => sendMutation.mutate(data)}
           isSending={sendMutation.isPending}

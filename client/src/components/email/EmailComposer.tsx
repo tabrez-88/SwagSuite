@@ -13,6 +13,7 @@ import FilePickerDialog from "@/components/modals/FilePickerDialog";
 import { FilePreviewModal } from "@/components/modals/FilePreviewModal";
 import { useEmailForm } from "./useEmailForm";
 import { useAutoFillSender } from "./useAutoFillSender";
+import { textToHtml } from "@/lib/emailFormat";
 import type { EmailContact, EmailFormData, EmailFormField, EmailAttachment } from "./types";
 
 export interface EmailComposerProps {
@@ -86,8 +87,14 @@ const EmailComposer = forwardRef<EmailComposerRef, EmailComposerProps>(function 
   resetTrigger,
   className,
 }, ref) {
+  // When using the rich text editor, plain-text defaults (with \n) need to be
+  // converted to HTML so Quill doesn't normalize away the line breaks.
+  const normalizedDefaults = richText && defaults?.body
+    ? { ...defaults, body: textToHtml(defaults.body) }
+    : defaults;
+
   const { form, setField, toggleContact, reset, addAttachments, removeAttachment } = useEmailForm({
-    defaults,
+    defaults: normalizedDefaults,
     contacts,
     resetTrigger,
   });
@@ -111,11 +118,13 @@ const EmailComposer = forwardRef<EmailComposerRef, EmailComposerProps>(function 
   const handleTemplateApply = (applied: { subject: string; body: string } | null) => {
     if (applied) {
       setField("subject", applied.subject);
-      setField("body", applied.body);
+      // Templates may be authored as plain text — normalize to HTML for Quill
+      setField("body", richText ? textToHtml(applied.body) : applied.body);
     } else {
       // Reset to defaults when "No template" selected
       setField("subject", defaults?.subject || "");
-      setField("body", defaults?.body || "");
+      const fallbackBody = defaults?.body || "";
+      setField("body", richText ? textToHtml(fallbackBody) : fallbackBody);
     }
   };
 
@@ -322,6 +331,8 @@ const EmailComposer = forwardRef<EmailComposerRef, EmailComposerProps>(function 
                 value={form.body}
                 onChange={(val) => setField("body", val)}
                 placeholder="Compose your email..."
+                imageUploadOrderId={contextProjectId}
+                imageUploadFolder={contextProjectId ? `email-inline/${contextProjectId}` : "email-inline"}
               />
             ) : (
               <Textarea

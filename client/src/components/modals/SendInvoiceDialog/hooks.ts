@@ -26,6 +26,10 @@ export function useSendInvoice({
 
   const sendMutation = useMutation({
     mutationFn: async (formData: EmailFormData & { adHocEmails: string[] }) => {
+      const userAttachments = formData.attachments?.length
+        ? formData.attachments.map((att) => ({ fileUrl: att.cloudinaryUrl, fileName: att.fileName }))
+        : undefined;
+
       await apiRequest("POST", `/api/projects/${projectId}/communications`, {
         communicationType: "client_email",
         direction: "sent",
@@ -47,6 +51,7 @@ export function useSendInvoice({
           fileUrl: invoiceDocument.fileUrl,
           fileName: `Invoice-${invoiceNumber}.pdf`,
         },
+        additionalAttachments: userAttachments,
       });
 
       await apiRequest("PATCH", `/api/projects/${projectId}/invoice`, {

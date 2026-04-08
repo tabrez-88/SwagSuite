@@ -129,6 +129,8 @@ export default function VendorSection({ projectId, data }: VendorSectionProps) {
                 showAdvancedFields
                 richText
                 showPreview
+                showAttachments
+                contextProjectId={projectId}
                 autoFillSender
                 onSend={(data) => h.sendVendorEmailMutation.mutate(data)}
                 isSending={h.sendVendorEmailMutation.isPending}

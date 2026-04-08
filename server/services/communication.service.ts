@@ -151,8 +151,18 @@ export class CommunicationService {
     cc?: string;
     bcc?: string;
     companyName?: string;
+    additionalAttachments?: Array<{ fileUrl: string; fileName: string }>;
   }) {
     const { emailService } = await import("./email.service");
+
+    // Download user-selected attachments as buffers (Cloudinary URLs)
+    let directBufferAttachments: Array<{ filename: string; content: Buffer; contentType: string }> = [];
+    if (data.additionalAttachments && data.additionalAttachments.length > 0) {
+      for (const att of data.additionalAttachments) {
+        const fetched = await this.fetchDocumentAttachment({ fileUrl: att.fileUrl, fileName: att.fileName });
+        if (fetched) directBufferAttachments.push(fetched);
+      }
+    }
 
     await emailService.sendClientEmail({
       userId,
@@ -165,6 +175,7 @@ export class CommunicationService {
       subject: data.subject,
       body: data.body,
       companyName: data.companyName,
+      directAttachments: directBufferAttachments.length > 0 ? directBufferAttachments : undefined,
     });
   }
 

@@ -1,4 +1,5 @@
 import { Separator } from "@/components/ui/separator";
+import { textToHtml, looksLikeHtml } from "@/lib/emailFormat";
 import type { EmailFormData } from "./types";
 
 interface EmailPreviewProps {
@@ -9,6 +10,12 @@ interface EmailPreviewProps {
 
 export default function EmailPreview({ form, recipientDisplay }: EmailPreviewProps) {
   const toDisplay = recipientDisplay || (form.toName ? `${form.toName} <${form.to}>` : form.to);
+
+  // If body is already HTML (from Quill), render as-is.
+  // Otherwise convert plain text → HTML so the preview matches the actual email.
+  const previewHtml = looksLikeHtml(form.body)
+    ? form.body
+    : textToHtml(form.body);
 
   return (
     <div className="border rounded-lg p-4 bg-white">
@@ -22,7 +29,7 @@ export default function EmailPreview({ form, recipientDisplay }: EmailPreviewPro
       <Separator />
       <div
         className="mt-4 prose prose-sm max-w-none"
-        dangerouslySetInnerHTML={{ __html: form.body.replace(/\n/g, "<br />") }}
+        dangerouslySetInnerHTML={{ __html: previewHtml }}
       />
     </div>
   );
