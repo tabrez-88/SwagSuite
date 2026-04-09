@@ -15,15 +15,88 @@ import {
 } from "lucide-react";
 import React from "react";
 
+export interface CompanySpendingReport {
+  companyId: string;
+  from: string;
+  to: string;
+  totalSpend: number;
+  orderCount: number;
+  orders: Array<{
+    id: string;
+    orderNumber: string;
+    projectName: string | null;
+    currentStage: string | null;
+    total: number;
+    createdAt: string | null;
+    inHandsDate: string | null;
+  }>;
+  monthly: Array<{ month: string; total: number; count: number }>;
+}
+
+const startOfCurrentYear = () => {
+  const d = new Date(new Date().getFullYear(), 0, 1);
+  return d.toISOString().split("T")[0];
+};
+
+const todayIso = () => new Date().toISOString().split("T")[0];
+
 export function useOverviewTab(companyId: string | undefined, company: any) {
   const [openPopover, setOpenPopover] = useState<"clientRep" | null>(null);
   const [isEmailDialogOpen, setIsEmailDialogOpen] = useState(false);
+  const [spendFrom, setSpendFrom] = useState<string>(startOfCurrentYear());
+  const [spendTo, setSpendTo] = useState<string>(todayIso());
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
   // Data queries
   const { data: companyContacts = [] } = useCompanyContacts(companyId);
   const { data: companyActivities = [] } = useCompanyActivities(companyId);
+
+  // Spending report
+  const { data: spendingReport, isLoading: spendingLoading } = useQuery<CompanySpendingReport>({
+    queryKey: ["company-spending", companyId, spendFrom, spendTo],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (spendFrom) params.set("from", spendFrom);
+      if (spendTo) params.set("to", spendTo);
+      const res = await fetch(`/api/companies/${companyId}/spending?${params.toString()}`, {
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error(`${res.status}: ${await res.text()}`);
+      return res.json();
+    },
+    enabled: !!companyId,
+  });
+
+  const applySpendPreset = (preset: "ytd" | "qtd" | "last30" | "last90" | "lastYear") => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const iso = (d: Date) => d.toISOString().split("T")[0];
+    switch (preset) {
+      case "ytd":
+        setSpendFrom(iso(new Date(year, 0, 1)));
+        setSpendTo(iso(now));
+        return;
+      case "qtd": {
+        const q = Math.floor(now.getMonth() / 3);
+        setSpendFrom(iso(new Date(year, q * 3, 1)));
+        setSpendTo(iso(now));
+        return;
+      }
+      case "last30":
+        setSpendFrom(iso(new Date(now.getTime() - 30 * 86_400_000)));
+        setSpendTo(iso(now));
+        return;
+      case "last90":
+        setSpendFrom(iso(new Date(now.getTime() - 90 * 86_400_000)));
+        setSpendTo(iso(now));
+        return;
+      case "lastYear":
+        setSpendFrom(iso(new Date(year - 1, 0, 1)));
+        setSpendTo(iso(new Date(year - 1, 11, 31)));
+        return;
+    }
+  };
 
   const { data: teamMembers = [] } = useQuery<any[]>({
     queryKey: ["/api/users/team"],
@@ -127,16 +200,23 @@ export function useOverviewTab(companyId: string | undefined, company: any) {
     previewActivities,
     taxCodeName,
     termsLabel,
+    spendingReport,
+    spendingLoading,
 
     // State
     openPopover,
     setOpenPopover,
     isEmailDialogOpen,
     setIsEmailDialogOpen,
+    spendFrom,
+    setSpendFrom,
+    spendTo,
+    setSpendTo,
 
     // Mutations & handlers
     reassignMutation,
     handleSendEmail,
+    applySpendPreset,
 
     // Helpers
     formatCurrency,

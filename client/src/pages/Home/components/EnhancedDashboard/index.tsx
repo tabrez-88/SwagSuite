@@ -16,11 +16,30 @@ import {
   MessageSquare,
   Newspaper,
   BarChart3,
-  Database
+  Database,
+  AlertCircle,
 } from "lucide-react";
+import { Link } from "wouter";
 import { SlackPanel } from "../SlackPanel";
 import { PopularProducts } from "@/components/shared/PopularProducts";
 import { useEnhancedDashboard } from "./hooks";
+import type { ArAgingBucket } from "@/pages/Reports/hooks";
+
+const AR_BUCKET_ORDER: ArAgingBucket[] = ["current", "1-30", "31-60", "61-90", "90+"];
+const AR_BUCKET_LABELS: Record<ArAgingBucket, string> = {
+  current: "Current",
+  "1-30": "1–30",
+  "31-60": "31–60",
+  "61-90": "61–90",
+  "90+": "90+",
+};
+const AR_BUCKET_TILE_COLORS: Record<ArAgingBucket, string> = {
+  current: "bg-green-50 border-green-200 text-green-900",
+  "1-30": "bg-yellow-50 border-yellow-200 text-yellow-900",
+  "31-60": "bg-orange-50 border-orange-200 text-orange-900",
+  "61-90": "bg-red-50 border-red-200 text-red-900",
+  "90+": "bg-red-100 border-red-300 text-red-900",
+};
 
 export function EnhancedDashboard() {
   const {
@@ -32,6 +51,7 @@ export function EnhancedDashboard() {
     leaderboard,
     automationTasks,
     newsAlerts,
+    arAging,
     getMetricByRange,
     getComparisonMetric,
     calculateGrowth,
@@ -153,6 +173,46 @@ export function EnhancedDashboard() {
               </CardContent>
             </Card>
           </div>
+
+          {/* AR Aging */}
+          {arAging && arAging.totalInvoices > 0 && (
+            <Card>
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-sm font-medium flex items-center gap-2">
+                    <AlertCircle className="h-4 w-4 text-orange-600" />
+                    Accounts Receivable
+                  </CardTitle>
+                  <Link href="/reports" className="text-xs text-blue-600 hover:underline">
+                    View Report →
+                  </Link>
+                </div>
+                <CardDescription>
+                  ${arAging.totalOutstanding.toLocaleString(undefined, { maximumFractionDigits: 0 })} outstanding across {arAging.totalInvoices} open {arAging.totalInvoices === 1 ? "invoice" : "invoices"}
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+                  {AR_BUCKET_ORDER.map((bucket) => {
+                    const data = arAging.buckets[bucket];
+                    return (
+                      <div
+                        key={bucket}
+                        className={`rounded-md border px-3 py-2 ${AR_BUCKET_TILE_COLORS[bucket]}`}
+                        data-testid={`dashboard-ar-bucket-${bucket}`}
+                      >
+                        <div className="text-[10px] font-medium opacity-80 uppercase">{AR_BUCKET_LABELS[bucket]}</div>
+                        <div className="text-base font-bold">
+                          ${data.total.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                        </div>
+                        <div className="text-[10px] opacity-70">{data.count} {data.count === 1 ? "inv" : "invs"}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Recent Activity & Quick Actions */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

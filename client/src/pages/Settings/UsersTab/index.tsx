@@ -1,6 +1,7 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -20,6 +21,7 @@ export function UsersTab({ user }: UsersTabProps) {
     usersData,
     usersLoading,
     updateUserRole,
+    updateCommission,
     isUpdatingRole,
   } = useUsersTab(user);
 
@@ -84,6 +86,25 @@ export function UsersTab({ user }: UsersTabProps) {
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-1" title="Commission %">
+                    <Input
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="1"
+                      className="w-20 h-8 text-xs text-right"
+                      placeholder="—"
+                      defaultValue={userItem.commissionPercent ?? ""}
+                      disabled={!isAdmin}
+                      onBlur={(e) => {
+                        const val = parseFloat(e.target.value);
+                        if (!isNaN(val) && val !== parseFloat(userItem.commissionPercent || "0")) {
+                          updateCommission(userItem.id, val);
+                        }
+                      }}
+                    />
+                    <span className="text-xs text-gray-500">%</span>
+                  </div>
                   <Select
                     value={userItem.role || "user"}
                     onValueChange={(

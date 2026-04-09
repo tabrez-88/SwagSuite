@@ -9,6 +9,7 @@ router.get("/api/companies/search", isAuthenticated, asyncHandler(CompanyControl
 router.get("/api/companies", isAuthenticated, asyncHandler(CompanyController.list));
 router.get("/api/companies/:id/activities", isAuthenticated, asyncHandler(CompanyController.getActivities));
 router.get("/api/companies/:id/projects", isAuthenticated, asyncHandler(CompanyController.getProjects));
+router.get("/api/companies/:id/spending", isAuthenticated, asyncHandler(CompanyController.getSpending));
 router.get("/api/companies/:id", isAuthenticated, asyncHandler(CompanyController.getById));
 router.post("/api/companies", isAuthenticated, asyncHandler(CompanyController.create));
 router.patch("/api/companies/:id", isAuthenticated, asyncHandler(CompanyController.update));

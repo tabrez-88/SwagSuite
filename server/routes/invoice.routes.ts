@@ -39,4 +39,10 @@ router.post("/api/webhooks/stripe", express.raw({ type: 'application/json' }), a
 
 router.post("/api/integrations/taxjar/calculate", isAuthenticated, asyncHandler(InvoiceController.calculateTax));
 
+// =====================================================
+// REPORTS
+// =====================================================
+
+router.get("/api/reports/accounts-receivable", isAuthenticated, asyncHandler(InvoiceController.getArAgingReport));
+
 export default router;

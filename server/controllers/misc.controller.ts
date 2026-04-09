@@ -1,6 +1,6 @@
 import type { Request, Response } from "express";
 import path from "path";
-import Anthropic from "@anthropic-ai/sdk";
+import OpenAI from "openai";
 import { presentationRepository } from "../repositories/presentation.repository";
 import { companyRepository } from "../repositories/company.repository";
 import { productRepository } from "../repositories/product.repository";
@@ -9,9 +9,9 @@ import { portalRepository } from "../repositories/portal.repository";
 import { getUserId } from "../utils/getUserId";
 import { registerInMediaLibrary } from "../utils/registerInMediaLibrary";
 
-// Initialize Anthropic client (same pattern as routes.ts)
-const anthropic = process.env.ANTHROPIC_API_KEY?.trim() ? new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY.trim(),
+// Initialize OpenAI client
+const openai = process.env.OPENAI_API_KEY?.trim() ? new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY.trim(),
 }) : null;
 
 /**
@@ -22,8 +22,8 @@ async function generatePresentationWithAI(presentationId: string, dealNotes: str
   try {
     await presentationRepository.updatePresentation(presentationId, { status: 'generating' });
 
-    if (!anthropic) {
-      console.log('Anthropic API key not configured, using fallback suggestions');
+    if (!openai) {
+      console.log('OpenAI API key not configured, using fallback suggestions');
 
       // Fallback product suggestions when AI is not available
       const products = await productRepository.getAll();
@@ -89,13 +89,13 @@ Return your response as a JSON object with this structure:
   "recommendations": "Additional recommendations for the presentation"
 }`;
 
-    const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
       max_tokens: 2000,
-      messages: [{ role: 'user', content: prompt }]
+      messages: [{ role: 'user', content: prompt }],
     });
 
-    const textContent = response.content[0]?.type === 'text' ? response.content[0].text : '{}';
+    const textContent = response.choices[0]?.message?.content || '{}';
     const aiResponse = JSON.parse(textContent);
 
     // Update presentation with AI suggestions

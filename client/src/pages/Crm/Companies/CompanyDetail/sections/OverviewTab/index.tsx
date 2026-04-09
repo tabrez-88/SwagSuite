@@ -1,12 +1,14 @@
 import {
   AlertCircle,
   ArrowRight,
+  BarChart3,
   Building,
   Calendar,
   Check,
   Clock,
   DollarSign,
   ExternalLink,
+  Loader2,
   Mail,
   MapPin,
   Pencil,
@@ -20,6 +22,8 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Command,
   CommandEmpty,
@@ -52,12 +56,19 @@ export default function OverviewTab({
     previewActivities,
     taxCodeName,
     termsLabel,
+    spendingReport,
+    spendingLoading,
     openPopover,
     setOpenPopover,
     isEmailDialogOpen,
     setIsEmailDialogOpen,
+    spendFrom,
+    setSpendFrom,
+    spendTo,
+    setSpendTo,
     reassignMutation,
     handleSendEmail,
+    applySpendPreset,
     formatCurrency,
     getSocialMediaIcon,
     getPlatformColor,
@@ -275,6 +286,123 @@ export default function OverviewTab({
               </CardContent>
             </Card>
           </div>
+
+          {/* Spending Report */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <BarChart3 className="h-4 w-4" />
+                Spending Report
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Controls */}
+              <div className="flex flex-wrap items-end gap-3">
+                <div>
+                  <Label className="text-xs">From</Label>
+                  <Input
+                    type="date"
+                    value={spendFrom}
+                    onChange={(e) => setSpendFrom(e.target.value)}
+                    className="h-8 w-40 mt-1"
+                    data-testid="spend-from"
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs">To</Label>
+                  <Input
+                    type="date"
+                    value={spendTo}
+                    onChange={(e) => setSpendTo(e.target.value)}
+                    className="h-8 w-40 mt-1"
+                    data-testid="spend-to"
+                  />
+                </div>
+                <div className="flex flex-wrap gap-1 ml-auto">
+                  <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => applySpendPreset("ytd")}>YTD</Button>
+                  <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => applySpendPreset("qtd")}>QTD</Button>
+                  <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => applySpendPreset("last30")}>Last 30d</Button>
+                  <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => applySpendPreset("last90")}>Last 90d</Button>
+                  <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => applySpendPreset("lastYear")}>Last Year</Button>
+                </div>
+              </div>
+
+              {/* Summary */}
+              {spendingLoading ? (
+                <div className="flex items-center justify-center py-6 text-muted-foreground text-sm">
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  Loading spending data...
+                </div>
+              ) : spendingReport ? (
+                <>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                    <div className="border rounded-lg p-3 bg-green-50 border-green-200">
+                      <p className="text-xs text-green-800 font-medium">Total Spend</p>
+                      <p className="text-2xl font-bold text-green-900">
+                        {formatCurrency(spendingReport.totalSpend.toFixed(2))}
+                      </p>
+                    </div>
+                    <div className="border rounded-lg p-3">
+                      <p className="text-xs text-muted-foreground font-medium">Orders</p>
+                      <p className="text-2xl font-bold">{spendingReport.orderCount}</p>
+                    </div>
+                    <div className="border rounded-lg p-3">
+                      <p className="text-xs text-muted-foreground font-medium">Avg Order</p>
+                      <p className="text-2xl font-bold">
+                        {formatCurrency(
+                          spendingReport.orderCount > 0
+                            ? (spendingReport.totalSpend / spendingReport.orderCount).toFixed(2)
+                            : "0"
+                        )}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Monthly breakdown */}
+                  {spendingReport.monthly.length > 0 && (
+                    <div>
+                      <p className="text-xs font-medium text-muted-foreground mb-2">Monthly breakdown</p>
+                      <div className="space-y-1">
+                        {spendingReport.monthly.map((m) => {
+                          const pct =
+                            spendingReport.totalSpend > 0
+                              ? (m.total / spendingReport.totalSpend) * 100
+                              : 0;
+                          return (
+                            <div key={m.month} className="flex items-center gap-3 text-xs">
+                              <span className="w-16 shrink-0 font-mono text-muted-foreground">{m.month}</span>
+                              <div className="flex-1 h-4 bg-gray-100 rounded overflow-hidden">
+                                <div
+                                  className="h-full bg-swag-orange"
+                                  style={{ width: `${Math.min(pct, 100)}%` }}
+                                />
+                              </div>
+                              <span className="w-24 text-right font-medium">
+                                {formatCurrency(m.total.toFixed(2))}
+                              </span>
+                              <span className="w-10 text-right text-muted-foreground">
+                                {m.count}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {spendingReport.orderCount === 0 && (
+                    <p className="text-sm text-muted-foreground italic text-center py-4">
+                      No committed orders in this date range.
+                    </p>
+                  )}
+                </>
+              ) : (
+                <p className="text-sm text-muted-foreground italic text-center py-4">
+                  No spending data available.
+                </p>
+              )}
+            </CardContent>
+          </Card>
 
           {/* Custom Fields */}
           {company.customFields && Object.keys(company.customFields).length > 0 && (

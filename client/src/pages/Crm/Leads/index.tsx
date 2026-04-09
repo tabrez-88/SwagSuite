@@ -37,6 +37,7 @@ import {
   Trash2,
   Edit,
   MoreHorizontal,
+  BarChart3,
 } from "lucide-react";
 import { CRMViewToggle } from "@/components/shared/CRMViewToggle";
 import type { Lead } from "@/services/leads";
@@ -67,6 +68,7 @@ export default function Leads() {
     handleSort,
     isLoading,
     filteredLeads,
+    leadSourceReport,
     createLeadMutation,
     updateLeadMutation,
     deleteLeadMutation,
@@ -94,6 +96,42 @@ export default function Leads() {
           Add Lead
         </Button>
       </div>
+
+      {/* Lead Sources Summary */}
+      {leadSourceReport.length > 0 && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <BarChart3 className="w-4 h-4" />
+              Leads by Source
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+              {leadSourceReport.map((item) => {
+                const isActive = filterSource === item.source;
+                return (
+                  <button
+                    key={item.source}
+                    type="button"
+                    onClick={() => setFilterSource(isActive ? "all" : item.source)}
+                    className={`flex flex-col border shadow-sm items-center p-2 rounded-lg text-center transition-colors ${
+                      isActive ? "bg-swag-primary/10 border-swag-primary" : "bg-muted/50 hover:bg-muted"
+                    }`}
+                    data-testid={`lead-source-tile-${item.source}`}
+                  >
+                    <span className="text-lg font-bold text-swag-navy">{item.total}</span>
+                    <span className="text-xs text-muted-foreground truncate w-full">{item.source}</span>
+                    <span className="text-[10px] text-muted-foreground mt-0.5">
+                      {item.leads} leads · {item.contacts} contacts
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Search and Filters */}
       <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">

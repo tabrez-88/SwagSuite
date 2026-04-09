@@ -205,13 +205,14 @@ export default function ProjectModal(props: ProjectModalProps) {
                   <div>
                     <Label>Payment Terms</Label>
                     <Select value={h.formData.paymentTerms} onValueChange={(v) => h.handleFieldChange("paymentTerms", v)} disabled={h.isLocked}>
-                      <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                      <SelectTrigger className="mt-1"><SelectValue placeholder="Select payment terms" /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="Net 30">Net 30</SelectItem>
-                        <SelectItem value="Net 60">Net 60</SelectItem>
-                        <SelectItem value="Due on Receipt">Due on Receipt</SelectItem>
-                        <SelectItem value="COD">COD</SelectItem>
-                        <SelectItem value="Prepaid">Prepaid</SelectItem>
+                        {h.paymentTermsList.map((term) => (
+                          <SelectItem key={term.id} value={term.name}>
+                            {term.name}
+                            {term.isDefault ? " (default)" : ""}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>

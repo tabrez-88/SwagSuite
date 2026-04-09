@@ -138,7 +138,7 @@ export function useInvoiceSection({ projectId, data }: InvoiceSectionProps) {
 
   // Determine which PDF to use for sending
   const sendableDocument = latestInvoiceDoc
-    ? { fileUrl: latestInvoiceDoc.filePath, id: latestInvoiceDoc.id }
+    ? { fileUrl: latestInvoiceDoc.fileUrl, id: latestInvoiceDoc.id }
     : hasStripePdf
       ? { fileUrl: invoice?.stripeInvoicePdfUrl, id: invoice?.stripeInvoiceId || "" }
       : null;

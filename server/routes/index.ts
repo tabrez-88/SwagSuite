@@ -30,6 +30,8 @@ import projectRoutes from "./project.routes";
 import decoratorMatrixRoutes from "./decoratorMatrix.routes";
 import taxRoutes from "./tax.routes";
 import paymentTermsRoutes from "./paymentTerms.routes";
+import dataImportRoutes from "./dataImport.routes";
+import commissionRoutes from "./commission.routes";
 
 /**
  * Register all modular route files.
@@ -120,4 +122,10 @@ export function registerModularRoutes(app: Express) {
 
   // Decorator Matrix (pricing lookup per vendor)
   app.use(decoratorMatrixRoutes);
+
+  // Data Import (CSV companies & contacts)
+  app.use(dataImportRoutes);
+
+  // Commission Reporting
+  app.use(commissionRoutes);
 }

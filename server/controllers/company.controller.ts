@@ -49,4 +49,11 @@ export class CompanyController {
     const projects = await companyService.getProjects(req.params.id);
     res.json(projects);
   }
+
+  static async getSpending(req: Request, res: Response) {
+    const from = typeof req.query.from === "string" ? req.query.from : undefined;
+    const to = typeof req.query.to === "string" ? req.query.to : undefined;
+    const report = await companyService.getSpendingReport(req.params.id, from, to);
+    res.json(report);
+  }
 }

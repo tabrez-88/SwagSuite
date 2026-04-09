@@ -169,6 +169,20 @@
       "when": 1775808200000,
       "tag": "0023_update_po_email_template",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1775894600000,
+      "tag": "0024_po_email_aimeqp_line",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1775981000000,
+      "tag": "0025_seed_default_payment_term",
+      "breakpoints": true
     }
   ]
 }

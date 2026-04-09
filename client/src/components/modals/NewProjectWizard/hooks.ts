@@ -6,7 +6,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { isUnauthorizedError } from "@/lib/authUtils";
 import type { Company } from "@shared/schema";
 import { useCompanyAddresses } from "@/services/company-addresses";
-import { useDefaultPaymentTermName } from "@/services/payment-terms";
+import { usePaymentTerms, useDefaultPaymentTermName } from "@/services/payment-terms";
 import type { NewProjectWizardProps, StartingStage } from "./types";
 
 function normalizeCountryCode(country: string): string {
@@ -27,6 +27,7 @@ export function useNewProjectWizard({ open, onOpenChange, initialCompanyId }: Ne
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const defaultPaymentTerm = useDefaultPaymentTermName();
+  const { data: paymentTermsList = [] } = usePaymentTerms();
 
   // Step tracking
   const [step, setStep] = useState<1 | 2>(1);
@@ -345,6 +346,7 @@ export function useNewProjectWizard({ open, onOpenChange, initialCompanyId }: Ne
     // SO fields
     paymentTerms,
     setPaymentTerms,
+    paymentTermsList,
     customerPo,
     setCustomerPo,
 

@@ -86,7 +86,7 @@ export class InvoiceController {
         taxAmount: taxAmount.toString(),
         totalAmount: totalAmount.toString(),
         status: 'pending',
-        dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // 30 days
+        dueDate: new Date() // Default to invoice date; editable after creation
       });
 
       // Sync to QuickBooks
@@ -481,5 +481,18 @@ export class InvoiceController {
     } catch (error) {
       res.status(500).json({ message: String(error) });
     }
+  }
+
+  // =====================================================
+  // REPORTS
+  // =====================================================
+
+  /**
+   * GET /api/reports/accounts-receivable
+   * Returns open invoices (pending/overdue) bucketed by days past due.
+   */
+  static async getArAgingReport(req: Request, res: Response) {
+    const report = await invoiceRepository.getArAgingReport();
+    res.json(report);
   }
 }

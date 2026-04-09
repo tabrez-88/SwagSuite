@@ -10,6 +10,7 @@ export interface DashboardMetrics {
   wtdRevenue: number;
   todayRevenue: number;
   pipelineValue: number;
+  pipelineOrderCount: number;
   conversionRate: number;
   avgOrderValue: number;
   orderQuantity: number;

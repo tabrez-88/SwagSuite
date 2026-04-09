@@ -7,10 +7,74 @@ import {
   Package,
 } from "lucide-react";
 
+export type ArAgingBucket = "current" | "1-30" | "31-60" | "61-90" | "90+";
+
+export interface ArAgingInvoice {
+  invoiceId: string;
+  invoiceNumber: string;
+  orderId: string | null;
+  orderNumber: string | null;
+  projectName: string | null;
+  companyId: string | null;
+  companyName: string | null;
+  totalAmount: number;
+  dueDate: string | null;
+  status: string;
+  daysPastDue: number;
+  bucket: ArAgingBucket;
+}
+
+export interface ArAgingReport {
+  buckets: Record<ArAgingBucket, { count: number; total: number }>;
+  totalOutstanding: number;
+  totalInvoices: number;
+  invoices: ArAgingInvoice[];
+}
+
+export interface CommissionLineItem {
+  orderId: string;
+  orderNumber: string;
+  projectName: string | null;
+  companyName: string | null;
+  total: number;
+  margin: number;
+  grossProfit: number;
+  commissionAmount: number;
+  paidAt: string | null;
+}
+
+export interface RepCommissionReport {
+  userId: string;
+  name: string;
+  email: string | null;
+  commissionPercent: number;
+  totalRevenue: number;
+  totalGrossProfit: number;
+  totalCommission: number;
+  orderCount: number;
+  orders: CommissionLineItem[];
+}
+
+export interface CommissionReport {
+  from: string;
+  to: string;
+  reps: RepCommissionReport[];
+  grandTotalRevenue: number;
+  grandTotalGrossProfit: number;
+  grandTotalCommission: number;
+}
+
 export function useReports() {
   const [dateRange, setDateRange] = useState("ytd");
   const [reportType, setReportType] = useState("revenue");
   const [isCustomReportOpen, setIsCustomReportOpen] = useState(false);
+  const [commissionFrom, setCommissionFrom] = useState(() => {
+    const d = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+    return d.toISOString().split("T")[0];
+  });
+  const [commissionTo, setCommissionTo] = useState(
+    () => new Date().toISOString().split("T")[0],
+  );
   const [customReport, setCustomReport] = useState({
     name: "",
     description: "",
@@ -32,6 +96,26 @@ export function useReports() {
   const { data: products } = useQuery<any>({
     queryKey: ["/api/products"],
   });
+
+  const { data: arAging } = useQuery<ArAgingReport>({
+    queryKey: ["/api/reports/accounts-receivable"],
+  });
+
+  const { data: commissionReport, isLoading: commissionLoading } =
+    useQuery<CommissionReport>({
+      queryKey: ["commissions", commissionFrom, commissionTo],
+      queryFn: async () => {
+        const params = new URLSearchParams();
+        if (commissionFrom) params.set("from", commissionFrom);
+        if (commissionTo) params.set("to", commissionTo);
+        const res = await fetch(
+          `/api/reports/commissions?${params.toString()}`,
+          { credentials: "include" },
+        );
+        if (!res.ok) throw new Error(`${res.status}`);
+        return res.json();
+      },
+    });
 
   const getDateRangeLabel = (range: string) => {
     switch (range) {
@@ -120,6 +204,13 @@ export function useReports() {
     statsLoading,
     quickReports,
     savedReports,
+    arAging,
+    commissionReport,
+    commissionLoading,
+    commissionFrom,
+    setCommissionFrom,
+    commissionTo,
+    setCommissionTo,
     getDateRangeLabel,
     handleGenerateReport,
     handleCreateCustomReport,

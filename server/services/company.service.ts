@@ -268,6 +268,84 @@ export class CompanyService {
       .where(eq(orders.companyId, companyId))
       .orderBy(desc(orders.createdAt));
   }
+
+  /**
+   * Spending report for a company within a date range.
+   * Counts only orders at Sales Order stage or beyond (excludes open quotes/presentations).
+   * Returns totals, order count, breakdown by order, and a month-by-month summary.
+   */
+  async getSpendingReport(companyId: string, from?: string, to?: string) {
+    const { db } = await import("../db");
+    const { orders } = await import("@shared/schema");
+    const { eq, and, gte, lte, inArray, desc, sql } = await import("drizzle-orm");
+
+    const fromDate = from ? new Date(from) : new Date(new Date().getFullYear(), 0, 1);
+    const toDate = to ? new Date(to) : new Date();
+    // Inclusive through end of "to" day
+    const toEnd = new Date(toDate);
+    toEnd.setHours(23, 59, 59, 999);
+
+    // Only count revenue from orders that have actually been committed (SO or later)
+    const committedStages = ["sales_order", "invoice"];
+
+    const whereClauses = and(
+      eq(orders.companyId, companyId),
+      inArray(orders.currentStage, committedStages),
+      gte(orders.createdAt, fromDate),
+      lte(orders.createdAt, toEnd),
+    );
+
+    // Per-order breakdown
+    const orderRows = await db
+      .select({
+        id: orders.id,
+        orderNumber: orders.orderNumber,
+        projectName: orders.projectName,
+        currentStage: orders.currentStage,
+        total: orders.total,
+        createdAt: orders.createdAt,
+        inHandsDate: orders.inHandsDate,
+      })
+      .from(orders)
+      .where(whereClauses)
+      .orderBy(desc(orders.createdAt));
+
+    // Monthly aggregation
+    const monthlyRows = await db
+      .select({
+        month: sql<string>`to_char(${orders.createdAt}, 'YYYY-MM')`,
+        total: sql<string>`COALESCE(SUM(${orders.total}), 0)`,
+        count: sql<number>`COUNT(*)::int`,
+      })
+      .from(orders)
+      .where(whereClauses)
+      .groupBy(sql`to_char(${orders.createdAt}, 'YYYY-MM')`)
+      .orderBy(sql`to_char(${orders.createdAt}, 'YYYY-MM')`);
+
+    const totalSpend = orderRows.reduce((sum, o) => sum + parseFloat(o.total || "0"), 0);
+
+    return {
+      companyId,
+      from: fromDate.toISOString(),
+      to: toEnd.toISOString(),
+      totalSpend,
+      orderCount: orderRows.length,
+      orders: orderRows.map((o) => ({
+        id: o.id,
+        orderNumber: o.orderNumber,
+        projectName: o.projectName,
+        currentStage: o.currentStage,
+        total: parseFloat(o.total || "0"),
+        createdAt: o.createdAt ? new Date(o.createdAt).toISOString() : null,
+        inHandsDate: o.inHandsDate ? new Date(o.inHandsDate).toISOString() : null,
+      })),
+      monthly: monthlyRows.map((m) => ({
+        month: m.month,
+        total: parseFloat(m.total || "0"),
+        count: m.count,
+      })),
+    };
+  }
 }
 
 export const companyService = new CompanyService();

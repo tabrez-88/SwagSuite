@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm';
 import {
+  decimal,
   jsonb,
   pgTable,
   timestamp,
@@ -28,6 +29,8 @@ export const users = pgTable("users", {
   twoFactorSecret: varchar("two_factor_secret"), // AES-256-GCM encrypted
   twoFactorBackupCodes: jsonb("two_factor_backup_codes"), // hashed backup codes
   trustedDevices: jsonb("trusted_devices").default([]), // [{ tokenHash, expiresAt, label, createdAt }]
+  // Commission reporting (Paulina spec 3/10): flat % on gross profit
+  commissionPercent: decimal("commission_percent", { precision: 5, scale: 2 }),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

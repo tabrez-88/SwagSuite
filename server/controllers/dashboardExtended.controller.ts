@@ -2,8 +2,22 @@ import type { Request, Response } from "express";
 import { dashboardRepository } from "../repositories/dashboard.repository";
 import { errorRepository } from "../repositories/error.repository";
 import { companyRepository } from "../repositories/company.repository";
-import { productRepository } from "../repositories/product.repository";
 import { supplierRepository } from "../repositories/supplier.repository";
+import { generateReport as runAiReport, getAvailableReports } from "../services/aiReports.service";
+import { searchService } from "../services/search.service";
+
+/** Default NL query for each canned report (used for suggestion cards) */
+function defaultQueryFor(reportId: string): string {
+  const map: Record<string, string> = {
+    margin_summary: "Show me profit margins for all orders this year",
+    top_vendors_by_spend: "Which vendors have we spent the most with this year?",
+    top_customers_by_spend: "Who are our top customers by revenue?",
+    overdue_orders: "List all overdue orders",
+    inactive_customers: "Which customers haven't ordered in the last 90 days?",
+    orders_by_salesperson: "Break down revenue by salesperson for this year",
+  };
+  return map[reportId] || "Generate report";
+}
 
 export class DashboardExtendedController {
   /**
@@ -15,37 +29,23 @@ export class DashboardExtendedController {
       return res.status(400).json({ message: "Search query is required" });
     }
 
-    // Search across multiple entities
-    const [companies, products] = await Promise.all([
-      companyRepository.search(query),
-      productRepository.search(query),
-    ]);
-
-    res.json({
-      companies: companies.slice(0, 5),
-      products: products.slice(0, 5),
-      orders: [],
-    });
+    const results = await searchService.universalSearch(query);
+    res.json(results);
   }
 
   /**
    * GET /api/dashboard/enhanced-stats — Enhanced dashboard metrics with period comparisons
    */
   static async getEnhancedStats(req: Request, res: Response) {
-    const stats = await dashboardRepository.getStats();
-    // Enhanced metrics with period comparisons
+    const [stats, finance] = await Promise.all([
+      dashboardRepository.getStats(),
+      dashboardRepository.getFinanceStats(),
+    ]);
     res.json({
       ...stats,
-      ytdRevenue: 2850000,
-      lastYearYtdRevenue: 2200000,
-      mtdRevenue: 285000,
-      lastMonthRevenue: 260000,
-      wtdRevenue: 65000,
-      todayRevenue: 12000,
-      pipelineValue: 1200000,
-      conversionRate: 24.5,
-      avgOrderValue: 3200,
-      orderQuantity: 890,
+      ...finance,
+      // grossMargin from finance (weighted by revenue) overrides the simple average
+      // from getStats(), keeping a single authoritative value.
     });
   }
 
@@ -1059,51 +1059,37 @@ export class DashboardExtendedController {
   }
 
   /**
-   * GET /api/reports/suggestions — AI report suggestions
+   * GET /api/reports/suggestions — Available report templates + suggested queries
    */
   static async getReportSuggestions(req: Request, res: Response) {
-    res.json([
-      {
-        title: 'Top Performing Sales Reps',
-        description: 'Revenue and conversion metrics by salesperson',
-        query: 'Show me the top 10 sales reps by revenue this quarter with their conversion rates',
-        category: 'sales',
-      },
-      {
-        title: 'Vendor Spend Analysis',
-        description: 'Year-over-year vendor spending comparison',
-        query: 'Compare our vendor spending this year vs last year, show top 20 vendors',
-        category: 'vendors',
-      },
-      {
-        title: 'Customer Retention Report',
-        description: 'Analysis of customer repeat orders and churn',
-        query: 'Which customers have stopped ordering in the last 90 days and their previous order history',
-        category: 'customers',
-      },
-      {
-        title: 'Product Margin Analysis',
-        description: 'Profit margins by product category',
-        query: 'Show me profit margins by product category for the last 6 months',
-        category: 'finance',
-      }
-    ]);
+    const available = getAvailableReports();
+    // Map available reports into suggestion format the client expects
+    const categoryMap: Record<string, string> = {
+      margin_summary: "finance",
+      top_vendors_by_spend: "vendors",
+      top_customers_by_spend: "customers",
+      overdue_orders: "operations",
+      inactive_customers: "customers",
+      orders_by_salesperson: "sales",
+    };
+    const suggestions = available.map((r) => ({
+      title: r.name,
+      description: r.description,
+      query: defaultQueryFor(r.id),
+      category: categoryMap[r.id] || "operations",
+    }));
+    res.json(suggestions);
   }
 
   /**
-   * POST /api/reports/generate — Generate AI report
+   * POST /api/reports/generate — Generate AI report from natural language query
    */
   static async generateReport(req: Request, res: Response) {
     const { query } = req.body;
-    // Mock AI report generation - would integrate with actual AI service
-    res.json({
-      id: Date.now().toString(),
-      name: `AI Generated Report - ${new Date().toLocaleDateString()}`,
-      query,
-      data: [],
-      summary: `Report generated based on your query: "${query}". This would contain actual data analysis from your SwagSuite database.`,
-      generatedAt: new Date().toISOString(),
-      exportFormats: ['pdf', 'xlsx', 'csv'],
-    });
+    if (!query || typeof query !== "string" || !query.trim()) {
+      return res.status(400).json({ message: "Missing query" });
+    }
+    const report = await runAiReport(query.trim());
+    res.json(report);
   }
 }

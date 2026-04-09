@@ -30,6 +30,7 @@ const SECRET_NAMES = [
   "SMTP_PASS",
   "GEOAPIFY_API_KEY",
   "HUBSPOT_API_KEY",
+  "OPENAI_API_KEY",
 ];
 
 /**

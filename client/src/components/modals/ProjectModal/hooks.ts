@@ -6,7 +6,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { isUnauthorizedError } from "@/lib/authUtils";
 import type { Company } from "@shared/schema";
 import { useCompanyAddresses } from "@/services/company-addresses";
-import { useDefaultPaymentTermName } from "@/services/payment-terms";
+import { usePaymentTerms, useDefaultPaymentTermName } from "@/services/payment-terms";
 import type { ProjectModalProps, ProjectFormData } from "./types";
 
 // Normalize various country name/code formats to standard 2-letter codes
@@ -68,6 +68,7 @@ export function useProjectModal({ open, onOpenChange, order, initialCompanyId, b
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const defaultPaymentTerm = useDefaultPaymentTermName();
+  const { data: paymentTermsList = [] } = usePaymentTerms();
 
   const isEditing = !!order;
   const stage = businessStageId || "presentation";
@@ -359,6 +360,7 @@ export function useProjectModal({ open, onOpenChange, order, initialCompanyId, b
     companies,
     contacts,
     users,
+    paymentTermsList,
     handleSubmit,
     createIsPending: createProjectMutation.isPending,
     updateIsPending: updateProjectMutation.isPending,

@@ -46,6 +46,8 @@ export const companies = pgTable("companies", {
   assignedUserId: varchar("assigned_user_id"),
   defaultTerms: varchar("default_terms"), // Net 30, Credit Card, COD, etc.
   customFields: jsonb("custom_fields"),
+  // Goodsync folder link for file archive access (per Bryan 3/17 import scope)
+  goodsyncFolderUrl: varchar("goodsync_folder_url"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

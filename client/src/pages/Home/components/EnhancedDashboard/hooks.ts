@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import type { DashboardMetrics, TeamLeaderboard, AIAutomationTask, NewsAlert } from "./types";
+import type { ArAgingReport } from "@/pages/Reports/hooks";
 
 export function useEnhancedDashboard() {
   const [dateRange, setDateRange] = useState<string>("ytd");
@@ -27,6 +28,11 @@ export function useEnhancedDashboard() {
 
   const { data: newsAlerts } = useQuery<NewsAlert[]>({
     queryKey: ['/api/dashboard/news-alerts'],
+    refetchInterval: 300000,
+  });
+
+  const { data: arAging } = useQuery<ArAgingReport>({
+    queryKey: ['/api/reports/accounts-receivable'],
     refetchInterval: 300000,
   });
 
@@ -99,6 +105,7 @@ export function useEnhancedDashboard() {
     leaderboard,
     automationTasks,
     newsAlerts,
+    arAging,
     getMetricByRange,
     getComparisonMetric,
     calculateGrowth,

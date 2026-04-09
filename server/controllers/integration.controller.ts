@@ -1529,6 +1529,7 @@ export class IntegrationController {
 
   static async testShipStationConnection(req: Request, res: Response) {
     const { apiKey, apiSecret } = req.body;
+    const userId = (req as any).user?.claims?.sub;
 
     if (!apiKey || !apiSecret) {
       return res.status(400).json({ success: false, message: "API Key and API Secret are required" });
@@ -1537,6 +1538,19 @@ export class IntegrationController {
     try {
       const service = new ShipStationService({ apiKey, apiSecret });
       const isConnected = await service.testConnection();
+
+      // Persist credentials on successful test so they survive page reload without
+      // requiring a separate "Save Settings" click.
+      if (isConnected) {
+        await integrationRepository.upsertIntegrationSettings(
+          {
+            shipstationApiKey: apiKey,
+            shipstationApiSecret: apiSecret,
+            shipstationConnected: true,
+          },
+          userId
+        );
+      }
 
       res.json({ success: isConnected, message: isConnected ? "Connected" : "Connection failed" });
     } catch (error) {

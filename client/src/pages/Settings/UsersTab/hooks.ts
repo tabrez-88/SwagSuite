@@ -49,12 +49,42 @@ export function useUsersTab(user: any) {
     updateUserRoleMutation.mutate({ userId, role: newRole });
   };
 
+  const updateCommissionMutation = useMutation({
+    mutationFn: async ({
+      userId,
+      commissionPercent,
+    }: {
+      userId: string;
+      commissionPercent: number;
+    }) => {
+      return await apiRequest("PATCH", `/api/users/${userId}/commission`, {
+        commissionPercent,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/users"] });
+      toast({ title: "Commission % updated" });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update commission.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const updateCommission = (userId: string, percent: number) => {
+    updateCommissionMutation.mutate({ userId, commissionPercent: percent });
+  };
+
   return {
     isAdmin,
     isManager,
     usersData,
     usersLoading,
     updateUserRole,
+    updateCommission,
     isUpdatingRole: updateUserRoleMutation.isPending,
   };
 }
