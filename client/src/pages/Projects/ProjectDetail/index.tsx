@@ -63,7 +63,7 @@ export default function ProjectDetailPage() {
   const data = useProjectData(projectId, dataSection);
   const lockStatus = useLockStatus(data);
 
-  // Redirect bare /project/:projectId to /project/:projectId/overview
+  // Redirect bare /projects/:projectId to /projects/:projectId/overview
   useEffect(() => {
     if (projectId && location === `/projects/${projectId}`) {
       setLocation(`/projects/${projectId}/overview`, { replace: true });

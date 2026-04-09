@@ -269,7 +269,7 @@ export default function Reports() {
                           <tr key={inv.invoiceId} className="border-b hover:bg-gray-50">
                             <td className="px-3 py-2">
                               {inv.orderId ? (
-                                <Link href={`/project/${inv.orderId}`} className="text-blue-600 hover:underline">
+                                <Link href={`/projects/${inv.orderId}/invoice`} className="text-blue-600 hover:underline">
                                   {inv.invoiceNumber}
                                 </Link>
                               ) : (

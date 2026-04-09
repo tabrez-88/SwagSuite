@@ -204,7 +204,7 @@ async function searchOrders(
         stage: o.currentStage || "draft",
         date: o.createdAt ? new Date(o.createdAt).toLocaleDateString() : "",
       },
-      url: `/project/${o.id}`,
+      url: `/projects/${o.id}`,
     };
   });
 }

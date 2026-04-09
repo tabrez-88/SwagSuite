@@ -206,8 +206,8 @@ Centralized file registry with dual-write pattern. All file uploads register in 
 - Per-section status fields: `quoteStatus` (DB: `quote_status`), `salesOrderStatus`, `presentationStatus`.
 - Business stages: `presentation` → `quote` → `sales_order` → `invoice` (defined in `client/src/lib/businessStages.ts`).
 - **Renamed**: "Estimate" was renamed to "Quote" across the entire codebase. DB column `estimate_status` → `quote_status`, Drizzle field `estimateStatus` → `quoteStatus`, stage id `"estimate"` → `"quote"`. File `EstimateSection.tsx` → `QuoteSection.tsx`. Backward compat: `businessStages.ts` maps legacy `startingStage: "estimate"` → `"quote"`.
-- Project detail page at `/project/:orderId` with sections: Overview, Presentation, Quote, Sales Order, Shipping, POs, Invoice, Bills, Feedback.
-- Legacy `/orders` and `/orders/:id` routes redirect to `/projects` and `/project/:id`.
+- Project detail page at `/projects/:orderId` with sections: Overview, Presentation, Quote, Sales Order, Shipping, POs, Invoice, Bills, Feedback.
+- Legacy `/orders` and `/orders/:id` routes redirect to `/projects` and `/projects/:id`.
 - Shared sections (Activities, Products, Shipping, Files, Documents, Email, Vendor, POs) live in `components/sections/`.
 - Project-specific sections (Overview, Quote, Invoice, etc.) live in `pages/project-detail/sections/`.
 - Shared types (`ProjectData`, `TeamMember`, etc.) in `client/src/types/project-types.ts`.
