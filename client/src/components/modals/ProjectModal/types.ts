@@ -29,6 +29,7 @@ export interface ProjectFormData {
   billingContact: string;
   billingEmail: string;
   billingStreet: string;
+  billingStreet2: string;
   billingCity: string;
   billingState: string;
   billingZipCode: string;
@@ -37,6 +38,7 @@ export interface ProjectFormData {
   shippingContact: string;
   shippingEmail: string;
   shippingStreet: string;
+  shippingStreet2: string;
   shippingCity: string;
   shippingState: string;
   shippingZipCode: string;

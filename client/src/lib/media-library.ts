@@ -36,8 +36,13 @@ export function getCloudinaryThumbnail(url: string, width = 200, height = 200): 
   const cleanUrl = url.split("?")[0].toLowerCase();
   // Design files (AI/EPS/PSD) need explicit PNG conversion + page 1 extraction
   const isDesignFile = /\.(ai|eps|psd)$/.test(cleanUrl);
-  const format = isDesignFile ? "f_png,pg_1" : "f_auto";
-  return url.replace("/upload/", `/upload/w_${width},h_${height},c_fill,q_auto,${format}/`);
+  const format = isDesignFile ? "f_png,pg_1,cs_srgb" : "f_auto";
+  // Raw uploads of design files must be switched to /image/upload/ for transformations
+  let transformed = url;
+  if (isDesignFile && cleanUrl.includes("/raw/upload/")) {
+    transformed = url.replace("/raw/upload/", "/image/upload/");
+  }
+  return transformed.replace("/upload/", `/upload/w_${width},h_${height},c_fill,q_auto,${format}/`);
 }
 
 export function isImageFile(mimeType: string | null, url?: string | null): boolean {
@@ -48,7 +53,7 @@ export function isImageFile(mimeType: string | null, url?: string | null): boole
     if (/\.(jpe?g|png|gif|webp|svg|bmp|ico|tiff?)$/.test(cleanUrl)) return true;
     // Cloudinary image uploads (includes design files that Cloudinary can render)
     if (cleanUrl.includes("/image/upload/")) return true;
-    // Design files on Cloudinary — renderable as thumbnails via f_png transform
+    // Design files on Cloudinary (both /image/upload/ and /raw/upload/) — renderable via f_png transform
     if (cleanUrl.includes("cloudinary.com") && /\.(ai|eps|psd)$/.test(cleanUrl)) return true;
   }
   return false;
@@ -62,16 +67,22 @@ export function isImageFile(mimeType: string | null, url?: string | null): boole
 export function getRenderableImageUrl(url: string | null | undefined): string | null {
   if (!url) return null;
   const cleanUrl = url.split("?")[0].split("#")[0].toLowerCase();
+  const isDesignFile = /\.(ai|eps|psd)$/.test(cleanUrl);
 
-  // Cloudinary raw uploads can't be transformed — not renderable
+  // Cloudinary raw uploads of design files — switch to /image/upload/ with PNG conversion
+  if (cleanUrl.includes("/raw/upload/") && isDesignFile && cleanUrl.includes("cloudinary.com")) {
+    return url.replace("/raw/upload/", "/image/upload/f_png,pg_1,cs_srgb/");
+  }
+
+  // Other Cloudinary raw uploads can't be transformed — not renderable
   if (cleanUrl.includes("/raw/upload/")) return null;
 
   // Non-Cloudinary design files — browser can't render
   if (!cleanUrl.includes("cloudinary.com") && /\.(ai|eps|psd|indd|cdr|sketch|fig)$/.test(cleanUrl)) return null;
 
   // Cloudinary image uploads of design files — add f_png transformation
-  if (cleanUrl.includes("/image/upload/") && /\.(ai|eps|psd)$/.test(cleanUrl)) {
-    return url.replace("/image/upload/", "/image/upload/f_png,pg_1/");
+  if (cleanUrl.includes("/image/upload/") && isDesignFile) {
+    return url.replace("/image/upload/", "/image/upload/f_png,pg_1,cs_srgb/");
   }
 
   // Standard browser-renderable images

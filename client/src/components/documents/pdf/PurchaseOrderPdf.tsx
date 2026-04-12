@@ -45,6 +45,7 @@ export interface PurchaseOrderPdfProps {
   artworkItems?: any[];
   allArtworkCharges?: Record<string, any[]>;
   allItemCharges?: Record<string, any[]>;
+  serviceCharges?: any[]; // CommonSKU pattern: order-level shipping/setup/etc. — filtered by displayToVendor + vendorId match
   vendorIHD?: string | null;
   vendorAddress?: VendorAddressData | null;
   poType?: "supplier" | "decorator";
@@ -60,6 +61,7 @@ export function PurchaseOrderPdf({
   artworkItems = [],
   allArtworkCharges = {},
   allItemCharges = {},
+  serviceCharges = [],
   vendorIHD,
   vendorAddress,
   poType = "supplier",
@@ -72,9 +74,22 @@ export function PurchaseOrderPdf({
   const orderShippingAddr = parseAddress(order?.shippingAddress);
 
   // ── Total cost calculation ─────────────────────────────────────
-  const totalCost = isDecoratorPO
+  // ── Service charges visible on this vendor PO (CommonSKU displayToVendor pattern) ──
+  // Show charges where displayToVendor is not explicitly false AND vendor matches (or vendorId is null = applies to all)
+  const vendorServiceCharges = serviceCharges.filter((c: any) =>
+    c.displayToVendor !== false && (c.vendorId === vendor?.id || c.vendorId == null)
+  );
+  const serviceChargesTotal = vendorServiceCharges.reduce((sum: number, c: any) => {
+    const qty = parseFloat(c.quantity || "1") || 1;
+    const cost = parseFloat(c.unitCost || "0");
+    return sum + qty * cost;
+  }, 0);
+
+  const itemsCost = isDecoratorPO
     ? artworkItems.reduce((sum: number, art: any) => {
-        const charges = allArtworkCharges[art.id] || [];
+        const charges = (allArtworkCharges[art.id] || []).filter(
+          (c: any) => c.displayToVendor !== false,
+        );
         return (
           sum +
           charges.reduce((s: number, c: any) => {
@@ -91,6 +106,8 @@ export function PurchaseOrderPdf({
         const cost = parseFloat(item.cost) || parseFloat(item.unitPrice) || 0;
         return sum + cost * (item.quantity || 0);
       }, 0);
+
+  const totalCost = itemsCost + serviceChargesTotal;
 
   // ── Resolve ship-to ────────────────────────────────────────────
   const resolveShipTo = () => {
@@ -248,7 +265,9 @@ export function PurchaseOrderPdf({
 
                   {isDecoratorPO ? (
                     itemArtworks.flatMap((art: any) => {
-                      const charges = allArtworkCharges[art.id] || [];
+                      const charges = (allArtworkCharges[art.id] || []).filter(
+                        (c: any) => c.displayToVendor !== false,
+                      );
                       return charges.map((c: any) => {
                         const chCost = parseFloat(c.netCost || "0");
                         const chQty = c.chargeCategory === "run" ? quantity : c.quantity || 1;
@@ -288,7 +307,9 @@ export function PurchaseOrderPdf({
                           {fmtMoney(itemTotal)}
                         </Text>
                       </View>
-                      {(allItemCharges[item.id] || []).map((charge: any) => {
+                      {(allItemCharges[item.id] || [])
+                        .filter((charge: any) => charge.displayToVendor !== false)
+                        .map((charge: any) => {
                         const chCost = parseFloat(charge.netCost || "0");
                         if (chCost <= 0) return null;
                         const chQty =
@@ -409,6 +430,32 @@ export function PurchaseOrderPdf({
             </View>
           );
         })}
+
+        {/* ── Services & Fees (shipping, setup, etc.) — vendor-visible only ─── */}
+        {vendorServiceCharges.length > 0 && (
+          <View wrap={false}>
+            <View style={styles.tableHead}>
+              <Text style={[styles.tableHeadCell, styles.colItem]}>SERVICES &amp; FEES</Text>
+              <Text style={[styles.tableHeadCell, styles.colQty]}>QTY</Text>
+              <Text style={[styles.tableHeadCell, styles.colPrice]}>COST</Text>
+              <Text style={[styles.tableHeadCell, styles.colAmount]}>AMOUNT</Text>
+            </View>
+            {vendorServiceCharges.map((c: any) => {
+              const qty = parseFloat(c.quantity || "1") || 1;
+              const cost = parseFloat(c.unitCost || "0");
+              return (
+                <View key={c.id} style={styles.tableRow}>
+                  <Text style={[styles.tableCell, styles.colItem]}>
+                    {c.description || c.chargeType}
+                  </Text>
+                  <Text style={[styles.tableCell, styles.colQty]}>{qty}</Text>
+                  <Text style={[styles.tableCell, styles.colPrice]}>{fmtMoney(cost)}</Text>
+                  <Text style={[styles.tableCell, styles.colAmount, styles.bold]}>{fmtMoney(qty * cost)}</Text>
+                </View>
+              );
+            })}
+          </View>
+        )}
 
         {/* ── Grand total ──────────────────────────────────────── */}
         <View style={styles.totalsWrap} wrap={false}>

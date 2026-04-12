@@ -21,6 +21,13 @@ import {
 } from "@/components/ui/dialog";
 import EditableAddress from "@/components/shared/EditableAddress";
 import ProjectInfoBar from "@/components/layout/ProjectInfoBar";
+import { Switch } from "@/components/ui/switch";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import {
   ArrowRight,
   Calculator,
@@ -29,6 +36,7 @@ import {
   ClipboardList,
   Eye,
   FileText,
+  Info,
   Loader2,
   MapPin,
   Pencil,
@@ -150,6 +158,34 @@ export default function QuoteSection(props: QuoteSectionProps) {
           </Select>
         </div>
 
+        {!isLocked && (
+          <div className="flex items-center gap-2">
+            <Switch
+              id="auto-approve-so"
+              checked={(order as any)?.stageData?.quoteAutoApproveSo !== false}
+              onCheckedChange={(checked) => {
+                const currentStageData = (order as any)?.stageData || {};
+                updateField({
+                  stageData: { ...currentStageData, quoteAutoApproveSo: checked },
+                });
+              }}
+              disabled={isFieldPending}
+            />
+            <Label htmlFor="auto-approve-so" className="text-sm text-muted-foreground cursor-pointer">
+              Auto-approve SO on quote acceptance
+            </Label>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Info className="w-3.5 h-3.5 text-muted-foreground" />
+                </TooltipTrigger>
+                <TooltipContent side="bottom" className="max-w-[250px]">
+                  <p className="text-xs">When ON, the Sales Order will be automatically set to "Client Approved" when the client accepts the quote. When OFF, the SO will require separate review and approval.</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </div>
+        )}
       </div>
 
       {/* Quote Details — read-only display */}

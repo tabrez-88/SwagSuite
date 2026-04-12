@@ -244,7 +244,7 @@ export default function ProjectModal(props: ProjectModalProps) {
                     <div className="p-3 bg-gray-50 rounded-lg">
                       <p className="text-xs text-gray-500 font-medium mb-1">Billing</p>
                       {h.formData.billingStreet ? (
-                        <p className="text-gray-700">{h.formData.billingStreet}, {h.formData.billingCity} {h.formData.billingState} {h.formData.billingZipCode}</p>
+                        <p className="text-gray-700">{h.formData.billingStreet}{h.formData.billingStreet2 ? `, ${h.formData.billingStreet2}` : ""}, {h.formData.billingCity} {h.formData.billingState} {h.formData.billingZipCode}</p>
                       ) : (
                         <p className="text-gray-400 italic">No billing address</p>
                       )}
@@ -252,7 +252,7 @@ export default function ProjectModal(props: ProjectModalProps) {
                     <div className="p-3 bg-gray-50 rounded-lg">
                       <p className="text-xs text-gray-500 font-medium mb-1">Shipping</p>
                       {h.formData.shippingStreet ? (
-                        <p className="text-gray-700">{h.formData.shippingStreet}, {h.formData.shippingCity} {h.formData.shippingState} {h.formData.shippingZipCode}</p>
+                        <p className="text-gray-700">{h.formData.shippingStreet}{h.formData.shippingStreet2 ? `, ${h.formData.shippingStreet2}` : ""}, {h.formData.shippingCity} {h.formData.shippingState} {h.formData.shippingZipCode}</p>
                       ) : (
                         <p className="text-gray-400 italic">No shipping address</p>
                       )}
@@ -270,6 +270,10 @@ export default function ProjectModal(props: ProjectModalProps) {
                         <div className="col-span-2">
                           <Label className="text-xs">Street</Label>
                           <AddressAutocomplete value={h.formData.billingStreet} onChange={(val) => h.handleFieldChange("billingStreet", val)} onAddressSelect={(addr) => { h.handleFieldChange("billingCity", addr.city); h.handleFieldChange("billingState", addr.state); h.handleFieldChange("billingZipCode", addr.zipCode); h.handleFieldChange("billingCountry", h.normalizeCountryCode(addr.country)); }} placeholder="123 Main St" disabled={h.isLocked} />
+                        </div>
+                        <div className="col-span-2">
+                          <Label className="text-xs">Apt / Suite / Unit</Label>
+                          <Input value={h.formData.billingStreet2} onChange={(e) => h.handleFieldChange("billingStreet2", e.target.value)} placeholder="Suite 200" disabled={h.isLocked} />
                         </div>
                         <div><Label className="text-xs">City</Label><Input value={h.formData.billingCity} onChange={(e) => h.handleFieldChange("billingCity", e.target.value)} disabled={h.isLocked} /></div>
                         <div><Label className="text-xs">State</Label><Input value={h.formData.billingState} onChange={(e) => h.handleFieldChange("billingState", e.target.value)} disabled={h.isLocked} /></div>
@@ -302,6 +306,10 @@ export default function ProjectModal(props: ProjectModalProps) {
                         <div className="col-span-2">
                           <Label className="text-xs">Street</Label>
                           <AddressAutocomplete value={h.formData.shippingStreet} onChange={(val) => h.handleFieldChange("shippingStreet", val)} onAddressSelect={(addr) => { h.handleFieldChange("shippingCity", addr.city); h.handleFieldChange("shippingState", addr.state); h.handleFieldChange("shippingZipCode", addr.zipCode); h.handleFieldChange("shippingCountry", h.normalizeCountryCode(addr.country)); }} placeholder="123 Main St" disabled={h.sameAsBilling || h.isLocked} />
+                        </div>
+                        <div className="col-span-2">
+                          <Label className="text-xs">Apt / Suite / Unit</Label>
+                          <Input value={h.formData.shippingStreet2} onChange={(e) => h.handleFieldChange("shippingStreet2", e.target.value)} placeholder="Suite 200" disabled={h.sameAsBilling || h.isLocked} />
                         </div>
                         <div><Label className="text-xs">City</Label><Input value={h.formData.shippingCity} onChange={(e) => h.handleFieldChange("shippingCity", e.target.value)} disabled={h.sameAsBilling || h.isLocked} /></div>
                         <div><Label className="text-xs">State</Label><Input value={h.formData.shippingState} onChange={(e) => h.handleFieldChange("shippingState", e.target.value)} disabled={h.sameAsBilling || h.isLocked} /></div>

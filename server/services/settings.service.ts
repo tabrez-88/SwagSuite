@@ -195,7 +195,7 @@ export class SettingsService {
     }
 
     const encodedQuery = encodeURIComponent(query);
-    const url = `https://api.geoapify.com/v1/geocode/autocomplete?text=${encodedQuery}&apiKey=${geoapifyKey}&limit=5&format=json`;
+    const url = `https://api.geoapify.com/v1/geocode/autocomplete?text=${encodedQuery}&apiKey=${geoapifyKey}&limit=5&format=json&bias=countrycode:us`;
 
     const response = await fetch(url);
     if (!response.ok) {

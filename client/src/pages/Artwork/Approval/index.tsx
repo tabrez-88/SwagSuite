@@ -172,7 +172,7 @@ function ApprovalPage() {
               <Card>
                 <CardHeader className="pb-3">
                   <CardTitle className="text-base flex items-center gap-2">
-                    <Clock className="w-4 h-4 text-blue-600" /> Your Decision
+                    <Clock className="w-4 h-4 text-blue-600" /> APPROVAL
                   </CardTitle>
                   <CardDescription className="text-xs">
                     Review the artwork carefully, then approve or request changes

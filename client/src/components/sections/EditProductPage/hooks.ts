@@ -1,49 +1,46 @@
-import { useState, useEffect, useCallback, useRef, useMemo } from "react";
-import { useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
-import { useQueryClient } from "@tanstack/react-query";
 import {
-  useUpdateProjectItem,
-  useUpdateLine,
-  useDeleteLine,
-  useAddLine,
-  useAddCharge,
-  useUpdateCharge,
-  useDeleteCharge,
-  useToggleChargeDisplay,
-  useCreateArtwork,
-  useDeleteArtwork,
-  useCreateArtworkCharge,
-  useDeleteArtworkCharge,
+  applyMargin,
+  calcMarginPercent,
+  isBelowMinimum,
+  marginBgClass,
+  marginColorClass,
+  useMarginSettings,
+} from "@/hooks/useMarginSettings";
+import {
+  calcMarginPercent as calcMarginPct,
+  getChargeSellPrice,
+  getChargeSubtotal,
+  getProductSubtotal,
+  type PricingLine,
+  type ProductCharge
+} from "@/lib/pricing";
+import {
   useAddArtworkFile,
-  useRemoveArtworkFile,
-  useCopyArtwork,
+  useAddCharge,
+  useAddLine,
   useApplyMatrixPricing,
+  useCopyArtwork,
+  useCreateArtwork,
+  useCreateArtworkCharge,
+  useDeleteArtwork,
+  useDeleteArtworkCharge,
+  useDeleteCharge,
+  useDeleteLine,
+  useRemoveArtworkFile,
+  useToggleChargeDisplay,
   useUpdateArtworkCharge,
+  useUpdateCharge,
+  useUpdateLine,
+  useUpdateProjectItem,
 } from "@/services/project-items";
 import * as orderItemRequests from "@/services/project-items/requests";
 import { projectKeys } from "@/services/projects/keys";
-import type { OrderItemLine, OrderAdditionalCharge } from "@shared/schema";
-import {
-  useMarginSettings,
-  marginColorClass,
-  marginBgClass,
-  isBelowMinimum,
-  calcMarginPercent,
-  applyMargin,
-} from "@/hooks/useMarginSettings";
-import {
-  getProductSubtotal,
-  getChargeSubtotal,
-  getDecorationSubtotal,
-  getChargeSellPrice,
-  getChargeEffectiveQty,
-  calcMarginPercent as calcMarginPct,
-  type PricingLine,
-  type ProductCharge,
-  type DecorationCharge,
-} from "@/lib/pricing";
 import type { ProjectData } from "@/types/project-types";
+import type { OrderAdditionalCharge, OrderItemLine } from "@shared/schema";
+import { useQueryClient } from "@tanstack/react-query";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useLocation } from "wouter";
 
 export function useEditProductPage(projectId: string, itemId: string, data: ProjectData) {
   const marginSettings = useMarginSettings();
@@ -66,8 +63,13 @@ export function useEditProductPage(projectId: string, itemId: string, data: Proj
   const editableLinesRef = useRef(editableLines);
   editableLinesRef.current = editableLines;
 
-  // Sync from server data
+  // Sync from server data — only reinitialize when itemId changes (new product opened).
+  // Otherwise React Query rebuilding the serverLines array reference would trigger a
+  // reset with a fresh crypto.randomUUID(), remounting inputs and stealing focus mid-type.
+  const [initializedLinesForItem, setInitializedLinesForItem] = useState<string | null>(null);
+
   useEffect(() => {
+    if (initializedLinesForItem === itemId) return;
     if (serverLines.length > 0) {
       setEditableLines(serverLines.map(l => ({
         id: l.id,
@@ -79,6 +81,7 @@ export function useEditProductPage(projectId: string, itemId: string, data: Proj
         cost: parseFloat(l.cost || "0"),
         unitPrice: parseFloat(l.unitPrice || "0"),
       })));
+      setInitializedLinesForItem(itemId);
     } else if (item) {
       setEditableLines([{
         id: crypto.randomUUID(),
@@ -90,8 +93,9 @@ export function useEditProductPage(projectId: string, itemId: string, data: Proj
         cost: parseFloat(item.cost || "0"),
         unitPrice: parseFloat(item.unitPrice || "0"),
       }]);
+      setInitializedLinesForItem(itemId);
     }
-  }, [serverLines, item, itemId]);
+  }, [serverLines, item, itemId, initializedLinesForItem]);
 
   // ── Item-level editable fields ──
   // Use render-time initialization (not useEffect) to avoid reset-on-refetch bug.
@@ -321,7 +325,7 @@ export function useEditProductPage(projectId: string, itemId: string, data: Proj
   // ── Charge dialog ──
   const [showAddCharge, setShowAddCharge] = useState(false);
   const [editingCharge, setEditingCharge] = useState<any>(null); // charge being edited, or null for add mode
-  const [newCharge, setNewCharge] = useState({ description: "", chargeType: "flat", chargeCategory: "fixed" as "run" | "fixed", amount: 0, netCost: 0, retailPrice: 0, margin: 0, quantity: 1, isVendorCharge: false, displayToClient: true, includeInUnitPrice: false });
+  const [newCharge, setNewCharge] = useState({ description: "", chargeType: "flat", chargeCategory: "fixed" as "run" | "fixed", amount: 0, netCost: 0, retailPrice: 0, margin: 0, quantity: 1, isVendorCharge: false, displayToClient: true, displayToVendor: true, includeInUnitPrice: false });
 
   // ── Add Sizes & Colors dialog ──
   const [showSizesColors, setShowSizesColors] = useState(false);

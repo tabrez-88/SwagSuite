@@ -167,6 +167,7 @@ export const orderAdditionalCharges = pgTable("order_additional_charges", {
   quantity: integer("quantity").default(1), // For fixed charges (run charges use item qty)
   isVendorCharge: boolean("is_vendor_charge").default(false),
   displayToClient: boolean("display_to_client").default(true),
+  displayToVendor: boolean("display_to_vendor").default(true), // Show on vendor PO PDF (CommonSKU pattern)
   includeInUnitPrice: boolean("include_in_unit_price").default(false), // Run: "Include in price", Fixed: "Subtract from margin"
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
@@ -185,6 +186,7 @@ export const orderServiceCharges = pgTable("order_service_charges", {
   taxCodeId: varchar("tax_code_id"), // Per-service-charge tax code override
   includeInMargin: boolean("include_in_margin").default(false), // Include in margin calculation?
   displayToClient: boolean("display_to_client").default(true),
+  displayToVendor: boolean("display_to_vendor").default(true), // Show on vendor PO PDF (CommonSKU pattern, filtered by vendorId match)
   vendorId: varchar("vendor_id").references(() => suppliers.id), // Optional vendor link
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow(),

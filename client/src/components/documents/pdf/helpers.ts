@@ -62,7 +62,14 @@ export const isRenderablePdfImage = (url: string | null | undefined): boolean =>
  */
 export const resolvePdfImage = (url: string | null | undefined): string | null => {
   if (!isRenderablePdfImage(url)) return null;
-  return proxyImg(url!);
+  // For Cloudinary design-file transforms (f_png from .ai/.eps/.psd), force JPG + white bg
+  // so react-pdf renders solid colors instead of washed-out transparent PNG.
+  let resolved = url!;
+  if (resolved.includes("cloudinary.com") && resolved.includes("f_png,pg_1")) {
+    resolved = resolved.replace("f_png,pg_1,cs_srgb", "f_jpg,pg_1,cs_srgb,b_white")
+                       .replace("f_png,pg_1", "f_jpg,pg_1,b_white");
+  }
+  return proxyImg(resolved);
 };
 
 /** Pretty-print a payment-terms slug like `net_30` → `Net 30`. */

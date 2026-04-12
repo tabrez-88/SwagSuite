@@ -271,6 +271,7 @@ export function usePurchaseOrdersSection({ projectId, data, isLocked }: Purchase
       artworkItems: getVendorArtworks(vendorKey),
       allArtworkCharges: (data as any).allArtworkCharges || {},
       allItemCharges: (data as any).allItemCharges || {},
+      serviceCharges: (data as any).serviceCharges || [],
       vendorIHD: getVendorDoc(vendorKey)?.metadata?.supplierIHD || null,
       vendorAddress: getVendorDefaultAddress(vendor.id),
       poType: isDecorator ? "decorator" : "supplier",

@@ -38,6 +38,7 @@ export interface ChargeInput {
   amount: string;
   isVendorCharge: boolean;
   displayToClient?: boolean;
+  displayToVendor?: boolean;
   includeInUnitPrice?: boolean;
 }
 

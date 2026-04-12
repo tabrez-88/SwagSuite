@@ -716,6 +716,10 @@ export class ApprovalController {
         || order.salesOrderStatus === "pending_client_approval";
       const docLabel = isSalesOrder ? "Sales Order" : "Quote";
 
+      // Per-project toggle: auto-approve SO when quote is approved (default: true)
+      const stageData = typeof order.stageData === "string" ? JSON.parse(order.stageData) : (order.stageData || {});
+      const autoApproveSo = stageData?.quoteAutoApproveSo !== false;
+
       if (isSalesOrder) {
         // SO approval: update salesOrderStatus to client_approved
         await db
@@ -734,6 +738,7 @@ export class ApprovalController {
             status: "approved",
             currentStage: "po-sent",
             stagesCompleted: JSON.stringify([...JSON.parse(JSON.stringify(order.stagesCompleted || '["created"]')), "submitted"]),
+            ...(autoApproveSo ? { salesOrderStatus: "client_approved" } : {}),
             updatedAt: new Date(),
           })
           .where(eq(orders.id, order.id));
@@ -750,8 +755,8 @@ export class ApprovalController {
             activityType: "system_action",
             content: isSalesOrder
               ? `Sales Order approved by ${clientName || approval.clientName || approval.clientEmail}.${notes ? ` Client notes: ${notes}` : ''}`
-              : `Quote approved by ${clientName || approval.clientName || approval.clientEmail}. Order converted to Sales Order and moved to production.${notes ? ` Client notes: ${notes}` : ''}`,
-            metadata: { action: isSalesOrder ? 'sales_order_approved' : 'quote_approved', approvalId: updated.id, clientName: clientName || approval.clientName },
+              : `Quote approved by ${clientName || approval.clientName || approval.clientEmail}. Order converted to Sales Order${autoApproveSo ? ' (SO auto-approved)' : ''}.${notes ? ` Client notes: ${notes}` : ''}`,
+            metadata: { action: isSalesOrder ? 'sales_order_approved' : 'quote_approved', approvalId: updated.id, clientName: clientName || approval.clientName, autoApproveSo: !isSalesOrder ? autoApproveSo : undefined },
             isSystemGenerated: true,
           });
         }

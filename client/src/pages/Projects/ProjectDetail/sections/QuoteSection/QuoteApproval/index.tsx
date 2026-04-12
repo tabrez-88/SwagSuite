@@ -284,7 +284,7 @@ export default function QuoteApprovalPage() {
         {isPending && (
           <Card>
             <CardHeader>
-              <CardTitle>Your Decision</CardTitle>
+              <CardTitle>APPROVAL</CardTitle>
               <CardDescription>
                 Hi {approval.clientName || 'there'}! Please review the {docLabel.toLowerCase()} above and approve or request changes.
               </CardDescription>

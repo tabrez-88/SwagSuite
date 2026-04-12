@@ -1,8 +1,8 @@
 import DecoratorMatrixDialog from "@/components/modals/DecoratorMatrixDialog";
-import MatrixChargePicker from "@/components/modals/MatrixChargePicker";
-import { FilePreviewModal } from "@/components/modals/FilePreviewModal";
-import TierPricingPanel from "@/components/sections/TierPricingPanel";
 import FilePickerDialog from "@/components/modals/FilePickerDialog";
+import { FilePreviewModal } from "@/components/modals/FilePreviewModal";
+import MatrixChargePicker from "@/components/modals/MatrixChargePicker";
+import TierPricingPanel from "@/components/sections/TierPricingPanel";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -30,9 +30,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { IMPRINT_LOCATIONS, IMPRINT_METHODS } from "@/constants/imprintOptions";
 import { isBelowMinimum } from "@/hooks/useMarginSettings";
-import { getDecorationSubtotal, calcMarginPercent } from "@/lib/pricing";
 import { getCloudinaryThumbnail } from "@/lib/media-library";
+import { calcMarginPercent, getDecorationSubtotal } from "@/lib/pricing";
 import { getQueryFn } from "@/lib/queryClient";
+import { formatLabel } from "@/lib/utils";
 import type { ProjectData } from "@/types/project-types";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -40,7 +41,6 @@ import {
   ArrowLeft,
   Building2,
   ChevronDown,
-  Copy,
   DollarSign,
   Eye,
   EyeOff,
@@ -53,17 +53,14 @@ import {
   Package,
   Palette,
   Pencil,
-  Percent,
   Plus,
   Repeat,
   Ruler,
   Save,
-  Trash2,
-  Upload
+  Trash2
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useEditProductPage } from "./hooks";
-import { formatLabel } from "@/lib/utils";
 
 /** Inline Color/Size selector popover — CommonSKU style */
 function ColorSizePopover({ colors, sizes, selectedColor, selectedSize, onSelect }: {
@@ -454,28 +451,37 @@ export default function EditProductPage({ projectId, itemId, data }: EditProduct
                       </td>
                       {/* QTY */}
                       <td className="p-2">
-                        <Input className="h-8 text-xs text-right" type="number" min={0} value={line.quantity}
-                          onChange={(e) => editProductPage.updateLine(line.id, "quantity", parseInt(e.target.value) || 0)} />
+                        <PricingInput
+                          className="flex h-8 w-full text-xs text-right rounded-md border border-input bg-background px-3 py-1 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                          step="1"
+                          min={0}
+                          value={line.quantity}
+                          onCommit={(n) => editProductPage.updateLine(line.id, "quantity", Math.round(n))}
+                        />
                       </td>
                       {/* Net Cost */}
                       <td className="p-2">
                         <div className="relative">
                           <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-400">$</span>
-                          <input
+                          <PricingInput
                             className="w-full h-8 text-xs text-right rounded border border-gray-200 bg-white pl-5 pr-2 focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400"
-                            type="number" step="0.01" min={0} value={line.cost}
-                            onChange={(e) => editProductPage.handleCostChange(line.id, e)}
+                            step="0.01"
+                            min={0}
+                            value={line.cost}
+                            onCommit={(n) => editProductPage.handleCostChange(line.id, { target: { value: String(n) } } as React.ChangeEvent<HTMLInputElement>)}
                           />
                         </div>
                       </td>
                       {/* Margin */}
                       <td className="p-2">
                         <div className="relative">
-                          <input
+                          <PricingInput
                             className={`w-full h-8 text-xs text-right rounded border bg-white px-2 pr-5 focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400 ${isBelowMinimum(lineMargin, editProductPage.marginSettings) ? "border-red-300 text-red-600" : "border-gray-200"}`}
-                            type="number" step="0.1" min={0} max={99.9}
+                            step="0.1"
+                            min={0}
+                            max={99.9}
                             value={parseFloat(lineMargin.toFixed(1))}
-                            onChange={(e) => editProductPage.handleMarginChange(line.id, e)}
+                            onCommit={(n) => editProductPage.handleMarginChange(line.id, { target: { value: String(n) } } as React.ChangeEvent<HTMLInputElement>)}
                           />
                           <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-400">%</span>
                         </div>
@@ -484,10 +490,12 @@ export default function EditProductPage({ projectId, itemId, data }: EditProduct
                       <td className="p-2">
                         <div className="relative">
                           <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-400">$</span>
-                          <input
+                          <PricingInput
                             className={`w-full h-8 text-xs text-right rounded border bg-white pl-5 pr-2 focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400 font-semibold ${editProductPage.isPriceLocked ? "border-blue-300 bg-blue-50/30" : "border-gray-200"}`}
-                            type="number" step="0.01" min={0} value={line.unitPrice}
-                            onChange={(e) => editProductPage.updateLine(line.id, "unitPrice", parseFloat(e.target.value) || 0)}
+                            step="0.01"
+                            min={0}
+                            value={line.unitPrice}
+                            onCommit={(n) => editProductPage.updateLine(line.id, "unitPrice", n)}
                           />
                         </div>
                       </td>
@@ -627,6 +635,7 @@ export default function EditProductPage({ projectId, itemId, data }: EditProduct
                         quantity: charge.quantity || 1,
                         isVendorCharge: charge.isVendorCharge || false,
                         displayToClient: charge.displayToClient !== false,
+                        displayToVendor: charge.displayToVendor !== false,
                         includeInUnitPrice: charge.includeInUnitPrice || false,
                       });
                       editProductPage.setShowAddCharge(true);
@@ -864,8 +873,6 @@ export default function EditProductPage({ projectId, itemId, data }: EditProduct
                         const isRun = charge.chargeCategory === "run";
                         const cNetCost = parseFloat(charge.netCost || "0");
                         const cMargin = parseFloat(charge.margin || "0");
-                        const cRetail = parseFloat(charge.retailPrice || "0");
-                        const cQty = charge.quantity || (isRun ? editProductPage.lineTotals.qty || 1 : 1);
                         return (
                           <div key={charge.id} className="grid grid-cols-[20px_1fr_50px_80px_65px_80px_130px_28px] gap-0 items-center px-3 py-1 border-b last:border-0 hover:bg-gray-50/50">
                             {/* Matrix icon */}
@@ -919,7 +926,7 @@ export default function EditProductPage({ projectId, itemId, data }: EditProduct
                               type="number"
                               step="0.01"
                               className="text-xs text-right bg-transparent border-0 outline-none focus:bg-white focus:ring-1 focus:ring-blue-300 rounded px-1 py-0.5 w-full [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                              defaultValue={cNetCost.toFixed(4)}
+                              defaultValue={cNetCost.toFixed(2)}
                               onBlur={(e) => {
                                 const val = parseFloat(e.target.value) || 0;
                                 if (Math.abs(val - cNetCost) > 0.001) {
@@ -1380,6 +1387,10 @@ export default function EditProductPage({ projectId, itemId, data }: EditProduct
                 <Label htmlFor="ep-display-client" className="font-normal text-sm">Display to client</Label>
               </div>
             )}
+            <div className="flex items-center gap-2">
+              <input type="checkbox" id="ep-display-vendor" checked={editProductPage.newCharge.displayToVendor !== false} onChange={(e) => editProductPage.setNewCharge(c => ({ ...c, displayToVendor: e.target.checked }))} className="rounded border-gray-300" />
+              <Label htmlFor="ep-display-vendor" className="font-normal text-sm">Show on vendor PO</Label>
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => { editProductPage.setShowAddCharge(false); editProductPage.setEditingCharge(null); }}>Cancel</Button>
@@ -1397,12 +1408,13 @@ export default function EditProductPage({ projectId, itemId, data }: EditProduct
                   quantity: editProductPage.newCharge.chargeCategory === "fixed" ? editProductPage.newCharge.quantity : 1,
                   isVendorCharge: editProductPage.newCharge.isVendorCharge,
                   displayToClient: editProductPage.newCharge.includeInUnitPrice ? false : editProductPage.newCharge.displayToClient,
+                  displayToVendor: editProductPage.newCharge.displayToVendor !== false,
                   includeInUnitPrice: editProductPage.newCharge.includeInUnitPrice,
                 };
                 const onSuccess = () => {
                   editProductPage.setShowAddCharge(false);
                   editProductPage.setEditingCharge(null);
-                  editProductPage.setNewCharge({ description: "", chargeType: "flat", chargeCategory: "fixed", amount: 0, netCost: 0, retailPrice: 0, margin: 0, quantity: 1, isVendorCharge: false, displayToClient: true, includeInUnitPrice: false });
+                  editProductPage.setNewCharge({ description: "", chargeType: "flat", chargeCategory: "fixed", amount: 0, netCost: 0, retailPrice: 0, margin: 0, quantity: 1, isVendorCharge: false, displayToClient: true, displayToVendor: true, includeInUnitPrice: false });
                 };
                 if (editProductPage.editingCharge) {
                   editProductPage.updateChargeMutation.mutate({
@@ -1732,5 +1744,57 @@ export default function EditProductPage({ projectId, itemId, data }: EditProduct
         />
       )}
     </div>
+  );
+}
+
+// Local-state numeric input — commits to parent on blur/Enter so typing decimals
+// doesn't fight with derived re-renders (e.g. cost→price auto-recalc).
+function PricingInput({
+  value,
+  onCommit,
+  className,
+  step = "0.01",
+  min = 0,
+  max,
+}: {
+  value: number;
+  onCommit: (n: number) => void;
+  className?: string;
+  step?: string;
+  min?: number;
+  max?: number;
+}) {
+  const [draft, setDraft] = useState<string>(String(value ?? 0));
+  const isFocusedRef = useRef(false);
+
+  useEffect(() => {
+    if (!isFocusedRef.current) {
+      setDraft(String(value ?? 0));
+    }
+  }, [value]);
+
+  return (
+    <input
+      className={className}
+      type="number"
+      step={step}
+      min={min}
+      max={max}
+      value={draft}
+      onFocus={() => { isFocusedRef.current = true; }}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={() => {
+        isFocusedRef.current = false;
+        const parsed = parseFloat(draft);
+        const next = isNaN(parsed) ? 0 : parsed;
+        if (next !== value) onCommit(next);
+        else setDraft(String(value ?? 0));
+      }}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") {
+          (e.target as HTMLInputElement).blur();
+        }
+      }}
+    />
   );
 }

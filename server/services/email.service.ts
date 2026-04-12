@@ -141,6 +141,14 @@ class EmailService {
     attachments?: Array<{ storagePath: string; originalFilename: string; mimeType?: string }>;
     directAttachments?: Array<{ filename: string; content: Buffer; contentType: string }>;
   }) {
+    const { transporter, fromEmail: defaultFrom, fromName: defaultFromName } =
+      await this.getTransporterForUser(data.userId);
+
+    // Always use the transporter's authenticated email as FROM address
+    // SMTP servers reject sending from domains that don't match the authenticated account
+    const fromEmail = defaultFrom;
+    const fromName = data.fromName || defaultFromName;
+
     const html = `<!DOCTYPE html>
 <html>
 <head>
@@ -155,7 +163,7 @@ class EmailService {
         <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" style="max-width: 600px; background-color: #ffffff; border-radius: 8px; overflow: hidden;">
           <tr>
             <td style="background-color: #2563eb; padding: 30px; text-align: center;">
-              <h1 style="color: #ffffff; margin: 0; font-size: 24px; font-family: Arial, sans-serif;">SwagSuite</h1>
+              <h1 style="color: #ffffff; margin: 0; font-size: 24px; font-family: Arial, sans-serif;">Liquid Screen Design</h1>
             </td>
           </tr>
           <tr>
@@ -176,7 +184,7 @@ class EmailService {
           </tr>
           <tr>
             <td style="background-color: #f9fafb; padding: 20px; text-align: center; border-top: 1px solid #e5e7eb;">
-              <p style="color: #6b7280; font-size: 12px; margin: 0; font-family: Arial, sans-serif;">Sent from SwagSuite</p>
+              <p style="color: #6b7280; font-size: 12px; margin: 0; font-family: Arial, sans-serif;">Sent by ${this.escapeHtml(fromName)} · Liquid Screen Design</p>
             </td>
           </tr>
         </table>
@@ -185,14 +193,6 @@ class EmailService {
   </table>
 </body>
 </html>`;
-
-    const { transporter, fromEmail: defaultFrom, fromName: defaultFromName } =
-      await this.getTransporterForUser(data.userId);
-
-    // Always use the transporter's authenticated email as FROM address
-    // SMTP servers reject sending from domains that don't match the authenticated account
-    const fromEmail = defaultFrom;
-    const fromName = data.fromName || defaultFromName;
 
     const mailOptions: any = {
       from: `"${fromName}" <${fromEmail}>`,
@@ -262,6 +262,13 @@ class EmailService {
     attachments?: Array<{ storagePath: string; originalFilename: string; mimeType?: string }>;
     directAttachments?: Array<{ filename: string; content: Buffer; contentType: string }>;
   }) {
+    const { transporter, fromEmail: defaultFrom, fromName: defaultFromName } =
+      await this.getTransporterForUser(data.userId);
+
+    // Always use the transporter's authenticated email as FROM address
+    const fromEmail = defaultFrom;
+    const fromName = data.fromName || defaultFromName;
+
     const html = `<!DOCTYPE html>
 <html>
 <head>
@@ -276,7 +283,7 @@ class EmailService {
         <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" style="max-width: 600px; background-color: #ffffff; border-radius: 8px; overflow: hidden;">
           <tr>
             <td style="background-color: #059669; padding: 30px; text-align: center;">
-              <h1 style="color: #ffffff; margin: 0; font-size: 24px; font-family: Arial, sans-serif;">SwagSuite</h1>
+              <h1 style="color: #ffffff; margin: 0; font-size: 24px; font-family: Arial, sans-serif;">Liquid Screen Design</h1>
               <p style="color: #d1fae5; margin: 5px 0 0 0; font-size: 14px; font-family: Arial, sans-serif;">Vendor Communication</p>
             </td>
           </tr>
@@ -298,7 +305,7 @@ class EmailService {
           </tr>
           <tr>
             <td style="background-color: #f9fafb; padding: 20px; text-align: center; border-top: 1px solid #e5e7eb;">
-              <p style="color: #6b7280; font-size: 12px; margin: 0; font-family: Arial, sans-serif;">Sent from SwagSuite</p>
+              <p style="color: #6b7280; font-size: 12px; margin: 0; font-family: Arial, sans-serif;">Sent by ${this.escapeHtml(fromName)} · Liquid Screen Design</p>
             </td>
           </tr>
         </table>
@@ -307,13 +314,6 @@ class EmailService {
   </table>
 </body>
 </html>`;
-
-    const { transporter, fromEmail: defaultFrom, fromName: defaultFromName } =
-      await this.getTransporterForUser(data.userId);
-
-    // Always use the transporter's authenticated email as FROM address
-    const fromEmail = defaultFrom;
-    const fromName = data.fromName || defaultFromName;
 
     const vendorMailOptions: any = {
       from: `"${fromName}" <${fromEmail}>`,

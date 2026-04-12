@@ -43,6 +43,7 @@ const INITIAL_FORM_DATA: ProjectFormData = {
   billingContact: "",
   billingEmail: "",
   billingStreet: "",
+  billingStreet2: "",
   billingCity: "",
   billingState: "",
   billingZipCode: "",
@@ -51,6 +52,7 @@ const INITIAL_FORM_DATA: ProjectFormData = {
   shippingContact: "",
   shippingEmail: "",
   shippingStreet: "",
+  shippingStreet2: "",
   shippingCity: "",
   shippingState: "",
   shippingZipCode: "",
@@ -106,12 +108,13 @@ export function useProjectModal({ open, onOpenChange, order, initialCompanyId, b
   useEffect(() => {
     if (open) {
       if (order) {
-        let shippingStreet = "", shippingCity = "", shippingState = "", shippingZipCode = "", shippingCountry = "US", shippingPhone = "", shippingContact = "", shippingEmail = "";
+        let shippingStreet = "", shippingStreet2 = "", shippingCity = "", shippingState = "", shippingZipCode = "", shippingCountry = "US", shippingPhone = "", shippingContact = "", shippingEmail = "";
         if ((order as any).shippingAddress) {
           try {
             const parsed = JSON.parse((order as any).shippingAddress);
             if (parsed.street) {
               shippingStreet = parsed.street || "";
+              shippingStreet2 = parsed.street2 || "";
               shippingCity = parsed.city || "";
               shippingState = parsed.state || "";
               shippingZipCode = parsed.zipCode || "";
@@ -126,12 +129,13 @@ export function useProjectModal({ open, onOpenChange, order, initialCompanyId, b
             shippingStreet = (order as any).shippingAddress;
           }
         }
-        let billingStreet = "", billingCity = "", billingState = "", billingZipCode = "", billingCountry = "US", billingPhone = "", billingContact = "", billingEmail = "";
+        let billingStreet = "", billingStreet2 = "", billingCity = "", billingState = "", billingZipCode = "", billingCountry = "US", billingPhone = "", billingContact = "", billingEmail = "";
         if ((order as any).billingAddress) {
           try {
             const parsed = JSON.parse((order as any).billingAddress);
             if (parsed.street) {
               billingStreet = parsed.street || "";
+              billingStreet2 = parsed.street2 || "";
               billingCity = parsed.city || "";
               billingState = parsed.state || "";
               billingZipCode = parsed.zipCode || "";
@@ -163,8 +167,8 @@ export function useProjectModal({ open, onOpenChange, order, initialCompanyId, b
           orderDiscount: (order as any).orderDiscount || "0",
           paymentTerms: (order as any).paymentTerms || defaultPaymentTerm || "",
           customerPo: (order as any).customerPo || "",
-          billingContact, billingEmail, billingStreet, billingCity, billingState, billingZipCode, billingCountry, billingPhone,
-          shippingContact, shippingEmail, shippingStreet, shippingCity, shippingState, shippingZipCode, shippingCountry, shippingPhone,
+          billingContact, billingEmail, billingStreet, billingStreet2, billingCity, billingState, billingZipCode, billingCountry, billingPhone,
+          shippingContact, shippingEmail, shippingStreet, shippingStreet2, shippingCity, shippingState, shippingZipCode, shippingCountry, shippingPhone,
         });
       } else {
         setFormData({
@@ -202,6 +206,7 @@ export function useProjectModal({ open, onOpenChange, order, initialCompanyId, b
         shippingContact: prev.billingContact,
         shippingEmail: prev.billingEmail,
         shippingStreet: prev.billingStreet,
+        shippingStreet2: prev.billingStreet2,
         shippingCity: prev.billingCity,
         shippingState: prev.billingState,
         shippingZipCode: prev.billingZipCode,
@@ -209,7 +214,7 @@ export function useProjectModal({ open, onOpenChange, order, initialCompanyId, b
         shippingPhone: prev.billingPhone,
       }));
     }
-  }, [sameAsBilling, formData.billingContact, formData.billingEmail, formData.billingStreet, formData.billingCity, formData.billingState, formData.billingZipCode, formData.billingCountry, formData.billingPhone]);
+  }, [sameAsBilling, formData.billingContact, formData.billingEmail, formData.billingStreet, formData.billingStreet2, formData.billingCity, formData.billingState, formData.billingZipCode, formData.billingCountry, formData.billingPhone]);
 
   // Auto-fill contact name/email when contact is selected
   useEffect(() => {
@@ -236,7 +241,7 @@ export function useProjectModal({ open, onOpenChange, order, initialCompanyId, b
     if (defaultBilling) {
       setFormData((prev) => ({
         ...prev,
-        billingStreet: defaultBilling.street || "", billingCity: defaultBilling.city || "",
+        billingStreet: defaultBilling.street || "", billingStreet2: defaultBilling.street2 || "", billingCity: defaultBilling.city || "",
         billingState: defaultBilling.state || "", billingZipCode: defaultBilling.zipCode || "",
         billingCountry: normalizeCountryCode(defaultBilling.country || "US"),
       }));
@@ -247,7 +252,7 @@ export function useProjectModal({ open, onOpenChange, order, initialCompanyId, b
     if (defaultShipping) {
       setFormData((prev) => ({
         ...prev,
-        shippingStreet: defaultShipping.street || "", shippingCity: defaultShipping.city || "",
+        shippingStreet: defaultShipping.street || "", shippingStreet2: defaultShipping.street2 || "", shippingCity: defaultShipping.city || "",
         shippingState: defaultShipping.state || "", shippingZipCode: defaultShipping.zipCode || "",
         shippingCountry: normalizeCountryCode(defaultShipping.country || "US"),
       }));
@@ -317,7 +322,7 @@ export function useProjectModal({ open, onOpenChange, order, initialCompanyId, b
     const hasBillingData = formData.billingStreet || formData.billingCity || formData.billingPhone || formData.billingContact || formData.billingEmail;
     if (hasBillingData) {
       payload.billingAddress = JSON.stringify({
-        street: formData.billingStreet, city: formData.billingCity, state: formData.billingState,
+        street: formData.billingStreet, street2: formData.billingStreet2, city: formData.billingCity, state: formData.billingState,
         zipCode: formData.billingZipCode, country: formData.billingCountry, phone: formData.billingPhone,
         contactName: formData.billingContact, email: formData.billingEmail,
       });
@@ -325,12 +330,12 @@ export function useProjectModal({ open, onOpenChange, order, initialCompanyId, b
     const hasShippingData = formData.shippingStreet || formData.shippingCity || formData.shippingPhone || formData.shippingContact || formData.shippingEmail;
     if (hasShippingData) {
       payload.shippingAddress = JSON.stringify({
-        street: formData.shippingStreet, city: formData.shippingCity, state: formData.shippingState,
+        street: formData.shippingStreet, street2: formData.shippingStreet2, city: formData.shippingCity, state: formData.shippingState,
         zipCode: formData.shippingZipCode, country: formData.shippingCountry, phone: formData.shippingPhone,
         contactName: formData.shippingContact, email: formData.shippingEmail,
       });
     }
-    const addressFields = ["billingContact", "billingEmail", "billingStreet", "billingCity", "billingState", "billingZipCode", "billingCountry", "billingPhone", "shippingContact", "shippingEmail", "shippingStreet", "shippingCity", "shippingState", "shippingZipCode", "shippingCountry", "shippingPhone"];
+    const addressFields = ["billingContact", "billingEmail", "billingStreet", "billingStreet2", "billingCity", "billingState", "billingZipCode", "billingCountry", "billingPhone", "shippingContact", "shippingEmail", "shippingStreet", "shippingStreet2", "shippingCity", "shippingState", "shippingZipCode", "shippingCountry", "shippingPhone"];
     addressFields.forEach((f) => delete payload[f]);
     if (order) {
       updateProjectMutation.mutate(payload);

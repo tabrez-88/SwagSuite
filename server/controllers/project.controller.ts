@@ -108,9 +108,10 @@ async function recalculateOrderTotals(orderId: string) {
     }, 0);
 
   // ── Step 4: Order-level service charges (freight, fulfillment, etc.) ──
+  // Treat null/undefined displayToClient as visible (matches PDF render + additionalCharges filter)
   const serviceCharges = await db.select().from(orderServiceCharges).where(eq(orderServiceCharges.orderId, orderId));
   const serviceChargesTotal = serviceCharges
-    .filter((c: any) => c.displayToClient)
+    .filter((c: any) => c.displayToClient !== false)
     .reduce((sum: number, c: any) => {
       const qty = c.quantity || 1;
       const price = parseFloat(c.unitPrice || "0");
@@ -252,6 +253,47 @@ async function recalculateOrderTotals(orderId: string) {
 
   const total = discountedSubtotal + shippingTotal + tax;
 
+  // ── Compute order-level cost & margin from actual item/charge costs ──
+  // Revenue basis is the pre-tax, pre-shipping subtotal (matches what the client pays for goods+services).
+  // All real costs we track contribute; service-charge costs respect the `includeInMargin` flag
+  // so pass-through freight can be excluded when desired.
+  const itemsCost = allItems.reduce(
+    (sum, item) => sum + parseFloat(item.cost || "0") * (item.quantity || 0),
+    0,
+  );
+  const additionalChargesCost = allCharges.reduce((sum: number, c: any) => {
+    const parentItem = allItems.find(i => i.id === c.orderItemId);
+    const itemQty = parentItem?.quantity || 1;
+    const netCost = parseFloat(c.netCost || "0");
+    const effectiveQty = getChargeEffectiveQty(c, itemQty);
+    return sum + netCost * effectiveQty;
+  }, 0);
+  const artworkChargesCost = allArtCharges.reduce((sum: number, c: any) => {
+    const parentArtwork = allArtworks.find(a => a.id === c.artworkItemId);
+    const parentItem = parentArtwork ? allItems.find(i => i.id === parentArtwork.orderItemId) : null;
+    const itemQty = parentItem?.quantity || 1;
+    const netCost = parseFloat(c.netCost || "0");
+    const effectiveQty = getChargeEffectiveQty(c, itemQty);
+    return sum + netCost * effectiveQty;
+  }, 0);
+  const serviceChargesCost = serviceCharges
+    .filter((c: any) => c.includeInMargin === true)
+    .reduce((sum: number, c: any) => {
+      const qty = c.quantity || 1;
+      const unitCost = parseFloat(c.unitCost || "0");
+      return sum + qty * unitCost;
+    }, 0);
+  const totalCost = itemsCost + additionalChargesCost + artworkChargesCost + serviceChargesCost;
+
+  const marginPercent = subtotal > 0 ? ((subtotal - totalCost) / subtotal) * 100 : 0;
+  // Clamp to NUMERIC(5,2) range (-999.99..999.99)
+  const marginStr = (() => {
+    if (!isFinite(marginPercent)) return "0";
+    if (marginPercent > 999.99) return "999.99";
+    if (marginPercent < -999.99) return "-999.99";
+    return marginPercent.toFixed(2);
+  })();
+
   console.log(`Recalculation for order ${orderId}:`, {
     itemsSubtotal: itemsSubtotal.toFixed(2),
     additionalCharges: additionalChargesTotal.toFixed(2),
@@ -261,12 +303,18 @@ async function recalculateOrderTotals(orderId: string) {
     tax: `${tax.toFixed(2)} (${taxSource})`,
     shipping: shippingTotal.toFixed(2),
     total: total.toFixed(2),
+    totalCost: totalCost.toFixed(2),
+    margin: `${marginStr}%`,
   });
 
   // Store effective tax rate for display on PDFs
-  const effectiveTaxRate = tax > 0 && discountedSubtotal > 0
-    ? ((tax / discountedSubtotal) * 100).toFixed(3)
-    : "0";
+  // Guard against near-zero subtotal (floating point) producing a rate >= 1000, which overflows NUMERIC(5,2)
+  const effectiveTaxRate = (() => {
+    if (tax <= 0 || discountedSubtotal <= 0) return "0";
+    const rate = (tax / discountedSubtotal) * 100;
+    if (!isFinite(rate) || rate > 999.99) return "0";
+    return rate.toFixed(2);
+  })();
 
   const updatedOrder = await projectRepository.updateOrder(orderId, {
     subtotal: subtotal.toFixed(2),
@@ -274,6 +322,7 @@ async function recalculateOrderTotals(orderId: string) {
     tax: tax.toFixed(2),
     taxRate: effectiveTaxRate,
     total: total.toFixed(2),
+    margin: marginStr,
     taxCalculatedAt: taxSource !== "none" ? new Date() : undefined,
   } as any);
 
@@ -1710,9 +1759,12 @@ export class ProjectController {
         taxable: req.body.taxable || false,
         includeInMargin: req.body.includeInMargin || false,
         displayToClient: req.body.displayToClient !== false,
+        displayToVendor: req.body.displayToVendor !== false,
         vendorId: req.body.vendorId || null,
         notes: req.body.notes || null,
       }).returning();
+      // Recalculate order totals so service charge is reflected in subtotal/tax/total
+      await recalculateOrderTotals(req.params.projectId);
       res.status(201).json(charge);
     } catch (error) {
       console.error("Error creating service charge:", error);
@@ -1727,11 +1779,13 @@ export class ProjectController {
       const { orderServiceCharges } = await import("@shared/schema");
       const { eq } = await import("drizzle-orm");
       const updateData: any = { updatedAt: new Date() };
-      const fields = ['chargeType', 'description', 'quantity', 'unitCost', 'unitPrice', 'taxable', 'includeInMargin', 'displayToClient', 'vendorId', 'notes'];
+      const fields = ['chargeType', 'description', 'quantity', 'unitCost', 'unitPrice', 'taxable', 'includeInMargin', 'displayToClient', 'displayToVendor', 'vendorId', 'notes'];
       fields.forEach(f => { if (req.body[f] !== undefined) updateData[f] = req.body[f]; });
       const [charge] = await db.update(orderServiceCharges).set(updateData)
         .where(eq(orderServiceCharges.id, req.params.chargeId)).returning();
       if (!charge) return res.status(404).json({ message: "Service charge not found" });
+      // Recalculate order totals so price/qty edits flow into subtotal/tax/total
+      await recalculateOrderTotals(req.params.projectId);
       res.json(charge);
     } catch (error) {
       console.error("Error updating service charge:", error);
@@ -1746,6 +1800,8 @@ export class ProjectController {
       const { orderServiceCharges } = await import("@shared/schema");
       const { eq } = await import("drizzle-orm");
       await db.delete(orderServiceCharges).where(eq(orderServiceCharges.id, req.params.chargeId));
+      // Recalculate order totals so removed charge no longer counted
+      await recalculateOrderTotals(req.params.projectId);
       res.status(204).send();
     } catch (error) {
       console.error("Error deleting service charge:", error);

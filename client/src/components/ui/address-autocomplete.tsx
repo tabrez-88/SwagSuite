@@ -70,6 +70,7 @@ export function AddressAutocomplete({
           { credentials: "include" }
         );
         if (!res.ok) {
+          console.warn("Address autocomplete: server returned", res.status);
           setIsLoading(false);
           return;
         }
@@ -77,6 +78,7 @@ export function AddressAutocomplete({
 
         if (data.configured === false) {
           setIsConfigured(false);
+          console.info("Address autocomplete disabled: Geoapify API key not configured. Addresses can still be entered manually.");
           setIsLoading(false);
           return;
         }
@@ -84,8 +86,9 @@ export function AddressAutocomplete({
         const results = data.suggestions || [];
         setSuggestions(results);
         setIsOpen(results.length > 0);
-      } catch {
-        // Silently fail - input continues working normally
+      } catch (err) {
+        console.warn("Address autocomplete fetch failed:", err instanceof Error ? err.message : err);
+        // Input continues working normally — user can type address manually
       } finally {
         setIsLoading(false);
       }

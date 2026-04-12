@@ -84,6 +84,7 @@ export function InvoicePdf({
             )}
             {primaryContact?.email && <Text style={styles.addressLine}>{primaryContact.email}</Text>}
             {billingAddr?.street && <Text style={styles.addressLine}>{billingAddr.street}</Text>}
+            {billingAddr?.street2 && <Text style={styles.addressLine}>{billingAddr.street2}</Text>}
             {(billingAddr?.city || billingAddr?.state) && (
               <Text style={styles.addressLine}>
                 {[billingAddr.city, billingAddr.state].filter(Boolean).join(", ")}{" "}
@@ -99,6 +100,7 @@ export function InvoicePdf({
                   <Text style={[styles.addressLine, styles.bold]}>{shippingAddr.name}</Text>
                 )}
                 {shippingAddr.street && <Text style={styles.addressLine}>{shippingAddr.street}</Text>}
+                {shippingAddr.street2 && <Text style={styles.addressLine}>{shippingAddr.street2}</Text>}
                 {(shippingAddr.city || shippingAddr.state) && (
                   <Text style={styles.addressLine}>
                     {[shippingAddr.city, shippingAddr.state].filter(Boolean).join(", ")}{" "}

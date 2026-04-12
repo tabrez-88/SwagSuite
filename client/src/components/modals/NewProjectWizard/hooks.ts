@@ -54,11 +54,13 @@ export function useNewProjectWizard({ open, onOpenChange, initialCompanyId }: Ne
 
   // Address fields (quote & sales_order)
   const [billingStreet, setBillingStreet] = useState("");
+  const [billingStreet2, setBillingStreet2] = useState("");
   const [billingCity, setBillingCity] = useState("");
   const [billingState, setBillingState] = useState("");
   const [billingZipCode, setBillingZipCode] = useState("");
   const [billingCountry, setBillingCountry] = useState("US");
   const [shippingStreet, setShippingStreet] = useState("");
+  const [shippingStreet2, setShippingStreet2] = useState("");
   const [shippingCity, setShippingCity] = useState("");
   const [shippingState, setShippingState] = useState("");
   const [shippingZipCode, setShippingZipCode] = useState("");
@@ -102,11 +104,13 @@ export function useNewProjectWizard({ open, onOpenChange, initialCompanyId }: Ne
       setNewContactPhone("");
       setNewContactTitle("");
       setBillingStreet("");
+      setBillingStreet2("");
       setBillingCity("");
       setBillingState("");
       setBillingZipCode("");
       setBillingCountry("US");
       setShippingStreet("");
+      setShippingStreet2("");
       setShippingCity("");
       setShippingState("");
       setShippingZipCode("");
@@ -137,6 +141,7 @@ export function useNewProjectWizard({ open, onOpenChange, initialCompanyId }: Ne
     const defaultBilling = billingAddrs.find((a) => a.isDefault) || billingAddrs[0];
     if (defaultBilling) {
       setBillingStreet(defaultBilling.street || "");
+      setBillingStreet2(defaultBilling.street2 || "");
       setBillingCity(defaultBilling.city || "");
       setBillingState(defaultBilling.state || "");
       setBillingZipCode(defaultBilling.zipCode || "");
@@ -148,6 +153,7 @@ export function useNewProjectWizard({ open, onOpenChange, initialCompanyId }: Ne
     const defaultShipping = shippingAddrs.find((a) => a.isDefault) || shippingAddrs[0];
     if (defaultShipping) {
       setShippingStreet(defaultShipping.street || "");
+      setShippingStreet2(defaultShipping.street2 || "");
       setShippingCity(defaultShipping.city || "");
       setShippingState(defaultShipping.state || "");
       setShippingZipCode(defaultShipping.zipCode || "");
@@ -159,12 +165,13 @@ export function useNewProjectWizard({ open, onOpenChange, initialCompanyId }: Ne
   useEffect(() => {
     if (sameAsBilling) {
       setShippingStreet(billingStreet);
+      setShippingStreet2(billingStreet2);
       setShippingCity(billingCity);
       setShippingState(billingState);
       setShippingZipCode(billingZipCode);
       setShippingCountry(billingCountry);
     }
-  }, [sameAsBilling, billingStreet, billingCity, billingState, billingZipCode, billingCountry]);
+  }, [sameAsBilling, billingStreet, billingStreet2, billingCity, billingState, billingZipCode, billingCountry]);
 
   const companyContacts = contacts.filter((c: any) => c.companyId === companyId);
 
@@ -231,20 +238,36 @@ export function useNewProjectWizard({ open, onOpenChange, initialCompanyId }: Ne
       if (customerPo) payload.customerPo = customerPo;
     }
     if (startingStage !== "presentation") {
+      // Snapshot recipient name + contact info into address JSON so SO/PO PDFs render it
+      // Source: selected contact (preferred) → company name fallback
+      const selectedContact = contacts.find((c: any) => c.id === contactId);
+      const selectedCompany = companies.find((c: any) => c.id === companyId);
+      const contactFullName = selectedContact
+        ? `${selectedContact.firstName || ''} ${selectedContact.lastName || ''}`.trim()
+        : '';
+      const contactEmail = selectedContact?.email || '';
+      const contactPhone = selectedContact?.phone || '';
+      const recipientCompanyName = selectedCompany?.name || '';
+
       if (billingStreet || billingCity) {
         payload.billingAddress = JSON.stringify({
-          street: billingStreet, city: billingCity, state: billingState,
+          contactName: contactFullName, companyName: recipientCompanyName,
+          email: contactEmail, phone: contactPhone,
+          street: billingStreet, street2: billingStreet2, city: billingCity, state: billingState,
           zipCode: billingZipCode, country: billingCountry,
         });
       }
       const shipStreet = sameAsBilling ? billingStreet : shippingStreet;
+      const shipStreet2 = sameAsBilling ? billingStreet2 : shippingStreet2;
       const shipCity = sameAsBilling ? billingCity : shippingCity;
       const shipState = sameAsBilling ? billingState : shippingState;
       const shipZip = sameAsBilling ? billingZipCode : shippingZipCode;
       const shipCountry = sameAsBilling ? billingCountry : shippingCountry;
       if (shipStreet || shipCity) {
         payload.shippingAddress = JSON.stringify({
-          street: shipStreet, city: shipCity, state: shipState,
+          contactName: contactFullName, companyName: recipientCompanyName,
+          email: contactEmail, phone: contactPhone,
+          street: shipStreet, street2: shipStreet2, city: shipCity, state: shipState,
           zipCode: shipZip, country: shipCountry,
         });
       }
@@ -322,6 +345,8 @@ export function useNewProjectWizard({ open, onOpenChange, initialCompanyId }: Ne
     // Addresses
     billingStreet,
     setBillingStreet,
+    billingStreet2,
+    setBillingStreet2,
     billingCity,
     setBillingCity,
     billingState,
@@ -332,6 +357,8 @@ export function useNewProjectWizard({ open, onOpenChange, initialCompanyId }: Ne
     setBillingCountry,
     shippingStreet,
     setShippingStreet,
+    shippingStreet2,
+    setShippingStreet2,
     shippingCity,
     setShippingCity,
     shippingState,

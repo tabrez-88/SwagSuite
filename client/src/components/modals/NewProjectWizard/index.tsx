@@ -278,6 +278,10 @@ export default function NewProjectWizard(props: NewProjectWizardProps) {
                         placeholder="123 Main St"
                       />
                     </div>
+                    <div className="col-span-2">
+                      <Label className="text-xs">Apt / Suite / Unit</Label>
+                      <Input value={h.billingStreet2} onChange={(e) => h.setBillingStreet2(e.target.value)} placeholder="Suite 200" />
+                    </div>
                     <div>
                       <Label className="text-xs">City</Label>
                       <Input value={h.billingCity} onChange={(e) => h.setBillingCity(e.target.value)} placeholder="City" />
@@ -323,6 +327,10 @@ export default function NewProjectWizard(props: NewProjectWizardProps) {
                           onAddressSelect={h.handleShippingAddressSelect}
                           placeholder="123 Main St"
                         />
+                      </div>
+                      <div className="col-span-2">
+                        <Label className="text-xs">Apt / Suite / Unit</Label>
+                        <Input value={h.shippingStreet2} onChange={(e) => h.setShippingStreet2(e.target.value)} placeholder="Suite 200" />
                       </div>
                       <div>
                         <Label className="text-xs">City</Label>

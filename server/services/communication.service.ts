@@ -2,6 +2,7 @@ import { communicationRepository } from "../repositories/communication.repositor
 import { companyRepository } from "../repositories/company.repository";
 import { supplierRepository } from "../repositories/supplier.repository";
 import { projectRepository } from "../repositories/project.repository";
+import { userRepository } from "../repositories/user.repository";
 import { db } from "../db";
 
 export class CommunicationService {
@@ -77,11 +78,20 @@ export class CommunicationService {
 
     // Send email if direction is 'sent'
     if (data.direction === 'sent') {
+      // Look up user for Reply-To (Item 17: SO email FROM = user, not SwagSuite)
+      // FROM stays as system SMTP (SPF/DKIM safe), Reply-To = user email so replies route back to salesperson
+      const sendingUser = userId && userId !== 'system-user' ? await userRepository.getUser(userId) : null;
+      const userFullName = sendingUser
+        ? `${sendingUser.firstName || ''} ${sendingUser.lastName || ''}`.trim()
+        : '';
+      const replyToEmail = data.fromEmail || sendingUser?.email || undefined;
+      const senderName = (data.fromName && data.fromName !== 'SwagSuite' ? data.fromName : userFullName) || 'SwagSuite';
+
       let bcc = data.bcc;
-      if (data.fromEmail) {
+      if (replyToEmail) {
         const existingBcc = bcc ? bcc.split(',').map((e: string) => e.trim()).filter(Boolean) : [];
-        if (!existingBcc.includes(data.fromEmail)) {
-          existingBcc.push(data.fromEmail);
+        if (!existingBcc.includes(replyToEmail)) {
+          existingBcc.push(replyToEmail);
         }
         bcc = existingBcc.join(', ');
       }
@@ -95,8 +105,8 @@ export class CommunicationService {
         if (data.communicationType === 'client_email') {
           await emailService.sendClientEmail({
             userId,
-            from: data.fromEmail,
-            fromName: data.fromName || 'SwagSuite',
+            from: replyToEmail,
+            fromName: senderName,
             to: data.recipientEmail,
             toName: data.recipientName,
             subject: data.subject,
@@ -111,8 +121,8 @@ export class CommunicationService {
         } else if (data.communicationType === 'vendor_email') {
           await emailService.sendVendorEmail({
             userId,
-            from: data.fromEmail,
-            fromName: data.fromName || 'SwagSuite',
+            from: replyToEmail,
+            fromName: senderName,
             to: data.recipientEmail,
             toName: data.recipientName,
             subject: data.subject,
@@ -155,6 +165,14 @@ export class CommunicationService {
   }) {
     const { emailService } = await import("./email.service");
 
+    // Resolve sender identity from logged-in user (Item 17: Reply-To = user, FROM = system)
+    const sendingUser = userId && userId !== 'system-user' ? await userRepository.getUser(userId) : null;
+    const userFullName = sendingUser
+      ? `${sendingUser.firstName || ''} ${sendingUser.lastName || ''}`.trim()
+      : '';
+    const replyToEmail = data.fromEmail || sendingUser?.email || undefined;
+    const senderName = (data.fromName && data.fromName !== 'SwagSuite' ? data.fromName : userFullName) || 'SwagSuite';
+
     // Download user-selected attachments as buffers (Cloudinary URLs)
     let directBufferAttachments: Array<{ filename: string; content: Buffer; contentType: string }> = [];
     if (data.additionalAttachments && data.additionalAttachments.length > 0) {
@@ -166,8 +184,8 @@ export class CommunicationService {
 
     await emailService.sendClientEmail({
       userId,
-      from: data.fromEmail,
-      fromName: data.fromName,
+      from: replyToEmail,
+      fromName: senderName,
       to: data.recipientEmail,
       toName: data.recipientName,
       cc: data.cc,
