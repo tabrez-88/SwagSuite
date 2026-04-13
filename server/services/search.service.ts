@@ -9,13 +9,21 @@ import {
 import { companyRepository } from "../repositories/company.repository";
 import { productRepository } from "../repositories/product.repository";
 
-// ──────── OpenAI Client ────────
+// ──────── OpenAI Client (lazy init) ────────
 
-const openai = process.env.OPENAI_API_KEY?.trim()
-  ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY.trim() })
-  : null;
+let openai: OpenAI | null = null;
+let openaiInitialized = false;
 
-console.log(`[search.service] OpenAI client: ${openai ? "ENABLED (AI search active)" : "DISABLED — OPENAI_API_KEY not set, using keyword fallback"}`);
+function getOpenAI(): OpenAI | null {
+  if (!openaiInitialized) {
+    openaiInitialized = true;
+    openai = process.env.OPENAI_API_KEY?.trim()
+      ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY.trim() })
+      : null;
+    console.log(`[search.service] OpenAI client: ${openai ? "ENABLED (AI search active)" : "DISABLED — OPENAI_API_KEY not set, using keyword fallback"}`);
+  }
+  return openai;
+}
 
 // ──────── Types ────────
 
@@ -57,14 +65,14 @@ async function routeSearchQuery(query: string): Promise<SearchIntent> {
     keywords: query,
   };
 
-  if (!openai) {
+  if (!getOpenAI()) {
     console.log(`[search] routeSearchQuery: AI unavailable, using keyword fallback | query="${query}"`);
     return fallback;
   }
 
   console.log(`[search] routeSearchQuery: calling OpenAI gpt-4o-mini | query="${query}"`);
   try {
-    const resp = await openai.chat.completions.create({
+    const resp = await getOpenAI()!.chat.completions.create({
       model: "gpt-4o-mini",
       max_tokens: 250,
       messages: [
@@ -308,7 +316,7 @@ export class SearchService {
     const trimmed = query.trim();
     if (!trimmed) return [];
 
-    console.log(`[search] aiSearch called | query="${trimmed}" ai=${openai ? "yes" : "no"}`);
+    console.log(`[search] aiSearch called | query="${trimmed}" ai=${getOpenAI() ? "yes" : "no"}`);
     // Step 1: Route query to intent via OpenAI (or fallback)
     const intent = await routeSearchQuery(trimmed);
 
