@@ -45,11 +45,27 @@ export async function loadSecrets(): Promise<void> {
     return;
   }
 
-  // GCP_PROJECT_ID can be set as env var, or auto-detected in Cloud Run
-  const projectId =
+  // GCP_PROJECT_ID can be set as env var, or auto-detected from metadata server
+  let projectId =
     process.env.GCP_PROJECT_ID ||
     process.env.GOOGLE_CLOUD_PROJECT ||
     process.env.GCLOUD_PROJECT;
+
+  // Auto-detect from GCP metadata server (available on Cloud Run, GCE, etc.)
+  if (!projectId) {
+    try {
+      const res = await fetch(
+        "http://metadata.google.internal/computeMetadata/v1/project/project-id",
+        { headers: { "Metadata-Flavor": "Google" }, signal: AbortSignal.timeout(2000) }
+      );
+      if (res.ok) {
+        projectId = (await res.text()).trim();
+        console.log(`Auto-detected GCP project ID: ${projectId}`);
+      }
+    } catch {
+      // Not running on GCP or metadata server unavailable
+    }
+  }
 
   if (!projectId) {
     console.warn(
