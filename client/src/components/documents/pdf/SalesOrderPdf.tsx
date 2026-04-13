@@ -27,6 +27,7 @@ import {
   formatPaymentTerms,
   formatCityLine,
 } from "./helpers";
+import { formatLabel } from "@/lib/utils";
 
 export interface SalesOrderPdfProps {
   order: any;
@@ -349,7 +350,7 @@ export function SalesOrderPdf({
                                 {c.chargeCategory === "run" ? "IMPRINT COST" : "SETUP COST"}
                               </Text>
                               <Text style={styles.artworkFieldValue}>
-                                {c.chargeName}: {fmtMoney(c.retailPrice)}
+                                {formatLabel(c.chargeName)}: {fmtMoney(c.retailPrice)}
                                 {c.chargeCategory === "run" ? " per unit" : " (one-time)"}
                               </Text>
                             </View>

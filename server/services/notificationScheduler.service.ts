@@ -1,5 +1,5 @@
 import { db } from '../db';
-import { orders, invoices, quoteApprovals, artworkApprovals, orderShipments } from '@shared/schema';
+import { orders, invoices, quoteApprovals, artworkApprovals, orderShipments, orderItems, products, users } from '@shared/schema';
 import { notifications, projectActivities } from '@shared/schema';
 import { and, isNotNull, isNull, sql, eq, lt, or, inArray } from 'drizzle-orm';
 import { projectRepository } from '../repositories/project.repository';
@@ -11,6 +11,7 @@ import { format, differenceInDays } from 'date-fns';
 import { ShipStationService, getShipStationCredentials } from './shipstation.service';
 import { sendSlackMessage } from './slack.service';
 import { integrationRepository } from '../repositories/integration.repository';
+import { settingsRepository } from '../repositories/settings.repository';
 
 class NotificationScheduler {
   private intervalId: NodeJS.Timeout | null = null;
@@ -158,12 +159,13 @@ class NotificationScheduler {
         console.log(`🔔 Daily notifications: ${ordersWithActions.length} orders, ${notificationsSent} in-app, ${emailsSent} emails`);
       }
 
-      // Also process overdue invoices, expired presentations, follow-up reminders, and shipping tracking
+      // Also process overdue invoices, expired presentations, follow-up reminders, shipping tracking, and commission emails
       await this.processOverdueInvoices();
       await this.processExpiredPresentations();
       await this.processFollowUpReminders();
       await this.processInvoiceReminders();
       await this.processShippingTracking();
+      await this.processCommissionEmails();
     } catch (error) {
       console.error('❌ Error processing daily notifications:', error);
     } finally {
@@ -1011,6 +1013,22 @@ class NotificationScheduler {
       const { emailService } = await import('./email.service');
       const clientName = contact.firstName || 'there';
 
+      // Fetch product names for the order
+      const items = await db
+        .select({ productName: products.name })
+        .from(orderItems)
+        .leftJoin(products, eq(orderItems.productId, products.id))
+        .where(eq(orderItems.orderId, orderId));
+      const productNamesStr = items.map(i => i.productName).filter(Boolean).join(', ') || 'your items';
+
+      // Fetch CSR name for sign-off
+      let csrName = '';
+      if (order.assignedUserId) {
+        const assignedUser = await userRepository.getUser(order.assignedUserId);
+        if (assignedUser) csrName = `${assignedUser.firstName || ''} ${assignedUser.lastName || ''}`.trim();
+      }
+      const signOff = csrName ? `${csrName}<br>Liquid Screen Design` : 'Liquid Screen Design';
+
       if (eventType === 'scheduled' && shipment.shipDate) {
         const shipDateStr = format(new Date(shipment.shipDate), 'MMMM d, yyyy');
         await emailService.sendEmail({
@@ -1047,10 +1065,54 @@ class NotificationScheduler {
         });
       } else if (eventType === 'shipped') {
         const trackingUrl = this.getTrackingUrl(shipment.carrier, shipment.trackingNumber);
-        await emailService.sendEmail({
-          to: contact.email,
-          subject: `Your Order #${order.orderNumber} Has Shipped!`,
-          html: `
+
+        // Try to load the custom shipping notification template from DB
+        const dbTemplate = await settingsRepository.getDefaultEmailTemplate('shipping_notification');
+
+        let emailSubject: string;
+        let emailHtml: string;
+
+        if (dbTemplate) {
+          // Apply merge fields to the template
+          const mergeData: Record<string, string> = {
+            recipientFirstName: clientName,
+            companyName: (order as any).companyName || '',
+            productNames: productNamesStr,
+            carrier: shipment.carrier || '',
+            method: shipment.shippingMethod || '',
+            trackingNumber: shipment.trackingNumber || '',
+            trackingUrl: trackingUrl || '',
+            csrName,
+          };
+          const applyMerge = (str: string) =>
+            str.replace(/\{\{(\w+)\}\}/g, (_, key) => mergeData[key] ?? '');
+          emailSubject = applyMerge(dbTemplate.subject);
+          // Convert plain text body to simple HTML paragraphs
+          const htmlBody = applyMerge(dbTemplate.body)
+            .split('\n')
+            .map((line: string) => line.trim() ? `<p style="color: #374151; line-height: 1.6; font-size: 14px; margin: 0 0 12px 0;">${line}</p>` : '')
+            .join('');
+          emailHtml = `
+            <!DOCTYPE html>
+            <html>
+            <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+            <body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f3f4f6;">
+              <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff;">
+                <div style="background-color: #2563eb; padding: 30px; text-align: center;">
+                  <h1 style="color: #ffffff; margin: 0; font-size: 24px;">Your Order Has Shipped!</h1>
+                </div>
+                <div style="padding: 30px;">${htmlBody}</div>
+                <div style="background-color: #f9fafb; padding: 20px; text-align: center; border-top: 1px solid #e5e7eb;">
+                  <p style="color: #6b7280; font-size: 12px; margin: 0;">Sent from SwagSuite</p>
+                </div>
+              </div>
+            </body>
+            </html>
+          `;
+        } else {
+          // Fallback hardcoded template
+          emailSubject = `Your Order #${order.orderNumber} Has Shipped!`;
+          emailHtml = `
             <!DOCTYPE html>
             <html>
             <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
@@ -1062,20 +1124,24 @@ class NotificationScheduler {
                 <div style="padding: 30px;">
                   <p style="color: #374151; line-height: 1.6; font-size: 14px;">Hi ${clientName},</p>
                   <p style="color: #374151; line-height: 1.6; font-size: 14px;">
-                    Great news! Your order is on its way.
+                    Great news: your ${productNamesStr} order will be arriving soon!
                   </p>
                   <div style="background-color: #eff6ff; padding: 15px; border-radius: 8px; margin: 20px 0; border: 1px solid #bfdbfe;">
-                    <p style="margin: 5px 0;"><strong>Order:</strong> #${order.orderNumber}</p>
                     ${shipment.carrier ? `<p style="margin: 5px 0;"><strong>Carrier:</strong> ${shipment.carrier}</p>` : ''}
-                    ${shipment.trackingNumber ? `<p style="margin: 5px 0;"><strong>Tracking #:</strong> ${shipment.trackingNumber}</p>` : ''}
-                    ${shipment.estimatedDelivery ? `<p style="margin: 5px 0;"><strong>Estimated Delivery:</strong> ${format(new Date(shipment.estimatedDelivery), 'MMMM d, yyyy')}</p>` : ''}
+                    ${shipment.shippingMethod ? `<p style="margin: 5px 0;"><strong>Method:</strong> ${shipment.shippingMethod}</p>` : ''}
+                    ${shipment.trackingNumber ? `<p style="margin: 5px 0;"><strong>Tracking Number:</strong> ${shipment.trackingNumber}</p>` : ''}
+                    ${trackingUrl ? `<p style="margin: 5px 0;"><strong>Track your shipment:</strong> <a href="${trackingUrl}" style="color: #2563eb;">${trackingUrl}</a></p>` : ''}
                   </div>
-                  ${trackingUrl ? `<div style="text-align: center; margin: 25px 0;">
-                    <a href="${trackingUrl}" style="display: inline-block; background-color: #2563eb; color: #ffffff; padding: 12px 30px; border-radius: 6px; text-decoration: none; font-weight: 600;">
-                      Track Your Package
-                    </a>
-                  </div>` : ''}
-                  <p style="color: #374151; line-height: 1.6; font-size: 14px;">Thank you for your order!<br>The SwagSuite Team</p>
+                  <p style="color: #6b7280; line-height: 1.6; font-size: 13px; font-style: italic;">
+                    Shipping services are sometimes inconsistent/slow in updating their tracking information. Please be patient and continue to check; it will update but may take some time.
+                  </p>
+                  <p style="color: #374151; line-height: 1.6; font-size: 14px;">
+                    <strong>PLEASE NOTE:</strong> When your items arrive please open the package(s) and check in the items to ensure that everything has been delivered and nothing has been damaged in transit.
+                  </p>
+                  <p style="color: #374151; line-height: 1.6; font-size: 14px;">
+                    If you have any questions upon receipt of your order, please be in touch with us. We love seeing our customers enjoying their swag; feel free to send photos back to <a href="mailto:kwoznak@liquidscreendesign.com" style="color: #2563eb;">kwoznak@liquidscreendesign.com</a> to share.
+                  </p>
+                  <p style="color: #374151; line-height: 1.6; font-size: 14px;">Thank you for your business,<br>${signOff}</p>
                 </div>
                 <div style="background-color: #f9fafb; padding: 20px; text-align: center; border-top: 1px solid #e5e7eb;">
                   <p style="color: #6b7280; font-size: 12px; margin: 0;">Sent from SwagSuite</p>
@@ -1083,7 +1149,13 @@ class NotificationScheduler {
               </div>
             </body>
             </html>
-          `,
+          `;
+        }
+
+        await emailService.sendEmail({
+          to: contact.email,
+          subject: emailSubject,
+          html: emailHtml,
         });
       } else if (eventType === 'delivered') {
         await this.handleShipmentDelivered(shipment);
@@ -1229,6 +1301,166 @@ class NotificationScheduler {
       'DHL': `https://www.dhl.com/en/express/tracking.html?AWB=${trackingNumber}`,
     };
     return urls[carrier || ''] || null;
+  }
+
+  /**
+   * Semi-monthly commission report emails (10th and 25th of each month).
+   * Sends to admin users with emailReportsEnabled = true.
+   * Report period: 26th-10th or 11th-25th.
+   */
+  async processCommissionEmails() {
+    try {
+      const now = new Date();
+      const day = now.getDate();
+      const hour = now.getHours();
+
+      // Only run on 10th or 25th, at 8 AM hour
+      if ((day !== 10 && day !== 25) || hour !== 8) return;
+
+      // Check if we already sent today (avoid duplicate sends on restart)
+      const todayStr = now.toISOString().slice(0, 10);
+      const recentlySent = await db
+        .select({ id: users.id })
+        .from(users)
+        .where(
+          and(
+            eq(users.role, 'admin'),
+            sql`DATE(${users.lastEmailReportSent}) = ${todayStr}`
+          )
+        )
+        .limit(1);
+      if (recentlySent.length > 0) return;
+
+      // Calculate report period
+      let fromDate: Date;
+      if (day === 10) {
+        // Period: 26th of previous month → 10th of current month
+        const prevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 26);
+        fromDate = prevMonth;
+      } else {
+        // Period: 11th → 25th of current month
+        fromDate = new Date(now.getFullYear(), now.getMonth(), 11);
+      }
+      const toDate = new Date(now.getFullYear(), now.getMonth(), day);
+
+      // Generate report
+      const { commissionService } = await import('./commission.service');
+      const report = await commissionService.getReport(
+        fromDate.toISOString().slice(0, 10),
+        toDate.toISOString().slice(0, 10),
+      );
+
+      if (report.reps.length === 0) return;
+
+      // Build HTML email
+      const periodLabel = `${format(fromDate, 'MMM d')} – ${format(toDate, 'MMM d, yyyy')}`;
+      const repRows = report.reps.map(rep => `
+        <tr>
+          <td style="padding: 8px; border-bottom: 1px solid #e5e7eb;">${rep.name}</td>
+          <td style="padding: 8px; border-bottom: 1px solid #e5e7eb;">${rep.commissionPercent}%</td>
+          <td style="padding: 8px; border-bottom: 1px solid #e5e7eb; text-align: right;">$${rep.totalRevenue.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+          <td style="padding: 8px; border-bottom: 1px solid #e5e7eb; text-align: right;">$${rep.totalGrossProfit.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+          <td style="padding: 8px; border-bottom: 1px solid #e5e7eb; text-align: right; font-weight: 600;">$${rep.totalCommission.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+          <td style="padding: 8px; border-bottom: 1px solid #e5e7eb; text-align: center;">${rep.orderCount}</td>
+        </tr>
+      `).join('');
+
+      const emailHtml = `
+        <!DOCTYPE html>
+        <html>
+        <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+        <body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f3f4f6;">
+          <div style="max-width: 700px; margin: 0 auto; background-color: #ffffff;">
+            <div style="background-color: #059669; padding: 30px; text-align: center;">
+              <h1 style="color: #ffffff; margin: 0; font-size: 24px;">Commission Report</h1>
+              <p style="color: #d1fae5; margin: 5px 0 0 0; font-size: 14px;">${periodLabel}</p>
+            </div>
+            <div style="padding: 30px;">
+              <div style="display: flex; gap: 20px; margin-bottom: 25px;">
+                <div style="background-color: #ecfdf5; padding: 15px; border-radius: 8px; flex: 1; text-align: center;">
+                  <p style="color: #6b7280; font-size: 12px; margin: 0;">Total Revenue</p>
+                  <p style="color: #059669; font-size: 22px; font-weight: 700; margin: 5px 0 0 0;">$${report.grandTotalRevenue.toLocaleString('en-US', { minimumFractionDigits: 2 })}</p>
+                </div>
+                <div style="background-color: #eff6ff; padding: 15px; border-radius: 8px; flex: 1; text-align: center;">
+                  <p style="color: #6b7280; font-size: 12px; margin: 0;">Total Gross Profit</p>
+                  <p style="color: #2563eb; font-size: 22px; font-weight: 700; margin: 5px 0 0 0;">$${report.grandTotalGrossProfit.toLocaleString('en-US', { minimumFractionDigits: 2 })}</p>
+                </div>
+                <div style="background-color: #fef3c7; padding: 15px; border-radius: 8px; flex: 1; text-align: center;">
+                  <p style="color: #6b7280; font-size: 12px; margin: 0;">Total Commissions</p>
+                  <p style="color: #d97706; font-size: 22px; font-weight: 700; margin: 5px 0 0 0;">$${report.grandTotalCommission.toLocaleString('en-US', { minimumFractionDigits: 2 })}</p>
+                </div>
+              </div>
+              <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+                <thead>
+                  <tr style="background-color: #f9fafb;">
+                    <th style="padding: 10px 8px; text-align: left; border-bottom: 2px solid #e5e7eb;">Rep</th>
+                    <th style="padding: 10px 8px; text-align: left; border-bottom: 2px solid #e5e7eb;">Rate</th>
+                    <th style="padding: 10px 8px; text-align: right; border-bottom: 2px solid #e5e7eb;">Revenue</th>
+                    <th style="padding: 10px 8px; text-align: right; border-bottom: 2px solid #e5e7eb;">Gross Profit</th>
+                    <th style="padding: 10px 8px; text-align: right; border-bottom: 2px solid #e5e7eb;">Commission</th>
+                    <th style="padding: 10px 8px; text-align: center; border-bottom: 2px solid #e5e7eb;">Orders</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${repRows}
+                </tbody>
+              </table>
+            </div>
+            <div style="background-color: #f9fafb; padding: 20px; text-align: center; border-top: 1px solid #e5e7eb;">
+              <p style="color: #6b7280; font-size: 12px; margin: 0;">Commission calculated on paid invoices within period. Log in to SwagSuite for full details.</p>
+            </div>
+          </div>
+        </body>
+        </html>
+      `;
+
+      // Send to admin users with email reports enabled
+      const adminRecipients = await db
+        .select({ id: users.id, email: users.email })
+        .from(users)
+        .where(
+          and(
+            eq(users.role, 'admin'),
+            eq(users.isActive, true),
+            eq(users.emailReportsEnabled, true),
+          )
+        );
+
+      if (adminRecipients.length === 0) return;
+
+      const { emailService } = await import('./email.service');
+      let sent = 0;
+      for (const admin of adminRecipients) {
+        if (!admin.email) continue;
+        try {
+          await emailService.sendEmail({
+            to: admin.email,
+            subject: `Commission Report — ${periodLabel}`,
+            html: emailHtml,
+          });
+          sent++;
+        } catch (emailErr) {
+          console.error(`Failed to send commission email to ${admin.email}:`, emailErr);
+        }
+      }
+
+      // Mark as sent to prevent duplicates
+      if (sent > 0) {
+        await db
+          .update(users)
+          .set({ lastEmailReportSent: now })
+          .where(
+            and(
+              eq(users.role, 'admin'),
+              eq(users.isActive, true),
+              eq(users.emailReportsEnabled, true),
+            )
+          );
+        console.log(`📊 Commission report sent to ${sent} admin(s) for period ${periodLabel}`);
+      }
+    } catch (error) {
+      console.error('Error processing commission emails:', error);
+    }
   }
 }
 

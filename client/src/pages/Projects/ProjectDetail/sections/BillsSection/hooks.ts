@@ -1,7 +1,8 @@
 import { useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
-import { apiRequest } from "@/lib/queryClient";
+import { projectKeys } from "@/services/projects/keys";
+import { useCreateVendorInvoice, useUpdateVendorInvoice } from "@/services/projects/mutations";
 import type { BillsSectionProps, BillFormData } from "./types";
 
 const emptyForm: BillFormData = {
@@ -17,7 +18,6 @@ const emptyForm: BillFormData = {
 export function useBillsSection({ projectId, data }: BillsSectionProps) {
   const { vendorInvoices, orderVendors, companyName, primaryContact } = data;
   const { toast } = useToast();
-  const queryClient = useQueryClient();
 
   const [showCreate, setShowCreate] = useState(false);
   const [showEdit, setShowEdit] = useState(false);
@@ -27,7 +27,7 @@ export function useBillsSection({ projectId, data }: BillsSectionProps) {
 
   // Fetch PO documents for linking
   const { data: allDocuments = [] } = useQuery<any[]>({
-    queryKey: [`/api/projects/${projectId}/documents`],
+    queryKey: projectKeys.documents(projectId),
     enabled: !!projectId,
   });
   const poDocuments = allDocuments.filter((d: any) => d.documentType === "purchase_order");
@@ -40,53 +40,8 @@ export function useBillsSection({ projectId, data }: BillsSectionProps) {
     return acc;
   }, {});
 
-  const invalidateAll = () => {
-    queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}`] });
-    queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/vendor-invoices`] });
-    queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/documents`] });
-    queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/activities`] });
-  };
-
-  const createBillMutation = useMutation({
-    mutationFn: async (formData: BillFormData) => {
-      return apiRequest("POST", `/api/projects/${projectId}/vendor-invoices`, {
-        supplierId: formData.supplierId || null,
-        documentId: formData.documentId || null,
-        invoiceNumber: formData.invoiceNumber,
-        amount: formData.amount,
-        dueDate: formData.dueDate || null,
-        notes: formData.notes || null,
-      });
-    },
-    onSuccess: () => {
-      toast({ title: "Vendor bill created" });
-      invalidateAll();
-      setShowCreate(false);
-      setBillForm({ ...emptyForm });
-    },
-    onError: () => toast({ title: "Failed to create bill", variant: "destructive" }),
-  });
-
-  const updateBillMutation = useMutation({
-    mutationFn: async ({ id, formData }: { id: string; formData: BillFormData }) => {
-      const res = await apiRequest("PATCH", `/api/projects/${projectId}/vendor-invoices/${id}`, {
-        invoiceNumber: formData.invoiceNumber,
-        amount: formData.amount,
-        dueDate: formData.dueDate || null,
-        notes: formData.notes || null,
-        status: formData.status,
-      });
-      return res.json();
-    },
-    onSuccess: () => {
-      toast({ title: "Vendor bill updated" });
-      invalidateAll();
-      setShowEdit(false);
-      setEditingBill(null);
-      setEditForm({ ...emptyForm });
-    },
-    onError: () => toast({ title: "Failed to update bill", variant: "destructive" }),
-  });
+  const createBillMutation = useCreateVendorInvoice(projectId);
+  const updateBillMutation = useUpdateVendorInvoice(projectId);
 
   const openCreateForVendor = (supplierId?: string) => {
     const vendorDoc = supplierId
@@ -137,15 +92,33 @@ export function useBillsSection({ projectId, data }: BillsSectionProps) {
 
   const handleSubmit = () => {
     if (!billForm.invoiceNumber.trim() || !billForm.amount) return;
+    const docId = billForm.documentId === "none" ? "" : billForm.documentId;
     createBillMutation.mutate({
-      ...billForm,
-      documentId: billForm.documentId === "none" ? "" : billForm.documentId,
+      supplierId: billForm.supplierId || null,
+      documentId: docId || null,
+      invoiceNumber: billForm.invoiceNumber,
+      amount: billForm.amount,
+      dueDate: billForm.dueDate || null,
+      notes: billForm.notes || null,
+    }, {
+      onSuccess: () => { setShowCreate(false); setBillForm({ ...emptyForm }); },
     });
   };
 
   const handleEditSubmit = () => {
     if (!editingBill || !editForm.invoiceNumber.trim() || !editForm.amount) return;
-    updateBillMutation.mutate({ id: editingBill.id, formData: editForm });
+    updateBillMutation.mutate({
+      id: editingBill.id,
+      data: {
+        invoiceNumber: editForm.invoiceNumber,
+        amount: editForm.amount,
+        dueDate: editForm.dueDate || null,
+        notes: editForm.notes || null,
+        status: editForm.status,
+      },
+    }, {
+      onSuccess: () => { setShowEdit(false); setEditingBill(null); setEditForm({ ...emptyForm }); },
+    });
   };
 
   const closeDialog = () => setShowCreate(false);

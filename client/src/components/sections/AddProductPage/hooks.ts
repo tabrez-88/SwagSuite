@@ -3,6 +3,7 @@ import { useLocation } from "wouter";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useMarginSettings, isBelowMinimum, calcMarginPercent, applyMargin } from "@/hooks/useMarginSettings";
+import { projectKeys } from "@/services/projects/keys";
 import type { AddProductPageProps, ProductResult, ConfigLine, SourceTab } from "./types";
 
 // S&S CDN is behind Cloudflare — images can't be loaded directly or via proxy
@@ -506,10 +507,10 @@ export function useAddProductPage({ projectId, data }: AddProductPageProps) {
     },
     onSuccess: () => {
       toast({ title: "Product added to order" });
-      queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/items`] });
-      queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/items-with-details`] });
-      queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}`] });
-      queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/all-item-lines`] });
+      queryClient.invalidateQueries({ queryKey: projectKeys.items(projectId) });
+      queryClient.invalidateQueries({ queryKey: projectKeys.itemsWithDetails(projectId) });
+      queryClient.invalidateQueries({ queryKey: projectKeys.detail(projectId) });
+      queryClient.invalidateQueries({ queryKey: projectKeys.itemLines(projectId) });
       queryClient.invalidateQueries({ queryKey: ["/api/suppliers"] });
       queryClient.invalidateQueries({ queryKey: ["/api/products"] });
       setSelectedProduct(null);
@@ -641,10 +642,10 @@ export function useAddProductPage({ projectId, data }: AddProductPageProps) {
     },
     onSuccess: () => {
       toast({ title: "Product added to order" });
-      queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/items`] });
-      queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/items-with-details`] });
-      queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}`] });
-      queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/all-item-lines`] });
+      queryClient.invalidateQueries({ queryKey: projectKeys.items(projectId) });
+      queryClient.invalidateQueries({ queryKey: projectKeys.itemsWithDetails(projectId) });
+      queryClient.invalidateQueries({ queryKey: projectKeys.detail(projectId) });
+      queryClient.invalidateQueries({ queryKey: projectKeys.itemLines(projectId) });
       queryClient.invalidateQueries({ queryKey: ["/api/suppliers"] });
       queryClient.invalidateQueries({ queryKey: ["/api/products"] });
       setLocation(productsPath);

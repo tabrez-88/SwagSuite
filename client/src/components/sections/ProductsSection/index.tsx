@@ -109,10 +109,10 @@ export default function ProductsSection({ projectId, data, isLocked }: ProductsS
                   )}
                   <div>
                     <span className="uppercase">Margin</span>
-                    <p className={`font-bold flex items-center gap-1 ${productSection.marginColor(productSection.orderMargin)}`}>
-                      <TrendingUp className="w-3.5 h-3.5" />
-                      {productSection.orderMargin.toFixed(1)}%
-                      {isBelowMinimum(productSection.orderMargin, productSection.marginSettings) && (
+                    <p className={`font-bold flex items-center gap-1 ${productSection.marginColor(productSection.margin)}`}>
+                      <TrendingUp className="w-4 h-4" />
+                      {productSection.margin.toFixed(1)}%
+                      {isBelowMinimum(productSection.margin, productSection.marginSettings) && (
                         <AlertTriangle className="w-3.5 h-3.5 text-red-500" />
                       )}
                     </p>
@@ -123,7 +123,7 @@ export default function ProductsSection({ projectId, data, isLocked }: ProductsS
                   </div>
                 </div>
               </div>
-              {isBelowMinimum(productSection.orderMargin, productSection.marginSettings) && (
+              {isBelowMinimum(productSection.margin, productSection.marginSettings) && (
                 <div className="mt-2 pt-2 border-t border-red-200 flex items-center gap-2 text-xs text-red-600">
                   <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
                   <span>Overall order margin is below the company minimum of {productSection.marginSettings.minimumMargin}%</span>

@@ -7,20 +7,13 @@ import { useDocumentGeneration, buildItemsHash } from "@/hooks/useDocumentGenera
 import { buildPurchaseOrderPdf } from "@/components/documents/pdf/builders";
 import { useProductionStages } from "@/hooks/useProductionStages";
 import { useInlineEdit } from "@/hooks/useInlineEdit";
+import { getEditedItem } from "@/lib/projectDetailUtils";
+import { projectKeys } from "@/services/projects/keys";
+import { useUpdatePODocMeta } from "@/services/documents/mutations";
+import { useUpdateArtwork } from "@/services/project-items/mutations";
 import type { EmailFormData } from "@/components/email/types";
 import type { PurchaseOrdersSectionProps, VendorPO } from "./types";
 import { PO_STATUSES, PROOF_STATUSES } from "./types";
-
-function getEditedItem(_id: string, item: any) {
-  return {
-    id: item.id, productId: item.productId, productName: item.productName,
-    productSku: item.productSku, supplierId: item.supplierId,
-    color: item.color || "", quantity: item.quantity || 0,
-    unitPrice: parseFloat(item.unitPrice) || 0, cost: parseFloat(item.cost || 0),
-    decorationCost: parseFloat(item.decorationCost || 0), charges: parseFloat(item.charges || 0),
-    margin: 44, sizePricing: item.sizePricing || {},
-  };
-}
 
 export function usePurchaseOrdersSection({ projectId, data, isLocked }: PurchaseOrdersSectionProps) {
   const { order, orderVendors, orderItems, allItemLines, allItemCharges, allArtworkItems, suppliers } = data;
@@ -65,9 +58,8 @@ export function usePurchaseOrdersSection({ projectId, data, isLocked }: Purchase
     queryKey: [`/api/contacts`, { supplierId: emailPOVendor?.vendor?.id }],
     queryFn: async () => {
       if (!emailPOVendor?.vendor?.id) return [];
-      const response = await fetch(`/api/contacts?supplierId=${emailPOVendor.vendor.id}`, { credentials: "include" });
-      if (!response.ok) return [];
-      return response.json();
+      const res = await apiRequest("GET", `/api/contacts?supplierId=${emailPOVendor.vendor.id}`);
+      return res.json();
     },
     enabled: !!emailPOVendor?.vendor?.id,
   });
@@ -80,8 +72,8 @@ export function usePurchaseOrdersSection({ projectId, data, isLocked }: Purchase
       const result: Record<string, any[]> = {};
       await Promise.all(vendorIds.map(async (vid: string) => {
         try {
-          const res = await fetch(`/api/suppliers/${vid}/addresses`, { credentials: "include" });
-          if (res.ok) result[vid] = await res.json();
+          const res = await apiRequest("GET", `/api/suppliers/${vid}/addresses`);
+          result[vid] = await res.json();
         } catch { /* ignore */ }
       }));
       return result;
@@ -342,44 +334,29 @@ export function usePurchaseOrdersSection({ projectId, data, isLocked }: Purchase
     await handleGeneratePO(doc.vendorId, vendorName);
   };
 
-  // Update PO document metadata (stage/status) with activity logging
-  const updateDocMetaMutation = useMutation({
-    mutationFn: async ({ docId, updates }: { docId: string; updates: Record<string, any> }) => {
-      const res = await fetch(`/api/documents/${docId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify(updates),
-      });
-      if (!res.ok) throw new Error("Failed to update document");
-      const result = await res.json();
-
-      // Log activity for PO stage changes
+  // Update PO document metadata (stage/status) with activity logging via service
+  const _updatePODocMeta = useUpdatePODocMeta(projectId);
+  const updateDocMetaMutation = useMemo(() => ({
+    ..._updatePODocMeta,
+    mutate: ({ docId, updates }: { docId: string; updates: Record<string, any> }, opts?: any) => {
       const newStage = updates.metadata?.poStage;
+      let activityContent: string | undefined;
       if (newStage) {
-        const stageLabel = PO_STAGES[newStage as keyof typeof PO_STAGES]?.label || newStage;
-        const docNum = result.documentNumber || docId;
-        try {
-          await apiRequest("POST", `/api/projects/${projectId}/activities`, {
-            activityType: "system_action",
-            content: `PO #${docNum} stage changed to "${stageLabel}"`,
-          });
-        } catch { /* activity log is best-effort */ }
+        const stageLabel = PO_STAGES[newStage]?.label || newStage;
+        activityContent = `PO stage changed to "${stageLabel}"`;
       }
-
-      return result;
+      _updatePODocMeta.mutate({ docId, updates, activityContent }, opts);
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/documents`] });
-      queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/activities`] });
-      // PO stage change may auto-transition SO status
-      queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}`] });
-      // Sync production report
-      queryClient.invalidateQueries({ queryKey: ["/api/production/po-report"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/production/alerts"] });
+    mutateAsync: async ({ docId, updates }: { docId: string; updates: Record<string, any> }, opts?: any) => {
+      const newStage = updates.metadata?.poStage;
+      let activityContent: string | undefined;
+      if (newStage) {
+        const stageLabel = PO_STAGES[newStage]?.label || newStage;
+        activityContent = `PO stage changed to "${stageLabel}"`;
+      }
+      return _updatePODocMeta.mutateAsync({ docId, updates, activityContent }, opts);
     },
-    onError: () => toast({ title: "Failed to update PO", variant: "destructive" }),
-  });
+  }), [_updatePODocMeta, PO_STAGES]);
 
   // Send PO email to vendor
   const sendPOEmailMutation = useMutation({
@@ -425,53 +402,40 @@ export function usePurchaseOrdersSection({ projectId, data, isLocked }: Purchase
       for (const art of vendorArts) {
         if (art.proofRequired !== false && art.status === "pending") {
           try {
-            await fetch(`/api/project-items/${art.orderItemId}/artworks/${art.id}`, {
-              method: "PUT",
-              headers: { "Content-Type": "application/json" },
-              credentials: "include",
-              body: JSON.stringify({ name: art.name, status: "awaiting_proof" }),
-            });
+            await apiRequest("PUT", `/api/project-items/${art.orderItemId}/artworks/${art.id}`, { name: art.name, status: "awaiting_proof" });
           } catch { /* best effort */ }
         }
       }
-      queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/items-with-details`] });
+      queryClient.invalidateQueries({ queryKey: projectKeys.itemsWithDetails(projectId) });
       setEmailPOVendor(null);
     },
     onError: () => toast({ title: "Failed to send PO", variant: "destructive" }),
   });
 
-  // Update artwork (for proofing) with activity logging
-  const updateArtworkMutation = useMutation({
-    mutationFn: async ({ artworkId, orderItemId, updates }: { artworkId: string; orderItemId: string; updates: any }) => {
-      const res = await fetch(`/api/project-items/${orderItemId}/artworks/${artworkId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify(updates),
+  // Update artwork (for proofing) — uses service mutation + adds activity logging
+  const _updateArtwork = useUpdateArtwork(projectId);
+  const updateArtworkMutation = useMemo(() => ({
+    ..._updateArtwork,
+    mutate: ({ artworkId, orderItemId, updates }: { artworkId: string; orderItemId: string; updates: any }, opts?: any) => {
+      _updateArtwork.mutate({ itemId: orderItemId, artworkId, updates }, {
+        ...opts,
+        onSuccess: (...args: any[]) => {
+          // Log proofing status changes
+          const newStatus = updates.status;
+          if (newStatus) {
+            const statusLabel = PROOF_STATUSES[newStatus as keyof typeof PROOF_STATUSES]?.label || newStatus;
+            const artName = updates.name || "Artwork";
+            apiRequest("POST", `/api/projects/${projectId}/activities`, {
+              activityType: "system_action",
+              content: `Proof status for "${artName}" changed to "${statusLabel}"`,
+            }).catch(() => { /* best-effort */ });
+            queryClient.invalidateQueries({ queryKey: projectKeys.activities(projectId) });
+          }
+          opts?.onSuccess?.(...args);
+        },
       });
-      if (!res.ok) throw new Error("Failed to update artwork");
-      return res.json();
     },
-    onSuccess: (_data, vars) => {
-      queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/all-artworks`] });
-      queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/items-with-details`] });
-      // Invalidate production report so artwork/proof status is reflected there too
-      queryClient.invalidateQueries({ queryKey: ["/api/production/po-report"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/production/alerts"] });
-      // Log proofing status changes
-      const newStatus = vars.updates.status;
-      if (newStatus) {
-        const statusLabel = PROOF_STATUSES[newStatus as keyof typeof PROOF_STATUSES]?.label || newStatus;
-        const artName = vars.updates.name || "Artwork";
-        apiRequest("POST", `/api/projects/${projectId}/activities`, {
-          activityType: "system_action",
-          content: `Proof status for "${artName}" changed to "${statusLabel}"`,
-        }).catch(() => { /* best-effort */ });
-        queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/activities`] });
-      }
-    },
-    onError: () => toast({ title: "Failed to update artwork", variant: "destructive" }),
-  });
+  }), [_updateArtwork, projectId, queryClient]);
 
   // Send batch proofs to client (one email with all approval links for a vendor)
   const sendBatchProofMutation = useMutation({

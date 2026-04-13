@@ -80,3 +80,8 @@ export async function updateArtworkCharge(artworkId: string | number, chargeId: 
 export async function deleteArtworkCharge(artworkId: string | number, chargeId: string | number) {
   await apiRequest("DELETE", `/api/artworks/${artworkId}/charges/${chargeId}`);
 }
+
+export async function updateArtwork(itemId: string | number, artworkId: string | number, updates: Record<string, any>) {
+  const res = await apiRequest("PUT", `/api/project-items/${itemId}/artworks/${artworkId}`, updates);
+  return res.json();
+}

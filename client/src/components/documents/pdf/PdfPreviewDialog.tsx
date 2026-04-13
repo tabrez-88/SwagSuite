@@ -35,7 +35,7 @@ export function PdfPreviewDialog({
 }: PdfPreviewDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[90vw] h-[95vh] flex flex-col p-0">
+      <DialogContent className="max-w-[50vw] w-[50vw] h-[95vh] flex flex-col p-0">
         <DialogHeader className="px-4 py-3 border-b">
           <DialogTitle>{title}</DialogTitle>
         </DialogHeader>

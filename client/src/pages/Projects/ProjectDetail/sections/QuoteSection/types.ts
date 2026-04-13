@@ -15,20 +15,4 @@ export const quoteStatuses = [
   { value: "expired", label: "Expired", color: "bg-yellow-100 text-yellow-800" },
 ];
 
-export function getEditedItem(_id: string, item: any) {
-  return {
-    id: item.id,
-    productId: item.productId,
-    productName: item.productName,
-    productSku: item.productSku,
-    supplierId: item.supplierId,
-    color: item.color || "",
-    quantity: item.quantity || 0,
-    unitPrice: parseFloat(item.unitPrice) || 0,
-    cost: parseFloat(item.cost || 0),
-    decorationCost: parseFloat(item.decorationCost || 0),
-    charges: parseFloat(item.charges || 0),
-    margin: 44,
-    sizePricing: item.sizePricing || {},
-  };
-}
+// getEditedItem is now in @/lib/projectDetailUtils

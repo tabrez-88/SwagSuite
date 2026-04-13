@@ -279,3 +279,33 @@ export function useApplyMatrixPricing(projectId: string | number) {
     onError: () => toast({ title: "Failed to apply matrix pricing", variant: "destructive" }),
   });
 }
+
+export function useUpdateItemShipping(projectId: string | number) {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  return useMutation({
+    mutationFn: ({ itemId, fields }: { itemId: string | number; fields: Record<string, any> }) =>
+      requests.updateProjectItem(projectId, itemId, fields),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: projectKeys.itemsWithDetails(projectId) });
+      queryClient.invalidateQueries({ queryKey: projectKeys.detail(projectId) });
+    },
+    onError: () => toast({ title: "Failed to update shipping details", variant: "destructive" }),
+  });
+}
+
+export function useUpdateArtwork(projectId: string | number) {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  return useMutation({
+    mutationFn: ({ itemId, artworkId, updates }: { itemId: string | number; artworkId: string | number; updates: Record<string, any> }) =>
+      requests.updateArtwork(itemId, artworkId, updates),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: projectKeys.artworks(projectId) });
+      queryClient.invalidateQueries({ queryKey: projectKeys.itemsWithDetails(projectId) });
+      queryClient.invalidateQueries({ queryKey: ["/api/production/po-report"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/production/alerts"] });
+    },
+    onError: () => toast({ title: "Failed to update artwork", variant: "destructive" }),
+  });
+}

@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { projectKeys } from "@/services/projects/keys";
 
 interface UseInlineEditOptions {
   projectId: string;
@@ -18,7 +19,7 @@ export function useInlineEdit({ projectId, isLocked = false }: UseInlineEditOpti
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}`] });
+      queryClient.invalidateQueries({ queryKey: projectKeys.detail(projectId) });
     },
     onError: (error: Error) => {
       toast({ title: "Failed to save", description: error.message, variant: "destructive" });

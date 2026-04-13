@@ -1,6 +1,9 @@
 import { projectFileRepository } from "../repositories/projectFile.repository";
 import { registerInMediaLibrary } from "../utils/registerInMediaLibrary";
 import { activityRepository } from "../repositories/activity.repository";
+import { db } from "../db";
+import { orderItems, products, users } from "@shared/schema";
+import { eq } from "drizzle-orm";
 
 export class OrderFileService {
   async getByOrderId(orderId: string) {
@@ -193,6 +196,29 @@ export class OrderFileService {
           ? `<p style="color: #374151; line-height: 1.6; font-size: 14px;">${data.message.replace(/\n/g, "<br>")}</p>`
           : "";
 
+        // Fetch product name for the order item
+        let productName = '';
+        if (data.orderItemId) {
+          const [item] = await db
+            .select({ productName: products.name })
+            .from(orderItems)
+            .leftJoin(products, eq(orderItems.productId, products.id))
+            .where(eq(orderItems.id, data.orderItemId))
+            .limit(1);
+          if (item) productName = item.productName || '';
+        }
+        const productLabel = productName ? `${productName} ` : '';
+
+        // Fetch CSR name for sign-off
+        let csrSignOff = 'Liquid Screen Design';
+        try {
+          const [csrUser] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+          if (csrUser) {
+            const name = `${csrUser.firstName || ''} ${csrUser.lastName || ''}`.trim();
+            if (name) csrSignOff = `${name}<br>Liquid Screen Design`;
+          }
+        } catch {}
+
         await emailService.sendEmail({
           to: data.clientEmail,
           subject: `Artwork Proof for Review - Order #${order.orderNumber}`,
@@ -208,11 +234,23 @@ export class OrderFileService {
                 </div>
                 <div style="padding: 30px;">
                   <p style="color: #374151; line-height: 1.6; font-size: 14px;">Hi ${clientDisplayName},</p>
-                  <p style="color: #374151; line-height: 1.6; font-size: 14px;">Your artwork proof is ready for review. Please click the button below to view and approve the proof.</p>
+                  <p style="color: #374151; line-height: 1.6; font-size: 14px;">Here is the link to the artwork for your pending ${productLabel}order.</p>
+                  <div style="background-color: #fef3c7; border: 1px solid #f59e0b; border-radius: 8px; padding: 15px; margin: 20px 0;">
+                    <p style="color: #92400e; font-weight: 700; font-size: 13px; margin: 0 0 10px 0; text-transform: uppercase;">
+                      THIS PROOF MUST BE APPROVED WITHIN 24 HOURS TO MAINTAIN THE SCHEDULED SHIP DATE. PLEASE NOTE: CHANGES TO YOUR ARTWORK MAY TAKE UP TO ONE BUSINESS DAY, POTENTIALLY DELAYING YOUR IN HANDS DATE.
+                    </p>
+                  </div>
                   ${customMessage}
                   <div style="text-align: center; margin: 30px 0;">
                     <a href="${approvalUrl}" style="background-color: #2563eb; color: #ffffff; padding: 14px 32px; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px; display: inline-block;">Review &amp; Approve Artwork</a>
                   </div>
+                  <p style="color: #374151; line-height: 1.6; font-size: 14px;">
+                    By approving this proof, you are acknowledging that you have reviewed it in detail, including the size, location, color(s), and spelling. Additionally, you affirm that you have the necessary rights to use any provided graphics. Once approved, any discrepancies are your sole responsibility.
+                  </p>
+                  <p style="color: #374151; line-height: 1.6; font-size: 14px;">
+                    <strong>Your order is on hold pending your approval of this proof.</strong> If you have any changes to this artwork, please reply back to this email.
+                  </p>
+                  <p style="color: #374151; line-height: 1.6; font-size: 14px;">Thank you,<br>${csrSignOff}</p>
                   <p style="color: #6b7280; font-size: 12px; text-align: center;">Or copy this link: <a href="${approvalUrl}" style="color: #2563eb;">${approvalUrl}</a></p>
                 </div>
                 <div style="background-color: #f9fafb; padding: 20px; text-align: center; border-top: 1px solid #e5e7eb;">

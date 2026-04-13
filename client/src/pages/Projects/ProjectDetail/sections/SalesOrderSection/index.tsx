@@ -339,6 +339,10 @@ export default function SalesOrderSection(props: SalesOrderSectionProps) {
         </>
       )}
 
+
+
+
+      <ProductsSection projectId={projectId} data={hook.data} isLocked={hook.isLocked} />
       {/* Sales Order Document Section */}
       <Card>
         <CardHeader className="py-3">
@@ -406,10 +410,6 @@ export default function SalesOrderSection(props: SalesOrderSectionProps) {
           )}
         </CardContent>
       </Card>
-
-
-      <ProductsSection projectId={projectId} data={hook.data} isLocked={hook.isLocked} />
-
 
       {/* Live PDF preview (uses react-pdf PDFViewer — same renderer as save) */}
       <PdfPreviewDialog

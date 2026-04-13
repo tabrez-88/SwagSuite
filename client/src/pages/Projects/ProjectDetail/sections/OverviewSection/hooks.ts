@@ -1,12 +1,22 @@
-import { useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useState, useMemo } from "react";
 import { useProductionStages } from "@/hooks/useProductionStages";
-import { useToast } from "@/hooks/use-toast";
 import { useInlineEdit } from "@/hooks/useInlineEdit";
 import { getDateStatus } from "@/lib/dateUtils";
+import { useReassignProject } from "@/services/projects/mutations";
 import type { OverviewSectionProps } from "./types";
 
+/**
+ * OverviewSection Hook
+ * 
+ * Responsibilities:
+ * - Extract data from props (already in ProjectData)
+ * - Handle user assignment mutations
+ * - Track UI state (popovers)
+ * - Compute production pipeline progress
+ * - Provide date formatting utilities
+ */
 export function useOverviewSection({ projectId, data, isLocked = false }: OverviewSectionProps) {
+  // ── 1. DATA from props ──
   const {
     order,
     orderItems,
@@ -17,37 +27,81 @@ export function useOverviewSection({ projectId, data, isLocked = false }: Overvi
     teamMembers,
   } = data;
 
+  // ── 2. HOOKS & QUERIES ──
   const { stages: productionStages } = useProductionStages();
-  const { toast } = useToast();
-  const queryClient = useQueryClient();
+
+  // ── 3. MUTATIONS ──
+  const { updateField, isPending } = useInlineEdit({ projectId, isLocked });
+  const _reassignMutation = useReassignProject(projectId);
+
+  // ── 4. UI STATE ──
   const [openPopover, setOpenPopover] = useState<"salesRep" | "csr" | null>(null);
 
-  const { updateField, isPending } = useInlineEdit({ projectId, isLocked });
+  // Wrap service mutation to close popover on success
+  const reassignMutation = useMemo(() => ({
+    ..._reassignMutation,
+    mutate: (vars: Parameters<typeof _reassignMutation.mutate>[0], opts?: Parameters<typeof _reassignMutation.mutate>[1]) =>
+      _reassignMutation.mutate(vars, { ...opts, onSuccess: (...args) => { setOpenPopover(null); opts?.onSuccess?.(...args); } }),
+  }), [_reassignMutation]);
 
-  const reassignMutation = useMutation({
-    mutationFn: async ({ field, userId }: { field: "assignedUserId" | "csrUserId"; userId: string | null }) => {
-      const { apiRequest } = await import("@/lib/queryClient");
-      const res = await apiRequest("PATCH", `/api/projects/${projectId}`, { [field]: userId });
-      return res.json();
-    },
-    onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}`] });
-      const label = variables.field === "assignedUserId" ? "Sales Rep" : "CSR";
-      toast({ title: `${label} updated` });
-      setOpenPopover(null);
-    },
-    onError: () => {
-      toast({ title: "Failed to update assignment", variant: "destructive" });
-    },
-  });
+  // ── 5. COMPUTED VALUES ──
+  
+  /**
+   * Calculate production pipeline progress
+   * Based on highest PO stage reached
+   */
+  const { completedStageCount, currentStageId, poDocuments, reachedStages } = computeProductionProgress(
+    data as any,
+    productionStages
+  );
 
-  const renderDateBadge = (dateValue: string) => {
-    const ds = getDateStatus(dateValue);
-    return ds;
+  /** Total quantity across all items */
+  const totalQuantity = orderItems.reduce((sum: number, item: any) => sum + (item.quantity || 0), 0);
+
+  // ── 6. RETURN ORGANIZED ──
+  return {
+    // Data (from props)
+    order,
+    orderItems,
+    companyName,
+    primaryContact,
+    assignedUser,
+    csrUser,
+    teamMembers,
+
+    // Mutations & Updates
+    updateField,
+    reassignMutation,
+    isPending,
+
+    // UI State
+    openPopover,
+    setOpenPopover,
+
+    // Production Progress
+    productionStages,
+    poDocuments,
+    reachedStages,
+    completedStageCount,
+    currentStageId,
+
+    // Utilities
+    renderDateBadge,
+    
+    // Computed
+    totalQuantity,
+    projectId,
+    isLocked,
+    data,
   };
+}
 
-  // Production stages computation
-  const poDocuments = ((data as any)?.documents || []).filter((d: any) => d.documentType === "purchase_order");
+/**
+ * Helper: Compute production pipeline progress
+ * Determines which production stages have been completed based on PO stages
+ */
+function computeProductionProgress(data: any, productionStages: any[]) {
+  const poDocuments = (data?.documents || []).filter((d: any) => d.documentType === "purchase_order");
   const stageOrder = productionStages
     ? new Map(productionStages.map((s: any, i: number) => [s.id, i]))
     : new Map();
@@ -63,39 +117,18 @@ export function useOverviewSection({ projectId, data, isLocked = false }: Overvi
     }
   }
 
-  const completedStageCount = reachedStages.size;
-  const currentStageId = productionStages?.find((s: any) => !reachedStages.has(s.id))?.id || "";
-  const totalQuantity = orderItems.reduce((sum: number, item: any) => sum + (item.quantity || 0), 0);
-
   return {
-    // Data
-    order,
-    orderItems,
-    companyName,
-    primaryContact,
-    assignedUser,
-    csrUser,
-    teamMembers,
-    data,
-    projectId,
-    isLocked,
-
-    // Hooks
-    updateField,
-    isPending,
-    reassignMutation,
-    openPopover,
-    setOpenPopover,
-
-    // Production
-    productionStages,
     poDocuments,
     reachedStages,
-    completedStageCount,
-    currentStageId,
-
-    // Helpers
-    renderDateBadge,
-    totalQuantity,
+    completedStageCount: reachedStages.size,
+    currentStageId: productionStages?.find((s: any) => !reachedStages.has(s.id))?.id || "",
   };
+}
+
+/**
+ * Helper: Render date badge
+ * Delegates to centralized dateUtils
+ */
+function renderDateBadge(dateValue: string) {
+  return getDateStatus(dateValue);
 }

@@ -1,9 +1,12 @@
 import { useState, useMemo } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { useLocation } from "wouter";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { projectKeys } from "@/services/projects/keys";
+import { useUpdateProjectStatus, useSavePresentationSettings, useCreateShareLink } from "@/services/projects/mutations";
+import { calcMarginPercent } from "@/lib/projectDetailUtils";
 import type { PresentationSectionProps, ViewMode } from "./types";
 
 export const presentationStatuses = [
@@ -13,8 +16,7 @@ export const presentationStatuses = [
   { value: "closed", label: "Closed", color: "bg-gray-100 text-gray-800" },
 ];
 
-export const calcMargin = (cost: number, price: number) =>
-  price > 0 ? ((price - cost) / price) * 100 : 0;
+export const calcMargin = (cost: number, price: number) => calcMarginPercent(cost, price);
 
 export const marginColor = (m: number) =>
   m >= 30 ? "text-green-600" : m >= 15 ? "text-yellow-600" : "text-red-600";
@@ -28,13 +30,11 @@ export function usePresentationSection({ projectId, data }: PresentationSectionP
   const currentStatus = (order as any)?.presentationStatus || "open";
   const statusInfo = presentationStatuses.find((s) => s.value === currentStatus) || presentationStatuses[0];
 
-  const updateStatusMutation = useMutation({
-    mutationFn: async (newStatus: string) => {
-      await apiRequest("PATCH", `/api/projects/${projectId}`, { presentationStatus: newStatus });
-    },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}`] }),
-    onError: () => toast({ title: "Failed to update status", variant: "destructive" }),
-  });
+  const _updateStatus = useUpdateProjectStatus(projectId);
+  const updateStatusMutation = useMemo(() => ({
+    ..._updateStatus,
+    mutate: (newStatus: string) => _updateStatus.mutate({ presentationStatus: newStatus }),
+  }), [_updateStatus]);
 
   // Presentation settings from stageData (persisted)
   const presSettings = (order as any)?.stageData?.presentation || {};
@@ -59,41 +59,37 @@ export function usePresentationSection({ projectId, data }: PresentationSectionP
   const [footerText, setFooterText] = useState(presSettings.footerText || "");
 
   // Save presentation settings to stageData
-  const saveSettingsMutation = useMutation({
-    mutationFn: async (updates: Record<string, any>) => {
+  const _saveSettings = useSavePresentationSettings(projectId);
+  const saveSettingsMutation = useMemo(() => ({
+    ..._saveSettings,
+    mutate: (updates: Record<string, any>, opts?: any) => {
       const currentStageData = (order as any)?.stageData || {};
       const currentPresentation = currentStageData.presentation || {};
-      await apiRequest("PATCH", `/api/projects/${projectId}`, {
-        stageData: {
-          ...currentStageData,
-          presentation: { ...currentPresentation, ...updates },
-        },
-      });
+      _saveSettings.mutate(
+        { stageData: { ...currentStageData, presentation: { ...currentPresentation, ...updates } } },
+        opts,
+      );
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}`] }),
-    onError: () => toast({ title: "Failed to save settings", variant: "destructive" }),
-  });
+  }), [_saveSettings, order]);
 
   // Helper to save a single field
   const saveSetting = (key: string, value: any) => saveSettingsMutation.mutate({ [key]: value });
 
   // Share link
   const [shareLink, setShareLink] = useState<string | null>(null);
-  const shareLinkMutation = useMutation({
-    mutationFn: async () => {
-      const res = await apiRequest("POST", `/api/projects/${projectId}/presentation/share-link`);
-      return await res.json();
-    },
-    onSuccess: (data: any) => {
-      const url = data.url;
-      setShareLink(url);
-      navigator.clipboard.writeText(url).then(() => {
-        toast({ title: "Link copied!", description: data.existingToken ? "Existing link copied to clipboard." : "New presentation link created and copied." });
-      });
-      queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}`] });
-    },
-    onError: () => toast({ title: "Failed to generate link", variant: "destructive" }),
-  });
+  const _shareLink = useCreateShareLink(projectId);
+  const shareLinkMutation = useMemo(() => ({
+    ..._shareLink,
+    mutate: () => _shareLink.mutate(undefined, {
+      onSuccess: (data: any) => {
+        const url = data.url;
+        setShareLink(url);
+        navigator.clipboard.writeText(url).then(() => {
+          toast({ title: "Link copied!", description: data.existingToken ? "Existing link copied to clipboard." : "New presentation link created and copied." });
+        });
+      },
+    }),
+  }), [_shareLink, toast]);
 
   // Product visibility & ordering
   const [showHidden, setShowHidden] = useState(false);
@@ -155,7 +151,7 @@ export function usePresentationSection({ projectId, data }: PresentationSectionP
 
   // Product comments
   const { data: productComments = {} } = useQuery<Record<string, any[]>>({
-    queryKey: [`/api/projects/${projectId}/product-comments`],
+    queryKey: projectKeys.productComments(projectId),
     enabled: !!projectId,
   });
 
@@ -164,14 +160,14 @@ export function usePresentationSection({ projectId, data }: PresentationSectionP
   const handleInHandsDateBlur = (e: React.FocusEvent<HTMLInputElement>) => {
     if (e.target.value !== (order?.inHandsDate ? format(new Date(order.inHandsDate), "yyyy-MM-dd") : "")) {
       apiRequest("PATCH", `/api/projects/${projectId}`, { inHandsDate: e.target.value || null })
-        .then(() => queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}`] }));
+        .then(() => queryClient.invalidateQueries({ queryKey: projectKeys.detail(projectId) }));
     }
   };
 
   const handleConversionSuccess = () => {
     setConversionTarget(null);
-    queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}`] });
-    queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/items`] });
+    queryClient.invalidateQueries({ queryKey: projectKeys.detail(projectId) });
+    queryClient.invalidateQueries({ queryKey: projectKeys.items(projectId) });
   };
 
   const recipientName = contacts?.find((c: any) => c.id === selectedContact)

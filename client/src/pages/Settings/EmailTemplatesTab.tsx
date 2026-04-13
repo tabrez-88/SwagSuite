@@ -37,7 +37,7 @@ import {
   type EmailTemplate,
 } from "@/hooks/useEmailTemplates";
 
-const TEMPLATE_TYPES = ["presentation", "quote", "sales_order", "purchase_order", "proof", "invoice"] as const;
+const TEMPLATE_TYPES = ["presentation", "quote", "sales_order", "purchase_order", "proof", "invoice", "shipping_notification"] as const;
 
 const SAMPLE_DATA: Record<string, string> = {
   companyName: "Liquid Screen Design",
@@ -53,6 +53,12 @@ const SAMPLE_DATA: Record<string, string> = {
   poNumber: "PO-0078",
   supplierInHandsDate: "May 10, 2026",
   artworkList: "  - T-Shirt Front (Screen Print)\n  - Hat Logo (Embroidery)",
+  productNames: "Custom T-Shirts",
+  carrier: "UPS",
+  method: "Ground",
+  trackingNumber: "1Z999AA10123456784",
+  trackingUrl: "https://www.ups.com/track?tracknum=1Z999AA10123456784",
+  csrName: "Karen Woznak",
 };
 
 export function EmailTemplatesTab() {
@@ -295,7 +301,7 @@ export function EmailTemplatesTab() {
                     onChange={(e) => setEditForm((prev) => prev ? { ...prev, body: e.target.value } : prev)}
                     rows={10}
                     placeholder="Hi {{recipientFirstName}},\n\nPlease find..."
-                    className="font-mono text-sm"
+                    className="text-sm"
                   />
                 )}
               </div>

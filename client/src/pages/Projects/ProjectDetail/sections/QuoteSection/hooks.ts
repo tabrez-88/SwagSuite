@@ -1,10 +1,12 @@
 import { useState, useMemo } from "react";
 import { useToast } from "@/hooks/use-toast";
-import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
-import { apiRequest, getQueryFn } from "@/lib/queryClient";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
+import { getQueryFn } from "@/lib/queryClient";
 import { useInlineEdit } from "@/hooks/useInlineEdit";
 import { useDocumentGeneration, buildItemsHash } from "@/hooks/useDocumentGeneration";
 import { buildQuotePdf } from "@/components/documents/pdf/builders";
+import { projectKeys } from "@/services/projects/keys";
+import { useUpdateProjectStatus } from "@/services/projects/mutations";
 import { quoteStatuses } from "./types";
 import type { QuoteSectionProps } from "./types";
 
@@ -42,19 +44,11 @@ export function useQuoteSection({ projectId, data, lockStatus }: QuoteSectionPro
     });
   }, [orderItems, allProducts]);
 
-  const updateStatusMutation = useMutation({
-    mutationFn: async (newStatus: string) => {
-      await apiRequest("PATCH", `/api/projects/${projectId}`, {
-        quoteStatus: newStatus,
-      });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}`] });
-    },
-    onError: () => {
-      toast({ title: "Failed to update status", variant: "destructive" });
-    },
-  });
+  const _updateStatus = useUpdateProjectStatus(projectId);
+  const updateStatusMutation = useMemo(() => ({
+    ..._updateStatus,
+    mutate: (newStatus: string) => _updateStatus.mutate({ quoteStatus: newStatus }),
+  }), [_updateStatus]);
 
   const currentQuoteHash = useMemo(() => {
     return buildItemsHash(orderItems, "quote", order);
@@ -146,8 +140,8 @@ export function useQuoteSection({ projectId, data, lockStatus }: QuoteSectionPro
 
   const handleConversionSuccess = () => {
     setShowConversionDialog(false);
-    queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}`] });
-    queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/items`] });
+    queryClient.invalidateQueries({ queryKey: projectKeys.detail(projectId) });
+    queryClient.invalidateQueries({ queryKey: projectKeys.items(projectId) });
   };
 
   const contactsList = (contacts || []).map((c: any) => ({

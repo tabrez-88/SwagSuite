@@ -126,6 +126,16 @@ export const TEMPLATE_MERGE_FIELDS: Record<string, { key: string; label: string 
     { key: "recipientFirstName", label: "Recipient First Name" },
     { key: "artworkList", label: "Artwork List" },
   ],
+  shipping_notification: [
+    { key: "recipientFirstName", label: "Recipient First Name" },
+    { key: "companyName", label: "Company Name" },
+    { key: "productNames", label: "Product Names" },
+    { key: "carrier", label: "Carrier" },
+    { key: "method", label: "Shipping Method" },
+    { key: "trackingNumber", label: "Tracking Number" },
+    { key: "trackingUrl", label: "Tracking URL" },
+    { key: "csrName", label: "CSR Name" },
+  ],
 };
 
 export const TEMPLATE_TYPE_LABELS: Record<string, string> = {
@@ -135,4 +145,18 @@ export const TEMPLATE_TYPE_LABELS: Record<string, string> = {
   purchase_order: "Purchase Order",
   presentation: "Presentation",
   proof: "Proof",
+  shipping_notification: "Shipping Notification",
 };
+
+/** Fetch the default (or first active) template for a given type */
+export function useDefaultEmailTemplate(templateType: string) {
+  return useQuery<EmailTemplate | null>({
+    queryKey: ["/api/settings/email-templates", { type: templateType, default: true }],
+    queryFn: async () => {
+      const res = await apiRequest("GET", `/api/settings/email-templates?type=${templateType}`);
+      const templates: EmailTemplate[] = await res.json();
+      return templates.find((t) => t.isDefault && t.isActive) ?? templates.find((t) => t.isActive) ?? null;
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+}

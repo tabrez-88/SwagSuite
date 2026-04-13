@@ -1,12 +1,14 @@
 import { useState, useMemo, useCallback } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCreateShipment, useUpdateShipment, useDeleteShipment } from "@/services/shipments";
+import { useUpdateItemShipping } from "@/services/project-items/mutations";
 import { useToast } from "@/hooks/use-toast";
 import { hasTimelineConflict } from "@/lib/dateUtils";
 import type { OrderShipment } from "@shared/schema";
 import type { ProjectData } from "@/types/project-types";
 import { EMPTY_FORM, EMPTY_BULK, EMPTY_ITEM_SHIPPING } from "./types";
 import type { ShipmentFormData, BulkEditData, ItemShippingFormData, ShippingAddressData } from "./types";
+
 
 export function useShippingSection(projectId: string, data: ProjectData) {
   const { order, orderItems, orderVendors, shipments, shipmentsLoading, suppliers: allSuppliers } = data;
@@ -88,26 +90,7 @@ export function useShippingSection(projectId: string, data: ProjectData) {
   const createMutation = useCreateShipment(projectId);
   const updateMutation = useUpdateShipment(projectId);
   const deleteMutation = useDeleteShipment(projectId);
-
-  const updateItemShippingMutation = useMutation({
-    mutationFn: async ({ itemId, fields }: { itemId: string; fields: Record<string, any> }) => {
-      const res = await fetch(`/api/projects/${projectId}/items/${itemId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify(fields),
-      });
-      if (!res.ok) throw new Error("Failed to update shipping details");
-      return res.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/items-with-details`] });
-      queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}`] });
-    },
-    onError: () => {
-      toast({ title: "Failed to update shipping details", variant: "destructive" });
-    },
-  });
+  const updateItemShippingMutation = useUpdateItemShipping(projectId);
 
   // ── Edit Dialog handlers ──
   const openEditDialog = (item: any) => {
@@ -395,17 +378,43 @@ export function useShippingSection(projectId: string, data: ProjectData) {
   // ── Notify Client ──
   const [notifyShipment, setNotifyShipment] = useState<any>(null);
 
-  const getNotifyEmailBody = (s: any) => {
-    const orderNum = (order as any)?.orderNumber || "";
+  const getNotifyEmail = (s: any): { subject: string; body: string; mergeData: Record<string, string> } => {
     const trackUrl = getTrackingUrl(s.carrier, s.trackingNumber);
-    let body = `Your order ${orderNum} has been shipped!\n\n`;
+    const clientFirstName = data.primaryContact?.firstName || "there";
+    const productNames = orderItems
+      .map((item: any) => item.productName || item.name || item.product?.name)
+      .filter(Boolean)
+      .join(", ") || "your items";
+    const csrName = data.assignedUser
+      ? `${data.assignedUser.firstName || ""} ${data.assignedUser.lastName || ""}`.trim()
+      : "";
+    const orderNum = (order as any)?.orderNumber || "";
+
+    const mergeData = {
+      recipientFirstName: clientFirstName,
+      companyName: (data.companyName as string) || "",
+      productNames,
+      carrier: s.carrier || "",
+      method: s.shippingMethod || "",
+      trackingNumber: s.trackingNumber || "",
+      trackingUrl: trackUrl || "",
+      csrName,
+    };
+
+    // Fallback defaults (used when no template is configured)
+    let body = `Hi ${clientFirstName},\n\n`;
+    body += `Great news: your ${productNames} order will be arriving soon!\n\n`;
     if (s.carrier) body += `Carrier: ${s.carrier}\n`;
     if (s.shippingMethod) body += `Method: ${s.shippingMethod}\n`;
     if (s.trackingNumber) body += `Tracking Number: ${s.trackingNumber}\n`;
-    if (trackUrl) body += `Track your shipment: ${trackUrl}\n`;
-    if (s.estimatedDelivery) body += `\nEstimated Delivery: ${new Date(s.estimatedDelivery).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}\n`;
-    body += "\nThank you for your business!";
-    return body;
+    if (trackUrl) body += `\nTrack your shipment: ${trackUrl}\n`;
+    body += `\nShipping services are sometimes inconsistent/slow in updating their tracking information. Please be patient and continue to check; it will update but may take some time.\n\n`;
+    body += `PLEASE NOTE: When your items arrive please open the package(s) and check in the items to ensure that everything has been delivered and nothing has been damaged in transit.\n\n`;
+    body += `If you have any questions upon receipt of your order, please be in touch with us. We love seeing our customers enjoying their swag; feel free to send photos back to kwoznak@liquidscreendesign.com to share.\n\n`;
+    body += `Thank you for your business,\n`;
+    if (csrName) body += `${csrName}\n`;
+    body += `Liquid Screen Design`;
+    return { subject: `Shipment Update — Order #${orderNum}`, body, mergeData };
   };
 
   const totalShippingCost = shipments.reduce((s, sh) => s + parseFloat(sh.shippingCost || "0"), 0);
@@ -450,7 +459,7 @@ export function useShippingSection(projectId: string, data: ProjectData) {
 
     // Notify client
     notifyShipment, setNotifyShipment,
-    getNotifyEmailBody,
+    getNotifyEmail,
     companyName: data.companyName,
     primaryContact: data.primaryContact,
 

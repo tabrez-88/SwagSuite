@@ -54,7 +54,8 @@ import ProductsSection from "@/components/sections/ProductsSection";
 import { Separator } from "@/components/ui/separator";
 
 import { useQuoteSection } from "./hooks";
-import { quoteStatuses, getEditedItem } from "./types";
+import { quoteStatuses } from "./types";
+import { getEditedItem } from "@/lib/projectDetailUtils";
 import type { QuoteSectionProps } from "./types";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getQueryFn, apiRequest } from "@/lib/queryClient";

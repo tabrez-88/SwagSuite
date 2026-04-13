@@ -200,7 +200,7 @@ export function useProductsSection({ projectId, data, isLocked }: ProductsSectio
     },
   );
   const orderSellGrandTotal = orderTotals.orderProductSell + orderTotals.orderChargeSell + orderTotals.orderDecoSell;
-  const orderMargin = orderSellGrandTotal > 0
+  const margin = orderSellGrandTotal > 0
     ? ((orderSellGrandTotal - orderTotals.orderCostTotal) / orderSellGrandTotal) * 100
     : 0;
 
@@ -599,7 +599,7 @@ export function useProductsSection({ projectId, data, isLocked }: ProductsSectio
     marginColor,
     marginBg,
     orderTotals,
-    orderMargin,
+    margin,
     projectId,
   };
 }

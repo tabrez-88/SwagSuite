@@ -1,32 +1,17 @@
 import { useState, useMemo } from "react";
-import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
-import { apiRequest, getQueryFn } from "@/lib/queryClient";
+import { getQueryFn } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useInlineEdit } from "@/hooks/useInlineEdit";
 import { hasTimelineConflict } from "@/lib/dateUtils";
 import { useDocumentGeneration, buildItemsHash } from "@/hooks/useDocumentGeneration";
 import { buildSalesOrderPdf } from "@/components/documents/pdf/builders";
+import { getEditedItem } from "@/lib/projectDetailUtils";
+import { projectKeys } from "@/services/projects/keys";
+import { useUpdateProjectStatus, useDuplicateProject } from "@/services/projects/mutations";
 import type { SalesOrderSectionProps } from "./types";
 import { salesOrderStatuses, proofStatuses } from "./types";
-
-function getEditedItem(_id: string, item: any) {
-  return {
-    id: item.id,
-    productId: item.productId,
-    productName: item.productName,
-    productSku: item.productSku,
-    supplierId: item.supplierId,
-    color: item.color || "",
-    quantity: item.quantity || 0,
-    unitPrice: parseFloat(item.unitPrice) || 0,
-    cost: parseFloat(item.cost || 0),
-    decorationCost: parseFloat(item.decorationCost || 0),
-    charges: parseFloat(item.charges || 0),
-    margin: 44,
-    sizePricing: item.sizePricing || {},
-  };
-}
 
 export function useSalesOrderSection({ projectId, data, lockStatus }: SalesOrderSectionProps) {
   const { order, orderItems, companyName, primaryContact, contacts, allArtworkItems } = data;
@@ -54,34 +39,25 @@ export function useSalesOrderSection({ projectId, data, lockStatus }: SalesOrder
     isDeleting,
   } = useDocumentGeneration(projectId);
 
-  const updateStatusMutation = useMutation({
-    mutationFn: async (newStatus: string) => {
-      await apiRequest("PATCH", `/api/projects/${projectId}`, {
-        salesOrderStatus: newStatus,
-      });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}`] });
-    },
-    onError: () => {
-      toast({ title: "Failed to update status", variant: "destructive" });
-    },
-  });
+  const _updateStatus = useUpdateProjectStatus(projectId);
+  const updateStatusMutation = useMemo(() => ({
+    ..._updateStatus,
+    mutate: (newStatus: string) => _updateStatus.mutate({ salesOrderStatus: newStatus }),
+  }), [_updateStatus]);
 
-  const duplicateOrderMutation = useMutation({
-    mutationFn: async () => {
-      const res = await apiRequest("POST", `/api/projects/${projectId}/duplicate`);
-      return res.json();
-    },
-    onSuccess: (data: any) => {
-      const newOrder = data.order || data;
-      toast({ title: "Order duplicated!", description: `New order #${newOrder.orderNumber} created` });
-      setLocation(`/projects/${newOrder.id}`);
-    },
-    onError: () => {
-      toast({ title: "Failed to duplicate order", variant: "destructive" });
-    },
-  });
+  const _duplicateProject = useDuplicateProject(projectId);
+  const duplicateOrderMutation = useMemo(() => ({
+    ..._duplicateProject,
+    mutate: (vars: any, opts?: any) =>
+      _duplicateProject.mutate(vars, {
+        ...opts,
+        onSuccess: (data: any, ...rest: any[]) => {
+          const newOrder = data.order || data;
+          setLocation(`/projects/${newOrder.id}`);
+          opts?.onSuccess?.(data, ...rest);
+        },
+      }),
+  }), [_duplicateProject, setLocation]);
 
   // SO document generation
   const currentSOHash = useMemo(() => {

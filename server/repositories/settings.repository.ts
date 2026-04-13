@@ -179,6 +179,23 @@ export class SettingsRepository {
     await db.delete(emailTemplates).where(eq(emailTemplates.id, id));
   }
 
+  async getDefaultEmailTemplate(type: string): Promise<any | undefined> {
+    const { emailTemplates } = await import("@shared/schema");
+    const [template] = await db
+      .select()
+      .from(emailTemplates)
+      .where(and(eq(emailTemplates.templateType, type), eq(emailTemplates.isDefault, true), eq(emailTemplates.isActive, true)))
+      .limit(1);
+    if (template) return template;
+    // Fall back to first active template of this type
+    const [fallback] = await db
+      .select()
+      .from(emailTemplates)
+      .where(and(eq(emailTemplates.templateType, type), eq(emailTemplates.isActive, true)))
+      .limit(1);
+    return fallback;
+  }
+
   async clearDefaultForType(templateType: string): Promise<void> {
     const { emailTemplates } = await import("@shared/schema");
     await db

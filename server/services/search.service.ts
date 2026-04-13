@@ -15,6 +15,8 @@ const openai = process.env.OPENAI_API_KEY?.trim()
   ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY.trim() })
   : null;
 
+console.log(`[search.service] OpenAI client: ${openai ? "ENABLED (AI search active)" : "DISABLED — OPENAI_API_KEY not set, using keyword fallback"}`);
+
 // ──────── Types ────────
 
 export interface SearchResult {
@@ -55,8 +57,12 @@ async function routeSearchQuery(query: string): Promise<SearchIntent> {
     keywords: query,
   };
 
-  if (!openai) return fallback;
+  if (!openai) {
+    console.log(`[search] routeSearchQuery: AI unavailable, using keyword fallback | query="${query}"`);
+    return fallback;
+  }
 
+  console.log(`[search] routeSearchQuery: calling OpenAI gpt-4o-mini | query="${query}"`);
   try {
     const resp = await openai.chat.completions.create({
       model: "gpt-4o-mini",
@@ -110,12 +116,15 @@ Rules:
         )
       : fallback.entityTypes;
 
-    return {
+    const intent: SearchIntent = {
       entityTypes: entityTypes.length > 0 ? entityTypes : fallback.entityTypes,
       keywords: typeof parsed.keywords === "string" ? parsed.keywords : query,
       filters: parsed.filters || undefined,
     };
-  } catch {
+    console.log(`[search] routeSearchQuery: AI intent resolved | entities=${intent.entityTypes.join(",")} keywords="${intent.keywords}" filters=${JSON.stringify(intent.filters ?? null)}`);
+    return intent;
+  } catch (err: any) {
+    console.warn(`[search] routeSearchQuery: AI failed, using keyword fallback | error="${err?.message}" query="${query}"`);
     return fallback;
   }
 }
@@ -299,6 +308,7 @@ export class SearchService {
     const trimmed = query.trim();
     if (!trimmed) return [];
 
+    console.log(`[search] aiSearch called | query="${trimmed}" ai=${openai ? "yes" : "no"}`);
     // Step 1: Route query to intent via OpenAI (or fallback)
     const intent = await routeSearchQuery(trimmed);
 
@@ -333,6 +343,7 @@ export class SearchService {
       return { companies: [], products: [], orders: [] };
     }
 
+    console.log(`[search] universalSearch called | query="${trimmed}" mode=keyword-only (no AI)`);
     const [companiesResults, productsResults, ordersResults] = await Promise.all([
       companyRepository.search(trimmed),
       productRepository.search(trimmed),

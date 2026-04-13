@@ -18,6 +18,23 @@ export function useUpdateDocumentMeta(projectId: string | number) {
   });
 }
 
+export function useUpdatePODocMeta(projectId: string | number) {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  return useMutation({
+    mutationFn: ({ docId, updates, activityContent }: { docId: string; updates: Record<string, any>; activityContent?: string }) =>
+      requests.updatePODocMeta(docId, updates, projectId, activityContent),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: documentKeys.byOrder(projectId) });
+      queryClient.invalidateQueries({ queryKey: activityKeys.byOrder(projectId) });
+      queryClient.invalidateQueries({ queryKey: projectKeys.detail(projectId) });
+      queryClient.invalidateQueries({ queryKey: ["/api/production/po-report"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/production/alerts"] });
+    },
+    onError: () => toast({ title: "Failed to update PO", variant: "destructive" }),
+  });
+}
+
 export function useDeleteDocument(projectId: string | number) {
   const queryClient = useQueryClient();
   const { toast } = useToast();

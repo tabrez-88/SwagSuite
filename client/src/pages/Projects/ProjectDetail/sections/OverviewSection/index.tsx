@@ -1,8 +1,8 @@
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { EditableDate, EditableText, EditableTextarea } from "@/components/shared/InlineEditable";
+import { UserAvatar } from "@/components/shared/UserAvatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Command,
   CommandEmpty,
@@ -11,32 +11,30 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command";
-import { UserAvatar } from "@/components/shared/UserAvatar";
-import { EditableText, EditableDate, EditableTextarea } from "@/components/shared/InlineEditable";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { format } from "date-fns";
 import {
   Building2,
   Calendar,
   Check,
-  Factory,
   FileText,
-  Hash,
   Mail,
   Package,
   Pencil,
-  Store,
   StickyNote,
+  Store,
   TrendingUp,
   UserX,
-  Users,
+  Users
 } from "lucide-react";
-import { format } from "date-fns";
 
-import ActivitiesSection from "@/pages/Projects/ProjectDetail/sections/OverviewSection/ActivitiesSection";
 import EmailSection from "@/components/sections/EmailSection";
 import VendorSection from "@/components/sections/VendorSection";
+import ActivitiesSection from "@/pages/Projects/ProjectDetail/sections/OverviewSection/ActivitiesSection";
 
-import { useQuery } from "@tanstack/react-query";
 import { getQueryFn } from "@/lib/queryClient";
+import { useQuery } from "@tanstack/react-query";
 import { useOverviewSection } from "./hooks";
 import type { OverviewSectionProps, TeamMemberPickerProps } from "./types";
 
@@ -59,11 +57,6 @@ export default function OverviewSection(props: OverviewSectionProps) {
     reassignMutation,
     openPopover,
     setOpenPopover,
-    productionStages,
-    poDocuments,
-    reachedStages,
-    completedStageCount,
-    currentStageId,
     renderDateBadge,
     totalQuantity,
   } = hook;
@@ -224,10 +217,9 @@ export default function OverviewSection(props: OverviewSectionProps) {
                     </div>
                     <div className="flex justify-between items-center">
                       <span className="text-sm text-muted-foreground flex items-center gap-1.5">
-                        <Hash className="w-3.5 h-3.5" />
                         Order #
                       </span>
-                      <span className="text-sm font-mono font-medium">{order.orderNumber}</span>
+                      <span className="text-sm font-medium">{order.orderNumber}</span>
                     </div>
                     <div className="flex justify-between items-center">
                       <span className="text-sm text-muted-foreground">Project Name</span>
@@ -284,7 +276,7 @@ export default function OverviewSection(props: OverviewSectionProps) {
 
                   {/* Dates */}
                   <div className="border-t pt-3 pb-3">
-                    <div className="flex items-start gap-3">
+                    <div className="flex items-center gap-3">
                       <Calendar className="w-5 h-5 text-purple-600 mt-0.5 shrink-0" />
                       <div className="flex-1 space-y-2">
                         <div className="flex justify-between items-center">

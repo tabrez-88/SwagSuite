@@ -12,25 +12,8 @@ import {
 import { differenceInDays } from "date-fns";
 import { useDocumentGeneration, buildItemsHash } from "@/hooks/useDocumentGeneration";
 import { buildInvoicePdf } from "@/components/documents/pdf/builders";
+import { getEditedItem } from "@/lib/projectDetailUtils";
 import type { InvoiceSectionProps } from "./types";
-
-function getEditedItem(_id: string, item: any) {
-  return {
-    id: item.id,
-    productId: item.productId,
-    productName: item.productName,
-    productSku: item.productSku,
-    supplierId: item.supplierId,
-    color: item.color || "",
-    quantity: item.quantity || 0,
-    unitPrice: parseFloat(item.unitPrice) || 0,
-    cost: parseFloat(item.cost || 0),
-    decorationCost: parseFloat(item.decorationCost || 0),
-    charges: parseFloat(item.charges || 0),
-    margin: 44,
-    sizePricing: item.sizePricing || {},
-  };
-}
 
 export function useInvoiceSection({ projectId, data }: InvoiceSectionProps) {
   const { order, invoice, invoiceLoading, orderItems, companyName, primaryContact, contacts, serviceCharges } = data;

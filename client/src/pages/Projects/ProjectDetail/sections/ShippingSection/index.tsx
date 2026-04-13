@@ -722,14 +722,18 @@ export default function ShippingSection({ projectId, data, isLocked }: ShippingS
               <Send className="w-5 h-5" /> Send Tracking Info to Client
             </DialogTitle>
           </DialogHeader>
-          {h.notifyShipment && (
+          {h.notifyShipment && (() => {
+            const notifyEmail = h.getNotifyEmail(h.notifyShipment);
+            return (
             <EmailComposer
               defaults={{
                 to: h.primaryContact?.email || "",
                 toName: h.primaryContact ? `${h.primaryContact.firstName} ${h.primaryContact.lastName}` : h.companyName || "",
-                subject: `Shipment Update — Order #${(h.order as any)?.orderNumber || ""}`,
-                body: h.getNotifyEmailBody(h.notifyShipment),
+                subject: notifyEmail.subject,
+                body: notifyEmail.body,
               }}
+              templateType="shipping_notification"
+              templateMergeData={notifyEmail.mergeData}
               autoFillSender
               richText
               showAttachments
@@ -755,7 +759,8 @@ export default function ShippingSection({ projectId, data, isLocked }: ShippingS
               onCancel={() => h.setNotifyShipment(null)}
               sendLabel="Send Tracking Email"
             />
-          )}
+            );
+          })()}
         </DialogContent>
       </Dialog>
 

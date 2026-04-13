@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useToast } from "@/hooks/use-toast";
+import { useQuery } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
+import { useSendVendorEmail } from "@/services/communications/mutations";
 import type { EmailComposerRef } from "@/components/email/EmailComposer";
 import type { EmailContact, EmailFormData } from "@/components/email/types";
 import type { ProjectData } from "@/types/project-types";
@@ -12,8 +13,6 @@ export function stripHtml(html: string): string {
 
 export function useVendorSection(projectId: string, data: ProjectData) {
   const { order, orderVendors, vendorCommunications, orderItems } = data;
-  const { toast } = useToast();
-  const queryClient = useQueryClient();
   const composerRef = useRef<EmailComposerRef>(null);
 
   const [selectedVendor, setSelectedVendor] = useState<any>(null);
@@ -30,9 +29,8 @@ export function useVendorSection(projectId: string, data: ProjectData) {
     queryKey: [`/api/contacts`, { supplierId: selectedVendor?.id }],
     queryFn: async () => {
       if (!selectedVendor?.id) return [];
-      const response = await fetch(`/api/contacts?supplierId=${selectedVendor.id}`, { credentials: "include" });
-      if (!response.ok) return [];
-      return response.json();
+      const res = await apiRequest("GET", `/api/contacts?supplierId=${selectedVendor.id}`);
+      return res.json();
     },
     enabled: !!selectedVendor?.id,
   });
@@ -62,53 +60,40 @@ export function useVendorSection(projectId: string, data: ProjectData) {
     }
   }, [selectedVendor, vendorPrimaryContact]);
 
-  const sendVendorEmailMutation = useMutation({
-    mutationFn: async (formData: EmailFormData & { adHocEmails: string[] }) => {
+  const _sendVendorEmail = useSendVendorEmail(Number(order?.id));
+
+  const sendVendorEmailMutation = {
+    ..._sendVendorEmail,
+    mutate: (formData: EmailFormData & { adHocEmails: string[] }) => {
       const userAttachments = formData.attachments?.length
         ? formData.attachments.map((att) => ({ fileUrl: att.cloudinaryUrl, fileName: att.fileName }))
         : undefined;
 
-      const response = await fetch(`/api/projects/${order?.id}/communications`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({
-          communicationType: "vendor_email",
-          direction: "sent",
-          fromEmail: formData.from,
-          fromName: formData.fromName,
-          recipientEmail: formData.to,
-          recipientName: formData.toName,
-          subject: formData.subject,
-          body: formData.body,
-          cc: formData.cc || undefined,
-          bcc: formData.bcc || undefined,
-          metadata: { vendorId: selectedVendor?.id, vendorName: selectedVendor?.name },
-          additionalAttachments: userAttachments,
-        }),
-      });
-      if (!response.ok) {
-        const result = await response.json();
-        throw new Error(result.message || "Failed to send email");
-      }
-      return response.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: [`/api/projects/${projectId}/communications`, { type: "vendor_email" }],
-      });
-      toast({ title: "Email sent", description: "Vendor email has been sent successfully." });
-      composerRef.current?.reset({
-        to: vendorPrimaryContact?.email || "",
-        toName: vendorPrimaryContact
-          ? `${vendorPrimaryContact.firstName || ""} ${vendorPrimaryContact.lastName || ""}`.trim()
-          : selectedVendor?.name || "",
+      _sendVendorEmail.mutate({
+        communicationType: "vendor_email",
+        direction: "sent",
+        fromEmail: formData.from,
+        fromName: formData.fromName,
+        recipientEmail: formData.to,
+        recipientName: formData.toName,
+        subject: formData.subject,
+        body: formData.body,
+        cc: formData.cc || undefined,
+        bcc: formData.bcc || undefined,
+        metadata: { vendorId: selectedVendor?.id, vendorName: selectedVendor?.name },
+        additionalAttachments: userAttachments,
+      }, {
+        onSuccess: () => {
+          composerRef.current?.reset({
+            to: vendorPrimaryContact?.email || "",
+            toName: vendorPrimaryContact
+              ? `${vendorPrimaryContact.firstName || ""} ${vendorPrimaryContact.lastName || ""}`.trim()
+              : selectedVendor?.name || "",
+          });
+        },
       });
     },
-    onError: (error: Error) => {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
-    },
-  });
+  };
 
   // Email templates
   const applyTemplate = (template: string) => {
