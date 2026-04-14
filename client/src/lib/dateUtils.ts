@@ -18,12 +18,27 @@ export interface TimelineConflict {
   severity: "error" | "warning";
 }
 
+// ── Local Date Parsing ──
+// Parses date strings as LOCAL dates to avoid timezone drift.
+// "2026-04-14" or "2026-04-14T00:00:00.000Z" → local midnight on Apr 14.
+// Prevents UTC-interpreted date-only strings from shifting by a day.
+export function parseLocalDate(date: string | Date | null | undefined): Date | null {
+  if (!date) return null;
+  if (date instanceof Date) return date;
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(date);
+  if (match) {
+    const [, y, m, d] = match;
+    return new Date(Number(y), Number(m) - 1, Number(d));
+  }
+  return new Date(date);
+}
+
 // ── Date Status ──
 
 export function getDateStatus(date: string | Date | null | undefined): DateStatus | null {
   if (!date) return null;
 
-  const target = startOfDay(new Date(date));
+  const target = startOfDay(parseLocalDate(date) ?? new Date(date));
   const today = startOfDay(new Date());
   const days = differenceInCalendarDays(target, today);
 

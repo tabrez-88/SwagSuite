@@ -38,7 +38,7 @@ import {
   getProofStatusBadgeClass,
 } from "@/constants/poStages";
 import { getStageBadgeClass } from "@/constants/productionStages";
-import { getDateStatus } from "@/lib/dateUtils";
+import { getDateStatus, parseLocalDate } from "@/lib/dateUtils";
 import { formatAddress } from "@/components/feature/DocumentEditor/types";
 import type { PODetailPanelProps } from "./types";
 import { usePODetailPanel } from "./hooks";
@@ -264,7 +264,7 @@ export default function PODetailPanel({ documentId, open, onOpenChange }: PODeta
                         <Input
                           type="date"
                           className="h-8 text-sm"
-                          value={po.next_action_date ? format(new Date(po.next_action_date), "yyyy-MM-dd") : ""}
+                          value={po.next_action_date ? format(parseLocalDate(po.next_action_date)!, "yyyy-MM-dd") : ""}
                           onChange={(e) => {
                             const val = e.target.value;
                             updateNextActionMutation.mutate({
@@ -418,19 +418,19 @@ export default function PODetailPanel({ documentId, open, onOpenChange }: PODeta
                         <div>
                           <span className="text-blue-600 font-medium">In-Hands</span>
                           <p className="text-blue-800">
-                            {po.in_hands_date ? format(new Date(po.in_hands_date), "MMM d, yyyy") : "Not set"}
+                            {po.in_hands_date ? format(parseLocalDate(po.in_hands_date)!, "MMM d, yyyy") : "Not set"}
                           </p>
                         </div>
                         <div>
                           <span className="text-blue-600 font-medium">Supplier IHD</span>
                           <p className="text-blue-800">
-                            {po.supplier_in_hands_date ? format(new Date(po.supplier_in_hands_date), "MMM d, yyyy") : "Not set"}
+                            {po.supplier_in_hands_date ? format(parseLocalDate(po.supplier_in_hands_date)!, "MMM d, yyyy") : "Not set"}
                           </p>
                         </div>
                         <div>
                           <span className="text-blue-600 font-medium">Event Date</span>
                           <p className="text-blue-800">
-                            {po.event_date ? format(new Date(po.event_date), "MMM d, yyyy") : "Not set"}
+                            {po.event_date ? format(parseLocalDate(po.event_date)!, "MMM d, yyyy") : "Not set"}
                           </p>
                         </div>
                       </div>
@@ -466,18 +466,18 @@ export default function PODetailPanel({ documentId, open, onOpenChange }: PODeta
                             )}
                             {shipDate && (
                               <p className="text-xs text-muted-foreground">
-                                Shipped: {format(new Date(shipDate), "MMM d, yyyy")}
+                                Shipped: {format(parseLocalDate(shipDate)!, "MMM d, yyyy")}
                               </p>
                             )}
                             {estDelivery && (
                               <p className="text-xs text-muted-foreground">
-                                Est. Delivery: {format(new Date(estDelivery), "MMM d, yyyy")}
+                                Est. Delivery: {format(parseLocalDate(estDelivery)!, "MMM d, yyyy")}
                               </p>
                             )}
                             {actDelivery && (
                               <p className="text-xs text-green-600 flex items-center gap-1">
                                 <CheckCircle className="h-3 w-3" />
-                                Delivered: {format(new Date(actDelivery), "MMM d, yyyy")}
+                                Delivered: {format(parseLocalDate(actDelivery)!, "MMM d, yyyy")}
                               </p>
                             )}
                           </CardContent>
@@ -604,7 +604,7 @@ function DateRow({
   date?: string | null;
   showUrgency?: boolean;
 }) {
-  const formatted = date ? format(new Date(date), "MMM d, yyyy") : "Not set";
+  const formatted = date ? format(parseLocalDate(date)!, "MMM d, yyyy") : "Not set";
   const dateStatus = showUrgency && date ? getDateStatus(date) : null;
 
   return (
