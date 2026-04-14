@@ -24,7 +24,7 @@ import { CardHeader, CardTitle } from "@/components/ui/card";
 import {
   ChevronDown,
   ChevronUp,
-  Copy as CopyIcon,
+  ExternalLink,
   Eye,
   EyeOff,
   Image,
@@ -107,8 +107,8 @@ export default function PresentationSection(props: PresentationSectionProps) {
             onClick={() => hook.shareLinkMutation.mutate()}
             disabled={hook.shareLinkMutation.isPending}
           >
-            <CopyIcon className="w-4 h-4" />
-            {hook.shareLinkMutation.isPending ? "Generating..." : "Copy Link"}
+            <ExternalLink className="w-4 h-4" />
+            {hook.shareLinkMutation.isPending ? "Generating..." : "Open Link"}
           </Button>
           <Button size="sm" className="gap-1" onClick={() => hook.setShowSendDialog(true)}>
             <Send className="w-4 h-4" />

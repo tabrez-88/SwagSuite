@@ -27,6 +27,7 @@ import { marginColorClass, isBelowMinimum, calcMarginPercent } from "@/hooks/use
 import TierPricingPanel from "@/components/sections/TierPricingPanel";
 import type { AddProductPageProps, ProductResult } from "./types";
 import { useAddProductPage } from "./hooks";
+import EditProductPage from "@/components/sections/EditProductPage";
 
 export default function AddProductPage({ projectId, data }: AddProductPageProps) {
   const h = useAddProductPage({ projectId, data });
@@ -947,6 +948,21 @@ export default function AddProductPage({ projectId, data }: AddProductPageProps)
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* POST-CREATE EDIT DIALOG — auto-opens after product is added so user
+          can configure charges & artwork without leaving the page */}
+      {h.postCreateItemId && (
+        <EditProductPage
+          open
+          onClose={() => {
+            h.setPostCreateItemId(null);
+            h.setLocation(h.productsPath);
+          }}
+          projectId={projectId}
+          itemId={h.postCreateItemId}
+          data={data}
+        />
+      )}
 
       {/* MARGIN WARNING CONFIRMATION DIALOG */}
       <AlertDialog open={!!h.marginWarningAction} onOpenChange={(open) => { if (!open) h.dismissMarginWarning(); }}>

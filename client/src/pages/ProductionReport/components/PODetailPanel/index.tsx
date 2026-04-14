@@ -130,7 +130,7 @@ export default function PODetailPanel({ documentId, open, onOpenChange }: PODeta
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={() => setLocation(`/projects/${po?.order_id}`)}
+                    onClick={() => setLocation(`/projects/${po?.order_id}/pos`) }
                   >
                     <ExternalLink className="h-3.5 w-3.5 mr-1" />
                     View Project

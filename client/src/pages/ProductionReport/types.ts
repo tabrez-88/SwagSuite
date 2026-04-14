@@ -26,6 +26,7 @@ export interface POReportRow {
   assignedUserName: string;
   assignedUserImage: string | null;
   csrUserName: string;
+  csrUserImage: string | null;
   currentStage: string;
   stagesCompleted: string[];
   // Enriched

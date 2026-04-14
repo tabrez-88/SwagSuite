@@ -282,9 +282,9 @@ class EmailService {
       <td align="center" style="padding: 20px 10px;">
         <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" style="max-width: 600px; background-color: #ffffff; border-radius: 8px; overflow: hidden;">
           <tr>
-            <td style="background-color: #059669; padding: 30px; text-align: center;">
+            <td style="background-color: #059669; padding: 20px; text-align: center;">
               <h1 style="color: #ffffff; margin: 0; font-size: 24px; font-family: Arial, sans-serif;">Liquid Screen Design</h1>
-              <p style="color: #d1fae5; margin: 5px 0 0 0; font-size: 14px; font-family: Arial, sans-serif;">Vendor Communication</p>
+              <p style="color: #d1fae5; margin: 0 0 0 0; font-size: 14px; font-family: Arial, sans-serif;">Vendor Communication</p>
             </td>
           </tr>
           <tr>

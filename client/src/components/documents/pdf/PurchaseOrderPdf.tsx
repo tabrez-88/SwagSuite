@@ -87,25 +87,25 @@ export function PurchaseOrderPdf({
 
   const itemsCost = isDecoratorPO
     ? artworkItems.reduce((sum: number, art: any) => {
-        const charges = (allArtworkCharges[art.id] || []).filter(
-          (c: any) => c.displayToVendor !== false,
-        );
-        return (
-          sum +
-          charges.reduce((s: number, c: any) => {
-            const cost = parseFloat(c.netCost || "0");
-            const qty =
-              c.chargeCategory === "run"
-                ? vendorItems.find((i: any) => i.id === art.orderItemId)?.quantity || 1
-                : c.quantity || 1;
-            return s + cost * qty;
-          }, 0)
-        );
-      }, 0)
+      const charges = (allArtworkCharges[art.id] || []).filter(
+        (c: any) => c.displayToVendor !== false,
+      );
+      return (
+        sum +
+        charges.reduce((s: number, c: any) => {
+          const cost = parseFloat(c.netCost || "0");
+          const qty =
+            c.chargeCategory === "run"
+              ? vendorItems.find((i: any) => i.id === art.orderItemId)?.quantity || 1
+              : c.quantity || 1;
+          return s + cost * qty;
+        }, 0)
+      );
+    }, 0)
     : vendorItems.reduce((sum: number, item: any) => {
-        const cost = parseFloat(item.cost) || parseFloat(item.unitPrice) || 0;
-        return sum + cost * (item.quantity || 0);
-      }, 0);
+      const cost = parseFloat(item.cost) || parseFloat(item.unitPrice) || 0;
+      return sum + cost * (item.quantity || 0);
+    }, 0);
 
   const totalCost = itemsCost + serviceChargesTotal;
 
@@ -153,9 +153,9 @@ export function PurchaseOrderPdf({
             </Text>
             <Text style={styles.docMeta}>PO #{poNumber}</Text>
             <Text style={styles.docMeta}>Date: {fmtDate(order?.createdAt)}</Text>
-            {resolvedIHD && (
+            {order?.supplierInHandsDate && (
               <Text style={[styles.docMeta, styles.bold, { color: colors.red600 }]}>
-                Required by: {fmtDate(resolvedIHD)}
+                Required by: {fmtDate(order.supplierInHandsDate)}
               </Text>
             )}
             {order?.isFirm && (
@@ -163,15 +163,9 @@ export function PurchaseOrderPdf({
                 FIRM ORDER — Date cannot be adjusted
               </Text>
             )}
-            {order?.isRush && !resolvedIHD && (
-              <Text style={[styles.docMeta, styles.bold, { color: colors.red600 }]}>
-                RUSH ORDER — Please prioritize
-              </Text>
-            )}
           </View>
           <View style={styles.headerRight}>
-            <Text style={styles.brandName}>{sellerName || "Liquid Screen Design"}</Text>
-            <Text style={styles.brandSub}>Purchaser</Text>
+            <Text style={styles.brandName}>{"Liquid Screen Design"}</Text>
           </View>
         </View>
 
@@ -238,12 +232,6 @@ export function PurchaseOrderPdf({
             <View key={item.id} style={styles.itemBlock} wrap={false}>
               <Text style={styles.itemTitle}>
                 {item.productName}
-                {item.productSku && (
-                  <Text style={{ fontFamily: "Helvetica", fontSize: 8, color: colors.gray500 }}>
-                    {"  SKU: "}
-                    {item.productSku}
-                  </Text>
-                )}
               </Text>
               {item.description && <Text style={styles.itemDesc}>{item.description}</Text>}
 
@@ -310,26 +298,26 @@ export function PurchaseOrderPdf({
                       {(allItemCharges[item.id] || [])
                         .filter((charge: any) => charge.displayToVendor !== false)
                         .map((charge: any) => {
-                        const chCost = parseFloat(charge.netCost || "0");
-                        if (chCost <= 0) return null;
-                        const chQty =
-                          charge.chargeCategory === "run" ? quantity : charge.quantity || 1;
-                        return (
-                          <View key={charge.id} style={styles.tableRow}>
-                            <Text style={[styles.tableCell, styles.colItem, styles.muted]}>
-                              {charge.description}{" "}
-                              <Text style={styles.muted}>
-                                ({charge.chargeCategory === "run" ? "per unit" : "one-time"})
+                          const chCost = parseFloat(charge.netCost || "0");
+                          if (chCost <= 0) return null;
+                          const chQty =
+                            charge.chargeCategory === "run" ? quantity : charge.quantity || 1;
+                          return (
+                            <View key={charge.id} style={styles.tableRow}>
+                              <Text style={[styles.tableCell, styles.colItem, styles.muted]}>
+                                {charge.description}{" "}
+                                <Text style={styles.muted}>
+                                  ({charge.chargeCategory === "run" ? "per unit" : "one-time"})
+                                </Text>
                               </Text>
-                            </Text>
-                            <Text style={[styles.tableCell, styles.colQty]}>{chQty}</Text>
-                            <Text style={[styles.tableCell, styles.colPrice]}>{fmtMoney(chCost)}</Text>
-                            <Text style={[styles.tableCell, styles.colAmount, styles.bold]}>
-                              {fmtMoney(chCost * chQty)}
-                            </Text>
-                          </View>
-                        );
-                      })}
+                              <Text style={[styles.tableCell, styles.colQty]}>{chQty}</Text>
+                              <Text style={[styles.tableCell, styles.colPrice]}>{fmtMoney(chCost)}</Text>
+                              <Text style={[styles.tableCell, styles.colAmount, styles.bold]}>
+                                {fmtMoney(chCost * chQty)}
+                              </Text>
+                            </View>
+                          );
+                        })}
                     </>
                   )}
 
@@ -470,19 +458,9 @@ export function PurchaseOrderPdf({
         {/* ── Special instructions ─────────────────────────────── */}
         <View style={styles.notesBlock} wrap={false}>
           <Text style={styles.notesLabel}>SPECIAL INSTRUCTIONS:</Text>
-          {resolvedIHD && (
-            <Text style={[styles.notesText, styles.bold, { color: colors.red600 }]}>
-              {`! RUSH ORDER - Must ship by ${fmtDate(resolvedIHD)}`}
-            </Text>
-          )}
           {order?.isFirm && (
             <Text style={[styles.notesText, styles.bold, { color: colors.blue700 }]}>
               FIRM ORDER — Delivery date is locked and cannot be adjusted.
-            </Text>
-          )}
-          {order?.isRush && !resolvedIHD && (
-            <Text style={[styles.notesText, styles.bold, { color: colors.red600 }]}>
-              RUSH ORDER — Please prioritize this order.
             </Text>
           )}
           {order?.supplierNotes && <Text style={styles.notesText}>{order.supplierNotes}</Text>}

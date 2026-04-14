@@ -16,7 +16,6 @@ import InvoiceSection from "./sections/InvoiceSection";
 import BillsSection from "./sections/BillsSection";
 import FeedbackSection from "./sections/FeedbackSection";
 import AddProductPage from "@/components/sections/AddProductPage";
-import EditProductPage from "@/components/sections/EditProductPage";
 import PresentationPreviewPage from "./sections/PresentationSection/PresentationPreviewPage";
 
 export default function ProjectDetailPage() {
@@ -30,10 +29,8 @@ export default function ProjectDetailPage() {
     if (location.startsWith(prefix)) {
       const rest = location.slice(prefix.length);
       if (rest.startsWith("sales-order/add")) return "sales-order/add";
-      if (rest.startsWith("sales-order/edit/")) return "sales-order/edit";
       if (rest.startsWith("sales-order")) return "sales-order";
       if (rest.startsWith("quote/add")) return "quote/add";
-      if (rest.startsWith("quote/edit/")) return "quote/edit";
       if (rest.startsWith("presentation/add")) return "presentation/add";
       if (rest.startsWith("presentation/preview")) return "presentation/preview";
       if (rest.startsWith("presentation")) return "presentation";
@@ -45,22 +42,7 @@ export default function ProjectDetailPage() {
 
   const activeSection = getActiveSection();
 
-  // Extract itemId for edit routes
-  const getEditItemId = () => {
-    if (!projectId) return null;
-    const prefix = `/projects/${projectId}/`;
-    if (location.startsWith(prefix)) {
-      const rest = location.slice(prefix.length);
-      const editMatch = rest.match(/(?:sales-order|quote)\/edit\/(.+)/);
-      if (editMatch) return editMatch[1];
-    }
-    return null;
-  };
-  const editItemId = getEditItemId();
-
-  // Map edit sections to their parent for data loading
-  const dataSection = activeSection.includes("/edit") ? activeSection.replace("/edit", "") : activeSection;
-  const data = useProjectData(projectId, dataSection);
+  const data = useProjectData(projectId, activeSection);
   const lockStatus = useLockStatus(data);
 
   // Redirect bare /projects/:projectId to /projects/:projectId/overview
@@ -110,9 +92,6 @@ export default function ProjectDetailPage() {
       case "quote/add":
       case "sales-order/add":
         return <AddProductPage projectId={projectId!} data={data} />;
-      case "quote/edit":
-      case "sales-order/edit":
-        return editItemId ? <EditProductPage projectId={projectId!} itemId={editItemId} data={data} /> : null;
       case "shipping":
         return <ShippingSection projectId={projectId!} data={data} isLocked={lockStatus.shipping.isLocked} />;
       case "pos":

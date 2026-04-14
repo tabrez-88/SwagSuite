@@ -847,14 +847,17 @@ export class ProjectController {
       // Get source items
       const sourceItems = await db.select().from(orderItems).where(eq(orderItems.orderId, projectId));
 
-      // Generate new order number (find max existing number to avoid collisions)
-      const year = new Date().getFullYear();
-      const maxResult = await db.execute(sql.raw(
-        `SELECT MAX(CAST(SUBSTRING(order_number FROM 'ORD-${year}-(\\d+)') AS INTEGER)) as max_num FROM orders WHERE order_number LIKE 'ORD-${year}-%'`
-      ));
+      // Generate new order number (numeric format, 5 digits, starting at 10001)
+      const { companySettings } = await import("@shared/schema");
+      const [settings] = await db.select().from(companySettings).limit(1);
+      const digits = settings?.orderNumberDigits || 5;
+      const maxResult = await db.execute(
+        sql`SELECT MAX(CAST(order_number AS INTEGER)) AS max_num FROM orders WHERE order_number ~ '^[0-9]+$'`
+      );
       const maxRows = (maxResult as any).rows ?? maxResult;
-      const nextNum = (parseInt(maxRows[0]?.max_num || "0") || 0) + 1;
-      const newOrderNumber = `ORD-${year}-${String(nextNum).padStart(3, "0")}`;
+      const currentMax = parseInt(maxRows?.[0]?.max_num || "0") || 0;
+      const nextNum = currentMax > 0 ? currentMax + 1 : 10001;
+      const newOrderNumber = String(nextNum).padStart(digits, "0");
 
       // Create duplicate order (reset statuses, keep content)
       const [newOrder] = await db.insert(orders).values({

@@ -71,18 +71,6 @@ export function GeneralTab({ adminSettings }: GeneralTabProps) {
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="orderNumberPrefix">Order Number Prefix</Label>
-            <Input
-              id="orderNumberPrefix"
-              value={generalSettings.orderNumberPrefix}
-              onChange={(e) => updateField("orderNumberPrefix", e.target.value.toUpperCase())}
-              placeholder="e.g. LSD, ORD"
-            />
-            <p className="text-xs text-muted-foreground">
-              Preview: {generalSettings.orderNumberPrefix}-{new Date().getFullYear()}-{"1".padStart(parseInt(generalSettings.orderNumberDigits) || 3, "0")}
-            </p>
-          </div>
-          <div className="space-y-2">
             <Label htmlFor="orderNumberDigits">Order Number Digits</Label>
             <Select
               value={generalSettings.orderNumberDigits}
@@ -92,12 +80,14 @@ export function GeneralTab({ adminSettings }: GeneralTabProps) {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="2">2 digits (01)</SelectItem>
-                <SelectItem value="3">3 digits (001)</SelectItem>
-                <SelectItem value="4">4 digits (0001)</SelectItem>
-                <SelectItem value="5">5 digits (00001)</SelectItem>
+                <SelectItem value="4">4 digits (e.g. 1001)</SelectItem>
+                <SelectItem value="5">5 digits (e.g. 10001)</SelectItem>
+                <SelectItem value="6">6 digits (e.g. 100001)</SelectItem>
               </SelectContent>
             </Select>
+            <p className="text-xs text-muted-foreground">
+              Format: #10001 · PO turunan: #10001-01
+            </p>
           </div>
           {/* Hidden until enforcement logic is implemented */}
           {/* <div className="space-y-2">

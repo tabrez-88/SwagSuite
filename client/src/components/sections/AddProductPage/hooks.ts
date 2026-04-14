@@ -68,6 +68,10 @@ export function useAddProductPage({ projectId, data }: AddProductPageProps) {
   const [marginWarningAction, setMarginWarningAction] = useState<(() => void) | null>(null);
   const [marginWarningValue, setMarginWarningValue] = useState<number>(0);
 
+  // Post-create Edit dialog state — after item is created, open Edit dialog
+  // so user can add charges/artwork without leaving the page.
+  const [postCreateItemId, setPostCreateItemId] = useState<string | null>(null);
+
   // Vendor "Do Not Order" approval dialog state
   const [vendorBlockDialog, setVendorBlockDialog] = useState<{
     open: boolean;
@@ -505,8 +509,8 @@ export function useAddProductPage({ projectId, data }: AddProductPageProps) {
 
       return createdItem;
     },
-    onSuccess: () => {
-      toast({ title: "Product added to order" });
+    onSuccess: (createdItem: any) => {
+      toast({ title: "Product added — configure charges & artwork" });
       queryClient.invalidateQueries({ queryKey: projectKeys.items(projectId) });
       queryClient.invalidateQueries({ queryKey: projectKeys.itemsWithDetails(projectId) });
       queryClient.invalidateQueries({ queryKey: projectKeys.detail(projectId) });
@@ -514,7 +518,7 @@ export function useAddProductPage({ projectId, data }: AddProductPageProps) {
       queryClient.invalidateQueries({ queryKey: ["/api/suppliers"] });
       queryClient.invalidateQueries({ queryKey: ["/api/products"] });
       setSelectedProduct(null);
-      setLocation(productsPath);
+      setPostCreateItemId(createdItem.id);
     },
     onError: (err: any) => {
       if (err.doNotOrder) {
@@ -640,15 +644,15 @@ export function useAddProductPage({ projectId, data }: AddProductPageProps) {
 
       return createdItem;
     },
-    onSuccess: () => {
-      toast({ title: "Product added to order" });
+    onSuccess: (createdItem: any) => {
+      toast({ title: "Product added — configure charges & artwork" });
       queryClient.invalidateQueries({ queryKey: projectKeys.items(projectId) });
       queryClient.invalidateQueries({ queryKey: projectKeys.itemsWithDetails(projectId) });
       queryClient.invalidateQueries({ queryKey: projectKeys.detail(projectId) });
       queryClient.invalidateQueries({ queryKey: projectKeys.itemLines(projectId) });
       queryClient.invalidateQueries({ queryKey: ["/api/suppliers"] });
       queryClient.invalidateQueries({ queryKey: ["/api/products"] });
-      setLocation(productsPath);
+      setPostCreateItemId(createdItem.id);
     },
     onError: (err: any) => {
       if (err.doNotOrder) {
@@ -917,6 +921,9 @@ export function useAddProductPage({ projectId, data }: AddProductPageProps) {
     marginWarningValue,
     dismissMarginWarning,
     confirmMarginWarning,
+    // Post-create edit dialog
+    postCreateItemId,
+    setPostCreateItemId,
     // Vendor block
     vendorBlockDialog,
     dismissVendorBlock,

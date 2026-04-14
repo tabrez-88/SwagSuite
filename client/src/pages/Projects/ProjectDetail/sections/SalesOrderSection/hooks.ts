@@ -105,8 +105,7 @@ export function useSalesOrderSection({ projectId, data, lockStatus }: SalesOrder
     const existingApproval = quoteApprovals.find((a: any) => a.status === "pending");
     if (existingApproval) {
       const approvalUrl = `${window.location.origin}/client-approval/${existingApproval.approvalToken}`;
-      navigator.clipboard.writeText(approvalUrl);
-      toast({ title: "Approval Link Copied", description: "The existing approval link has been copied to clipboard." });
+      window.open(approvalUrl, "_blank", "noopener,noreferrer");
       return;
     }
     try {
@@ -118,8 +117,7 @@ export function useSalesOrderSection({ projectId, data, lockStatus }: SalesOrder
         quoteTotal: (order as any)?.total,
       });
       const approvalUrl = `${window.location.origin}/client-approval/${result.approvalToken}`;
-      navigator.clipboard.writeText(approvalUrl);
-      toast({ title: "Approval Link Generated", description: "Link copied to clipboard." });
+      window.open(approvalUrl, "_blank", "noopener,noreferrer");
     } catch {
       toast({ title: "Error", description: "Failed to generate approval link", variant: "destructive" });
     }

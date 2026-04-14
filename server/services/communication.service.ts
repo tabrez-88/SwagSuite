@@ -85,7 +85,7 @@ export class CommunicationService {
         ? `${sendingUser.firstName || ''} ${sendingUser.lastName || ''}`.trim()
         : '';
       const replyToEmail = data.fromEmail || sendingUser?.email || undefined;
-      const senderName = (data.fromName && data.fromName !== 'SwagSuite' ? data.fromName : userFullName) || 'SwagSuite';
+      const senderName = (data.fromName && data.fromName !== 'Liquid Screen Design' ? data.fromName : userFullName) || 'Liquid Screen Design';
 
       let bcc = data.bcc;
       if (replyToEmail) {
@@ -171,7 +171,7 @@ export class CommunicationService {
       ? `${sendingUser.firstName || ''} ${sendingUser.lastName || ''}`.trim()
       : '';
     const replyToEmail = data.fromEmail || sendingUser?.email || undefined;
-    const senderName = (data.fromName && data.fromName !== 'SwagSuite' ? data.fromName : userFullName) || 'SwagSuite';
+    const senderName = (data.fromName && data.fromName !== 'Liquid Screen Design' ? data.fromName : userFullName) || 'Liquid Screen Design';
 
     // Download user-selected attachments as buffers (Cloudinary URLs)
     let directBufferAttachments: Array<{ filename: string; content: Buffer; contentType: string }> = [];

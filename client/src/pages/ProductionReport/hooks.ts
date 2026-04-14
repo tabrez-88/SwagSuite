@@ -46,7 +46,7 @@ export function useProductionReport() {
     if (filterStage !== "all") params.set("stage", filterStage);
     if (filterStatus !== "all") params.set("status", filterStatus);
     if (filterVendor !== "all") params.set("vendorId", filterVendor);
-    if (filterAssignee !== "all") params.set("assigneeId", filterAssignee);
+    if (filterAssignee !== "all") params.set("csrUserId", filterAssignee);
     if (filterProofStatus !== "all") params.set("proofStatus", filterProofStatus);
     if (filterDateFrom) params.set("dateFrom", filterDateFrom);
     if (filterDateTo) params.set("dateTo", filterDateTo);

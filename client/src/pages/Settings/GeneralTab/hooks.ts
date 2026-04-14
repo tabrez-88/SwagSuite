@@ -17,8 +17,8 @@ const DEFAULT_GENERAL_SETTINGS: GeneralSettings = {
   minimumMargin: "15",
   maxOrderValue: "50000",
   requireApprovalOver: "5000",
-  orderNumberPrefix: "ORD",
-  orderNumberDigits: "3",
+  orderNumberPrefix: "",
+  orderNumberDigits: "5",
 };
 
 export function useGeneralTab(adminSettings: any) {

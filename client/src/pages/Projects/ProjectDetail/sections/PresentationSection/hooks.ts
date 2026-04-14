@@ -89,9 +89,7 @@ export function usePresentationSection({ projectId, data }: PresentationSectionP
       onSuccess: (data: any) => {
         const url = data.url;
         setShareLink(url);
-        navigator.clipboard.writeText(url).then(() => {
-          toast({ title: "Link copied!", description: data.existingToken ? "Existing link copied to clipboard." : "New presentation link created and copied." });
-        });
+        window.open(url, "_blank", "noopener,noreferrer");
       },
     }),
   }), [_shareLink, toast]);

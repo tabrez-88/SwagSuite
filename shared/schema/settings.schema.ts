@@ -88,8 +88,8 @@ export const companySettings = pgTable("company_settings", {
   maxOrderValue: decimal("max_order_value", { precision: 12, scale: 2 }).default("50000"),
   requireApprovalOver: decimal("require_approval_over", { precision: 12, scale: 2 }).default("5000"),
   // Order number format
-  orderNumberPrefix: varchar("order_number_prefix").default("ORD"),
-  orderNumberDigits: integer("order_number_digits").default(3),
+  orderNumberPrefix: varchar("order_number_prefix").default(""),
+  orderNumberDigits: integer("order_number_digits").default(5),
   // Metadata
   updatedBy: varchar("updated_by").references(() => users.id),
   createdAt: timestamp("created_at").defaultNow(),

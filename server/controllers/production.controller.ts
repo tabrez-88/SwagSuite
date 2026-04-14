@@ -358,7 +358,7 @@ export class ProductionController {
     const { sql } = await import("drizzle-orm");
 
     const {
-      stage, status, vendorId, assigneeId, search,
+      stage, status, vendorId, csrUserId, search,
       dateFrom, dateTo, dateType, proofStatus, productionStage,
       sortBy = 'created_at', sortOrder = 'desc',
       page = '1', limit = '50'
@@ -380,7 +380,7 @@ export class ProductionController {
     }
     if (status) conditions.push(`gd.metadata->>'poStatus' = '${status}'`);
     if (vendorId) conditions.push(`gd.vendor_id = '${vendorId}'`);
-    if (assigneeId) conditions.push(`o.assigned_user_id = '${assigneeId}'`);
+    if (csrUserId) conditions.push(`o.csr_user_id = '${csrUserId}'`);
     if (search) {
       conditions.push(`(
         gd.document_number ILIKE '%${search}%'
@@ -435,7 +435,7 @@ export class ProductionController {
       in_hands_date: 'o.in_hands_date',
       po_stage: "gd.metadata->>'poStage'",
       total: 'gd.metadata->>\'totalCost\'',
-      assigned_user: "COALESCE(u_assigned.first_name || ' ' || u_assigned.last_name, u_assigned.username)",
+      csr_user_id: "COALESCE(u_csr.first_name || ' ' || u_csr.last_name, u_csr.username)",
       next_action_date: 'o.next_action_date',
       next_action_type: 'o.next_action_type',
       total_cost: `COALESCE((
@@ -481,6 +481,7 @@ export class ProductionController {
         COALESCE(u_assigned.first_name || ' ' || u_assigned.last_name, u_assigned.username) as "assignedUserName",
         u_assigned.profile_image_url as "assignedUserImage",
         COALESCE(u_csr.first_name || ' ' || u_csr.last_name, u_csr.username) as "csrUserName",
+        u_csr.profile_image_url as "csrUserImage",
         COALESCE((
           SELECT SUM(oil.quantity * oil.cost)
           FROM order_items oi2

@@ -31,6 +31,26 @@ export function usePODetailPanel(documentId: string | null, open: boolean) {
       };
       return updateDocumentMeta(documentId!, { metadata: newMeta });
     },
+    onMutate: async ({ stage, status }) => {
+      if (!documentId) return;
+      const key = productionKeys.poReportDetail(documentId);
+      await queryClient.cancelQueries({ queryKey: key });
+      const previous = queryClient.getQueryData<any>(key);
+      if (previous) {
+        const newMeta = {
+          ...(previous.metadata || {}),
+          ...(stage && { poStage: stage }),
+          ...(status && { poStatus: status }),
+        };
+        queryClient.setQueryData(key, {
+          ...previous,
+          metadata: newMeta,
+          ...(stage && { poStage: stage }),
+          ...(status && { poStatus: status }),
+        });
+      }
+      return { previous };
+    },
     onSuccess: () => {
       toast({ title: "PO Updated", description: "Purchase order has been updated." });
       queryClient.invalidateQueries({ queryKey: productionKeys.poReportDetail(documentId ?? "") });
@@ -41,8 +61,12 @@ export function usePODetailPanel(documentId: string | null, open: boolean) {
         queryClient.invalidateQueries({ queryKey: projectKeys.detail(po.order_id) });
       }
     },
-    onError: () =>
-      toast({ title: "Error", description: "Failed to update PO.", variant: "destructive" }),
+    onError: (_err, _vars, context) => {
+      if (documentId && context?.previous) {
+        queryClient.setQueryData(productionKeys.poReportDetail(documentId), context.previous);
+      }
+      toast({ title: "Error", description: "Failed to update PO.", variant: "destructive" });
+    },
   });
 
   const updateNextActionMutation = useMutation({

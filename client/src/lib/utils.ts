@@ -5,5 +5,5 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
-/** "full_front" → "Full Front", "screen_print" → "Screen Print" */
-export const formatLabel = (s: string) => s.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+/** "full_front" → "Full Front", "screen_print" → "Screen Print" or "full-front" */
+export const formatLabel = (s: string) => s.replace(/[_-]/g, " ").replace(/\b\w/g, c => c.toUpperCase());

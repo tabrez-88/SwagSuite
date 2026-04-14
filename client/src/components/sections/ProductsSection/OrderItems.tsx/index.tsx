@@ -35,8 +35,8 @@ import {
   Trash2,
 } from "lucide-react";
 import { useState } from "react";
-import { useLocation } from "@/lib/wouter-compat";
 import MatrixChargePicker from "@/components/modals/MatrixChargePicker";
+import EditProductPage from "@/components/sections/EditProductPage";
 import type { useProductsSection } from "../hooks";
 import { formatLabel } from "@/lib/utils";
 
@@ -47,6 +47,7 @@ interface OrderItemCardProps {
 
 export default function OrderItemCard({ item, productSection }: OrderItemCardProps) {
   const [showCopyConfirm, setShowCopyConfirm] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
   const [matrixPickerTarget, setMatrixPickerTarget] = useState<{
     artworkId: string;
     chargeId: string;
@@ -55,11 +56,6 @@ export default function OrderItemCard({ item, productSection }: OrderItemCardPro
     artworkMethod?: string;
     currentMargin?: number;
   } | null>(null);
-  const [currentLocation, setLocation] = useLocation();
-  const isQuoteContext = currentLocation.includes("/quote");
-  const editPath = isQuoteContext
-    ? `/projects/${productSection.projectId}/quote/edit/${item.id}`
-    : `/projects/${productSection.projectId}/sales-order/edit/${item.id}`;
   const isExpanded = productSection.expandedItems.has(item.id);
   const itemSupplier = productSection.getItemSupplier(item);
   const imageUrl = productSection.getProductImage(item);
@@ -132,7 +128,7 @@ export default function OrderItemCard({ item, productSection }: OrderItemCardPro
                     disabled={productSection.isLocked}
                     onClick={(e) => {
                       e.stopPropagation();
-                      setLocation(editPath);
+                      setIsEditing(true);
                     }}
                   >
                     <Edit2 className="w-4 h-4 text-white" />
@@ -619,6 +615,16 @@ export default function OrderItemCard({ item, productSection }: OrderItemCardPro
           />
         );
       })()}
+
+      {isEditing && (
+        <EditProductPage
+          open
+          onClose={() => setIsEditing(false)}
+          projectId={productSection.projectId}
+          itemId={item.id}
+          data={productSection.data}
+        />
+      )}
     </Card>
   );
 }

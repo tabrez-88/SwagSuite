@@ -38,7 +38,6 @@ import type { ProjectData } from "@/types/project-types";
 import { useQuery } from "@tanstack/react-query";
 import {
   AlertTriangle,
-  ArrowLeft,
   Building2,
   ChevronDown,
   DollarSign,
@@ -128,6 +127,8 @@ interface EditProductPageProps {
   projectId: string;
   itemId: string;
   data: ProjectData;
+  open: boolean;
+  onClose: () => void;
 }
 
 // ── Sizes & Colors Dialog (CommonSKU-style batch line creation) ──
@@ -217,8 +218,8 @@ function SizesColorsDialog({ open, onClose, colors, sizes, onDone }: {
   );
 }
 
-export default function EditProductPage({ projectId, itemId, data }: EditProductPageProps) {
-  const editProductPage = useEditProductPage(projectId, itemId, data);
+export default function EditProductPage({ projectId, itemId, data, open, onClose }: EditProductPageProps) {
+  const editProductPage = useEditProductPage(projectId, itemId, data, onClose);
   const [showMatrixDialog, setShowMatrixDialog] = useState(false);
   const [showPricingTiers, setShowPricingTiers] = useState(false);
   const [matrixPickerTarget, setMatrixPickerTarget] = useState<{
@@ -235,38 +236,84 @@ export default function EditProductPage({ projectId, itemId, data }: EditProduct
     queryFn: getQueryFn({ on401: "throw" }),
   });
 
-  if (!editProductPage.item) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <p className="text-gray-500">Product not found</p>
-      </div>
-    );
-  }
+  return (
+    <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Edit Product</DialogTitle>
+        </DialogHeader>
+        {!editProductPage.item ? (
+          <div className="flex items-center justify-center h-64">
+            <p className="text-gray-500">Product not found</p>
+          </div>
+        ) : (
+          <EditProductPageBody
+            editProductPage={editProductPage}
+            projectId={projectId}
+            itemId={itemId}
+            data={data}
+            taxCodes={taxCodes}
+            showMatrixDialog={showMatrixDialog}
+            setShowMatrixDialog={setShowMatrixDialog}
+            showPricingTiers={showPricingTiers}
+            setShowPricingTiers={setShowPricingTiers}
+            matrixPickerTarget={matrixPickerTarget}
+            setMatrixPickerTarget={setMatrixPickerTarget}
+          />
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
 
+function EditProductPageBody({
+  editProductPage,
+  projectId,
+  itemId,
+  data,
+  taxCodes,
+  showMatrixDialog,
+  setShowMatrixDialog,
+  showPricingTiers,
+  setShowPricingTiers,
+  matrixPickerTarget,
+  setMatrixPickerTarget,
+}: {
+  editProductPage: ReturnType<typeof useEditProductPage>;
+  projectId: string;
+  itemId: string;
+  data: ProjectData;
+  taxCodes: any[] | undefined;
+  showMatrixDialog: boolean;
+  setShowMatrixDialog: (v: boolean) => void;
+  showPricingTiers: boolean;
+  setShowPricingTiers: (v: boolean) => void;
+  matrixPickerTarget: {
+    artworkId: string;
+    chargeId: string;
+    chargeName: string;
+    chargeType: "run" | "fixed";
+    artworkMethod?: string;
+    currentMargin?: number;
+  } | null;
+  setMatrixPickerTarget: (v: any) => void;
+}) {
+  if (!editProductPage.item) return null;
   const itemSupplier = editProductPage.getItemSupplier(editProductPage.item);
   const imageUrl = editProductPage.getProductImage(editProductPage.item);
 
   return (
     <div className="space-y-6">
-      {/* Top bar */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Button variant="ghost" size="sm" onClick={editProductPage.goBack}>
-            <ArrowLeft className="w-4 h-4 mr-1" />
-            Back
-          </Button>
-          <h1 className="text-xl font-semibold">Edit Product</h1>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={editProductPage.goBack}>Cancel</Button>
-          <Button onClick={editProductPage.handleSave} disabled={editProductPage.isSaving || !editProductPage.hasChanges}>
-            {editProductPage.isSaving ? (
-              <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Saving...</>
-            ) : (
-              <><Save className="w-4 h-4 mr-2" /> Save Changes</>
-            )}
-          </Button>
-        </div>
+      {/* Top action bar */}
+      <div className="flex items-center justify-end gap-2">
+        <Button variant="outline" onClick={editProductPage.goBack}>Cancel</Button>
+        <Button onClick={editProductPage.handleSave} disabled={editProductPage.isSaving || !editProductPage.hasChanges}>
+          {editProductPage.isSaving ? (
+            <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Saving...</>
+          ) : (
+            <><Save className="w-4 h-4 mr-2" /> Save Changes</>
+          )}
+        </Button>
       </div>
 
       {/* Product Header Card */}

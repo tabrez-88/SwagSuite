@@ -1,7 +1,8 @@
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Card, CardContent } from "@/components/ui/card";
+import { UserAvatar } from "@/components/shared/UserAvatar";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -23,33 +24,31 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import {
-  Factory,
-  Search,
-  ChevronLeft,
-  ChevronRight,
-  Loader2,
-  X,
-  SlidersHorizontal,
-  ArrowUpDown,
-  ArrowUp,
-  ArrowDown,
-  Truck,
-  AlertTriangle,
-  FileText,
-} from "lucide-react";
-import { format } from "date-fns";
-import { getDateStatus } from "@/lib/dateUtils";
-import {
   PO_STATUSES,
   PROOF_STATUSES,
-  getPOStatusBadgeClass,
-  getProofStatusBadgeClass,
+  getPOStatusBadgeClass
 } from "@/constants/poStages";
 import { getStageBadgeClass } from "@/constants/productionStages";
-import ProductionAlerts from "./components/ProductionAlerts";
-import PODetailPanel from "./components/PODetailPanel";
-import { UserAvatar } from "@/components/shared/UserAvatar";
 import { getActionTypeBadgeClass } from "@/hooks/useNextActionTypes";
+import { getDateStatus } from "@/lib/dateUtils";
+import { format } from "date-fns";
+import {
+  AlertTriangle,
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
+  ChevronLeft,
+  ChevronRight,
+  Factory,
+  FileText,
+  Loader2,
+  Search,
+  SlidersHorizontal,
+  Truck,
+  X,
+} from "lucide-react";
+import PODetailPanel from "./components/PODetailPanel";
+import ProductionAlerts from "./components/ProductionAlerts";
 import { useProductionReport } from "./hooks";
 
 // Sort icon render helper
@@ -295,22 +294,33 @@ export default function ProductionReport() {
                     </TableHead>
                     <TableHead
                       className="cursor-pointer hover:bg-muted/50 text-xs py-3"
-                      onClick={() => handleSort("assigned_user")}
+                      onClick={() => handleSort("csr_user_id")}
                     >
-                      <span className="flex items-center">Assigned <SortIcon column="assigned_user" sortBy={sortBy} sortOrder={sortOrder} /></span>
+                      <span className="flex items-center">Assigned <SortIcon column="csr_user_id" sortBy={sortBy} sortOrder={sortOrder} /></span>
                     </TableHead>
                     <TableHead
                       className="cursor-pointer hover:bg-muted/50 text-xs py-3"
                       onClick={() => handleSort("po_stage")}
                     >
-                      <span className="flex items-center">Stage / Status <SortIcon column="po_stage" sortBy={sortBy} sortOrder={sortOrder} /></span>
+                      <span className="flex items-center">Stage<SortIcon column="po_stage" sortBy={sortBy} sortOrder={sortOrder} /></span>
                     </TableHead>
-                    <TableHead className="text-xs py-3">Proof</TableHead>
+                    <TableHead
+                      className="cursor-pointer hover:bg-muted/50 text-xs py-3"
+                      onClick={() => handleSort("status")}
+                    >
+                      <span className="flex items-center">Status <SortIcon column="status" sortBy={sortBy} sortOrder={sortOrder} /></span>
+                    </TableHead>
+                    <TableHead
+                      className="cursor-pointer hover:bg-muted/50 text-xs py-3"
+                      onClick={() => handleSort("next_action_type")}
+                    >
+                      <span className="flex items-center">Next Action<SortIcon column="next_action_type" sortBy={sortBy} sortOrder={sortOrder} /></span>
+                    </TableHead>
                     <TableHead
                       className="cursor-pointer hover:bg-muted/50 text-xs py-3"
                       onClick={() => handleSort("next_action_date")}
                     >
-                      <span className="flex items-center">Next Action <SortIcon column="next_action_date" sortBy={sortBy} sortOrder={sortOrder} /></span>
+                      <span className="flex items-center">Next Action Date<SortIcon column="next_action_date" sortBy={sortBy} sortOrder={sortOrder} /></span>
                     </TableHead>
                     <TableHead
                       className="cursor-pointer hover:bg-muted/50 text-xs py-3"
@@ -343,7 +353,7 @@ export default function ProductionReport() {
                         <TableCell className="py-3.5 pl-4">
                           <div className="space-y-1">
                             <div className="flex items-center gap-2">
-                              <span className="font-mono text-sm font-semibold">{row.documentNumber}</span>
+                              <span className="text-sm font-semibold">{row.documentNumber}</span>
                               {(row.isFirm || row.isRush) && (
                                 <div className="flex gap-1">
                                   {row.isFirm && (
@@ -384,23 +394,23 @@ export default function ProductionReport() {
                           </div>
                         </TableCell>
 
-                        {/* Assigned */}
+                        {/* Assigned (CSR) */}
                         <TableCell className="py-3.5">
-                          {row.assignedUserName ? (
+                          {row.csrUserName ? (
                             <Tooltip>
                               <TooltipTrigger asChild>
                                 <div className="flex items-center gap-2">
                                   <UserAvatar
-                                    name={row.assignedUserName}
-                                    imageUrl={row.assignedUserImage || undefined}
+                                    name={row.csrUserName}
+                                    imageUrl={row.csrUserImage || undefined}
                                     size="sm"
                                   />
                                   <span className="text-sm truncate max-w-[80px] hidden lg:inline">
-                                    {row.assignedUserName.split(" ")[0]}
+                                    {row.csrUserName.split(" ")[0]}
                                   </span>
                                 </div>
                               </TooltipTrigger>
-                              <TooltipContent>{row.assignedUserName}</TooltipContent>
+                              <TooltipContent>{row.csrUserName}</TooltipContent>
                             </Tooltip>
                           ) : (
                             <span className="text-xs text-muted-foreground">{"\u2014"}</span>
@@ -409,25 +419,16 @@ export default function ProductionReport() {
 
                         {/* Stage + Status (stacked) */}
                         <TableCell className="py-3.5">
-                          <div className="flex flex-col gap-1.5">
-                            <Badge className={`text-xs w-fit ${getStageBadgeClass(productionStages, row.poStage)}`}>
-                              {productionStages.find((s: any) => s.id === row.poStage)?.name || row.poStage}
-                            </Badge>
-                            <Badge className={`text-[10px] w-fit ${getPOStatusBadgeClass(row.poStatus)}`}>
-                              {PO_STATUSES[row.poStatus]?.label || row.poStatus}
-                            </Badge>
-                          </div>
+                          <Badge className={`text-xs w-fit ${getStageBadgeClass(productionStages, row.poStage)}`}>
+                            {productionStages.find((s: any) => s.id === row.poStage)?.name || row.poStage}
+                          </Badge>
                         </TableCell>
 
                         {/* Proof Status */}
                         <TableCell className="py-3.5">
-                          {aggProofStatus ? (
-                            <Badge className={`text-xs ${getProofStatusBadgeClass(aggProofStatus)}`}>
-                              {PROOF_STATUSES[aggProofStatus]?.label || aggProofStatus}
-                            </Badge>
-                          ) : (
-                            <span className="text-xs text-muted-foreground">{"\u2014"}</span>
-                          )}
+                          <Badge className={`text-[10px] w-fit ${getPOStatusBadgeClass(row.poStatus)}`}>
+                            {PO_STATUSES[row.poStatus]?.label || row.poStatus}
+                          </Badge>
                         </TableCell>
 
                         {/* Next Action */}
@@ -439,6 +440,20 @@ export default function ProductionReport() {
                                   <Badge className={`text-xs ${getActionTypeBadgeClass(actionTypes, row.nextActionType)}`}>
                                     {actionTypes.find(t => t.id === row.nextActionType)?.name || row.nextActionType}
                                   </Badge>
+                                </div>
+                              </TooltipTrigger>
+                              <TooltipContent className="max-w-[200px]">{row.nextActionNotes || "No notes"}</TooltipContent>
+                            </Tooltip>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">{"\u2014"}</span>
+                          )}
+                        </TableCell>
+                        {/* Next Action Date*/}
+                        <TableCell className="py-3.5">
+                          {row.nextActionType && row.nextActionType !== "no_action" ? (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <div className="space-y-1">
                                   {row.nextActionDate && (
                                     <div className="flex items-center gap-1.5">
                                       <span className="text-xs text-muted-foreground">

@@ -40,11 +40,9 @@ import type { ProjectData } from "@/types/project-types";
 import type { OrderAdditionalCharge, OrderItemLine } from "@shared/schema";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useLocation } from "@/lib/wouter-compat";
 
-export function useEditProductPage(projectId: string, itemId: string, data: ProjectData) {
+export function useEditProductPage(projectId: string, itemId: string, data: ProjectData, onClose?: () => void) {
   const marginSettings = useMarginSettings();
-  const [, setLocation] = useLocation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -538,13 +536,7 @@ export function useEditProductPage(projectId: string, itemId: string, data: Proj
   };
 
   const goBack = () => {
-    // Navigate back to the section we came from
-    const loc = window.location.pathname;
-    if (loc.includes("/quote/edit/")) {
-      setLocation(`/projects/${projectId}/quote`);
-    } else {
-      setLocation(`/projects/${projectId}/sales-order`);
-    }
+    onClose?.();
   };
 
   return {

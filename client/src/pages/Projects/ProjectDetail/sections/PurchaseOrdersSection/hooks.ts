@@ -557,6 +557,30 @@ export function usePurchaseOrdersSection({ projectId, data, isLocked }: Purchase
     navigator.clipboard.writeText(lns.join("\n")).then(() => toast({ title: "PO copied to clipboard" }));
   }, [order, projectId, toast]);
 
+  // Open the artwork approval link in a new tab.
+  // Reuses an existing pending approval if one exists for the artwork; otherwise generates one
+  // using the project's primary contact email. Works regardless of current proof status.
+  const handleOpenArtworkApprovalLink = useCallback(async (art: any) => {
+    const primaryContact: any = (data as any)?.primaryContact;
+    const fallbackEmail = primaryContact?.email || "";
+    if (!fallbackEmail) {
+      toast({ title: "No client email", description: "Set a primary contact email for this project to generate an approval link.", variant: "destructive" });
+      return;
+    }
+    try {
+      const approval = await generateApprovalMutation.mutateAsync({
+        orderItemId: art.orderItemId,
+        artworkItemId: art.id,
+        clientEmail: fallbackEmail,
+        clientName: primaryContact ? `${primaryContact.firstName || ""} ${primaryContact.lastName || ""}`.trim() : (data as any)?.companyName || "",
+      });
+      const approvalUrl = `${window.location.origin}/approval/${approval.approvalToken}`;
+      window.open(approvalUrl, "_blank", "noopener,noreferrer");
+    } catch {
+      toast({ title: "Failed to open approval link", variant: "destructive" });
+    }
+  }, [data, generateApprovalMutation, toast]);
+
   // Handle proof upload from file picker
   const handleProofUploaded = (files: any[]) => {
     const file = files[0];
@@ -651,6 +675,7 @@ export function usePurchaseOrdersSection({ projectId, data, isLocked }: Purchase
     openSendAllProofs,
     openSendAllVendorProofs,
     handleProofUploaded,
+    handleOpenArtworkApprovalLink,
     // Vendor addresses
     vendorAddressesMap,
     getVendorDefaultAddress,

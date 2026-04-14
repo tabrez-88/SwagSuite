@@ -28,6 +28,7 @@ import { sendCommunication } from "@/services/communications";
 import {
   AlertTriangle, Building2, Calendar, CheckCircle, ChevronDown, ChevronRight,
   ClipboardList, Copy, Download,
+  ExternalLink,
   Eye, FileText, Loader2,
   Mail, MoreHorizontal, Package, Palette, Printer, Send, ShieldCheck, Upload
 } from "lucide-react";
@@ -274,33 +275,6 @@ export default function PurchaseOrdersSection({ projectId, data, isLocked }: Pur
                                     <Mail className="w-4 h-4 mr-2" /> Resend PO
                                   </DropdownMenuItem>
                                 )}
-                                <DropdownMenuItem onClick={() => h.setNotifyVendor({
-                                  vendor: po.vendor,
-                                  subject: `Update — Order #${(h.order as any)?.orderNumber || ""}`,
-                                  body: "",
-                                })}>
-                                  <Send className="w-4 h-4 mr-2" /> Email Vendor
-                                </DropdownMenuItem>
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem onClick={() => h.setPreviewDocument(vendorDoc)}>
-                                  <Eye className="w-4 h-4 mr-2" /> Preview PDF
-                                </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => {
-                                  if (vendorDoc.fileUrl) {
-                                    const link = document.createElement("a");
-                                    link.href = vendorDoc.fileUrl; link.download = vendorDoc.fileName;
-                                    link.target = "_blank"; document.body.appendChild(link);
-                                    link.click(); document.body.removeChild(link);
-                                  }
-                                }}>
-                                  <Download className="w-4 h-4 mr-2" /> Download PDF
-                                </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => h.setPreviewPO(po)}>
-                                  <FileText className="w-4 h-4 mr-2" /> Quick Preview
-                                </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => h.copyPOToClipboard(po)}>
-                                  <Copy className="w-4 h-4 mr-2" /> Copy to Clipboard
-                                </DropdownMenuItem>
                                 <DropdownMenuSeparator />
                                 <DropdownMenuItem onClick={() => h.handleRegeneratePO(vendorDoc)}
                                   className="text-orange-600">
@@ -599,6 +573,13 @@ export default function PurchaseOrdersSection({ projectId, data, isLocked }: Pur
                                   </div>
                                 )}
 
+                                <div className="flex items-center gap-2 px-3 pb-3 flex-wrap">
+                                  <Button variant="outline" size="sm" className="h-7 text-xs gap-1 border-purple-200 text-purple-700 hover:bg-purple-50"
+                                    onClick={() => h.handleOpenArtworkApprovalLink(art)}>
+                                    <ExternalLink className="w-3 h-3" /> Open Approval Link
+                                  </Button>
+                                </div>
+
                                 {proofRequired && !h.isLocked && (
                                   <div className="flex items-center gap-2 px-3 pb-3 flex-wrap">
                                     {canRequestProof && (
@@ -692,7 +673,7 @@ export default function PurchaseOrdersSection({ projectId, data, isLocked }: Pur
       <PdfPreviewDialog
         open={!!h.previewVendorKey}
         onOpenChange={(open) => !open && h.setPreviewVendorKey(null)}
-        title={`PO Preview — ${h.previewVendorKey || ""}`}
+        title={`PO Preview`}
         document={h.previewVendorKey ? h.buildVendorPoDoc(h.previewVendorKey) : null}
       />
 

@@ -601,5 +601,6 @@ export function useProductsSection({ projectId, data, isLocked }: ProductsSectio
     orderTotals,
     margin,
     projectId,
+    data,
   };
 }

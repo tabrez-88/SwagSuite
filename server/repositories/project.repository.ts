@@ -85,32 +85,19 @@ export class ProjectRepository {
     let orderNumber = order.orderNumber;
 
     if (!orderNumber) {
-      // Fetch configurable prefix from company settings
       const { companySettings } = await import("@shared/schema");
       const [settings] = await db.select().from(companySettings).limit(1);
-      const configPrefix = settings?.orderNumberPrefix || "ORD";
-      const digits = settings?.orderNumberDigits || 3;
+      const digits = settings?.orderNumberDigits || 5;
 
-      const currentYear = new Date().getFullYear();
-      const prefix = `${configPrefix}-${currentYear}-`;
+      // Find highest purely-numeric order number. Legacy "ORD-YYYY-NNN" entries are ignored.
+      const maxResult = await db.execute(
+        sql`SELECT MAX(CAST(order_number AS INTEGER)) AS max_num FROM orders WHERE order_number ~ '^[0-9]+$'`
+      );
+      const maxRows = (maxResult as any).rows ?? maxResult;
+      const currentMax = parseInt(maxRows?.[0]?.max_num || "0") || 0;
+      const nextNumber = currentMax > 0 ? currentMax + 1 : 10001;
 
-      // Get the highest order number for current year
-      const lastOrder = await db
-        .select({ orderNumber: orders.orderNumber })
-        .from(orders)
-        .where(sql`${orders.orderNumber} LIKE ${prefix + '%'}`)
-        .orderBy(desc(orders.orderNumber))
-        .limit(1);
-
-      let nextNumber = 1;
-      if (lastOrder.length > 0 && lastOrder[0].orderNumber) {
-        // Extract number from last order (e.g., "LSD-2026-030" -> 30)
-        const parts = lastOrder[0].orderNumber.split('-');
-        const lastNumber = parseInt(parts[parts.length - 1]);
-        if (!isNaN(lastNumber)) nextNumber = lastNumber + 1;
-      }
-
-      orderNumber = `${prefix}${String(nextNumber).padStart(digits, '0')}`;
+      orderNumber = String(nextNumber).padStart(digits, '0');
     }
 
     const [newOrder] = await db
