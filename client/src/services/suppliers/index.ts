@@ -1,5 +1,5 @@
 export { supplierKeys } from "./keys";
-export { useSuppliers, useVendorProducts, useVendorContacts } from "./queries";
+export { useSuppliers, useSupplier, useVendorProducts, useVendorContacts } from "./queries";
 export {
   useCreateVendor,
   useUpdateVendor,

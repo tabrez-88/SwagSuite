@@ -1,106 +1,84 @@
-import { useState } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiRequest } from '@/lib/queryClient';
-import { useToast } from '@/hooks/use-toast';
-import type { SanMarProduct } from './types';
+import { useState } from "react";
+import { useToast } from "@/hooks/use-toast";
+import { useSanmarSearch, useSanmarSync } from "@/services/integrations/sanmar";
+import type { SanMarProduct } from "./types";
 
 export function useSanmarIntegration() {
-    const [searchQuery, setSearchQuery] = useState('');
-    const [selectedProduct, setSelectedProduct] = useState<SanMarProduct | null>(null);
-    const [detailModalOpen, setDetailModalOpen] = useState(false);
-    const [syncingProducts, setSyncingProducts] = useState<Set<string>>(new Set());
-    const { toast } = useToast();
-    const queryClient = useQueryClient();
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedProduct, setSelectedProduct] = useState<SanMarProduct | null>(null);
+  const [detailModalOpen, setDetailModalOpen] = useState(false);
+  const [syncingProducts, setSyncingProducts] = useState<Set<string>>(new Set());
+  const { toast } = useToast();
 
-    const searchMutation = useMutation({
-        mutationFn: async (query: string) => {
-            const response = await apiRequest('GET', `/api/sanmar/search?q=${encodeURIComponent(query)}`);
-            const data = await response.json();
-            console.log('SanMar Search Response:', data);
-            return data as SanMarProduct[];
-        },
-        onError: (error: any) => {
-            console.error('Search error:', error);
-            toast({
-                title: "Search Failed",
-                description: error.message || "Failed to search SanMar products. Please check your API credentials.",
-                variant: "destructive",
-            });
-        },
+  const searchMutation = useSanmarSearch();
+  const syncProductMutation = useSanmarSync();
+
+  const handleSearch = () => {
+    if (!searchQuery.trim() || searchQuery.length < 2) {
+      toast({
+        title: "Invalid Search",
+        description: "Please enter at least 2 characters to search (Style ID or name)",
+        variant: "destructive",
+      });
+      return;
+    }
+    searchMutation.mutate(searchQuery, {
+      onError: (error: Error) => {
+        toast({
+          title: "Search Failed",
+          description: error.message || "Failed to search SanMar products. Please check your API credentials.",
+          variant: "destructive",
+        });
+      },
     });
+  };
 
-    const syncProductMutation = useMutation({
-        mutationFn: async ({ products, productId }: { products: SanMarProduct[], productId?: string }) => {
-            if (productId) {
-                setSyncingProducts(prev => new Set(prev).add(productId));
-            }
-            const response = await apiRequest('POST', '/api/sanmar/products/sync', { products });
-            const data = await response.json();
-            return { data, productId };
+  const handleViewDetail = (product: SanMarProduct) => {
+    setSelectedProduct(product);
+    setDetailModalOpen(true);
+  };
+
+  const handleAddToCatalog = (product: SanMarProduct) => {
+    const productId = product.styleId;
+    setSyncingProducts((prev) => new Set(prev).add(productId));
+    syncProductMutation.mutate(
+      { products: [product], productId },
+      {
+        onSettled: () => {
+          setSyncingProducts((prev) => {
+            const next = new Set(prev);
+            next.delete(productId);
+            return next;
+          });
         },
-        onSuccess: (result: any) => {
-            if (result.productId) {
-                setSyncingProducts(prev => {
-                    const next = new Set(prev);
-                    next.delete(result.productId);
-                    return next;
-                });
-            }
-            toast({
-                title: "Products Added",
-                description: `${result.data.count || 1} product(s) successfully added to catalog`,
-            });
-            queryClient.invalidateQueries({ queryKey: ['/api/products'] });
-            queryClient.invalidateQueries({ queryKey: ['/api/suppliers'] });
+        onSuccess: (result) => {
+          toast({
+            title: "Products Added",
+            description: `${result.count} product(s) successfully added to catalog`,
+          });
         },
-        onError: (error, variables: any) => {
-            if (variables.productId) {
-                setSyncingProducts(prev => {
-                    const next = new Set(prev);
-                    next.delete(variables.productId);
-                    return next;
-                });
-            }
-            toast({
-                title: "Sync Failed",
-                description: "Failed to add products to catalog",
-                variant: "destructive",
-            });
+        onError: () => {
+          toast({
+            title: "Sync Failed",
+            description: "Failed to add products to catalog",
+            variant: "destructive",
+          });
         },
-    });
+      },
+    );
+  };
 
-    const handleSearch = async () => {
-        if (!searchQuery.trim() || searchQuery.length < 2) {
-            toast({
-                title: "Invalid Search",
-                description: "Please enter at least 2 characters to search (Style ID or name)",
-                variant: "destructive",
-            });
-            return;
-        }
-        searchMutation.mutate(searchQuery);
-    };
-
-    const handleViewDetail = (product: SanMarProduct) => {
-        setSelectedProduct(product);
-        setDetailModalOpen(true);
-    };
-
-    const handleAddToCatalog = (product: SanMarProduct) => {
-        syncProductMutation.mutate({ products: [product], productId: product.styleId });
-    };
-
-    return {
-        searchQuery,
-        setSearchQuery,
-        selectedProduct,
-        detailModalOpen,
-        setDetailModalOpen,
-        syncingProducts,
-        searchMutation,
-        syncProductMutation,
-        handleSearch,
-        handleViewDetail,
-        handleAddToCatalog,
-    };
+  return {
+    searchQuery,
+    setSearchQuery,
+    selectedProduct,
+    detailModalOpen,
+    setDetailModalOpen,
+    syncingProducts,
+    searchMutation,
+    syncProductMutation,
+    handleSearch,
+    handleViewDetail,
+    handleAddToCatalog,
+  };
 }

@@ -1,81 +1,54 @@
 import { useToast } from "@/hooks/use-toast";
-import { apiRequest } from "@/lib/queryClient";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useUsers, useUpdateUserRole, useUpdateUserCommission } from "@/services/users";
 
 export function useUsersTab(user: any) {
   const { toast } = useToast();
-  const queryClient = useQueryClient();
 
   const isAdmin =
     user?.role === "admin" ||
     user?.email === "bgoltzman@liquidscreendesign.com";
   const isManager = user?.role === "manager";
 
-  const { data: usersData, isLoading: usersLoading } = useQuery({
-    queryKey: ["/api/users"],
-    enabled: user?.role === "admin" || user?.role === "manager",
-  });
-
-  const updateUserRoleMutation = useMutation({
-    mutationFn: async ({
-      userId,
-      role,
-    }: {
-      userId: string;
-      role: "admin" | "manager" | "user";
-    }) => {
-      return await apiRequest("PATCH", `/api/users/${userId}/role`, { role });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/users"] });
-      toast({
-        title: "User Role Updated",
-        description: "User permissions have been updated successfully.",
-      });
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to update user role.",
-        variant: "destructive",
-      });
-    },
-  });
-
-  const updateUserRole = (
-    userId: string,
-    newRole: "admin" | "manager" | "user",
-  ) => {
-    updateUserRoleMutation.mutate({ userId, role: newRole });
+  const { data: usersData, isLoading: usersLoading } = useUsers() as unknown as {
+    data: any;
+    isLoading: boolean;
   };
 
-  const updateCommissionMutation = useMutation({
-    mutationFn: async ({
-      userId,
-      commissionPercent,
-    }: {
-      userId: string;
-      commissionPercent: number;
-    }) => {
-      return await apiRequest("PATCH", `/api/users/${userId}/commission`, {
-        commissionPercent,
-      });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/users"] });
-      toast({ title: "Commission % updated" });
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to update commission.",
-        variant: "destructive",
-      });
-    },
-  });
+  const _updateRole = useUpdateUserRole();
+  const _updateCommission = useUpdateUserCommission();
+
+  const updateUserRole = (userId: string, newRole: "admin" | "manager" | "user") => {
+    _updateRole.mutate(
+      { userId, role: newRole },
+      {
+        onSuccess: () =>
+          toast({
+            title: "User Role Updated",
+            description: "User permissions have been updated successfully.",
+          }),
+        onError: (error: Error) =>
+          toast({
+            title: "Error",
+            description: error.message || "Failed to update user role.",
+            variant: "destructive",
+          }),
+      },
+    );
+  };
 
   const updateCommission = (userId: string, percent: number) => {
-    updateCommissionMutation.mutate({ userId, commissionPercent: percent });
+    _updateCommission.mutate(
+      { userId, commissionPercent: percent },
+      {
+        onSuccess: () => toast({ title: "Commission % updated" }),
+        onError: (error: Error) =>
+          toast({
+            title: "Error",
+            description: error.message || "Failed to update commission.",
+            variant: "destructive",
+          }),
+      },
+    );
   };
 
   return {
@@ -85,6 +58,6 @@ export function useUsersTab(user: any) {
     usersLoading,
     updateUserRole,
     updateCommission,
-    isUpdatingRole: updateUserRoleMutation.isPending,
+    isUpdatingRole: _updateRole.isPending,
   };
 }

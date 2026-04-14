@@ -1,7 +1,6 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
-import { projectKeys } from "@/services/projects/keys";
+import { useProjectDocuments } from "@/services/projects/queries";
 import { useCreateVendorInvoice, useUpdateVendorInvoice } from "@/services/projects/mutations";
 import type { BillsSectionProps, BillFormData } from "./types";
 
@@ -26,10 +25,7 @@ export function useBillsSection({ projectId, data }: BillsSectionProps) {
   const [editForm, setEditForm] = useState<BillFormData>({ ...emptyForm });
 
   // Fetch PO documents for linking
-  const { data: allDocuments = [] } = useQuery<any[]>({
-    queryKey: projectKeys.documents(projectId),
-    enabled: !!projectId,
-  });
+  const { data: allDocuments = [] } = useProjectDocuments(projectId);
   const poDocuments = allDocuments.filter((d: any) => d.documentType === "purchase_order");
 
   // Group vendor invoices by supplier

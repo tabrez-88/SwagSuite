@@ -1,7 +1,7 @@
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/hooks/useAuth";
-import { useQuery } from "@tanstack/react-query";
+import { useAdminSettings } from "@/services/settings";
 import {
   Bell,
   Brain,
@@ -43,12 +43,9 @@ export default function Settings() {
   const { user, isLoading: authLoading } = useAuth();
   const [activeTab, setActiveTab] = useTabParam("features");
 
-  // Load admin settings from backend
-  const { data: adminSettings, isLoading: settingsLoading } = useQuery({
-    queryKey: ["/api/admin/settings"],
-    enabled:
-      (user as any)?.role === "admin" || (user as any)?.role === "manager",
-  });
+  // Load admin settings from backend (admin/manager only).
+  const isStaff = (user as any)?.role === "admin" || (user as any)?.role === "manager";
+  const { data: adminSettings, isLoading: settingsLoading } = useAdminSettings(isStaff);
 
   const isAdmin =
     (user as any)?.role === "admin" ||

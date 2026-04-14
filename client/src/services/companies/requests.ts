@@ -73,3 +73,29 @@ export async function fetchCompanyContacts(companyId: string) {
   if (!res.ok) throw new Error("Failed to fetch contacts");
   return res.json();
 }
+
+export interface CompanySpending {
+  total: string | number;
+  byMonth?: Array<{ month: string; amount: number }>;
+  [key: string]: unknown;
+}
+
+export async function fetchCompanySpending(
+  companyId: string,
+  from?: string,
+  to?: string,
+): Promise<CompanySpending> {
+  const params = new URLSearchParams();
+  if (from) params.set("from", from);
+  if (to) params.set("to", to);
+  const qs = params.toString();
+  const url = `/api/companies/${companyId}/spending${qs ? `?${qs}` : ""}`;
+  const res = await fetch(url, { credentials: "include" });
+  if (!res.ok) throw new Error("Failed to fetch spending");
+  return res.json();
+}
+
+export async function reassignCompanyRep(companyId: string, userId: string | null) {
+  const res = await apiRequest("PATCH", `/api/companies/${companyId}`, { assignedUserId: userId });
+  return res.json();
+}

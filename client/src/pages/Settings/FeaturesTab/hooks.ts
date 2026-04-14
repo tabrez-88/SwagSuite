@@ -1,6 +1,5 @@
 import { useToast } from "@/hooks/use-toast";
-import { apiRequest } from "@/lib/queryClient";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useUpdateFeatureToggles } from "@/services/settings";
 import {
   BarChart3,
   Brain,
@@ -124,7 +123,6 @@ const DEFAULT_FEATURES: FeatureToggle[] = [
 
 export function useFeaturesTab({ user, adminSettings }: FeaturesTabProps) {
   const { toast } = useToast();
-  const queryClient = useQueryClient();
 
   const isAdmin =
     user?.role === "admin" ||
@@ -150,54 +148,29 @@ export function useFeaturesTab({ user, adminSettings }: FeaturesTabProps) {
     }
   }, [adminSettings]);
 
-  const featureToggleMutation = useMutation({
-    mutationFn: async ({
-      featureId,
-      enabled,
-    }: {
-      featureId: string;
-      enabled: boolean;
-    }) => {
-      const currentToggles: Record<string, boolean> = {};
-      features.forEach((f) => {
-        currentToggles[f.id] = f.enabled;
-      });
-      currentToggles[featureId] = enabled;
-      return await apiRequest("PUT", "/api/admin/settings/features", {
-        featureToggles: currentToggles,
-      });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/admin/settings"] });
-      toast({
-        title: "Feature Updated",
-        description: "Feature toggle has been updated successfully.",
-      });
-    },
-    onError: () => {
-      toast({
-        title: "Error",
-        description: "Failed to update feature toggle.",
-        variant: "destructive",
-      });
-    },
-  });
+  const featureToggleMutation = useUpdateFeatureToggles();
 
   const toggleFeature = (featureId: string) => {
     const currentFeature = features.find((f) => f.id === featureId);
     if (!currentFeature) return;
 
-    featureToggleMutation.mutate({
-      featureId,
-      enabled: !currentFeature.enabled,
+    const currentToggles: Record<string, boolean> = {};
+    features.forEach((f) => {
+      currentToggles[f.id] = f.enabled;
+    });
+    currentToggles[featureId] = !currentFeature.enabled;
+
+    featureToggleMutation.mutate(currentToggles, {
+      onSuccess: () =>
+        toast({ title: "Feature Updated", description: "Feature toggle has been updated successfully." }),
+      onError: () =>
+        toast({ title: "Error", description: "Failed to update feature toggle.", variant: "destructive" }),
     });
 
     // Optimistically update the UI
     setFeatures((prev) =>
       prev.map((feature) =>
-        feature.id === featureId
-          ? { ...feature, enabled: !feature.enabled }
-          : feature,
+        feature.id === featureId ? { ...feature, enabled: !feature.enabled } : feature,
       ),
     );
   };

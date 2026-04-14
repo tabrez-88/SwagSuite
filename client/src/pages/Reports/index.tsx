@@ -37,7 +37,7 @@ import {
   Loader2,
   Users,
 } from "lucide-react";
-import { Link } from "wouter";
+import { Link } from "@/lib/wouter-compat";
 import { useReports, type ArAgingBucket } from "./hooks";
 
 const AR_BUCKET_ORDER: ArAgingBucket[] = ["current", "1-30", "31-60", "61-90", "90+"];

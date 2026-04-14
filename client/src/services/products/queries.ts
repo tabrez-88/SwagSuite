@@ -25,3 +25,15 @@ export function useSuggestedProducts<T = any>() {
     queryKey: productKeys.suggested,
   });
 }
+
+export function useProductOrders<T = any[]>(productId: string | number | undefined) {
+  return useQuery<T>({
+    queryKey: ["/api/products", productId, "orders"],
+    enabled: !!productId,
+    queryFn: async () => {
+      const res = await fetch(`/api/products/${productId}/orders`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch product orders");
+      return res.json();
+    },
+  });
+}

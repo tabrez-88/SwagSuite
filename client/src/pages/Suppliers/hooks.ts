@@ -1,7 +1,6 @@
 import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
-import { apiRequest } from "@/lib/queryClient";
+import { useSuppliers as useSuppliersQuery, useCreateVendor } from "@/services/suppliers";
 import { isUnauthorizedError } from "@/lib/authUtils";
 import type { Supplier } from "@shared/schema";
 
@@ -24,45 +23,38 @@ export function useSuppliers() {
   const [newSupplier, setNewSupplier] = useState({ ...EMPTY_SUPPLIER });
 
   const { toast } = useToast();
-  const queryClient = useQueryClient();
 
-  const { data: suppliers, isLoading } = useQuery<any>({
-    queryKey: ["/api/suppliers"],
-  });
+  const { data: suppliers, isLoading } = useSuppliersQuery() as unknown as {
+    data: any;
+    isLoading: boolean;
+  };
 
-  const createSupplierMutation = useMutation({
-    mutationFn: async (data: any) => {
-      const response = await apiRequest("POST", "/api/suppliers", data);
-      return response.json();
-    },
-    onSuccess: () => {
-      toast({
-        title: "Success",
-        description: "Supplier created successfully",
-      });
-      queryClient.invalidateQueries({ queryKey: ["/api/suppliers"] });
-      setIsCreateModalOpen(false);
-      setNewSupplier({ ...EMPTY_SUPPLIER });
-    },
-    onError: (error: Error) => {
-      if (isUnauthorizedError(error)) {
-        toast({
-          title: "Unauthorized",
-          description: "You are logged out. Logging in again...",
-          variant: "destructive",
-        });
-        setTimeout(() => {
-          window.location.href = "/api/login";
-        }, 500);
-        return;
-      }
-      toast({
-        title: "Error",
-        description: "Failed to create supplier",
-        variant: "destructive",
-      });
-    },
-  });
+  const _create = useCreateVendor();
+  const createSupplierMutation = {
+    ..._create,
+    mutate: (data: any) =>
+      _create.mutate(data, {
+        onSuccess: () => {
+          toast({ title: "Success", description: "Supplier created successfully" });
+          setIsCreateModalOpen(false);
+          setNewSupplier({ ...EMPTY_SUPPLIER });
+        },
+        onError: (error: Error) => {
+          if (isUnauthorizedError(error)) {
+            toast({
+              title: "Unauthorized",
+              description: "You are logged out. Logging in again...",
+              variant: "destructive",
+            });
+            setTimeout(() => {
+              window.location.href = "/api/login";
+            }, 500);
+            return;
+          }
+          toast({ title: "Error", description: "Failed to create supplier", variant: "destructive" });
+        },
+      }),
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

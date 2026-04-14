@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useTeamPerformance as useTeamPerformanceQuery } from "@/services/reports";
 import { type ReactNode, createElement } from "react";
 import { TrendingUp, TrendingDown, Minus } from "lucide-react";
 
@@ -27,9 +27,7 @@ function getStatusColor(status: string): string {
 }
 
 export function useTeamPerformance() {
-  const { data: teamData, isLoading } = useQuery<any>({
-    queryKey: ["/api/dashboard/team-performance"],
-  });
+  const { data: teamData, isLoading } = useTeamPerformanceQuery<any>();
 
   return {
     teamData,

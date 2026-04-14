@@ -1,14 +1,12 @@
 import { useState, useMemo } from "react";
-import { useQueryClient, useQuery } from "@tanstack/react-query";
-import { useLocation } from "wouter";
-import { getQueryFn } from "@/lib/queryClient";
+import { useLocation } from "@/lib/wouter-compat";
 import { useToast } from "@/hooks/use-toast";
+import { useBranding } from "@/services/settings";
 import { useInlineEdit } from "@/hooks/useInlineEdit";
 import { hasTimelineConflict } from "@/lib/dateUtils";
 import { useDocumentGeneration, buildItemsHash } from "@/hooks/useDocumentGeneration";
 import { buildSalesOrderPdf } from "@/components/documents/pdf/builders";
 import { getEditedItem } from "@/lib/projectDetailUtils";
-import { projectKeys } from "@/services/projects/keys";
 import { useUpdateProjectStatus, useDuplicateProject } from "@/services/projects/mutations";
 import type { SalesOrderSectionProps } from "./types";
 import { salesOrderStatuses, proofStatuses } from "./types";
@@ -20,14 +18,9 @@ export function useSalesOrderSection({ projectId, data, lockStatus }: SalesOrder
   const [previewDocument, setPreviewDocument] = useState<any>(null);
   const [showSendDialog, setShowSendDialog] = useState(false);
   const [showLivePreview, setShowLivePreview] = useState(false);
-  const queryClient = useQueryClient();
   const { toast } = useToast();
 
-  const { data: branding } = useQuery<any>({
-    queryKey: ["/api/settings/branding"],
-    queryFn: getQueryFn({ on401: "throw" }),
-    staleTime: Infinity,
-  });
+  const { data: branding } = useBranding();
 
   const {
     soDocuments,
@@ -82,7 +75,7 @@ export function useSalesOrderSection({ projectId, data, lockStatus }: SalesOrder
       allArtworkCharges: data.allArtworkCharges,
       serviceCharges: data.serviceCharges,
       assignedUser: data.assignedUser,
-      sellerName: branding?.companyName,
+      sellerName: branding?.companyName ?? undefined,
     });
 
   const handleGenerateSO = async () => {

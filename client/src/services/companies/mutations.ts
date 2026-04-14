@@ -75,6 +75,17 @@ export function useUpdateCompanyDetail(companyId: string | undefined) {
   });
 }
 
+export function useReassignCompanyRep(companyId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (userId: string | null) => requests.reassignCompanyRep(companyId, userId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: companyKeys.detail(companyId) });
+      qc.invalidateQueries({ queryKey: companyKeys.all });
+    },
+  });
+}
+
 export function useDeleteCompany() {
   const qc = useQueryClient();
   const { toast } = useToast();

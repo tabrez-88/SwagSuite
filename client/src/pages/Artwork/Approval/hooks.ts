@@ -1,7 +1,11 @@
 import { useState, useRef, useCallback } from "react";
-import { useRoute } from "wouter";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useRoute } from "@/lib/wouter-compat";
 import { useToast } from "@/hooks/use-toast";
+import {
+  useArtworkApproval,
+  useApproveArtwork,
+  useRejectArtwork,
+} from "@/services/approvals";
 import type { ApprovalData } from "./types";
 
 export function useApproval() {
@@ -9,7 +13,6 @@ export function useApproval() {
   const token = params?.token;
   const { toast } = useToast();
   const [comments, setComments] = useState("");
-  const queryClient = useQueryClient();
 
   // Image zoom state
   const [zoom, setZoom] = useState(1);
@@ -20,74 +23,47 @@ export function useApproval() {
   // View state: 'proof' or 'original'
   const [viewMode, setViewMode] = useState<"proof" | "original">("proof");
 
-  const { data: approval, isLoading, error } = useQuery<ApprovalData>({
-    queryKey: [`/api/approvals/${token}`],
-    enabled: !!token,
-    retry: false,
-  });
+  const { data: approval, isLoading, error } = useArtworkApproval<ApprovalData>(token);
 
-  const approveMutation = useMutation({
-    mutationFn: async (data: { comments?: string }) => {
-      const response = await fetch(`/api/approvals/${token}/approve`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-      });
-      if (!response.ok) throw new Error("Failed to approve artwork");
-      return response.json();
-    },
-    onSuccess: () => {
-      if (approval?.orderId) {
-        queryClient.invalidateQueries({ queryKey: [`/api/projects/${approval.orderId}/approvals`] });
-        queryClient.invalidateQueries({ queryKey: [`/api/projects/${approval.orderId}`] });
-      }
-      queryClient.invalidateQueries({ queryKey: [`/api/approvals/${token}`] });
-      toast({
-        title: "Artwork Approved!",
-        description: "Thank you! The artwork has been approved and production will begin.",
-      });
-    },
-    onError: () => {
-      toast({ title: "Error", description: "Failed to approve artwork. Please try again.", variant: "destructive" });
-    },
-  });
-
-  const rejectMutation = useMutation({
-    mutationFn: async (data: { comments: string }) => {
-      const response = await fetch(`/api/approvals/${token}/reject`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-      });
-      if (!response.ok) throw new Error("Failed to reject artwork");
-      return response.json();
-    },
-    onSuccess: () => {
-      if (approval?.orderId) {
-        queryClient.invalidateQueries({ queryKey: [`/api/projects/${approval.orderId}/approvals`] });
-        queryClient.invalidateQueries({ queryKey: [`/api/projects/${approval.orderId}`] });
-      }
-      queryClient.invalidateQueries({ queryKey: [`/api/approvals/${token}`] });
-      toast({
-        title: "Feedback Submitted",
-        description: "We've received your feedback and will revise the artwork.",
-      });
-    },
-    onError: () => {
-      toast({ title: "Error", description: "Failed to submit feedback. Please try again.", variant: "destructive" });
-    },
-  });
+  const approveMutation = useApproveArtwork(token ?? "", approval?.orderId);
+  const rejectMutation = useRejectArtwork(token ?? "", approval?.orderId);
 
   const handleApprove = useCallback(() => {
-    approveMutation.mutate({ comments: comments || undefined });
-  }, [approveMutation, comments]);
+    approveMutation.mutate(
+      { comments: comments || undefined },
+      {
+        onSuccess: () =>
+          toast({
+            title: "Artwork Approved!",
+            description: "Thank you! The artwork has been approved and production will begin.",
+          }),
+        onError: () =>
+          toast({ title: "Error", description: "Failed to approve artwork. Please try again.", variant: "destructive" }),
+      },
+    );
+  }, [approveMutation, comments, toast]);
 
   const handleReject = useCallback(() => {
     if (!comments.trim()) {
-      toast({ title: "Comments Required", description: "Please provide feedback about what needs to be changed.", variant: "destructive" });
+      toast({
+        title: "Comments Required",
+        description: "Please provide feedback about what needs to be changed.",
+        variant: "destructive",
+      });
       return;
     }
-    rejectMutation.mutate({ comments });
+    rejectMutation.mutate(
+      { comments },
+      {
+        onSuccess: () =>
+          toast({
+            title: "Feedback Submitted",
+            description: "We've received your feedback and will revise the artwork.",
+          }),
+        onError: () =>
+          toast({ title: "Error", description: "Failed to submit feedback. Please try again.", variant: "destructive" }),
+      },
+    );
   }, [rejectMutation, comments, toast]);
 
   const handleZoomIn = useCallback(() => setZoom(z => Math.min(z + 0.25, 5)), []);
@@ -123,19 +99,14 @@ export function useApproval() {
   const approvalHistory = approval?.approvalHistory || [];
 
   return {
-    // Data
     approval,
     isLoading,
     error,
     artworkDetails,
     approvalHistory,
-
-    // Status flags
     isApproved,
     isRejected,
     isPending,
-
-    // Image state
     zoom,
     isFullscreen,
     rotation,
@@ -145,16 +116,10 @@ export function useApproval() {
     currentImageUrl,
     hasOriginal,
     hasProof,
-
-    // Form state
     comments,
     setComments,
-
-    // Mutations
     approveMutation,
     rejectMutation,
-
-    // Handlers
     handleApprove,
     handleReject,
     handleZoomIn,

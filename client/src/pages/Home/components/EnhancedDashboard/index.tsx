@@ -19,7 +19,7 @@ import {
   Database,
   AlertCircle,
 } from "lucide-react";
-import { Link } from "wouter";
+import { Link } from "@/lib/wouter-compat";
 import { SlackPanel } from "../SlackPanel";
 import { PopularProducts } from "@/components/shared/PopularProducts";
 import { useEnhancedDashboard } from "./hooks";

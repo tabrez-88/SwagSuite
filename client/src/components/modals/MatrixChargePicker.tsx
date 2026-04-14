@@ -1,20 +1,19 @@
-import { useState, useEffect, useMemo } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useToast } from "@/hooks/use-toast";
-import { useUpdateArtworkCharge } from "@/services/project-items";
-import { useMarginSettings } from "@/hooks/useMarginSettings";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogFooter,
 } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
-import { Grid3X3, Loader2, Settings, Check } from "lucide-react";
-import { useLocation } from "wouter";
+import { useToast } from "@/hooks/use-toast";
+import { useMarginSettings } from "@/hooks/useMarginSettings";
+import { useLocation } from "@/lib/wouter-compat";
+import { useUpdateArtworkCharge } from "@/services/project-items";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Check, Grid3X3, Loader2, Settings } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 
 interface MatrixChargePickerProps {
   open: boolean;

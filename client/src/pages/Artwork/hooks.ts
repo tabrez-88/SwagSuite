@@ -1,8 +1,17 @@
 import { useState, useRef, useEffect } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { apiRequest } from "@/lib/queryClient";
+import {
+  useArtworkColumns,
+  useArtworkCards,
+  useCreateArtworkCard,
+  useCreateArtworkColumn,
+  useUpdateArtworkCard,
+  useMoveArtworkCard,
+  useInitializeArtworkColumns,
+} from "@/services/artwork";
+import { useCompanies } from "@/services/companies";
+import { useProjects } from "@/services/projects";
 import { createCardSchema, createColumnSchema, type CreateCardFormData, type CreateColumnFormData } from "@/schemas/artwork.schemas";
 
 // Safe JSON parsing helper
@@ -40,7 +49,6 @@ export function useArtwork() {
   const [existingAttachments, setExistingAttachments] = useState<any[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const editFileInputRef = useRef<HTMLInputElement>(null);
-  const queryClient = useQueryClient();
 
   const cardForm = useForm<CreateCardFormData>({
     resolver: zodResolver(createCardSchema),
@@ -69,103 +77,78 @@ export function useArtwork() {
   });
 
   // Data queries
-  const { data: columns = [], isLoading: columnsLoading } = useQuery({
-    queryKey: ["/api/artwork/columns"],
-  });
+  const { data: columns = [], isLoading: columnsLoading } = useArtworkColumns() as unknown as {
+    data: any[];
+    isLoading: boolean;
+  };
+  const { data: cards = [], isLoading: cardsLoading } = useArtworkCards() as unknown as {
+    data: any[];
+    isLoading: boolean;
+  };
+  const { data: companies = [] } = useCompanies() as unknown as { data: any[] };
+  const { data: orders = [] } = useProjects() as unknown as { data: any[] };
 
-  const { data: cards = [], isLoading: cardsLoading } = useQuery({
-    queryKey: ["/api/artwork/cards"],
-  });
+  const initializeColumnsMutation = useInitializeArtworkColumns();
 
-  const { data: companies = [] } = useQuery({
-    queryKey: ["/api/companies"],
-  });
+  const _createColumn = useCreateArtworkColumn();
+  const createColumnMutation = {
+    ..._createColumn,
+    mutate: (columnData: CreateColumnFormData) =>
+      _createColumn.mutate(
+        { ...columnData, position: (columns as any[]).length + 1, isDefault: false },
+        {
+          onSuccess: () => {
+            setShowNewColumnDialog(false);
+            columnForm.reset();
+          },
+        },
+      ),
+  };
 
-  const { data: orders = [] } = useQuery({
-    queryKey: ["/api/projects"],
-  });
-
-  // Initialize columns if empty
-  const initializeColumnsMutation = useMutation({
-    mutationFn: async () => {
-      return apiRequest("POST", "/api/artwork/columns/initialize", {});
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/artwork/columns"] });
-    },
-  });
-
-  // Create column mutation
-  const createColumnMutation = useMutation({
-    mutationFn: async (columnData: CreateColumnFormData) => {
-      return apiRequest("POST", "/api/artwork/columns", {
-        ...columnData,
-        position: (columns as any[]).length + 1,
-        isDefault: false,
-      });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/artwork/columns"] });
-      setShowNewColumnDialog(false);
-      columnForm.reset();
-    },
-  });
-
-  // Create card mutation
-  const createCardMutation = useMutation({
-    mutationFn: async (cardData: CreateCardFormData) => {
-      console.log("Creating card with data:", cardData);
-      console.log("Selected column ID:", selectedColumnId);
-
+  const _createCard = useCreateArtworkCard();
+  const createCardMutation = {
+    ..._createCard,
+    mutate: (cardData: CreateCardFormData & { attachments?: any[]; labels?: any[]; checklist?: any[]; comments?: any[] }) => {
       const requestData = {
         ...cardData,
         columnId: selectedColumnId,
-        position: (cards as any[]).filter((card: any) => card.columnId === selectedColumnId).length + 1,
+        position:
+          (cards as any[]).filter((card: any) => card.columnId === selectedColumnId).length + 1,
       };
-
-      console.log("Full request data:", requestData);
-
-      return apiRequest("POST", "/api/artwork/cards", requestData);
-    },
-    onSuccess: (data) => {
-      console.log("Card created successfully:", data);
-      queryClient.invalidateQueries({ queryKey: ["/api/artwork/cards"] });
-      setShowNewCardDialog(false);
-      cardForm.reset();
-    },
-    onError: (error) => {
-      console.error("Error creating card:", error);
-    },
-  });
-
-  // Update card position mutation
-  const updateCardPositionMutation = useMutation({
-    mutationFn: async ({ cardId, columnId, position }: { cardId: string; columnId: string; position: number }) => {
-      return apiRequest("PATCH", `/api/artwork/cards/${cardId}/move`, {
-        columnId,
-        position,
+      return _createCard.mutate(requestData, {
+        onSuccess: () => {
+          setShowNewCardDialog(false);
+          cardForm.reset();
+        },
       });
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/artwork/cards"] });
-    },
-  });
+  };
 
-  // Update card mutation
-  const updateCardMutation = useMutation({
-    mutationFn: async ({ cardId, data }: { cardId: string; data: any }) => {
-      return apiRequest("PATCH", `/api/artwork/cards/${cardId}`, data);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/artwork/cards"] });
-      setShowEditCardDialog(false);
-      editCardForm.reset();
-      setEditingCard(null);
-      setEditUploadedFiles([]);
-      setEditFilePreviews({});
-      setExistingAttachments([]);
-    },
-  });
+  const _moveCard = useMoveArtworkCard();
+  const updateCardPositionMutation = {
+    ..._moveCard,
+    mutate: ({ cardId, columnId, position }: { cardId: string; columnId: string; position: number }) =>
+      _moveCard.mutate({ cardId, data: { columnId, position } }),
+  };
+
+  const _updateCard = useUpdateArtworkCard();
+  const updateCardMutation = {
+    ..._updateCard,
+    mutate: ({ cardId, data }: { cardId: string; data: any }) =>
+      _updateCard.mutate(
+        { cardId, data },
+        {
+          onSuccess: () => {
+            setShowEditCardDialog(false);
+            editCardForm.reset();
+            setEditingCard(null);
+            setEditUploadedFiles([]);
+            setEditFilePreviews({});
+            setExistingAttachments([]);
+          },
+        },
+      ),
+  };
 
   // File upload functionality
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {

@@ -1,6 +1,10 @@
 import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
+import {
+  useTaxCodes,
+  useCreateTaxCode,
+  useUpdateTaxCode,
+  useDeleteTaxCode,
+} from "@/services/tax-codes";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -67,60 +71,61 @@ const EMPTY_FORM: TaxCodeFormData = {
 
 export function TaxCodesTab() {
   const { toast } = useToast();
-  const queryClient = useQueryClient();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingCode, setEditingCode] = useState<TaxCode | null>(null);
   const [formData, setFormData] = useState<TaxCodeFormData>(EMPTY_FORM);
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
-  const { data: taxCodes = [], isLoading } = useQuery<TaxCode[]>({
-    queryKey: ["/api/tax-codes"],
-  });
+  const { data: taxCodes = [], isLoading } = useTaxCodes() as unknown as {
+    data: TaxCode[];
+    isLoading: boolean;
+  };
 
-  const createMutation = useMutation({
-    mutationFn: async (data: TaxCodeFormData) => {
-      const res = await apiRequest("POST", "/api/tax-codes", data);
-      return res.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/tax-codes"] });
-      setIsDialogOpen(false);
-      toast({ title: "Tax code created" });
-    },
-    onError: (err: any) => {
-      toast({ title: "Error", description: err.message, variant: "destructive" });
-    },
-  });
+  const _create = useCreateTaxCode();
+  const createMutation = {
+    ..._create,
+    mutate: (data: TaxCodeFormData) =>
+      _create.mutate(data, {
+        onSuccess: () => {
+          setIsDialogOpen(false);
+          toast({ title: "Tax code created" });
+        },
+        onError: (err: Error) =>
+          toast({ title: "Error", description: err.message, variant: "destructive" }),
+      }),
+  };
 
-  const updateMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: string; data: Partial<TaxCodeFormData> }) => {
-      const res = await apiRequest("PATCH", `/api/tax-codes/${id}`, data);
-      return res.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/tax-codes"] });
-      setIsDialogOpen(false);
-      setEditingCode(null);
-      toast({ title: "Tax code updated" });
-    },
-    onError: (err: any) => {
-      toast({ title: "Error", description: err.message, variant: "destructive" });
-    },
-  });
+  const _update = useUpdateTaxCode();
+  const updateMutation = {
+    ..._update,
+    mutate: ({ id, data }: { id: string; data: Partial<TaxCodeFormData> }) =>
+      _update.mutate(
+        { id, data },
+        {
+          onSuccess: () => {
+            setIsDialogOpen(false);
+            setEditingCode(null);
+            toast({ title: "Tax code updated" });
+          },
+          onError: (err: Error) =>
+            toast({ title: "Error", description: err.message, variant: "destructive" }),
+        },
+      ),
+  };
 
-  const deleteMutation = useMutation({
-    mutationFn: async (id: string) => {
-      await apiRequest("DELETE", `/api/tax-codes/${id}`);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/tax-codes"] });
-      setDeleteId(null);
-      toast({ title: "Tax code deleted" });
-    },
-    onError: (err: any) => {
-      toast({ title: "Error", description: err.message, variant: "destructive" });
-    },
-  });
+  const _delete = useDeleteTaxCode();
+  const deleteMutation = {
+    ..._delete,
+    mutate: (id: string) =>
+      _delete.mutate(id, {
+        onSuccess: () => {
+          setDeleteId(null);
+          toast({ title: "Tax code deleted" });
+        },
+        onError: (err: Error) =>
+          toast({ title: "Error", description: err.message, variant: "destructive" }),
+      }),
+  };
 
   const openCreate = () => {
     setEditingCode(null);

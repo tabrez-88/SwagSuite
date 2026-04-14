@@ -1,6 +1,8 @@
 import { useState, useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
 import { useContacts as useContactsQuery, useCreateContact, useUpdateContact, useDeleteContact } from "@/services/contacts";
+import { useCompanies } from "@/services/companies";
+import { useSuppliers } from "@/services/suppliers";
+import { useLeadSourceReport } from "@/services/reports";
 import type { Contact } from "@/services/contacts";
 import type { ContactFormData } from "@/schemas/crm.schemas";
 import type { Company, Supplier, LeadSourceReport } from "./types";
@@ -21,17 +23,9 @@ export function useContactsPage() {
 
   const { data: contacts = [], isLoading } = useContactsQuery();
 
-  const { data: companies = [] } = useQuery<Company[]>({
-    queryKey: ["/api/companies"],
-  });
-
-  const { data: suppliers = [] } = useQuery<Supplier[]>({
-    queryKey: ["/api/suppliers"],
-  });
-
-  const { data: leadSourceReport = [] } = useQuery<LeadSourceReport[]>({
-    queryKey: ["/api/reports/lead-sources"],
-  });
+  const { data: companies = [] } = useCompanies() as unknown as { data: Company[] };
+  const { data: suppliers = [] } = useSuppliers() as unknown as { data: Supplier[] };
+  const { data: leadSourceReport = [] } = useLeadSourceReport() as unknown as { data: LeadSourceReport[] };
 
   const createContactMutation = useCreateContact();
   const updateContactMutation = useUpdateContact();

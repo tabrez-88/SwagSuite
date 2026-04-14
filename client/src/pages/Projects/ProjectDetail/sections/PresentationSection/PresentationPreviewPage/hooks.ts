@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback } from "react";
-import { useLocation } from "wouter";
+import { useLocation } from "@/lib/wouter-compat";
 import type { PresentationPreviewPageProps, EnrichedItem } from "./types";
 
 const fontFamilyMap: Record<string, string> = {

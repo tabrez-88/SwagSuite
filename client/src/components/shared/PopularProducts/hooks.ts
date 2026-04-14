@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useLocation } from 'wouter';
+import { useLocation } from '@/lib/wouter-compat';
 import type { PopularProduct, SuggestedProduct, ProductDetails } from './types';
 
 export function usePopularProducts() {

@@ -1,30 +1,5 @@
-import { useState } from "react";
-import { Link, useLocation } from "wouter";
-import {
-  Ungroup,
-  Gauge,
-  Users,
-  Briefcase,
-  ShoppingCart,
-  Box,
-  Truck,
-  ChartBar,
-  Brain,
-  Settings,
-  Factory,
-  Palette,
-  Wand2,
-  Presentation,
-  Package,
-  Zap,
-  AlertCircle,
-  ShieldAlert,
-  FolderOpen,
-} from "lucide-react";
 import { PacmanGame } from "@/components/shared/PacmanGame";
-import { useTheme } from "@/providers/ThemeProvider";
 import {
-  Sidebar as SidebarRoot,
   SidebarContent,
   SidebarGroup,
   SidebarGroupContent,
@@ -33,8 +8,32 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarRail,
+  Sidebar as SidebarRoot,
   useSidebar,
 } from "@/components/ui/sidebar";
+import { Link, useLocation } from "@/lib/wouter-compat";
+import { prefetchRoute } from "@/routes";
+import { useTheme } from "@/providers/ThemeProvider";
+import {
+  AlertCircle,
+  Box,
+  Brain,
+  Briefcase,
+  ChartBar,
+  Factory,
+  FolderOpen,
+  Gauge,
+  Package,
+  Palette,
+  Presentation,
+  Settings,
+  ShieldAlert,
+  Ungroup,
+  Users,
+  Wand2,
+  Zap
+} from "lucide-react";
+import { useState } from "react";
 
 const navigation = [
   { name: "Dashboard", href: "/", icon: Gauge },
@@ -107,7 +106,14 @@ export default function Sidebar() {
                         tooltip={item.name}
                         className={isActive ? "bg-sidebar-primary text-sidebar-primary-foreground hover:bg-sidebar-primary/90 hover:text-sidebar-primary-foreground" : ""}
                       >
-                        <Link href={item.href} onClick={() => setOpenMobile(false)} className="font-semibold flex items-center gap-2">
+                        <Link
+                          href={item.href}
+                          onClick={() => setOpenMobile(false)}
+                          onMouseEnter={() => prefetchRoute(item.href)}
+                          onFocus={() => prefetchRoute(item.href)}
+                          onTouchStart={() => prefetchRoute(item.href)}
+                          className="font-semibold flex items-center gap-2"
+                        >
                           <item.icon size={20} />
                           <span>{item.name}</span>
                         </Link>

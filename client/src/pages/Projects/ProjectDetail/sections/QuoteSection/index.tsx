@@ -57,13 +57,12 @@ import { useQuoteSection } from "./hooks";
 import { quoteStatuses } from "./types";
 import { getEditedItem } from "@/lib/projectDetailUtils";
 import type { QuoteSectionProps } from "./types";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { getQueryFn, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { usePaymentTerms } from "@/services/payment-terms";
+import { useTaxCodes } from "@/services/tax-codes";
+import { useCalculateTax } from "@/services/projects/mutations";
 
 export default function QuoteSection(props: QuoteSectionProps) {
-  const queryClient = useQueryClient();
   const { toast } = useToast();
   const {
     order,
@@ -107,24 +106,19 @@ export default function QuoteSection(props: QuoteSectionProps) {
   const { data: paymentTermsOptions = [] } = usePaymentTerms();
   const [showEditDialog, setShowEditDialog] = useState(false);
 
-  const { data: taxCodes } = useQuery<any[]>({
-    queryKey: ["/api/tax-codes"],
-    queryFn: getQueryFn({ on401: "throw" }),
-  });
+  const { data: taxCodes } = useTaxCodes();
 
-  const calculateTaxMutation = useMutation({
-    mutationFn: async () => {
-      const res = await apiRequest("POST", `/api/projects/${props.projectId}/calculate-tax`);
-      return res.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/projects/${props.projectId}`] });
-      toast({ title: "Tax Calculated", description: "Tax has been updated based on TaxJar rates." });
-    },
-    onError: (error: Error) => {
-      toast({ title: "Tax Calculation Failed", description: error.message, variant: "destructive" });
-    },
-  });
+  const _calculateTax = useCalculateTax(props.projectId);
+  const calculateTaxMutation = {
+    ..._calculateTax,
+    mutate: () =>
+      _calculateTax.mutate(undefined, {
+        onSuccess: () =>
+          toast({ title: "Tax Calculated", description: "Tax has been updated based on TaxJar rates." }),
+        onError: (error: Error) =>
+          toast({ title: "Tax Calculation Failed", description: error.message, variant: "destructive" }),
+      }),
+  };
 
   if (!order) return null;
 

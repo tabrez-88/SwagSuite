@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useCompany } from "@/services/companies";
-import { useParams, useLocation } from "wouter";
+import { useParams, useLocation } from "@/lib/wouter-compat";
 import { useTabParam } from "@/hooks/useTabParam";
 
 export function useCompanyDetail() {

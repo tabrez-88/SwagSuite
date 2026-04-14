@@ -1,7 +1,10 @@
 import { useToast } from "@/hooks/use-toast";
-import { apiRequest } from "@/lib/queryClient";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState, useEffect } from "react";
+import {
+  useBranding,
+  useUpdateBranding,
+  useUpdateGeneralSettings,
+} from "@/services/settings";
 import type { GeneralSettings, BrandingSettings } from "./types";
 
 const DEFAULT_GENERAL_SETTINGS: GeneralSettings = {
@@ -20,49 +23,25 @@ const DEFAULT_GENERAL_SETTINGS: GeneralSettings = {
 
 export function useGeneralTab(adminSettings: any) {
   const { toast } = useToast();
-  const queryClient = useQueryClient();
 
   const [generalSettings, setGeneralSettings] = useState<GeneralSettings>(
     DEFAULT_GENERAL_SETTINGS,
   );
 
-  const { data: brandingSettings } = useQuery<BrandingSettings>({
-    queryKey: ["/api/settings/branding"],
-  });
+  const { data: brandingSettings } = useBranding() as { data: BrandingSettings | undefined };
 
-  const saveBrandingMutation = useMutation({
-    mutationFn: async (data: any) => {
-      const response = await fetch("/api/settings/branding", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-        credentials: "include",
-      });
-      if (!response.ok) {
-        const errorData = await response
-          .json()
-          .catch(() => ({ message: "Unknown error" }));
-        throw new Error(
-          errorData.message || "Failed to save branding settings",
-        );
-      }
-      return response.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/settings/branding"] });
-      toast({
-        title: "Settings Saved",
-        description: "General settings have been saved successfully.",
-      });
-    },
-    onError: (error: Error) => {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: error.message || "Failed to save settings.",
-      });
-    },
-  });
+  const _saveBranding = useUpdateBranding();
+  const _saveGeneral = useUpdateGeneralSettings();
+  const saveBrandingMutation = {
+    ..._saveBranding,
+    mutate: (data: any) =>
+      _saveBranding.mutate(data, {
+        onSuccess: () =>
+          toast({ title: "Settings Saved", description: "General settings have been saved successfully." }),
+        onError: (error: Error) =>
+          toast({ variant: "destructive", title: "Error", description: error.message || "Failed to save settings." }),
+      }),
+  };
 
   // Initialize from server data
   useEffect(() => {
@@ -98,7 +77,7 @@ export function useGeneralTab(adminSettings: any) {
 
   const saveSettings = async () => {
     try {
-      await apiRequest("PUT", "/api/admin/settings/general", {
+      await _saveGeneral.mutateAsync({
         timezone: generalSettings.timezone,
         currency: generalSettings.currency,
         dateFormat: generalSettings.dateFormat,
@@ -109,7 +88,6 @@ export function useGeneralTab(adminSettings: any) {
         orderNumberPrefix: generalSettings.orderNumberPrefix,
         orderNumberDigits: parseInt(generalSettings.orderNumberDigits) || 3,
       });
-      queryClient.invalidateQueries({ queryKey: ["/api/admin/settings"] });
 
       // Also save companyName to branding
       saveBrandingMutation.mutate({

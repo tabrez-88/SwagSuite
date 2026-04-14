@@ -5,4 +5,10 @@ export {
   useUpdateSupplierAddress,
   useDeleteSupplierAddress,
 } from "./mutations";
+export {
+  fetchSupplierAddresses,
+  createSupplierAddress,
+  updateSupplierAddress,
+  deleteSupplierAddress,
+} from "./requests";
 export type { SupplierAddress, CreateSupplierAddress, UpdateSupplierAddress } from "./types";

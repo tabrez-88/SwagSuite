@@ -114,6 +114,31 @@ export function useCreateVendorInvoice(projectId: string | number) {
   });
 }
 
+export function useGenerateApproval(projectId: string | number) {
+  return useMutation({
+    mutationFn: (payload: Parameters<typeof requests.generateApproval>[1]) =>
+      requests.generateApproval(projectId, payload),
+  });
+}
+
+export function useCalculateTax(projectId: string | number) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => requests.calculateTax(projectId),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: projectKeys.detail(projectId) }),
+  });
+}
+
+export function usePostProductComment(projectId: string | number) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: { orderItemId: string; content: string }) =>
+      requests.postProductComment(projectId, payload),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: projectKeys.productComments(projectId) }),
+  });
+}
+
 export function useUpdateVendorInvoice(projectId: string | number) {
   const { toast } = useToast();
   const invalidate = useInvalidateVendorInvoices(projectId);

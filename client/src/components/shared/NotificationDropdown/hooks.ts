@@ -1,6 +1,12 @@
 import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useLocation } from "wouter";
+import { useLocation } from "@/lib/wouter-compat";
+import {
+  useNotificationPreview,
+  useUnreadNotificationCount,
+  useMarkNotificationRead,
+  useMarkAllNotificationsRead,
+  useDeleteNotification,
+} from "@/services/notifications";
 import type { Notification } from "./types";
 
 export function useNotifications() {
@@ -8,86 +14,25 @@ export function useNotifications() {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [notificationToDelete, setNotificationToDelete] = useState<Notification | null>(null);
   const [, navigate] = useLocation();
-  const queryClient = useQueryClient();
 
-  // Fetch unread count
-  const { data: unreadData } = useQuery<{ count: number }>({
-    queryKey: ["/api/notifications/unread-count"],
-    queryFn: async () => {
-      const res = await fetch("/api/notifications/unread-count", { credentials: "include" });
-      if (!res.ok) throw new Error("Failed to fetch unread count");
-      return res.json();
-    },
-    refetchInterval: 30000, // Refresh every 30 seconds
-  });
+  // Poll unread count every 30s so the badge refreshes even while sidebar closed.
+  const { data: unreadData } = useUnreadNotificationCount(30_000);
 
-  // Fetch notifications
-  const { data: notifications = [], isLoading } = useQuery<Notification[]>({
-    queryKey: ["/api/notifications"],
-    queryFn: async () => {
-      const res = await fetch("/api/notifications?limit=20", { credentials: "include" });
-      if (!res.ok) throw new Error("Failed to fetch notifications");
-      return res.json();
-    },
-    enabled: isOpen,
-  });
+  const { data: notifications = [], isLoading } = useNotificationPreview(20, isOpen) as unknown as {
+    data: Notification[];
+    isLoading: boolean;
+  };
 
-  // Mark as read mutation
-  const markAsReadMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const res = await fetch(`/api/notifications/${id}/read`, {
-        method: "PATCH",
-        credentials: "include",
-      });
-      if (!res.ok) throw new Error("Failed to mark as read");
-      return res.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/notifications"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/notifications/unread-count"] });
-    },
-  });
-
-  // Mark all as read mutation
-  const markAllAsReadMutation = useMutation({
-    mutationFn: async () => {
-      const res = await fetch("/api/notifications/mark-all-read", {
-        method: "POST",
-        credentials: "include",
-      });
-      if (!res.ok) throw new Error("Failed to mark all as read");
-      return res.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/notifications"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/notifications/unread-count"] });
-    },
-  });
-
-  // Delete notification mutation
-  const deleteMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const res = await fetch(`/api/notifications/${id}`, {
-        method: "DELETE",
-        credentials: "include",
-      });
-      if (!res.ok) throw new Error("Failed to delete notification");
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/notifications"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/notifications/unread-count"] });
-    },
-  });
+  const markAsReadMutation = useMarkNotificationRead();
+  const markAllAsReadMutation = useMarkAllNotificationsRead();
+  const deleteMutation = useDeleteNotification();
 
   const unreadCount = unreadData?.count || 0;
 
   const handleNotificationClick = (notification: Notification) => {
-    // Mark as read
     if (!notification.isRead) {
       markAsReadMutation.mutate(notification.id);
     }
-
-    // Navigate to related page if projectId exists
     if (notification.orderId) {
       setIsOpen(false);
       navigate(`/projects/${notification.orderId}`);

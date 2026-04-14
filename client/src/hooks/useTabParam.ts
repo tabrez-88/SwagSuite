@@ -1,5 +1,5 @@
 import { useState, useCallback } from "react";
-import { useLocation, useSearch } from "wouter";
+import { useLocation, useSearch } from "@/lib/wouter-compat";
 
 /**
  * Persists the active tab in the URL query string (?tab=overview).

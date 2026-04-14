@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { useLocation } from "wouter";
+import { useLocation } from "@/lib/wouter-compat";
 import {
   useCompanies as useCompaniesQuery,
   useCreateCompany,

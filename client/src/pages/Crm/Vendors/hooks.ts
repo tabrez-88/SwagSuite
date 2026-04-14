@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo } from "react";
 import { useForm } from "react-hook-form";
-import { useLocation } from "wouter";
+import { useLocation } from "@/lib/wouter-compat";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   vendorContactFormSchema as contactFormSchema,

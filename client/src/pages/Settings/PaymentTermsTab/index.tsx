@@ -1,8 +1,12 @@
 import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { useSetDefaultPaymentTerm } from "@/services/payment-terms";
+import {
+  usePaymentTerms,
+  useCreatePaymentTerm,
+  useUpdatePaymentTerm,
+  useDeletePaymentTerm,
+  useSetDefaultPaymentTerm,
+} from "@/services/payment-terms";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -45,62 +49,63 @@ interface PaymentTerm {
 
 export function PaymentTermsTab() {
   const { toast } = useToast();
-  const queryClient = useQueryClient();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingTerm, setEditingTerm] = useState<PaymentTerm | null>(null);
   const [name, setName] = useState("");
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
-  const { data: paymentTerms = [], isLoading } = useQuery<PaymentTerm[]>({
-    queryKey: ["/api/payment-terms"],
-  });
+  const { data: paymentTerms = [], isLoading } = usePaymentTerms() as unknown as {
+    data: PaymentTerm[];
+    isLoading: boolean;
+  };
 
-  const createMutation = useMutation({
-    mutationFn: async (data: { name: string }) => {
-      const res = await apiRequest("POST", "/api/payment-terms", data);
-      return res.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/payment-terms"] });
-      setIsDialogOpen(false);
-      setName("");
-      toast({ title: "Payment term created" });
-    },
-    onError: (err: any) => {
-      toast({ title: "Error", description: err.message, variant: "destructive" });
-    },
-  });
+  const _create = useCreatePaymentTerm();
+  const createMutation = {
+    ..._create,
+    mutate: (data: { name: string }) =>
+      _create.mutate(data, {
+        onSuccess: () => {
+          setIsDialogOpen(false);
+          setName("");
+          toast({ title: "Payment term created" });
+        },
+        onError: (err: Error) =>
+          toast({ title: "Error", description: err.message, variant: "destructive" }),
+      }),
+  };
 
-  const updateMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: string; data: { name: string } }) => {
-      const res = await apiRequest("PATCH", `/api/payment-terms/${id}`, data);
-      return res.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/payment-terms"] });
-      setIsDialogOpen(false);
-      setEditingTerm(null);
-      setName("");
-      toast({ title: "Payment term updated" });
-    },
-    onError: (err: any) => {
-      toast({ title: "Error", description: err.message, variant: "destructive" });
-    },
-  });
+  const _update = useUpdatePaymentTerm();
+  const updateMutation = {
+    ..._update,
+    mutate: ({ id, data }: { id: string; data: { name: string } }) =>
+      _update.mutate(
+        { id, data },
+        {
+          onSuccess: () => {
+            setIsDialogOpen(false);
+            setEditingTerm(null);
+            setName("");
+            toast({ title: "Payment term updated" });
+          },
+          onError: (err: Error) =>
+            toast({ title: "Error", description: err.message, variant: "destructive" }),
+        },
+      ),
+  };
 
-  const deleteMutation = useMutation({
-    mutationFn: async (id: string) => {
-      await apiRequest("DELETE", `/api/payment-terms/${id}`);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/payment-terms"] });
-      setDeleteId(null);
-      toast({ title: "Payment term deleted" });
-    },
-    onError: (err: any) => {
-      toast({ title: "Error", description: err.message, variant: "destructive" });
-    },
-  });
+  const _delete = useDeletePaymentTerm();
+  const deleteMutation = {
+    ..._delete,
+    mutate: (id: string) =>
+      _delete.mutate(id, {
+        onSuccess: () => {
+          setDeleteId(null);
+          toast({ title: "Payment term deleted" });
+        },
+        onError: (err: Error) =>
+          toast({ title: "Error", description: err.message, variant: "destructive" }),
+      }),
+  };
 
   const setDefaultMutation = useSetDefaultPaymentTerm();
 

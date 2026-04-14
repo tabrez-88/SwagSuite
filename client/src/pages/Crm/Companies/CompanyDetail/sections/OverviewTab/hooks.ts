@@ -1,11 +1,13 @@
 import { useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { apiRequest, getQueryFn } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import {
   useCompanyContacts,
   useCompanyActivities,
+  useCompanySpending,
+  useReassignCompanyRep,
 } from "@/services/companies";
+import { useTeamMembers } from "@/services/users";
+import { useTaxCodes } from "@/services/tax-codes";
 import {
   Linkedin,
   Twitter,
@@ -46,27 +48,17 @@ export function useOverviewTab(companyId: string | undefined, company: any) {
   const [spendFrom, setSpendFrom] = useState<string>(startOfCurrentYear());
   const [spendTo, setSpendTo] = useState<string>(todayIso());
   const { toast } = useToast();
-  const queryClient = useQueryClient();
 
   // Data queries
   const { data: companyContacts = [] } = useCompanyContacts(companyId);
   const { data: companyActivities = [] } = useCompanyActivities(companyId);
 
   // Spending report
-  const { data: spendingReport, isLoading: spendingLoading } = useQuery<CompanySpendingReport>({
-    queryKey: ["company-spending", companyId, spendFrom, spendTo],
-    queryFn: async () => {
-      const params = new URLSearchParams();
-      if (spendFrom) params.set("from", spendFrom);
-      if (spendTo) params.set("to", spendTo);
-      const res = await fetch(`/api/companies/${companyId}/spending?${params.toString()}`, {
-        credentials: "include",
-      });
-      if (!res.ok) throw new Error(`${res.status}: ${await res.text()}`);
-      return res.json();
-    },
-    enabled: !!companyId,
-  });
+  const { data: spendingReport, isLoading: spendingLoading } = useCompanySpending(
+    companyId,
+    spendFrom,
+    spendTo,
+  ) as { data: CompanySpendingReport | undefined; isLoading: boolean };
 
   const applySpendPreset = (preset: "ytd" | "qtd" | "last30" | "last90" | "lastYear") => {
     const now = new Date();
@@ -98,15 +90,8 @@ export function useOverviewTab(companyId: string | undefined, company: any) {
     }
   };
 
-  const { data: teamMembers = [] } = useQuery<any[]>({
-    queryKey: ["/api/users/team"],
-    queryFn: getQueryFn({ on401: "throw" }),
-  });
-
-  const { data: taxCodes } = useQuery<any[]>({
-    queryKey: ["/api/tax-codes"],
-    queryFn: getQueryFn({ on401: "throw" }),
-  });
+  const { data: teamMembers = [] } = useTeamMembers();
+  const { data: taxCodes } = useTaxCodes();
 
   // Derived data
   const excitingNewsPosts = company?.socialMediaPosts?.filter((post: any) => post.isExcitingNews) || [];
@@ -118,22 +103,18 @@ export function useOverviewTab(companyId: string | undefined, company: any) {
   const termsLabel = company?.defaultTerms;
 
   // Client rep mutation
-  const reassignMutation = useMutation({
-    mutationFn: async ({ userId }: { userId: string | null }) => {
-      const res = await apiRequest("PATCH", `/api/companies/${company.id}`, {
-        assignedUserId: userId,
-      });
-      return res.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/companies/${company.id}`] });
-      toast({ title: "Client Rep updated" });
-      setOpenPopover(null);
-    },
-    onError: () => {
-      toast({ title: "Failed to update Client Rep", variant: "destructive" });
-    },
-  });
+  const _reassign = useReassignCompanyRep(company?.id ?? "");
+  const reassignMutation = {
+    ..._reassign,
+    mutate: ({ userId }: { userId: string | null }) =>
+      _reassign.mutate(userId, {
+        onSuccess: () => {
+          toast({ title: "Client Rep updated" });
+          setOpenPopover(null);
+        },
+        onError: () => toast({ title: "Failed to update Client Rep", variant: "destructive" }),
+      }),
+  };
 
   // Email handler
   const handleSendEmail = () => {

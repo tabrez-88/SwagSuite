@@ -1,7 +1,14 @@
 import { useState, useRef } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
-import { apiRequest } from "@/lib/queryClient";
+import {
+  usePresentations,
+  useCreatePresentation,
+  useImportPresentationFromHubspot,
+  useGeneratePresentationContent,
+  useDeletePresentation,
+  presentationKeys,
+} from "@/services/presentations";
 import type { PresentationData, PresentationStatus } from "./types";
 
 export function useAiPresentationBuilder() {
@@ -23,83 +30,81 @@ export function useAiPresentationBuilder() {
   const queryClient = useQueryClient();
 
   // Fetch presentations
-  const { data: presentations = [], isLoading, refetch } = useQuery<any[]>({
-    queryKey: ['/api/presentations'],
-  });
+  const { data: presentations = [], isLoading, refetch } = usePresentations() as unknown as {
+    data: any[];
+    isLoading: boolean;
+    refetch: () => void;
+  };
 
-  // Create presentation mutation
-  const createPresentationMutation = useMutation({
-    mutationFn: async (data: any) => {
-      return apiRequest('POST', '/api/presentations', data);
-    },
-    onSuccess: () => {
-      toast({
-        title: "Presentation Created",
-        description: "Your AI presentation is being generated with product suggestions.",
-      });
-      queryClient.invalidateQueries({ queryKey: ['/api/presentations'] });
-      setIsCreateModalOpen(false);
-      setNewPresentation({ title: "", description: "", dealNotes: "" });
-    },
-    onError: () => {
-      toast({
-        title: "Error",
-        description: "Failed to create presentation. Please try again.",
-        variant: "destructive"
-      });
-    }
-  });
+  const _create = useCreatePresentation();
+  const createPresentationMutation = {
+    ..._create,
+    mutate: (data: any) =>
+      _create.mutate(data, {
+        onSuccess: () => {
+          toast({
+            title: "Presentation Created",
+            description: "Your AI presentation is being generated with product suggestions.",
+          });
+          setIsCreateModalOpen(false);
+          setNewPresentation({ title: "", description: "", dealNotes: "" });
+        },
+        onError: () =>
+          toast({
+            title: "Error",
+            description: "Failed to create presentation. Please try again.",
+            variant: "destructive",
+          }),
+      }),
+  };
 
-  // Import from HubSpot mutation
-  const importHubspotMutation = useMutation({
-    mutationFn: async (dealId: string) => {
-      return apiRequest('POST', '/api/presentations/import-hubspot', { hubspotDealId: dealId });
-    },
-    onSuccess: () => {
-      toast({
-        title: "HubSpot Import Started",
-        description: "Deal notes are being imported and analyzed by AI.",
-      });
-      queryClient.invalidateQueries({ queryKey: ['/api/presentations'] });
-      setIsHubspotModalOpen(false);
-      setHubspotDealId("");
-    },
-    onError: () => {
-      toast({
-        title: "Import Failed",
-        description: "Could not import from HubSpot. Check your deal ID and try again.",
-        variant: "destructive"
-      });
-    }
-  });
+  const _import = useImportPresentationFromHubspot();
+  const importHubspotMutation = {
+    ..._import,
+    mutate: (dealId: string) =>
+      _import.mutate(
+        { hubspotDealId: dealId },
+        {
+          onSuccess: () => {
+            toast({
+              title: "HubSpot Import Started",
+              description: "Deal notes are being imported and analyzed by AI.",
+            });
+            setIsHubspotModalOpen(false);
+            setHubspotDealId("");
+          },
+          onError: () =>
+            toast({
+              title: "Import Failed",
+              description: "Could not import from HubSpot. Check your deal ID and try again.",
+              variant: "destructive",
+            }),
+        },
+      ),
+  };
 
-  // Generate presentation mutation
-  const generatePresentationMutation = useMutation({
-    mutationFn: async (presentationId: string) => {
-      return apiRequest('POST', `/api/presentations/${presentationId}/generate`);
-    },
-    onSuccess: () => {
-      toast({
-        title: "Generation Started",
-        description: "AI is analyzing your notes and suggesting products.",
-      });
-      queryClient.invalidateQueries({ queryKey: ['/api/presentations'] });
-    }
-  });
+  const _generate = useGeneratePresentationContent();
+  const generatePresentationMutation = {
+    ..._generate,
+    mutate: (presentationId: string) =>
+      _generate.mutate(presentationId, {
+        onSuccess: () =>
+          toast({
+            title: "Generation Started",
+            description: "AI is analyzing your notes and suggesting products.",
+          }),
+      }),
+  };
 
-  // Delete presentation mutation
-  const deletePresentationMutation = useMutation({
-    mutationFn: async (presentationId: string) => {
-      return apiRequest('DELETE', `/api/presentations/${presentationId}`);
-    },
-    onSuccess: () => {
-      toast({
-        title: "Presentation Deleted",
-        description: "The presentation has been removed.",
-      });
-      queryClient.invalidateQueries({ queryKey: ['/api/presentations'] });
-    }
-  });
+  const _delete = useDeletePresentation();
+  const deletePresentationMutation = {
+    ..._delete,
+    mutate: (presentationId: string) =>
+      _delete.mutate(presentationId, {
+        onSuccess: () =>
+          toast({ title: "Presentation Deleted", description: "The presentation has been removed." }),
+      }),
+  };
 
   const handleCreatePresentation = async () => {
     if (!newPresentation.title.trim()) {
@@ -132,7 +137,7 @@ export function useAiPresentationBuilder() {
         title: "Presentation Created",
         description: "Your AI presentation is being generated with product suggestions.",
       });
-      queryClient.invalidateQueries({ queryKey: ['/api/presentations'] });
+      queryClient.invalidateQueries({ queryKey: presentationKeys.all });
       setIsCreateModalOpen(false);
       setNewPresentation({ title: "", description: "", dealNotes: "" });
       setUploadedFiles([]);

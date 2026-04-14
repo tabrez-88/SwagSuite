@@ -1,26 +1,12 @@
-import { useParams } from "wouter";
-import { useQuery } from "@tanstack/react-query";
+import { useParams } from "@/lib/wouter-compat";
+import { useCustomerPortalData } from "@/services/customer-portal";
 import { type PortalData, STATUS_MAP, PROGRESS_STEPS } from "./types";
 
 export function useCustomerPortal() {
   const params = useParams();
   const token = params.token || params[0];
 
-  const { data, isLoading, error } = useQuery<PortalData>({
-    queryKey: [`/api/portal/${token}`],
-    queryFn: async () => {
-      const res = await fetch(`/api/portal/${token}`);
-      if (res.status === 404) throw new Error("not_found");
-      if (res.status === 403) {
-        const body = await res.json();
-        throw new Error(body.message || "expired");
-      }
-      if (!res.ok) throw new Error("server_error");
-      return res.json();
-    },
-    enabled: !!token,
-    retry: false,
-  });
+  const { data, isLoading, error } = useCustomerPortalData<PortalData>(token);
 
   // Derived values (only computed when data exists)
   const order = data?.order;

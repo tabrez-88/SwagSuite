@@ -3,8 +3,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { companyFormSchema, type CompanyFormData } from "@/schemas/crm.schemas";
 import { useUpdateCompanyDetail } from "@/services/companies";
-import { useQuery } from "@tanstack/react-query";
-import { getQueryFn } from "@/lib/queryClient";
+import { useTaxCodes } from "@/services/tax-codes";
 import { usePaymentTerms } from "@/services/payment-terms";
 
 export function useEditCompanyModal(companyId: string | undefined, company: any) {
@@ -15,10 +14,7 @@ export function useEditCompanyModal(companyId: string | undefined, company: any)
 
   const updateCompanyMutation = useUpdateCompanyDetail(companyId);
 
-  const { data: taxCodes } = useQuery<any[]>({
-    queryKey: ["/api/tax-codes"],
-    queryFn: getQueryFn({ on401: "throw" }),
-  });
+  const { data: taxCodes } = useTaxCodes();
 
   const { data: paymentTermsOptions = [] } = usePaymentTerms();
 

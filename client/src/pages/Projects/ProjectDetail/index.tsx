@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { useLocation, useParams } from "wouter";
+import { useLocation, useParams } from "@/lib/wouter-compat";
 import ProjectHeader from "./components/ProjectHeader";
 import ProjectNestedSidebar from "./components/ProjectNestedSidebar";
 import { useProjectData } from "./hooks";

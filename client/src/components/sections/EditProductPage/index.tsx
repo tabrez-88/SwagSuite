@@ -1649,7 +1649,7 @@ export default function EditProductPage({ projectId, itemId, data }: EditProduct
             supplierId={matrixVendorId}
             supplierName={matrixVendorName}
             artworkId={editProductPage.artworks.length === 1 ? editProductPage.artworks[0]?.id : undefined}
-            artworkMethod={editProductPage.artworks.length === 1 ? editProductPage.artworks[0]?.artworkType : undefined}
+            artworkMethod={editProductPage.artworks.length === 1 ? (editProductPage.artworks[0]?.artworkType ?? undefined) : undefined}
             quantity={editProductPage.lineTotals.qty || 1}
             projectId={editProductPage.projectId}
           />

@@ -1,5 +1,4 @@
 import { useState, useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
 import { leadFormSchema, type LeadFormData } from "@/schemas/crm.schemas";
 import {
   useLeads as useLeadsQuery,
@@ -8,6 +7,7 @@ import {
   useDeleteLead,
 } from "@/services/leads";
 import type { Lead } from "@/services/leads";
+import { useLeadSourceReport } from "@/services/reports";
 
 export interface LeadSourceReportItem {
   source: string;
@@ -32,9 +32,7 @@ export function useLeadsPage() {
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
 
   const { data: leads = [], isLoading } = useLeadsQuery();
-  const { data: leadSourceReport = [] } = useQuery<LeadSourceReportItem[]>({
-    queryKey: ["/api/reports/lead-sources"],
-  });
+  const { data: leadSourceReport = [] } = useLeadSourceReport() as unknown as { data: LeadSourceReportItem[] };
   const createLeadMutation = useCreateLead();
   const updateLeadMutation = useUpdateLead();
   const deleteLeadMutation = useDeleteLead();

@@ -1,6 +1,7 @@
 import { useToast } from "@/hooks/use-toast";
 import { useEffect, useState } from "react";
-import { useLocation } from "wouter";
+import { useLocation } from "@/lib/wouter-compat";
+import { verifyInvitationToken, acceptInvitation } from "@/services/users";
 
 export function useAcceptInvitation() {
   const [, setLocation] = useLocation();
@@ -24,24 +25,22 @@ export function useAcceptInvitation() {
 
   const verifyInvitation = async (inviteToken: string) => {
     try {
-      const response = await fetch(`/api/invitations/verify/${inviteToken}`);
-      const data = await response.json();
-
-      if (response.ok && data.valid) {
+      const data = await verifyInvitationToken<any>(inviteToken);
+      if (data?.valid) {
         setInvitationData(data);
       } else {
         toast({
           variant: "destructive",
           title: "Invalid Invitation",
-          description: data.message || "This invitation link is invalid or has expired",
+          description: data?.message || "This invitation link is invalid or has expired",
         });
         setTimeout(() => setLocation("/"), 3000);
       }
-    } catch (error) {
+    } catch (error: any) {
       toast({
         variant: "destructive",
         title: "Error",
-        description: "Failed to verify invitation",
+        description: error?.message || "Failed to verify invitation",
       });
     } finally {
       setIsVerifying(false);
@@ -64,6 +63,7 @@ export function useAcceptInvitation() {
 
     setToken(inviteToken);
     verifyInvitation(inviteToken);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const validateForm = () => {
@@ -115,43 +115,23 @@ export function useAcceptInvitation() {
     setIsSubmitting(true);
 
     try {
-      const response = await fetch("/api/invitations/accept", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          token,
-          username: formData.username,
-          password: formData.password,
-          firstName: formData.firstName,
-          lastName: formData.lastName,
-        }),
+      await acceptInvitation(token, {
+        username: formData.username,
+        password: formData.password,
+        firstName: formData.firstName,
+        lastName: formData.lastName,
       });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        setSuccess(true);
-        toast({
-          title: "Account Created!",
-          description: "Your account has been created successfully. Redirecting to login...",
-        });
-        setTimeout(() => {
-          setLocation("/");
-        }, 2000);
-      } else {
-        toast({
-          variant: "destructive",
-          title: "Error",
-          description: data.message || "Failed to create account",
-        });
-      }
-    } catch (error) {
+      setSuccess(true);
+      toast({
+        title: "Account Created!",
+        description: "Your account has been created successfully. Redirecting to login...",
+      });
+      setTimeout(() => setLocation("/"), 2000);
+    } catch (error: any) {
       toast({
         variant: "destructive",
         title: "Error",
-        description: "Failed to create account. Please try again.",
+        description: error?.message || "Failed to create account",
       });
     } finally {
       setIsSubmitting(false);

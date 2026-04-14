@@ -1,5 +1,12 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import {
+  useDashboardStats,
+  useArAging,
+  useCommissionReport,
+} from "@/services/reports";
+import { useProjects } from "@/services/projects";
+import { useCompanies } from "@/services/companies";
+import { useProducts } from "@/services/products";
 import {
   DollarSign,
   ShoppingCart,
@@ -81,41 +88,15 @@ export function useReports() {
     query: "",
   });
 
-  const { data: stats, isLoading: statsLoading } = useQuery<any>({
-    queryKey: ["/api/dashboard/stats"],
-  });
+  const { data: stats, isLoading: statsLoading } = useDashboardStats<any>();
+  const { data: orders } = useProjects<any>();
+  const { data: companies } = useCompanies() as unknown as { data: any };
+  const { data: products } = useProducts<any>();
 
-  const { data: orders } = useQuery<any>({
-    queryKey: ["/api/projects"],
-  });
-
-  const { data: companies } = useQuery<any>({
-    queryKey: ["/api/companies"],
-  });
-
-  const { data: products } = useQuery<any>({
-    queryKey: ["/api/products"],
-  });
-
-  const { data: arAging } = useQuery<ArAgingReport>({
-    queryKey: ["/api/reports/accounts-receivable"],
-  });
-
-  const { data: commissionReport, isLoading: commissionLoading } =
-    useQuery<CommissionReport>({
-      queryKey: ["commissions", commissionFrom, commissionTo],
-      queryFn: async () => {
-        const params = new URLSearchParams();
-        if (commissionFrom) params.set("from", commissionFrom);
-        if (commissionTo) params.set("to", commissionTo);
-        const res = await fetch(
-          `/api/reports/commissions?${params.toString()}`,
-          { credentials: "include" },
-        );
-        if (!res.ok) throw new Error(`${res.status}`);
-        return res.json();
-      },
-    });
+  const { data: arAging } = useArAging<ArAgingReport>();
+  const { data: commissionReport, isLoading: commissionLoading } = useCommissionReport<
+    CommissionReport
+  >(commissionFrom, commissionTo);
 
   const getDateRangeLabel = (range: string) => {
     switch (range) {

@@ -1,11 +1,9 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Building, Users, TrendingUp, UserCheck, RefreshCw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useTabParam } from "@/hooks/useTabParam";
-import { apiRequest } from "@/lib/queryClient";
+import { useSyncYtdSpending } from "@/services/sync";
 
 // Import component contents directly for now
 import Companies from "./Companies";
@@ -16,32 +14,27 @@ import Contacts from "./Contacts";
 export default function CRM() {
   const [activeTab, setActiveTab] = useTabParam("companies");
   const { toast } = useToast();
-  const queryClient = useQueryClient();
 
-  const syncYtdMutation = useMutation({
-    mutationFn: async () => {
-      const response = await apiRequest("POST", "/api/sync/ytd-spending");
-      return response.json();
-    },
-    onSuccess: (data) => {
-      toast({
-        title: "Success",
-        description: `YTD spending synced! Updated ${data.companiesUpdated} companies, ${data.suppliersUpdated} suppliers, and ${data.productCountsUpdated} product counts.`,
-      });
-      // Refresh all CRM data
-      queryClient.invalidateQueries({ queryKey: ["/api/companies"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/suppliers"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/contacts"] });
-    },
-    onError: (error: Error) => {
-      console.error('Sync error:', error);
-      toast({
-        title: "Error",
-        description: error.message || "Failed to sync YTD spending",
-        variant: "destructive",
-      });
-    },
-  });
+  const _syncYtd = useSyncYtdSpending();
+  const syncYtdMutation = {
+    ..._syncYtd,
+    mutate: () =>
+      _syncYtd.mutate(undefined, {
+        onSuccess: (data: any) =>
+          toast({
+            title: "Success",
+            description: `YTD spending synced! Updated ${data.companiesUpdated} companies, ${data.suppliersUpdated} suppliers, and ${data.productCountsUpdated} product counts.`,
+          }),
+        onError: (error: Error) => {
+          console.error("Sync error:", error);
+          toast({
+            title: "Error",
+            description: error.message || "Failed to sync YTD spending",
+            variant: "destructive",
+          });
+        },
+      }),
+  };
 
   return (
     <div className="space-y-6 p-6">

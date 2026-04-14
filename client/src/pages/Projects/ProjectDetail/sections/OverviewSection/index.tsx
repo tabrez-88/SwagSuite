@@ -33,8 +33,7 @@ import EmailSection from "@/components/sections/EmailSection";
 import VendorSection from "@/components/sections/VendorSection";
 import ActivitiesSection from "@/pages/Projects/ProjectDetail/sections/OverviewSection/ActivitiesSection";
 
-import { getQueryFn } from "@/lib/queryClient";
-import { useQuery } from "@tanstack/react-query";
+import { useTaxCodes } from "@/services/tax-codes";
 import { useOverviewSection } from "./hooks";
 import type { OverviewSectionProps, TeamMemberPickerProps } from "./types";
 
@@ -61,10 +60,7 @@ export default function OverviewSection(props: OverviewSectionProps) {
     totalQuantity,
   } = hook;
 
-  const { data: taxCodes } = useQuery<any[]>({
-    queryKey: ["/api/tax-codes"],
-    queryFn: getQueryFn({ on401: "throw" }),
-  });
+  const { data: taxCodes } = useTaxCodes();
 
   if (!order) return null;
 

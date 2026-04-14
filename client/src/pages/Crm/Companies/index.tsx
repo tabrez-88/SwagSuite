@@ -45,8 +45,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import type { Company } from "@/services/companies";
 import { usePaymentTerms } from "@/services/payment-terms";
-import { useQuery } from "@tanstack/react-query";
-import { getQueryFn } from "@/lib/queryClient";
+import { useTaxCodes } from "@/services/tax-codes";
 import { useCompaniesPage } from "./hooks";
 import CompanyFormDialog from "./components/CompanyFormDialog";
 import { DeleteConfirmDialog } from "../components/DeleteConfirmDialog";
@@ -96,10 +95,7 @@ function getSocialMediaIcon(platform: string) {
 
 export default function Companies() {
   const { data: paymentTermsOptions = [] } = usePaymentTerms();
-  const { data: taxCodes } = useQuery<any[]>({
-    queryKey: ["/api/tax-codes"],
-    queryFn: getQueryFn({ on401: "throw" }),
-  });
+  const { data: taxCodes } = useTaxCodes();
 
   const {
     searchQuery,

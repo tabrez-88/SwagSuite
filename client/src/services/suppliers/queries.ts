@@ -9,6 +9,13 @@ export function useSuppliers() {
   });
 }
 
+export function useSupplier(supplierId: string | number | undefined) {
+  return useQuery<Vendor>({
+    queryKey: supplierKeys.detail(supplierId ?? ""),
+    enabled: !!supplierId,
+  });
+}
+
 export function useVendorProducts(
   vendorId: string | undefined,
   enabled: boolean = false,

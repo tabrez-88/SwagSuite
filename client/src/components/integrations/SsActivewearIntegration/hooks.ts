@@ -1,135 +1,33 @@
-import { useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { apiRequest } from '@/lib/queryClient';
-import { useToast } from '@/hooks/use-toast';
-import type { SsActivewearProduct } from '@shared/schema';
+import { useState } from "react";
+import { useToast } from "@/hooks/use-toast";
+import type { SsActivewearProduct } from "@shared/schema";
+import {
+  useSsActivewearBrands,
+  useSsActivewearSearch,
+  useSsActivewearSync,
+  useSsActivewearTestConnection,
+  useSsActivewearImport,
+} from "@/services/integrations/ss-activewear";
 
 export function useSsActivewearIntegration() {
-  const [accountNumber, setAccountNumber] = useState('');
-  const [apiKey, setApiKey] = useState('');
-  const [styleFilter, setStyleFilter] = useState('');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [isTestingConnection, setIsTestingConnection] = useState(false);
+  const [accountNumber, setAccountNumber] = useState("");
+  const [apiKey, setApiKey] = useState("");
+  const [styleFilter, setStyleFilter] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
   const [selectedProduct, setSelectedProduct] = useState<SsActivewearProduct | null>(null);
   const [detailModalOpen, setDetailModalOpen] = useState(false);
   const [syncingProducts, setSyncingProducts] = useState<Set<string>>(new Set());
   const { toast } = useToast();
-  const queryClient = useQueryClient();
 
-  const { data: brands, isLoading: loadingBrands, error: brandsError } = useQuery<{ id: string; name: string }[]>({
-    queryKey: ['/api/ss-activewear/brands'],
-    staleTime: 1000 * 60 * 60,
-    retry: false,
-  });
+  const { data: brands, isLoading: loadingBrands, error: brandsError } = useSsActivewearBrands();
+  const searchMutation = useSsActivewearSearch();
+  const syncProductMutation = useSsActivewearSync();
+  const testConnectionMutation = useSsActivewearTestConnection();
+  const importMutation = useSsActivewearImport();
 
-  const searchMutation = useMutation({
-    mutationFn: async (query: string) => {
-      const response = await apiRequest('GET', `/api/ss-activewear/search?q=${encodeURIComponent(query)}`);
-      const data = await response.json();
-      console.log('S&S Search Response:', data);
-      console.log('Is Array?', Array.isArray(data));
-      return data as SsActivewearProduct[];
-    },
-    onError: (error) => {
-      console.error('Search error:', error);
-    },
-  });
-
-  const syncProductMutation = useMutation({
-    mutationFn: async ({ products, productId }: { products: SsActivewearProduct[], productId?: string }) => {
-      if (productId) {
-        setSyncingProducts(prev => new Set(prev).add(productId));
-      }
-      const response = await apiRequest('POST', '/api/ss-activewear/products/sync', { products });
-      const data = await response.json();
-      return { data, productId };
-    },
-    onSuccess: (result: any) => {
-      if (result.productId) {
-        setSyncingProducts(prev => {
-          const next = new Set(prev);
-          next.delete(result.productId);
-          return next;
-        });
-      }
-      toast({
-        title: "Products Added",
-        description: `${result.data.count || 1} product(s) successfully added to catalog`,
-      });
-      queryClient.invalidateQueries({ queryKey: ['/api/products'] });
-    },
-    onError: (error, variables: any) => {
-      if (variables.productId) {
-        setSyncingProducts(prev => {
-          const next = new Set(prev);
-          next.delete(variables.productId);
-          return next;
-        });
-      }
-      toast({
-        title: "Sync Failed",
-        description: "Failed to add products to catalog",
-        variant: "destructive",
-      });
-    },
-  });
-
-  const testConnectionMutation = useMutation({
-    mutationFn: async ({ accountNumber, apiKey }: { accountNumber: string; apiKey: string }) => {
-      const response = await apiRequest('POST', '/api/ss-activewear/test-connection', { accountNumber, apiKey });
-      return response;
-    },
-    onSuccess: (data: any) => {
-      if (data.connected) {
-        toast({
-          title: "Connection Successful",
-          description: "Successfully connected to S&S Activewear API",
-        });
-      } else {
-        toast({
-          title: "Connection Failed",
-          description: "Unable to connect to S&S Activewear API. Please check your credentials.",
-          variant: "destructive",
-        });
-      }
-    },
-    onError: (error) => {
-      toast({
-        title: "Connection Error",
-        description: "Failed to test connection to S&S Activewear API",
-        variant: "destructive",
-      });
-    },
-  });
-
-  const importMutation = useMutation({
-    mutationFn: async () => {
-      const response = await apiRequest('POST', '/api/ss-activewear/import', { accountNumber, apiKey, styleFilter: styleFilter || undefined });
-      return response;
-    },
-    onSuccess: () => {
-      toast({
-        title: "Import Started",
-        description: "Product import has been started. You can monitor the progress below.",
-      });
-      queryClient.invalidateQueries({ queryKey: ['/api/ss-activewear/import-jobs'] });
-    },
-    onError: (error) => {
-      toast({
-        title: "Import Failed",
-        description: "Failed to start product import",
-        variant: "destructive",
-      });
-    },
-  });
-
-  const handleSearch = async () => {
+  const handleSearch = () => {
     if (!searchQuery.trim() || searchQuery.length < 2) {
-      toast({
-        title: "Invalid Search",
-        description: "Please enter at least 2 characters to search",
-        variant: "destructive",
-      });
+      toast({ title: "Invalid Search", description: "Please enter at least 2 characters to search", variant: "destructive" });
       return;
     }
     searchMutation.mutate(searchQuery);
@@ -141,31 +39,58 @@ export function useSsActivewearIntegration() {
   };
 
   const handleAddToCatalog = (product: SsActivewearProduct) => {
-    syncProductMutation.mutate({ products: [product], productId: product.sku });
+    const productId = product.sku;
+    setSyncingProducts((prev) => new Set(prev).add(productId));
+    syncProductMutation.mutate(
+      { products: [product], productId },
+      {
+        onSuccess: (data) => {
+          toast({ title: "Products Added", description: `${data.count ?? 1} product(s) successfully added to catalog` });
+        },
+        onError: () => toast({ title: "Sync Failed", description: "Failed to add products to catalog", variant: "destructive" }),
+        onSettled: () => {
+          setSyncingProducts((prev) => {
+            const next = new Set(prev);
+            next.delete(productId);
+            return next;
+          });
+        },
+      },
+    );
   };
 
   const handleTestConnection = () => {
     if (!accountNumber.trim() || !apiKey.trim()) {
-      toast({
-        title: "Missing Credentials",
-        description: "Please enter both account number and API key",
-        variant: "destructive",
-      });
+      toast({ title: "Missing Credentials", description: "Please enter both account number and API key", variant: "destructive" });
       return;
     }
-    testConnectionMutation.mutate({ accountNumber, apiKey });
+    testConnectionMutation.mutate(
+      { accountNumber, apiKey },
+      {
+        onSuccess: (data) => {
+          if (data.connected) {
+            toast({ title: "Connection Successful", description: "Successfully connected to S&S Activewear API" });
+          } else {
+            toast({ title: "Connection Failed", description: "Unable to connect to S&S Activewear API. Please check your credentials.", variant: "destructive" });
+          }
+        },
+        onError: () => toast({ title: "Connection Error", description: "Failed to test connection to S&S Activewear API", variant: "destructive" }),
+      },
+    );
   };
 
   const handleImport = () => {
     if (!accountNumber.trim() || !apiKey.trim()) {
-      toast({
-        title: "Missing Credentials",
-        description: "Please enter both account number and API key",
-        variant: "destructive",
-      });
+      toast({ title: "Missing Credentials", description: "Please enter both account number and API key", variant: "destructive" });
       return;
     }
-    importMutation.mutate();
+    importMutation.mutate(
+      { accountNumber, apiKey, styleFilter: styleFilter || undefined },
+      {
+        onSuccess: () => toast({ title: "Import Started", description: "Product import has been started. You can monitor the progress below." }),
+        onError: () => toast({ title: "Import Failed", description: "Failed to start product import", variant: "destructive" }),
+      },
+    );
   };
 
   return {

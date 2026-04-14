@@ -1,16 +1,31 @@
-import React, { useState } from "react";
+import GeneratedDocumentCard from "@/components/documents/GeneratedDocumentCard";
+import { PdfPreviewDialog } from "@/components/documents/pdf/PdfPreviewDialog";
+import { DocumentEditor } from "@/components/feature/DocumentEditor";
+import ProjectInfoBar from "@/components/layout/ProjectInfoBar";
+import { FilePreviewModal } from "@/components/modals/FilePreviewModal";
+import SendSODialog from "@/components/modals/SendSODialog";
+import ProductsSection from "@/components/sections/ProductsSection";
+import EditableAddress from "@/components/shared/EditableAddress";
+import LockBanner from "@/components/shared/LockBanner";
+import TimelineWarningBanner from "@/components/shared/TimelineWarningBanner";
 import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
-  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+  AlertDialog,
+  AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle
 } from "@/components/ui/alert-dialog";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -18,13 +33,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { useToast } from "@/hooks/use-toast";
+import { getCloudinaryThumbnail } from "@/lib/media-library";
+import { usePaymentTerms } from "@/services/payment-terms";
+import { useCalculateTax } from "@/services/projects/mutations";
+import { useTaxCodes } from "@/services/tax-codes";
+import { format } from "date-fns";
 import {
   Calculator,
   ChevronDown,
@@ -36,57 +51,35 @@ import {
   FileText,
   Loader2,
   MapPin,
-  Package,
   Palette,
   Pencil,
-  Send,
+  Send
 } from "lucide-react";
-import { format } from "date-fns";
-import EditableAddress from "@/components/shared/EditableAddress";
-import ProjectInfoBar from "@/components/layout/ProjectInfoBar";
-import TimelineWarningBanner from "@/components/shared/TimelineWarningBanner";
-import LockBanner from "@/components/shared/LockBanner";
-import GeneratedDocumentCard from "@/components/documents/GeneratedDocumentCard";
-import { PdfPreviewDialog } from "@/components/documents/pdf/PdfPreviewDialog";
-import { DocumentEditor } from "@/components/feature/DocumentEditor";
-import { FilePreviewModal } from "@/components/modals/FilePreviewModal";
-import { getCloudinaryThumbnail } from "@/lib/media-library";
-import SendSODialog from "@/components/modals/SendSODialog";
-import ProductsSection from "@/components/sections/ProductsSection";
-import type { SalesOrderSectionProps } from "./types";
+import React, { useState } from "react";
 import { useSalesOrderSection } from "./hooks";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { getQueryFn, apiRequest } from "@/lib/queryClient";
-import { useToast } from "@/hooks/use-toast";
-import { usePaymentTerms } from "@/services/payment-terms";
+import type { SalesOrderSectionProps } from "./types";
 
 export default function SalesOrderSection(props: SalesOrderSectionProps) {
   const { projectId, lockStatus } = props;
   const hook = useSalesOrderSection(props);
-  const queryClient = useQueryClient();
   const { toast } = useToast();
 
   const { data: paymentTermsOptions = [] } = usePaymentTerms();
   const [showEditDialog, setShowEditDialog] = useState(false);
 
-  const { data: taxCodes } = useQuery<any[]>({
-    queryKey: ["/api/tax-codes"],
-    queryFn: getQueryFn({ on401: "throw" }),
-  });
+  const { data: taxCodes } = useTaxCodes();
 
-  const calculateTaxMutation = useMutation({
-    mutationFn: async () => {
-      const res = await apiRequest("POST", `/api/projects/${projectId}/calculate-tax`);
-      return res.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}`] });
-      toast({ title: "Tax Calculated", description: "Tax has been updated based on TaxJar rates." });
-    },
-    onError: (error: Error) => {
-      toast({ title: "Tax Calculation Failed", description: error.message, variant: "destructive" });
-    },
-  });
+  const _calculateTax = useCalculateTax(projectId);
+  const calculateTaxMutation = {
+    ..._calculateTax,
+    mutate: () =>
+      _calculateTax.mutate(undefined, {
+        onSuccess: () =>
+          toast({ title: "Tax Calculated", description: "Tax has been updated based on TaxJar rates." }),
+        onError: (error: Error) =>
+          toast({ title: "Tax Calculation Failed", description: error.message, variant: "destructive" }),
+      }),
+  };
 
   if (!hook.order) return null;
 

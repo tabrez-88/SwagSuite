@@ -1,22 +1,22 @@
-import { useState, useEffect } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
-import { useToast } from "@/hooks/use-toast";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent } from "@/components/ui/card";
 import { IMPRINT_METHODS } from "@/constants/imprintOptions";
-import { Copy, Grid3X3, Loader2, Plus, Settings, Trash2 } from "lucide-react";
-import { useLocation } from "wouter";
+import { useToast } from "@/hooks/use-toast";
+import { apiRequest } from "@/lib/queryClient";
+import { useLocation } from "@/lib/wouter-compat";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Grid3X3, Loader2, Plus, Settings, Trash2 } from "lucide-react";
+import { useEffect, useState } from "react";
 
 interface DecoratorMatrixDialogProps {
   open: boolean;

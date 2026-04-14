@@ -42,7 +42,7 @@ interface CompanyFormDialogProps {
   customFields: Record<string, string>;
   onCustomFieldsChange: (fields: Record<string, string>) => void;
   // Optional props for detail page context (tax codes, payment terms)
-  taxCodes?: Array<{ id: number | string; label: string; rate?: number }>;
+  taxCodes?: Array<{ id: number | string; label: string; rate?: number | string }>;
   paymentTermsOptions?: Array<{ id: string; name: string }>;
 }
 

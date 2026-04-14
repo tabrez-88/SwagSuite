@@ -1,10 +1,12 @@
 import { useState, useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
 import { format, addDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from "date-fns";
-import { useLocation } from "wouter";
+import { useLocation } from "@/lib/wouter-compat";
 import { useAuth } from "@/hooks/useAuth";
 import { useProductionStages } from "@/hooks/useProductionStages";
 import { useNextActionTypes } from "@/hooks/useNextActionTypes";
+import { usePoReport } from "@/services/production";
+import { useSuppliers } from "@/services/suppliers";
+import { useTeamMembers } from "@/services/users";
 import type { POReportRow, POReportResponse } from "./types";
 
 export function useProductionReport() {
@@ -54,20 +56,11 @@ export function useProductionReport() {
   }, [page, limit, sortBy, sortOrder, searchQuery, filterStage, filterStatus, filterVendor, filterAssignee, filterProofStatus, filterDateFrom, filterDateTo, filterDateType, alertFilter]);
 
   // Main data query
-  const { data: reportData, isLoading } = useQuery<POReportResponse>({
-    queryKey: ["/api/production/po-report", queryParams],
-    queryFn: async () => {
-      const response = await fetch(`/api/production/po-report?${queryParams}`, {
-        credentials: "include",
-      });
-      if (!response.ok) throw new Error("Failed to fetch PO report");
-      return response.json();
-    },
-  });
+  const { data: reportData, isLoading } = usePoReport<POReportResponse>(queryParams);
 
   // Fetch vendors, users, and production stages for filter dropdowns
-  const { data: vendors = [] } = useQuery<any[]>({ queryKey: ["/api/suppliers"] });
-  const { data: users = [] } = useQuery<any[]>({ queryKey: ["/api/users/team"] });
+  const { data: vendors = [] } = useSuppliers() as unknown as { data: any[] };
+  const { data: users = [] } = useTeamMembers() as unknown as { data: any[] };
   const { stages: productionStages } = useProductionStages();
   const { actionTypes } = useNextActionTypes();
 

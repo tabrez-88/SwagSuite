@@ -1,7 +1,6 @@
 import { useState, useMemo, useCallback } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
-import { apiRequest, getQueryFn } from "@/lib/queryClient";
 import type { OrderItemLine } from "@shared/schema";
 import { useDocumentGeneration, buildItemsHash } from "@/hooks/useDocumentGeneration";
 import { buildPurchaseOrderPdf } from "@/components/documents/pdf/builders";
@@ -9,6 +8,13 @@ import { useProductionStages } from "@/hooks/useProductionStages";
 import { useInlineEdit } from "@/hooks/useInlineEdit";
 import { getEditedItem } from "@/lib/projectDetailUtils";
 import { projectKeys } from "@/services/projects/keys";
+import { useGenerateApproval } from "@/services/projects/mutations";
+import { useBranding } from "@/services/settings";
+import { useVendorContacts } from "@/services/suppliers";
+import { fetchSupplierAddresses } from "@/services/supplier-addresses";
+import { sendCommunication } from "@/services/communications";
+import { postActivity } from "@/services/activities";
+import { updateArtwork as updateArtworkRequest } from "@/services/project-items";
 import { useUpdatePODocMeta } from "@/services/documents/mutations";
 import { useUpdateArtwork } from "@/services/project-items/mutations";
 import type { EmailFormData } from "@/components/email/types";
@@ -31,11 +37,7 @@ export function usePurchaseOrdersSection({ projectId, data, isLocked }: Purchase
     return map;
   }, [productionStages]);
 
-  const { data: branding } = useQuery<any>({
-    queryKey: ["/api/settings/branding"],
-    queryFn: getQueryFn({ on401: "throw" }),
-    staleTime: Infinity,
-  });
+  const { data: branding } = useBranding();
   const [previewVendorKey, setPreviewVendorKey] = useState<string | null>(null);
 
   const [expandedVendors, setExpandedVendors] = useState<Set<string>>(new Set());
@@ -54,28 +56,26 @@ export function usePurchaseOrdersSection({ projectId, data, isLocked }: Purchase
   const [previewFile, setPreviewFile] = useState<{ url: string; name: string } | null>(null);
 
   // Fetch vendor contacts for PO email dialog
-  const { data: poVendorContacts = [] } = useQuery<any[]>({
-    queryKey: [`/api/contacts`, { supplierId: emailPOVendor?.vendor?.id }],
-    queryFn: async () => {
-      if (!emailPOVendor?.vendor?.id) return [];
-      const res = await apiRequest("GET", `/api/contacts?supplierId=${emailPOVendor.vendor.id}`);
-      return res.json();
-    },
-    enabled: !!emailPOVendor?.vendor?.id,
-  });
+  const { data: poVendorContacts = [] } = useVendorContacts(
+    emailPOVendor?.vendor?.id,
+    !!emailPOVendor?.vendor?.id,
+  );
 
-  // Fetch supplier addresses for all vendors in this order
+  // Fetch supplier addresses for every vendor on this order.
+  // Uses one react-query entry keyed by the vendor id list so the N
+  // supplier-address calls are batched + cached together.
   const vendorIds = orderVendors.map((v: any) => v.id).filter(Boolean);
   const supplierAddressQueries = useQuery<Record<string, any[]>>({
     queryKey: ["/api/supplier-addresses", vendorIds.join(",")],
     queryFn: async () => {
       const result: Record<string, any[]> = {};
-      await Promise.all(vendorIds.map(async (vid: string) => {
-        try {
-          const res = await apiRequest("GET", `/api/suppliers/${vid}/addresses`);
-          result[vid] = await res.json();
-        } catch { /* ignore */ }
-      }));
+      await Promise.all(
+        vendorIds.map(async (vid: string) => {
+          try {
+            result[vid] = await fetchSupplierAddresses(vid);
+          } catch { /* ignore */ }
+        }),
+      );
       return result;
     },
     enabled: vendorIds.length > 0,
@@ -267,7 +267,7 @@ export function usePurchaseOrdersSection({ projectId, data, isLocked }: Purchase
       vendorIHD: getVendorDoc(vendorKey)?.metadata?.supplierIHD || null,
       vendorAddress: getVendorDefaultAddress(vendor.id),
       poType: isDecorator ? "decorator" : "supplier",
-      sellerName: branding?.companyName,
+      sellerName: branding?.companyName ?? undefined,
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orderVendors, orderItems, order, data, branding]);
@@ -368,7 +368,7 @@ export function usePurchaseOrdersSection({ projectId, data, isLocked }: Purchase
         ? formData.attachments.map((att) => ({ fileUrl: att.cloudinaryUrl, fileName: att.fileName }))
         : undefined;
 
-      await apiRequest("POST", `/api/projects/${projectId}/communications`, {
+      await sendCommunication(projectId, {
         communicationType: "vendor_email",
         direction: "sent",
         recipientEmail: formData.to,
@@ -402,7 +402,7 @@ export function usePurchaseOrdersSection({ projectId, data, isLocked }: Purchase
       for (const art of vendorArts) {
         if (art.proofRequired !== false && art.status === "pending") {
           try {
-            await apiRequest("PUT", `/api/project-items/${art.orderItemId}/artworks/${art.id}`, { name: art.name, status: "awaiting_proof" });
+            await updateArtworkRequest(art.orderItemId, art.id, { name: art.name, status: "awaiting_proof" });
           } catch { /* best effort */ }
         }
       }
@@ -425,7 +425,7 @@ export function usePurchaseOrdersSection({ projectId, data, isLocked }: Purchase
           if (newStatus) {
             const statusLabel = PROOF_STATUSES[newStatus as keyof typeof PROOF_STATUSES]?.label || newStatus;
             const artName = updates.name || "Artwork";
-            apiRequest("POST", `/api/projects/${projectId}/activities`, {
+            postActivity(projectId, {
               activityType: "system_action",
               content: `Proof status for "${artName}" changed to "${statusLabel}"`,
             }).catch(() => { /* best-effort */ });
@@ -438,14 +438,17 @@ export function usePurchaseOrdersSection({ projectId, data, isLocked }: Purchase
   }), [_updateArtwork, projectId, queryClient]);
 
   // Send batch proofs to client (one email with all approval links for a vendor)
+  const generateApprovalMutation = useGenerateApproval(projectId);
   const sendBatchProofMutation = useMutation({
     mutationFn: async ({ artworks, formData }: { artworks: any[]; formData: EmailFormData & { adHocEmails: string[] } }) => {
       const approvalLinks: { art: any; url: string }[] = [];
       for (const art of artworks) {
-        const approvalRes = await apiRequest("POST", `/api/projects/${projectId}/generate-approval`, {
-          orderItemId: art.orderItemId, artworkItemId: art.id, clientEmail: formData.to, clientName: formData.toName,
+        const approval = await generateApprovalMutation.mutateAsync({
+          orderItemId: art.orderItemId,
+          artworkItemId: art.id,
+          clientEmail: formData.to,
+          clientName: formData.toName,
         });
-        const approval = await approvalRes.json();
         const approvalUrl = `${window.location.origin}/approval/${approval.approvalToken}`;
         approvalLinks.push({ art, url: approvalUrl });
       }
@@ -465,7 +468,7 @@ export function usePurchaseOrdersSection({ projectId, data, isLocked }: Purchase
           fileName: art.proofFileName || art.fileName || `proof-${art.name || "artwork"}.pdf`,
         }));
 
-      await apiRequest("POST", `/api/projects/${projectId}/communications`, {
+      await sendCommunication(projectId, {
         communicationType: "client_email", direction: "sent",
         fromEmail: formData.from || undefined,
         fromName: formData.fromName || undefined,

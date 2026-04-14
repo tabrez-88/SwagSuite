@@ -1,6 +1,5 @@
 import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { getQueryFn } from "@/lib/queryClient";
+import { useBranding } from "@/services/settings";
 import { useToast } from "@/hooks/use-toast";
 import {
   useCreateInvoice,
@@ -30,11 +29,7 @@ export function useInvoiceSection({ projectId, data }: InvoiceSectionProps) {
   const [invoiceNotes, setInvoiceNotes] = useState("");
   const [notesInitialized, setNotesInitialized] = useState(false);
 
-  const { data: branding } = useQuery<any>({
-    queryKey: ["/api/settings/branding"],
-    queryFn: getQueryFn({ on401: "throw" }),
-    staleTime: Infinity,
-  });
+  const { data: branding } = useBranding();
 
   // Document generation hook
   const { invoiceDocuments, isGenerating, generateDocument, deleteDocument, isDeleting } = useDocumentGeneration(projectId);
@@ -93,7 +88,7 @@ export function useInvoiceSection({ projectId, data }: InvoiceSectionProps) {
       companyName,
       primaryContact,
       serviceCharges,
-      sellerName: branding?.companyName,
+      sellerName: branding?.companyName ?? undefined,
     });
 
   // Generate local PDF

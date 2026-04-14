@@ -1,23 +1,21 @@
-import {
-  Calendar,
-  Building2,
-  FileText,
-  Mail,
-  MessageSquare,
-  Upload,
-  ArrowRightLeft,
-  CheckCircle2,
-  XCircle,
-  AlertTriangle,
-  Clock,
-  UserPlus,
-  Shield,
-  Truck,
-  DollarSign,
-  Image,
-} from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
+import {
+  AlertTriangle,
+  ArrowRightLeft,
+  Building2,
+  Calendar,
+  CheckCircle2,
+  Clock,
+  DollarSign,
+  FileText,
+  MessageSquare,
+  Shield,
+  Truck,
+  Upload,
+  UserPlus,
+  XCircle
+} from "lucide-react";
 import { useActivityTab } from "./hooks";
 import type { ActivityTabProps } from "./types";
 

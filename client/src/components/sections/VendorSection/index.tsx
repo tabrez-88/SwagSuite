@@ -155,7 +155,7 @@ export default function VendorSection({ projectId, data }: VendorSectionProps) {
                         <div className="flex items-center gap-2">
                           <UserAvatar name={`${comm.user.firstName} ${comm.user.lastName}`} size="sm" />
                           <span className="text-sm font-medium">{comm.user.firstName} {comm.user.lastName}</span>
-                          {comm.metadata?.vendorName && (
+                          {typeof comm.metadata?.vendorName === "string" && (
                             <Badge variant="outline" className="text-xs">{comm.metadata.vendorName}</Badge>
                           )}
                         </div>

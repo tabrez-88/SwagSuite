@@ -1,14 +1,11 @@
-import { useQuery } from "@tanstack/react-query";
-import { useLocation } from "wouter";
+import { useLocation } from "@/lib/wouter-compat";
+import { useProductionAlerts as useProductionAlertsQuery } from "@/services/production";
 import type { AlertData, AlertTile } from "./types";
 
 export function useProductionAlerts(onAlertClick?: (filterParam: string) => void) {
   const [, setLocation] = useLocation();
 
-  const { data: alerts, isLoading } = useQuery<AlertData>({
-    queryKey: ["/api/production/alerts"],
-    refetchInterval: 5 * 60 * 1000, // Refresh every 5 minutes
-  });
+  const { data: alerts, isLoading } = useProductionAlertsQuery<AlertData>();
 
   const handleTileClick = (tile: AlertTile) => {
     if (onAlertClick) {

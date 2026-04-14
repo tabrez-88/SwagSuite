@@ -1,63 +1,44 @@
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
-import type { NewsItem, NewsMonitorSettings } from "./types";
+import {
+  useNewsItems,
+  useNewsSettings,
+  useUpdateNewsSettings,
+  useToggleNewsAlert,
+  useSendNewsAlert,
+} from "@/services/integrations/news-monitor";
 
 export function useAINewsMonitor() {
   const { toast } = useToast();
-  const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedSentiment, setSelectedSentiment] = useState<string>("all");
 
-  const { data: newsItems } = useQuery<NewsItem[]>({
-    queryKey: ['/api/integrations/news/items', { search: searchQuery, sentiment: selectedSentiment }],
-    refetchInterval: 300000,
-  });
+  const { data: newsItems } = useNewsItems(searchQuery, selectedSentiment);
+  const { data: settings } = useNewsSettings();
 
-  const { data: settings } = useQuery<NewsMonitorSettings>({
-    queryKey: ['/api/integrations/news/settings'],
-  });
+  const updateSettingsMutation = useUpdateNewsSettings();
+  const toggleAlertMutation = useToggleNewsAlert();
+  const sendManualAlertMutation = useSendNewsAlert();
 
-  const updateSettingsMutation = useMutation({
-    mutationFn: async (newSettings: Partial<NewsMonitorSettings>) => {
-      await apiRequest('POST', '/api/integrations/news/settings', newSettings);
-    },
-    onSuccess: () => {
-      toast({
-        title: "Settings Updated",
-        description: "News monitoring settings saved successfully.",
-      });
-      queryClient.invalidateQueries({ queryKey: ['/api/integrations/news/settings'] });
-    },
-  });
+  const saveSettings = (next: Parameters<typeof updateSettingsMutation.mutate>[0]) => {
+    updateSettingsMutation.mutate(next, {
+      onSuccess: () => toast({ title: "Settings Updated", description: "News monitoring settings saved successfully." }),
+    });
+  };
 
-  const toggleAlertMutation = useMutation({
-    mutationFn: async (newsId: string) => {
-      await apiRequest('POST', `/api/integrations/news/${newsId}/toggle-alert`);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/integrations/news/items'] });
-    },
-  });
+  const sendAlert = (newsId: string) => {
+    sendManualAlertMutation.mutate(newsId, {
+      onSuccess: () => toast({ title: "Alert Sent", description: "News alert has been sent to relevant team members." }),
+    });
+  };
 
-  const sendManualAlertMutation = useMutation({
-    mutationFn: async (newsId: string) => {
-      await apiRequest('POST', `/api/integrations/news/${newsId}/send-alert`);
-    },
-    onSuccess: () => {
-      toast({
-        title: "Alert Sent",
-        description: "News alert has been sent to relevant team members.",
-      });
-      queryClient.invalidateQueries({ queryKey: ['/api/integrations/news/items'] });
-    },
-  });
-
-  const filteredNews = newsItems?.filter(item => {
-    if (selectedSentiment !== 'all' && item.sentiment !== selectedSentiment) return false;
-    if (searchQuery && !item.headline.toLowerCase().includes(searchQuery.toLowerCase()) &&
-        !item.entityName?.toLowerCase().includes(searchQuery.toLowerCase())) return false;
+  const filteredNews = newsItems?.filter((item) => {
+    if (selectedSentiment !== "all" && item.sentiment !== selectedSentiment) return false;
+    if (
+      searchQuery &&
+      !item.headline.toLowerCase().includes(searchQuery.toLowerCase()) &&
+      !item.entityName?.toLowerCase().includes(searchQuery.toLowerCase())
+    ) return false;
     return true;
   });
 
@@ -71,5 +52,7 @@ export function useAINewsMonitor() {
     updateSettingsMutation,
     toggleAlertMutation,
     sendManualAlertMutation,
+    saveSettings,
+    sendAlert,
   };
 }

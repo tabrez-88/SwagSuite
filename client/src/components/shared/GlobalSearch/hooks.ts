@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
-import { useLocation } from "wouter";
+import { useLocation } from "@/lib/wouter-compat";
 import type { SearchResult } from "./types";
 
 export function useGlobalSearch() {

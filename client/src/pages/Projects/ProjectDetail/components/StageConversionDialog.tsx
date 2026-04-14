@@ -13,7 +13,8 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ArrowRight, Loader2, Package } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { apiRequest } from "@/lib/queryClient";
+import { updateProject } from "@/services/projects/requests";
+import { updateProjectItem } from "@/services/project-items";
 import { getStageTransitionPayload } from "@/constants/businessStages";
 import { useToast } from "@/hooks/use-toast";
 
@@ -63,9 +64,9 @@ export default function StageConversionDialog({
         if (!originalItem) return;
 
         if (!sel.selected) {
-          await apiRequest("PATCH", `/api/projects/${projectId}/items/${itemId}`, { quantity: 0 });
+          await updateProjectItem(projectId, itemId, { quantity: 0 });
         } else if (sel.quantity !== originalItem.quantity) {
-          await apiRequest("PATCH", `/api/projects/${projectId}/items/${itemId}`, { quantity: sel.quantity });
+          await updateProjectItem(projectId, itemId, { quantity: sel.quantity });
         }
       });
       await Promise.all(updatePromises);
@@ -76,7 +77,7 @@ export default function StageConversionDialog({
       if (targetStage === "quote" || targetStage === "sales_order") {
         (payload as any).presentationStatus = "converted";
       }
-      await apiRequest("PATCH", `/api/projects/${projectId}`, payload);
+      await updateProject(projectId, payload);
     },
     onSuccess: () => {
       toast({

@@ -1,5 +1,8 @@
 import { useState, useMemo } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
+import { useCreateArtwork, useDeleteArtwork } from "@/services/project-items";
+import { useSupplier } from "@/services/suppliers";
+import { projectKeys } from "@/services/projects/keys";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -28,7 +31,6 @@ import {
   Trash2,
   Upload,
 } from "lucide-react";
-import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { IMPRINT_LOCATIONS, IMPRINT_METHODS } from "@/constants/imprintOptions";
 import FilePickerDialog from "@/components/modals/FilePickerDialog";
@@ -58,10 +60,7 @@ export default function ArtworkGrid({ data, projectId, enrichedItems }: ArtworkG
   const currentSupplierId = currentItem?.productSupplierId;
 
   // Fetch supplier data for sageData.generalInfo.imprintMethods
-  const { data: supplierData } = useQuery<any>({
-    queryKey: [`/api/suppliers/${currentSupplierId}`],
-    enabled: !!currentSupplierId,
-  });
+  const { data: supplierData } = useSupplier(currentSupplierId);
 
   // Build dynamic imprint method groups
   const imprintMethodGroups = useMemo(() => {
@@ -94,7 +93,7 @@ export default function ArtworkGrid({ data, projectId, enrichedItems }: ArtworkG
     }
 
     // 2. Supplier-level methods (from supplier.sageData.generalInfo.imprintMethods)
-    const sageImprintMethods = supplierData?.sageData?.generalInfo?.imprintMethods;
+    const sageImprintMethods = (supplierData as any)?.sageData?.generalInfo?.imprintMethods;
     if (sageImprintMethods && typeof sageImprintMethods === 'string') {
       const methods = sageImprintMethods.split(/[,;]/).map((m: string) => m.trim()).filter(Boolean);
       for (const m of methods) {
@@ -121,30 +120,37 @@ export default function ArtworkGrid({ data, projectId, enrichedItems }: ArtworkG
     setArtMethod("");
   };
 
-  const createArtworkMutation = useMutation({
-    mutationFn: async (payload: { orderItemId: string; name: string; filePath: string; fileName: string; location?: string; artworkType?: string }) => {
-      const res = await apiRequest("POST", `/api/project-items/${payload.orderItemId}/artworks`, payload);
-      return res.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/all-artworks`] });
-      resetForm();
-      toast({ title: "Artwork added" });
-    },
-    onError: () => toast({ title: "Failed to add artwork", variant: "destructive" }),
-  });
+  const _createArtwork = useCreateArtwork(projectId);
+  const createArtworkMutation = {
+    ..._createArtwork,
+    mutate: (
+      payload: { orderItemId: string; name: string; filePath: string; fileName: string; location?: string; artworkType?: string },
+    ) =>
+      _createArtwork.mutate(payload, {
+        onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: projectKeys.artworks(projectId) });
+          resetForm();
+          toast({ title: "Artwork added" });
+        },
+        onError: () => toast({ title: "Failed to add artwork", variant: "destructive" }),
+      }),
+  };
 
-  const deleteArtworkMutation = useMutation({
-    mutationFn: async ({ artworkId, orderItemId }: { artworkId: string; orderItemId: string }) => {
-      const res = await fetch(`/api/project-items/${orderItemId}/artworks/${artworkId}`, { method: "DELETE", credentials: "include" });
-      if (!res.ok) throw new Error("Failed to delete artwork");
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/all-artworks`] });
-      toast({ title: "Artwork removed" });
-    },
-    onError: () => toast({ title: "Failed to remove artwork", variant: "destructive" }),
-  });
+  const _deleteArtwork = useDeleteArtwork(projectId);
+  const deleteArtworkMutation = {
+    ..._deleteArtwork,
+    mutate: ({ artworkId, orderItemId }: { artworkId: string; orderItemId: string }) =>
+      _deleteArtwork.mutate(
+        { orderItemId, artworkId },
+        {
+          onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: projectKeys.artworks(projectId) });
+            toast({ title: "Artwork removed" });
+          },
+          onError: () => toast({ title: "Failed to remove artwork", variant: "destructive" }),
+        },
+      ),
+  };
 
   if (enrichedItems.length === 0) {
     return (

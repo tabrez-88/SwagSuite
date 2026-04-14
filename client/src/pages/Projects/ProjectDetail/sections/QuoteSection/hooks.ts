@@ -1,12 +1,12 @@
 import { useState, useMemo } from "react";
 import { useToast } from "@/hooks/use-toast";
-import { useQueryClient, useQuery } from "@tanstack/react-query";
-import { getQueryFn } from "@/lib/queryClient";
+import { useQueryClient } from "@tanstack/react-query";
 import { useInlineEdit } from "@/hooks/useInlineEdit";
 import { useDocumentGeneration, buildItemsHash } from "@/hooks/useDocumentGeneration";
 import { buildQuotePdf } from "@/components/documents/pdf/builders";
 import { projectKeys } from "@/services/projects/keys";
 import { useUpdateProjectStatus } from "@/services/projects/mutations";
+import { useBranding } from "@/services/settings";
 import { quoteStatuses } from "./types";
 import type { QuoteSectionProps } from "./types";
 
@@ -19,11 +19,7 @@ export function useQuoteSection({ projectId, data, lockStatus }: QuoteSectionPro
   const [showLivePreview, setShowLivePreview] = useState(false);
   const [showSendDialog, setShowSendDialog] = useState(false);
 
-  const { data: branding } = useQuery<any>({
-    queryKey: ["/api/settings/branding"],
-    queryFn: getQueryFn({ on401: "throw" }),
-    staleTime: Infinity,
-  });
+  const { data: branding } = useBranding();
 
   const {
     quoteDocuments,
@@ -74,7 +70,7 @@ export function useQuoteSection({ projectId, data, lockStatus }: QuoteSectionPro
       allArtworkCharges: data.allArtworkCharges,
       serviceCharges: data.serviceCharges,
       assignedUser: data.assignedUser,
-      sellerName: branding?.companyName,
+      sellerName: branding?.companyName ?? undefined,
     });
 
   const handleGenerateQuote = async () => {

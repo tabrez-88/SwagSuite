@@ -1,91 +1,78 @@
 import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
-import { apiRequest } from "@/lib/queryClient";
+import {
+  useIntegrationConfigurations,
+  useIntegrationCredentials,
+  useUpdateIntegrationConfig,
+  useSaveIntegrationCredentials,
+  useTestIntegrationConnection,
+} from "@/services/integrations/settings";
 import type { IntegrationConfig, ApiCredential } from "./types";
 
 export function useIntegrationSettings() {
   const [showSecrets, setShowSecrets] = useState<Record<string, boolean>>({});
   const [credentials, setCredentials] = useState<Record<string, string>>({});
   const { toast } = useToast();
-  const queryClient = useQueryClient();
 
-  // Fetch integration configurations
-  const { data: configs, isLoading: configsLoading } = useQuery<IntegrationConfig[]>({
-    queryKey: ['/api/integrations/configurations'],
-  });
+  const { data: configs, isLoading: configsLoading } = useIntegrationConfigurations<IntegrationConfig[]>();
+  const { data: apiCredentials, isLoading: credentialsLoading } = useIntegrationCredentials<ApiCredential[]>();
 
-  // Fetch API credentials
-  const { data: apiCredentials, isLoading: credentialsLoading } = useQuery<ApiCredential[]>({
-    queryKey: ['/api/integrations/credentials'],
-    retry: false,
-  });
+  const _updateConfig = useUpdateIntegrationConfig();
+  const updateConfigMutation = {
+    ..._updateConfig,
+    mutate: (vars: { id: string; updates: Partial<IntegrationConfig> }) =>
+      _updateConfig.mutate(vars as any, {
+        onSuccess: () =>
+          toast({
+            title: "Configuration Updated",
+            description: "Integration settings have been updated successfully.",
+          }),
+        onError: () =>
+          toast({
+            title: "Update Failed",
+            description: "Failed to update integration configuration.",
+            variant: "destructive",
+          }),
+      }),
+  };
 
-  // Update configuration mutation
-  const updateConfigMutation = useMutation({
-    mutationFn: async ({ id, updates }: { id: string; updates: Partial<IntegrationConfig> }) => {
-      const response = await apiRequest('PATCH', `/api/integrations/configurations/${id}`, updates);
-      return await response.json();
-    },
-    onSuccess: () => {
-      toast({
-        title: "Configuration Updated",
-        description: "Integration settings have been updated successfully.",
-      });
-      queryClient.invalidateQueries({ queryKey: ['/api/integrations/configurations'] });
-    },
-    onError: () => {
-      toast({
-        title: "Update Failed",
-        description: "Failed to update integration configuration.",
-        variant: "destructive",
-      });
-    },
-  });
+  const _saveCredentials = useSaveIntegrationCredentials();
+  const saveCredentialsMutation = {
+    ..._saveCredentials,
+    mutate: (credentialData: Record<string, string>) =>
+      _saveCredentials.mutate(credentialData, {
+        onSuccess: () =>
+          toast({
+            title: "Credentials Saved",
+            description: "API credentials have been saved successfully.",
+          }),
+        onError: () =>
+          toast({
+            title: "Save Failed",
+            description: "Failed to save API credentials.",
+            variant: "destructive",
+          }),
+      }),
+  };
 
-  // Save credentials mutation
-  const saveCredentialsMutation = useMutation({
-    mutationFn: async (credentialData: Record<string, string>) => {
-      const response = await apiRequest('POST', '/api/integrations/credentials', credentialData);
-      return await response.json();
-    },
-    onSuccess: () => {
-      toast({
-        title: "Credentials Saved",
-        description: "API credentials have been saved successfully.",
-      });
-      queryClient.invalidateQueries({ queryKey: ['/api/integrations/credentials'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/integrations/configurations'] });
-    },
-    onError: () => {
-      toast({
-        title: "Save Failed",
-        description: "Failed to save API credentials.",
-        variant: "destructive",
-      });
-    },
-  });
-
-  // Test connection mutation
-  const testConnectionMutation = useMutation({
-    mutationFn: async (integration: string) => {
-      const response = await apiRequest('POST', `/api/integrations/${integration}/test`);
-      return await response.json();
-    },
-    onSuccess: (data: any) => {
-      toast({
-        title: "Connection Test Successful",
-        description: data.message || "API connection is working correctly.",
-      });
-    },
-    onError: () => {
-      toast({
-        title: "Connection Test Failed",
-        description: "Unable to connect to the API. Please check your credentials.",
-        variant: "destructive",
-      });
-    },
-  });
+  const _testConnection = useTestIntegrationConnection();
+  const testConnectionMutation = {
+    ..._testConnection,
+    mutate: (integration: string) =>
+      _testConnection.mutate(integration, {
+        onSuccess: (data) =>
+          toast({
+            title: "Connection Test Successful",
+            description: data.message || "API connection is working correctly.",
+          }),
+        onError: () =>
+          toast({
+            title: "Connection Test Failed",
+            description: "Unable to connect to the API. Please check your credentials.",
+            variant: "destructive",
+          }),
+      }),
+  };
 
   const handleToggleSync = (configId: string, enabled: boolean) => {
     updateConfigMutation.mutate({

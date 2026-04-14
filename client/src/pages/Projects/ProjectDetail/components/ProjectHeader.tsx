@@ -2,7 +2,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { StageBadge } from "@/components/shared/StageBadge";
 import { FileText, X, Zap } from "lucide-react";
-import { useLocation } from "wouter";
+import { useLocation } from "@/lib/wouter-compat";
 import type { Order } from "@shared/schema";
 import type { DeterminedStage } from "@/constants/businessStages";
 import { Separator } from "@/components/ui/separator";

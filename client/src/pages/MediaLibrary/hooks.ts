@@ -1,6 +1,12 @@
 import { useState, useRef, useEffect } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useMediaLibrary, useUploadToMediaLibrary, useDeleteMediaLibraryItem } from "@/hooks/useMediaLibrary";
+import {
+  useMediaLibraryQuery,
+  useUploadMediaFiles,
+  useDeleteMediaItem,
+  deleteMediaItem,
+  mediaLibraryKeys,
+} from "@/services/media-library";
 import type { MediaLibraryItem } from "@/lib/media-library";
 import { useToast } from "@/hooks/use-toast";
 
@@ -31,14 +37,14 @@ export function useMediaLibraryPage() {
     searchTimeout.current = setTimeout(() => setDebouncedSearch(value), 300);
   };
 
-  const { data, isLoading } = useMediaLibrary({
+  const { data, isLoading } = useMediaLibraryQuery({
     search: debouncedSearch || undefined,
     folder: folderFilter || undefined,
     limit: 100,
   });
 
-  const uploadMutation = useUploadToMediaLibrary();
-  const deleteMutation = useDeleteMediaLibraryItem();
+  const uploadMutation = useUploadMediaFiles();
+  const deleteMutation = useDeleteMediaItem();
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files) return;
@@ -86,16 +92,12 @@ export function useMediaLibraryPage() {
 
   const bulkDeleteMutation = useMutation({
     mutationFn: async (ids: string[]) => {
-      const results = await Promise.allSettled(
-        ids.map((id) =>
-          fetch(`/api/media-library/${id}`, { method: "DELETE", credentials: "include" })
-        )
-      );
+      const results = await Promise.allSettled(ids.map((id) => deleteMediaItem(id)));
       const failed = results.filter((r) => r.status === "rejected").length;
       if (failed > 0) throw new Error(`${failed} file(s) failed to delete`);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/media-library"] });
+      queryClient.invalidateQueries({ queryKey: mediaLibraryKeys.all });
     },
   });
 
@@ -106,8 +108,12 @@ export function useMediaLibraryPage() {
       toast({ title: "Deleted", description: `${ids.length} file(s) removed from library.` });
       clearSelection();
     } catch {
-      toast({ title: "Delete failed", description: "Some files could not be deleted.", variant: "destructive" });
-      queryClient.invalidateQueries({ queryKey: ["/api/media-library"] });
+      toast({
+        title: "Delete failed",
+        description: "Some files could not be deleted.",
+        variant: "destructive",
+      });
+      queryClient.invalidateQueries({ queryKey: mediaLibraryKeys.all });
       setSelectedIds(new Set());
     }
     setShowBulkDeleteDialog(false);

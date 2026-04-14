@@ -1,4 +1,4 @@
-import { Link, useLocation } from "wouter";
+import { Link, useLocation } from "@/lib/wouter-compat";
 import {
   Calculator,
   ClipboardList,

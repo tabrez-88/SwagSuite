@@ -1,8 +1,14 @@
 import { useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Crown, Shield, User as UserIcon } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { apiRequest } from "@/lib/queryClient";
+import {
+  useUsers,
+  useAuthUser,
+  usePendingInvitations,
+  useCreateInvitation,
+  useUpdateUserRole,
+  useUpdateProfileImage,
+} from "@/services/users";
 import { isUnauthorizedError } from "@/lib/authUtils";
 import type { User, PendingInvitation, RoleConfigEntry } from "./types";
 
@@ -32,25 +38,20 @@ const roleConfig: Record<string, RoleConfigEntry> = {
 
 export function useUsersPage() {
   const { toast } = useToast();
-  const queryClient = useQueryClient();
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState("user");
   const [invitationUrl, setInvitationUrl] = useState("");
   const [showAvatarPicker, setShowAvatarPicker] = useState(false);
 
-  const { data: users = [], isLoading } = useQuery<User[]>({
-    queryKey: ["/api/users"],
-  });
-
-  const { data: currentUser } = useQuery<User>({
-    queryKey: ["/api/auth/user"],
-  });
-
-  const { data: pendingInvitations = [] } = useQuery<PendingInvitation[]>({
-    queryKey: ["/api/invitations/pending"],
-    enabled: currentUser?.role === "admin" || currentUser?.role === "manager",
-  });
+  const { data: users = [], isLoading } = useUsers() as unknown as {
+    data: User[];
+    isLoading: boolean;
+  };
+  const { data: currentUser } = useAuthUser() as unknown as { data: User | undefined };
+  const { data: pendingInvitations = [] } = usePendingInvitations(
+    currentUser?.role === "admin" || currentUser?.role === "manager",
+  ) as unknown as { data: PendingInvitation[] };
 
   const isAdmin = currentUser?.role === "admin";
   const canInvite = currentUser?.role === "admin" || currentUser?.role === "manager";
@@ -59,29 +60,25 @@ export function useUsersPage() {
   console.log("Current user:", currentUser);
   console.log("Can invite:", canInvite, "Role:", currentUser?.role);
 
-  const inviteUserMutation = useMutation({
-    mutationFn: async ({ email, role }: { email: string; role: string }) => {
-      const response = await apiRequest("POST", "/api/invitations", { email, role });
-      return response.json();
-    },
-    onSuccess: (data) => {
-      setInvitationUrl(data.invitationUrl);
-      toast({
-        title: "Invitation Sent",
-        description: `Invitation sent to ${inviteEmail}`,
-      });
-      queryClient.invalidateQueries({ queryKey: ["/api/invitations/pending"] });
-      setInviteEmail("");
-      setInviteRole("user");
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to send invitation",
-        variant: "destructive",
-      });
-    },
-  });
+  const _invite = useCreateInvitation();
+  const inviteUserMutation = {
+    ..._invite,
+    mutate: (vars: { email: string; role: string }) =>
+      _invite.mutate(vars as unknown as Record<string, unknown>, {
+        onSuccess: (data: any) => {
+          setInvitationUrl(data.invitationUrl);
+          toast({ title: "Invitation Sent", description: `Invitation sent to ${inviteEmail}` });
+          setInviteEmail("");
+          setInviteRole("user");
+        },
+        onError: (error: Error) =>
+          toast({
+            title: "Error",
+            description: error.message || "Failed to send invitation",
+            variant: "destructive",
+          }),
+      }),
+  };
 
   const handleInviteUser = () => {
     if (!inviteEmail) {
@@ -104,64 +101,53 @@ export function useUsersPage() {
     });
   };
 
-  const updateRoleMutation = useMutation({
-    mutationFn: async ({ userId, role }: { userId: string; role: string }) => {
-      const response = await apiRequest("PATCH", `/api/users/${userId}/role`, { role });
-      return response.json();
-    },
-    onSuccess: () => {
-      toast({
-        title: "Success",
-        description: "User role updated successfully",
-      });
-      queryClient.invalidateQueries({ queryKey: ["/api/users"] });
-    },
-    onError: (error: Error) => {
-      if (isUnauthorizedError(error)) {
-        toast({
-          title: "Unauthorized",
-          description: "You are logged out. Logging in again...",
-          variant: "destructive",
-        });
-        setTimeout(() => {
-          window.location.href = "/api/login";
-        }, 500);
-        return;
-      }
-      toast({
-        title: "Error",
-        description: error.message || "Failed to update user role",
-        variant: "destructive",
-      });
-    },
-  });
+  const _updateRole = useUpdateUserRole();
+  const updateRoleMutation = {
+    ..._updateRole,
+    mutate: (vars: { userId: string; role: string }) =>
+      _updateRole.mutate(vars, {
+        onSuccess: () =>
+          toast({ title: "Success", description: "User role updated successfully" }),
+        onError: (error: Error) => {
+          if (isUnauthorizedError(error)) {
+            toast({
+              title: "Unauthorized",
+              description: "You are logged out. Logging in again...",
+              variant: "destructive",
+            });
+            setTimeout(() => {
+              window.location.href = "/api/login";
+            }, 500);
+            return;
+          }
+          toast({
+            title: "Error",
+            description: error.message || "Failed to update user role",
+            variant: "destructive",
+          });
+        },
+      }),
+  };
 
   const handleRoleChange = (userId: string, newRole: string) => {
     updateRoleMutation.mutate({ userId, role: newRole });
   };
 
-  const updateProfileImageMutation = useMutation({
-    mutationFn: async (profileImageUrl: string) => {
-      const response = await apiRequest("PATCH", "/api/users/profile-image", { profileImageUrl });
-      return response.json();
-    },
-    onSuccess: () => {
-      toast({
-        title: "Profile Updated",
-        description: "Your profile photo has been updated",
-      });
-      queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/users"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/users/team"] });
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to update profile photo",
-        variant: "destructive",
-      });
-    },
-  });
+  const _updateProfileImage = useUpdateProfileImage();
+  const updateProfileImageMutation = {
+    ..._updateProfileImage,
+    mutate: (profileImageUrl: string) =>
+      _updateProfileImage.mutate(profileImageUrl, {
+        onSuccess: () =>
+          toast({ title: "Profile Updated", description: "Your profile photo has been updated" }),
+        onError: (error: Error) =>
+          toast({
+            title: "Error",
+            description: error.message || "Failed to update profile photo",
+            variant: "destructive",
+          }),
+      }),
+  };
 
   const handleAvatarSelected = (files: any[]) => {
     if (files.length > 0 && files[0].cloudinaryUrl) {

@@ -40,7 +40,7 @@ import type { ProjectData } from "@/types/project-types";
 import type { OrderAdditionalCharge, OrderItemLine } from "@shared/schema";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useLocation } from "wouter";
+import { useLocation } from "@/lib/wouter-compat";
 
 export function useEditProductPage(projectId: string, itemId: string, data: ProjectData) {
   const marginSettings = useMarginSettings();

@@ -24,7 +24,16 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import { apiRequest } from "@/lib/queryClient";
+import {
+  deleteLine as deleteLineReq,
+  addLine as addLineReq,
+  deleteCharge as deleteChargeReq,
+  addCharge as addChargeReq,
+  updateCharge as updateChargeReq,
+  updateProjectItem,
+} from "@/services/project-items";
+import { updateProduct as updateProductReq } from "@/services/products/requests";
+import { projectKeys } from "@/services/projects/keys";
 import { useToast } from "@/hooks/use-toast";
 import type { OrderItemLine } from "@shared/schema";
 import { IMPRINT_LOCATIONS, IMPRINT_METHODS } from "@/constants/imprintOptions";
@@ -227,11 +236,11 @@ export default function ProductPricingEditor({ item, projectId, onClose }: Produ
     mutationFn: async () => {
       // 1. Save pricing tiers (delete old, create new)
       for (const line of lines) {
-        await apiRequest("DELETE", `/api/project-items/${item.id}/lines/${line.id}`);
+        await deleteLineReq(item.id, line.id);
       }
       for (const tier of tiers) {
         if (tier.quantity > 0) {
-          await apiRequest("POST", `/api/project-items/${item.id}/lines`, {
+          await addLineReq(item.id, {
             orderItemId: item.id,
             quantity: tier.quantity,
             cost: tier.cost.toFixed(2),
@@ -247,16 +256,14 @@ export default function ProductPricingEditor({ item, projectId, onClose }: Produ
       const currentFixedIds = charges.filter((c) => !c.isNew).map((c) => c.id);
       const currentRunIds = runCharges.filter((c) => !c.isNew).map((c) => c.id);
       const allCurrentIds = [...currentFixedIds, ...currentRunIds];
-      // Delete removed charges
       for (const id of existingChargeIds) {
         if (!allCurrentIds.includes(id)) {
-          await apiRequest("DELETE", `/api/project-items/${item.id}/charges/${id}`);
+          await deleteChargeReq(item.id, id);
         }
       }
-      // Save fixed charges
       for (const charge of charges) {
         if (charge.isNew) {
-          await apiRequest("POST", `/api/project-items/${item.id}/charges`, {
+          await addChargeReq(item.id, {
             orderItemId: item.id,
             description: charge.description,
             amount: charge.retail.toFixed(2),
@@ -264,16 +271,15 @@ export default function ProductPricingEditor({ item, projectId, onClose }: Produ
             isVendorCharge: false,
           });
         } else {
-          await apiRequest("PATCH", `/api/project-items/${item.id}/charges/${charge.id}`, {
+          await updateChargeReq(item.id, charge.id, {
             description: charge.description,
             amount: charge.retail.toFixed(2),
           });
         }
       }
-      // Save run charges
       for (const rc of runCharges) {
         if (rc.isNew) {
-          await apiRequest("POST", `/api/project-items/${item.id}/charges`, {
+          await addChargeReq(item.id, {
             orderItemId: item.id,
             description: rc.description,
             amount: rc.costPerUnit.toFixed(2),
@@ -281,7 +287,7 @@ export default function ProductPricingEditor({ item, projectId, onClose }: Produ
             isVendorCharge: false,
           });
         } else {
-          await apiRequest("PATCH", `/api/project-items/${item.id}/charges/${rc.id}`, {
+          await updateChargeReq(item.id, rc.id, {
             description: rc.description,
             amount: rc.costPerUnit.toFixed(2),
           });
@@ -290,14 +296,11 @@ export default function ProductPricingEditor({ item, projectId, onClose }: Produ
 
       // 3. Save colors and sizes to product
       if (item.productId) {
-        await apiRequest("PATCH", `/api/products/${item.productId}`, {
-          colors: colors,
-          sizes: sizes,
-        });
+        await updateProductReq(item.productId, { colors, sizes });
       }
 
       // 4. Save order item fields (priceLabel, personalComment, privateNotes, decoration)
-      await apiRequest("PATCH", `/api/projects/${projectId}/items/${item.id}`, {
+      await updateProjectItem(projectId, item.id, {
         priceLabel: priceLabel || null,
         personalComment: personalComment || null,
         privateNotes: privateNotes || null,
@@ -307,9 +310,10 @@ export default function ProductPricingEditor({ item, projectId, onClose }: Produ
       });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/all-item-lines`] });
-      queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/all-item-charges`] });
-      queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/items`] });
+      queryClient.invalidateQueries({ queryKey: projectKeys.itemLines(projectId) });
+      queryClient.invalidateQueries({ queryKey: projectKeys.itemCharges(projectId) });
+      queryClient.invalidateQueries({ queryKey: projectKeys.items(projectId) });
+      queryClient.invalidateQueries({ queryKey: projectKeys.itemsWithDetails(projectId) });
       toast({ title: "Product pricing updated" });
       onClose();
     },

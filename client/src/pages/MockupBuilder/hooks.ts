@@ -1,7 +1,13 @@
 import { useState, useRef } from "react";
 import { useToast } from "@/hooks/use-toast";
-import { useQuery, useMutation } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
+import {
+  useMockupTemplates,
+  searchMockupProducts,
+  downloadMockups,
+  emailMockups,
+  generateAiTemplates,
+} from "@/services/mockup-builder";
+import { useMutation } from "@tanstack/react-query";
 import type { Product, Logo, Template } from "./types";
 
 export function useMockupBuilder() {
@@ -26,9 +32,7 @@ export function useMockupBuilder() {
   const [pmsValue, setPmsValue] = useState("");
 
   // API queries
-  const { data: apiTemplates = [] } = useQuery<Template[]>({
-    queryKey: ['/api/mockup-builder/templates'],
-  });
+  const { data: apiTemplates = [] } = useMockupTemplates<Template[]>();
 
   // Search products from API
   const searchProducts = async (query: string) => {
@@ -40,7 +44,7 @@ export function useMockupBuilder() {
     setIsSearching(true);
 
     try {
-      const products = await apiRequest('GET', `/api/mockup-builder/products/search?query=${encodeURIComponent(query)}`) as unknown as Product[];
+      const products = (await searchMockupProducts(query)) as Product[];
       setSearchResults(products);
     } catch (error) {
       console.error('Error searching products:', error);
@@ -135,14 +139,10 @@ export function useMockupBuilder() {
 
   // Download mockup mutation
   const downloadMutation = useMutation({
-    mutationFn: async () => {
-      const mockupData = {
-        product: selectedProduct,
-        logos: logos,
-        template: selectedTemplate
-      };
-      return apiRequest('POST', '/api/mockup-builder/mockups/download', { mockupData });
-    },
+    mutationFn: () =>
+      downloadMockups({
+        mockupData: { product: selectedProduct, logos, template: selectedTemplate },
+      }),
     onSuccess: (data: any) => {
       // Create download link
       const link = document.createElement('a');
@@ -168,14 +168,11 @@ export function useMockupBuilder() {
 
   // Email mockup mutation
   const emailMutation = useMutation({
-    mutationFn: async (emailData: { recipients: string[]; subject?: string; message?: string }) => {
-      const mockupData = {
-        product: selectedProduct,
-        logos: logos,
-        template: selectedTemplate
-      };
-      return apiRequest('POST', '/api/mockup-builder/mockups/email', { mockupData, emailData });
-    },
+    mutationFn: (emailData: { recipients: string[]; subject?: string; message?: string }) =>
+      emailMockups({
+        mockupData: { product: selectedProduct, logos, template: selectedTemplate },
+        emailData,
+      }),
     onSuccess: () => {
       toast({
         title: "Email Sent",
@@ -193,9 +190,8 @@ export function useMockupBuilder() {
 
   // AI template generation mutation
   const generateAITemplatesMutation = useMutation({
-    mutationFn: async (customerInfo?: { name: string; industry?: string }) => {
-      return apiRequest('POST', '/api/mockup-builder/generate-ai-templates', { customerInfo });
-    },
+    mutationFn: (customerInfo?: { name: string; industry?: string }) =>
+      generateAiTemplates({ customerInfo }),
     onSuccess: (data: any) => {
       toast({
         title: "Templates Generated",

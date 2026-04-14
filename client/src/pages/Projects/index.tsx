@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { useLocation } from "wouter";
+import { useLocation } from "@/lib/wouter-compat";
 
 import NewProjectWizard from "@/components/modals/NewProjectWizard";
 import { Button } from "@/components/ui/button";

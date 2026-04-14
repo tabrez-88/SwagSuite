@@ -35,7 +35,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { useState } from "react";
-import { useLocation } from "wouter";
+import { useLocation } from "@/lib/wouter-compat";
 import MatrixChargePicker from "@/components/modals/MatrixChargePicker";
 import type { useProductsSection } from "../hooks";
 import { formatLabel } from "@/lib/utils";

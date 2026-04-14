@@ -1,7 +1,11 @@
 import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
-import { apiRequest } from "@/lib/queryClient";
+import {
+  useSlackChannels,
+  useSaveSlackConfig,
+  useTestSlackConnection,
+  useSendSlackChannelMessage,
+} from "@/services/integrations/slack";
 import type { SlackChannel, SlackConfig } from "./types";
 
 export function useSlackIntegration() {
@@ -20,81 +24,76 @@ export function useSlackIntegration() {
   const [testMessage, setTestMessage] = useState("Hello from SwagSuite! 🎉 Integration test successful.");
 
   const { toast } = useToast();
-  const queryClient = useQueryClient();
 
-  // Fetch Slack channels
-  const { data: channels, isLoading: channelsLoading } = useQuery<SlackChannel[]>({
-    queryKey: ['/api/integrations/slack/channels'],
-    enabled: config.enabled && !!config.botToken,
-  });
+  const { data: channels, isLoading: channelsLoading } = useSlackChannels() as unknown as {
+    data: SlackChannel[] | undefined;
+    isLoading: boolean;
+  };
 
-  // Save Slack configuration
-  const saveConfigMutation = useMutation({
-    mutationFn: async (configData: SlackConfig) => {
-      return await apiRequest('/api/integrations/slack/config', 'POST', configData);
-    },
-    onSuccess: () => {
-      toast({
-        title: "Slack Configuration Saved",
-        description: "Your Slack integration settings have been saved successfully.",
-      });
-      queryClient.invalidateQueries({ queryKey: ['/api/integrations/slack/channels'] });
-    },
-    onError: () => {
-      toast({
-        title: "Save Failed",
-        description: "Failed to save Slack configuration.",
-        variant: "destructive",
-      });
-    },
-  });
+  const _saveConfig = useSaveSlackConfig();
+  const saveConfigMutation = {
+    ..._saveConfig,
+    mutate: (configData: SlackConfig) =>
+      _saveConfig.mutate(configData as unknown as Record<string, unknown>, {
+        onSuccess: () =>
+          toast({
+            title: "Slack Configuration Saved",
+            description: "Your Slack integration settings have been saved successfully.",
+          }),
+        onError: () =>
+          toast({
+            title: "Save Failed",
+            description: "Failed to save Slack configuration.",
+            variant: "destructive",
+          }),
+      }),
+  };
 
-  // Test Slack connection
-  const testConnectionMutation = useMutation({
-    mutationFn: async () => {
-      return await apiRequest('/api/integrations/slack/test', 'POST', {
-        message: testMessage,
-        channel: config.channelId
-      });
-    },
-    onSuccess: () => {
-      toast({
-        title: "Test Message Sent",
-        description: "Test message sent to Slack channel successfully!",
-      });
-    },
-    onError: () => {
-      toast({
-        title: "Test Failed",
-        description: "Failed to send test message. Check your configuration.",
-        variant: "destructive",
-      });
-    },
-  });
+  const _testConnection = useTestSlackConnection();
+  const testConnectionMutation = {
+    ..._testConnection,
+    mutate: () =>
+      _testConnection.mutate(
+        { message: testMessage, channel: config.channelId },
+        {
+          onSuccess: () =>
+            toast({
+              title: "Test Message Sent",
+              description: "Test message sent to Slack channel successfully!",
+            }),
+          onError: () =>
+            toast({
+              title: "Test Failed",
+              description: "Failed to send test message. Check your configuration.",
+              variant: "destructive",
+            }),
+        },
+      ),
+  };
 
-  // Send custom message
-  const sendMessageMutation = useMutation({
-    mutationFn: async (message: string) => {
-      return await apiRequest('/api/integrations/slack/message', 'POST', {
-        message,
-        channel: config.channelId
-      });
-    },
-    onSuccess: () => {
-      toast({
-        title: "Message Sent",
-        description: "Message sent to Slack channel successfully!",
-      });
-      setTestMessage("");
-    },
-    onError: () => {
-      toast({
-        title: "Send Failed",
-        description: "Failed to send message to Slack.",
-        variant: "destructive",
-      });
-    },
-  });
+  const _sendMessage = useSendSlackChannelMessage();
+  const sendMessageMutation = {
+    ..._sendMessage,
+    mutate: (message: string) =>
+      _sendMessage.mutate(
+        { message, channel: config.channelId },
+        {
+          onSuccess: () => {
+            toast({
+              title: "Message Sent",
+              description: "Message sent to Slack channel successfully!",
+            });
+            setTestMessage("");
+          },
+          onError: () =>
+            toast({
+              title: "Send Failed",
+              description: "Failed to send message to Slack.",
+              variant: "destructive",
+            }),
+        },
+      ),
+  };
 
   const handleSaveConfig = () => {
     if (!config.botToken) {

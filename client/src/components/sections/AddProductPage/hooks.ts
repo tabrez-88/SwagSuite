@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo } from "react";
-import { useLocation } from "wouter";
+import { useLocation } from "@/lib/wouter-compat";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useMarginSettings, isBelowMinimum, calcMarginPercent, applyMargin } from "@/hooks/useMarginSettings";

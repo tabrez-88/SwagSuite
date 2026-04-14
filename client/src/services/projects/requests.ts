@@ -4,6 +4,46 @@ export async function updateProject(projectId: string | number, updates: Record<
   await apiRequest("PATCH", `/api/projects/${projectId}`, updates);
 }
 
+export async function updateProjectProduction(
+  projectId: string | number,
+  data: Record<string, unknown>,
+) {
+  const res = await apiRequest("PATCH", `/api/projects/${projectId}/production`, data);
+  return res.json();
+}
+
+export async function postProductComment(
+  projectId: string | number,
+  payload: { orderItemId: string; content: string },
+): Promise<any> {
+  const res = await apiRequest("POST", `/api/projects/${projectId}/product-comments`, payload);
+  return res.json();
+}
+
+export interface CalculateTaxResponse {
+  taxAmount?: string | number;
+  taxRate?: string | number;
+  [key: string]: any;
+}
+
+export async function calculateTax(projectId: string | number): Promise<CalculateTaxResponse> {
+  const res = await apiRequest("POST", `/api/projects/${projectId}/calculate-tax`);
+  return res.json();
+}
+
+export async function generateApproval(
+  projectId: string | number,
+  payload: {
+    orderItemId: string | number;
+    artworkItemId: string | number;
+    clientEmail: string;
+    clientName?: string;
+  },
+): Promise<{ approvalToken: string; [key: string]: any }> {
+  const res = await apiRequest("POST", `/api/projects/${projectId}/generate-approval`, payload);
+  return res.json();
+}
+
 export async function duplicateProject(projectId: string | number) {
   const res = await apiRequest("POST", `/api/projects/${projectId}/duplicate`);
   return res.json();

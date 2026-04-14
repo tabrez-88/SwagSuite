@@ -1,9 +1,7 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { useLocation } from "wouter";
-import { useDeleteProduct } from "@/services/products";
-import { supplierKeys } from "@/services/suppliers/keys";
-import { productKeys } from "@/services/products/keys";
+import { useLocation } from "@/lib/wouter-compat";
+import { useProducts as useProductsQuery, useDeleteProduct } from "@/services/products";
+import { useSuppliers } from "@/services/suppliers";
 import { useTabParam } from "@/hooks/useTabParam";
 import type { Product, Supplier } from "./types";
 
@@ -36,13 +34,8 @@ export function useProducts() {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [productToDelete, setProductToDelete] = useState<Product | null>(null);
 
-  const { data: products = [], isLoading } = useQuery<Product[]>({
-    queryKey: productKeys.all,
-  });
-
-  const { data: suppliers = [] } = useQuery<Supplier[]>({
-    queryKey: supplierKeys.all,
-  });
+  const { data: products = [], isLoading } = useProductsQuery<Product[]>();
+  const { data: suppliers = [] } = useSuppliers() as unknown as { data: Supplier[] };
 
   const deleteProductMutation = useDeleteProduct();
 

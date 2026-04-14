@@ -1,5 +1,5 @@
-import { useQuery } from "@tanstack/react-query";
-import { useParams, useLocation } from "wouter";
+import { useParams, useLocation } from "@/lib/wouter-compat";
+import { useContactDetail } from "@/services/contacts";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { UserAvatar } from "@/components/shared/UserAvatar";
@@ -45,15 +45,11 @@ export default function ContactDetail() {
   const params = useParams();
   const [, setLocation] = useLocation();
 
-  const { data: contact, isLoading, error } = useQuery<Contact>({
-    queryKey: ['/api/contacts', params.id],
-    queryFn: async () => {
-      const response = await fetch(`/api/contacts/${params.id}`);
-      if (!response.ok) throw new Error("Failed to fetch contact");
-      return response.json();
-    },
-    enabled: !!params.id,
-  });
+  const { data: contact, isLoading, error } = useContactDetail(params.id) as {
+    data: Contact | undefined;
+    isLoading: boolean;
+    error: unknown;
+  };
 
   if (isLoading) {
     return (

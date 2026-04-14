@@ -1,7 +1,7 @@
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState, useEffect } from "react";
+import { useBranding, useUpdateBranding } from "@/services/settings";
 import type { BrandingSettings, ThemeState } from "./types";
 
 const DEFAULT_THEME: ThemeState = {
@@ -23,7 +23,6 @@ const DEFAULT_THEME: ThemeState = {
 export function useThemeTab() {
   const { user, isLoading: authLoading } = useAuth();
   const { toast } = useToast();
-  const queryClient = useQueryClient();
 
   const isAdmin =
     (user as any)?.role === "admin" ||
@@ -31,9 +30,7 @@ export function useThemeTab() {
   const isManager = (user as any)?.role === "manager";
   const hasAccess = isAdmin || isManager;
 
-  const { data: brandingSettings } = useQuery<BrandingSettings>({
-    queryKey: ["/api/settings/branding"],
-  });
+  const { data: brandingSettings } = useBranding() as { data: BrandingSettings | undefined };
 
   const [theme, setTheme] = useState<ThemeState>(DEFAULT_THEME);
   const [logoUrl, setLogoUrl] = useState("");
@@ -63,39 +60,21 @@ export function useThemeTab() {
     setTheme((prev) => ({ ...prev, [colorType]: color }));
   };
 
-  const saveBrandingMutation = useMutation({
-    mutationFn: async (data: any) => {
-      const response = await fetch("/api/settings/branding", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-        credentials: "include",
-      });
-      if (!response.ok) {
-        const errorData = await response
-          .json()
-          .catch(() => ({ message: "Unknown error" }));
-        throw new Error(
-          errorData.message || "Failed to save branding settings",
-        );
-      }
-      return response.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/settings/branding"] });
-      toast({
-        title: "Branding Saved",
-        description: "System branding and theme have been updated.",
-      });
-    },
-    onError: (error: Error) => {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: error.message || "Failed to save branding settings.",
-      });
-    },
-  });
+  const _saveBranding = useUpdateBranding();
+  const saveBrandingMutation = {
+    ..._saveBranding,
+    mutate: (data: any) =>
+      _saveBranding.mutate(data, {
+        onSuccess: () =>
+          toast({ title: "Branding Saved", description: "System branding and theme have been updated." }),
+        onError: (error: Error) =>
+          toast({
+            variant: "destructive",
+            title: "Error",
+            description: error.message || "Failed to save branding settings.",
+          }),
+      }),
+  };
 
   const saveTheme = () => {
     saveBrandingMutation.mutate({

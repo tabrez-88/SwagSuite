@@ -1,11 +1,16 @@
 import { useState, useMemo } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { useLocation } from "wouter";
-import { apiRequest } from "@/lib/queryClient";
+import { useLocation } from "@/lib/wouter-compat";
 import { useToast } from "@/hooks/use-toast";
 import { projectKeys } from "@/services/projects/keys";
-import { useUpdateProjectStatus, useSavePresentationSettings, useCreateShareLink } from "@/services/projects/mutations";
+import {
+  useUpdateProject,
+  useUpdateProjectStatus,
+  useSavePresentationSettings,
+  useCreateShareLink,
+} from "@/services/projects/mutations";
+import { useProjectProductComments } from "@/services/projects/queries";
 import { calcMarginPercent } from "@/lib/projectDetailUtils";
 import type { PresentationSectionProps, ViewMode } from "./types";
 
@@ -150,17 +155,14 @@ export function usePresentationSection({ projectId, data }: PresentationSectionP
   const hiddenCount = enrichedItems.length - visibleItems.length;
 
   // Product comments
-  const { data: productComments = {} } = useQuery<Record<string, any[]>>({
-    queryKey: projectKeys.productComments(projectId),
-    enabled: !!projectId,
-  });
+  const { data: productComments = {} } = useProjectProductComments(projectId);
 
   const contactEmail = contacts?.find((c: any) => c.id === selectedContact)?.email || primaryContact?.email || "";
 
+  const updateProjectMutation = useUpdateProject(projectId);
   const handleInHandsDateBlur = (e: React.FocusEvent<HTMLInputElement>) => {
     if (e.target.value !== (order?.inHandsDate ? format(new Date(order.inHandsDate), "yyyy-MM-dd") : "")) {
-      apiRequest("PATCH", `/api/projects/${projectId}`, { inHandsDate: e.target.value || null })
-        .then(() => queryClient.invalidateQueries({ queryKey: projectKeys.detail(projectId) }));
+      updateProjectMutation.mutate({ inHandsDate: e.target.value || null });
     }
   };
 

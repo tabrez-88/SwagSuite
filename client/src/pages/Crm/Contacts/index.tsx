@@ -35,7 +35,7 @@ import {
   BarChart3,
 } from "lucide-react";
 import { CRMViewToggle } from "@/components/shared/CRMViewToggle";
-import { useLocation } from "wouter";
+import { useLocation } from "@/lib/wouter-compat";
 import type { Contact } from "@/services/contacts";
 import { useContactsPage } from "./hooks";
 import { ContactFormDialog } from "./components/ContactFormDialog";

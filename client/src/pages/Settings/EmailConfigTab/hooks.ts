@@ -1,51 +1,38 @@
 import { useToast } from "@/hooks/use-toast";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import {
+  useIntegrationSettings,
+  useUpdateIntegrationSettings,
+  useSendTestEmail,
+} from "@/services/settings";
 
 export function useEmailConfigTab() {
   const { toast } = useToast();
-  const queryClient = useQueryClient();
   const [testingConnection, setTestingConnection] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [testEmailTo, setTestEmailTo] = useState("");
   const [mailCredentialsOpen, setMailCredentialsOpen] = useState(false);
   const [formData, setFormData] = useState<any>({});
 
-  const { data: settings, isLoading } = useQuery({
-    queryKey: ["/api/settings/integration"],
-  });
+  const { data: settings, isLoading } = useIntegrationSettings();
 
-  const updateSettings = useMutation({
-    mutationFn: async (data: any) => {
-      const response = await fetch("/api/settings/integration", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-        credentials: "include",
-      });
-      if (!response.ok) throw new Error("Failed to update settings");
-      return response.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: ["/api/settings/integration"],
-      });
-      toast({
-        title: "Settings saved",
-        description: "Email configuration has been updated.",
-      });
-      setFormData({});
-    },
-    onError: () => {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "Failed to save settings.",
-      });
-    },
-  });
+  const _updateSettings = useUpdateIntegrationSettings();
+  const _sendTestEmail = useSendTestEmail();
 
-  const testConnection = async () => {
+  const updateSettings = {
+    ..._updateSettings,
+    mutate: (data: any) =>
+      _updateSettings.mutate(data, {
+        onSuccess: () => {
+          toast({ title: "Settings saved", description: "Email configuration has been updated." });
+          setFormData({});
+        },
+        onError: () =>
+          toast({ variant: "destructive", title: "Error", description: "Failed to save settings." }),
+      }),
+  };
+
+  const testConnection = () => {
     if (!testEmailTo || !testEmailTo.includes("@")) {
       toast({
         variant: "destructive",
@@ -54,38 +41,30 @@ export function useEmailConfigTab() {
       });
       return;
     }
-
     setTestingConnection(true);
-    try {
-      const response = await fetch("/api/settings/test-email", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ to: testEmailTo }),
-        credentials: "include",
-      });
-      const result = await response.json();
-
-      if (result.success) {
-        toast({
-          title: "Test Email Sent!",
-          description: `Test email has been sent to ${testEmailTo}. Check your inbox.`,
-        });
-      } else {
+    _sendTestEmail.mutate(testEmailTo, {
+      onSuccess: (result) => {
+        if (result.success) {
+          toast({
+            title: "Test Email Sent!",
+            description: `Test email has been sent to ${testEmailTo}. Check your inbox.`,
+          });
+        } else {
+          toast({
+            variant: "destructive",
+            title: "Connection failed",
+            description: result.message || "Failed to send test email.",
+          });
+        }
+      },
+      onError: () =>
         toast({
           variant: "destructive",
-          title: "Connection failed",
-          description: result.message || "Failed to send test email.",
-        });
-      }
-    } catch (error) {
-      toast({
-        variant: "destructive",
-        title: "Test failed",
-        description: "Unable to send test email.",
-      });
-    } finally {
-      setTestingConnection(false);
-    }
+          title: "Test failed",
+          description: "Unable to send test email.",
+        }),
+      onSettled: () => setTestingConnection(false),
+    });
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -116,10 +95,9 @@ export function useEmailConfigTab() {
 
   const toggleShowPassword = () => setShowPassword(!showPassword);
 
-  const currentSettings = { ...(settings || {}), ...formData };
+  const currentSettings = { ...((settings as any) || {}), ...formData };
 
   return {
-    // State
     isLoading,
     testingConnection,
     showPassword,
@@ -127,15 +105,11 @@ export function useEmailConfigTab() {
     mailCredentialsOpen,
     currentSettings,
     isUpdatePending: updateSettings.isPending,
-
-    // Test email disabled state
     isTestDisabled:
       testingConnection ||
       !currentSettings.smtpHost ||
       !currentSettings.smtpUser ||
       !testEmailTo,
-
-    // Handlers
     handleSubmit,
     handleProviderChange,
     handleFieldChange,

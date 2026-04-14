@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { apiRequest } from "@/lib/queryClient";
+import { useSequences, useSequenceEnrollments, sequenceKeys } from "@/services/sequences";
 import { sequenceFormSchema, stepFormSchema, type SequenceFormData, type StepFormData } from "@/schemas/sequence.schemas";
 import { useToast } from "@/hooks/use-toast";
 import type { Sequence, SequenceStep } from "@shared/schema";
@@ -17,9 +18,10 @@ export function useSequenceBuilder() {
   const queryClient = useQueryClient();
 
   // Fetch sequences
-  const { data: sequences, isLoading: sequencesLoading } = useQuery<any>({
-    queryKey: ["/api/sequences"],
-  });
+  const { data: sequences, isLoading: sequencesLoading } = useSequences() as unknown as {
+    data: any;
+    isLoading: boolean;
+  };
 
   // Fetch steps for selected sequence
   const { data: steps } = useQuery<any>({
@@ -28,10 +30,8 @@ export function useSequenceBuilder() {
   });
 
   // Fetch enrollments for selected sequence
-  const { data: enrollments } = useQuery<any>({
-    queryKey: ["/api/sequence-enrollments"],
-    enabled: !!selectedSequence?.id,
-  });
+  const { data: enrollments } = useSequenceEnrollments() as unknown as { data: any };
+  void sequenceKeys;
 
   // Fetch analytics for selected sequence
   const { data: analytics } = useQuery<any>({
@@ -39,17 +39,16 @@ export function useSequenceBuilder() {
     enabled: !!selectedSequence?.id,
   });
 
-  // Mutations
+  // Mutations — sequence CRUD flows through services/sequences.
+  // Step operations nested under /api/sequences/:id/steps stay inline with
+  // apiRequest until we factor out a dedicated steps service.
   const createSequenceMutation = useMutation({
     mutationFn: (data: SequenceFormData) =>
       apiRequest("POST", "/api/sequences", data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/sequences"] });
+      queryClient.invalidateQueries({ queryKey: sequenceKeys.all });
       setShowCreateDialog(false);
-      toast({
-        title: "Success",
-        description: "Sequence created successfully",
-      });
+      toast({ title: "Success", description: "Sequence created successfully" });
     },
   });
 
@@ -57,24 +56,17 @@ export function useSequenceBuilder() {
     mutationFn: ({ id, data }: { id: string; data: Partial<Sequence> }) =>
       apiRequest("PUT", `/api/sequences/${id}`, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/sequences"] });
-      toast({
-        title: "Success",
-        description: "Sequence updated successfully",
-      });
+      queryClient.invalidateQueries({ queryKey: sequenceKeys.all });
+      toast({ title: "Success", description: "Sequence updated successfully" });
     },
   });
 
   const deleteSequenceMutation = useMutation({
-    mutationFn: (id: string) =>
-      apiRequest("DELETE", `/api/sequences/${id}`),
+    mutationFn: (id: string) => apiRequest("DELETE", `/api/sequences/${id}`),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/sequences"] });
+      queryClient.invalidateQueries({ queryKey: sequenceKeys.all });
       setSelectedSequence(null);
-      toast({
-        title: "Success",
-        description: "Sequence deleted successfully",
-      });
+      toast({ title: "Success", description: "Sequence deleted successfully" });
     },
   });
 
@@ -82,13 +74,12 @@ export function useSequenceBuilder() {
     mutationFn: (data: StepFormData) =>
       apiRequest("POST", `/api/sequences/${selectedSequence?.id}/steps`, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/sequences", selectedSequence?.id, "steps"] });
+      queryClient.invalidateQueries({
+        queryKey: ["/api/sequences", selectedSequence?.id, "steps"],
+      });
       setShowStepDialog(false);
       setEditingStep(null);
-      toast({
-        title: "Success",
-        description: "Step created successfully",
-      });
+      toast({ title: "Success", description: "Step created successfully" });
     },
   });
 

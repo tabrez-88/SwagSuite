@@ -1,7 +1,7 @@
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState, useEffect } from "react";
+import { useBranding, useUpdateBranding, useUploadLogo } from "@/services/settings";
 
 interface BrandingSettings {
   logoUrl?: string;
@@ -30,7 +30,6 @@ interface BrandingSettings {
 export function useBrandingTab() {
   const { user, isLoading: authLoading } = useAuth();
   const { toast } = useToast();
-  const queryClient = useQueryClient();
 
   const isAdmin =
     (user as any)?.role === "admin" ||
@@ -38,61 +37,35 @@ export function useBrandingTab() {
   const isManager = (user as any)?.role === "manager";
   const hasAccess = isAdmin || isManager;
 
-  const { data: brandingSettings } = useQuery<BrandingSettings>({
-    queryKey: ["/api/settings/branding"],
-  });
+  const { data: brandingSettings } = useBranding() as { data: BrandingSettings | undefined };
 
-  const [logoConfig, setLogoConfig] = useState({
-    current: "",
-    uploading: false,
-  });
+  const [logoConfig, setLogoConfig] = useState({ current: "", uploading: false });
 
   useEffect(() => {
     if (brandingSettings) {
-      setLogoConfig((prev) => ({
-        ...prev,
-        current: brandingSettings.logoUrl || "",
-      }));
+      setLogoConfig((prev) => ({ ...prev, current: brandingSettings.logoUrl || "" }));
     }
   }, [brandingSettings]);
 
-  const saveBrandingMutation = useMutation({
-    mutationFn: async (data: any) => {
-      const response = await fetch("/api/settings/branding", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-        credentials: "include",
-      });
-      if (!response.ok) {
-        const errorData = await response
-          .json()
-          .catch(() => ({ message: "Unknown error" }));
-        throw new Error(
-          errorData.message || "Failed to save branding settings",
-        );
-      }
-      return response.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/settings/branding"] });
-      toast({
-        title: "Branding Saved",
-        description: "System branding and theme have been updated.",
-      });
-    },
-    onError: (error: Error) => {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: error.message || "Failed to save branding settings.",
-      });
-    },
-  });
+  const _saveBranding = useUpdateBranding();
+  const saveBrandingMutation = {
+    ..._saveBranding,
+    mutate: (data: any) =>
+      _saveBranding.mutate(data, {
+        onSuccess: () =>
+          toast({ title: "Branding Saved", description: "System branding and theme have been updated." }),
+        onError: (error: Error) =>
+          toast({
+            variant: "destructive",
+            title: "Error",
+            description: error.message || "Failed to save branding settings.",
+          }),
+      }),
+  };
 
-  const handleLogoUpload = async (
-    event: React.ChangeEvent<HTMLInputElement>,
-  ) => {
+  const _uploadLogo = useUploadLogo();
+
+  const handleLogoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (
       file &&
@@ -102,41 +75,23 @@ export function useBrandingTab() {
         file.type === "image/webp")
     ) {
       setLogoConfig((prev) => ({ ...prev, uploading: true }));
-
-      try {
-        const formData = new FormData();
-        formData.append("logo", file);
-
-        const response = await fetch("/api/settings/logo", {
-          method: "POST",
-          body: formData,
-          credentials: "include",
-        });
-
-        if (!response.ok) {
-          const error = await response.json();
-          throw new Error(error.message || "Failed to upload logo");
-        }
-
-        const result = await response.json();
-
-        setLogoConfig({ current: result.logoUrl, uploading: false });
-
-        queryClient.invalidateQueries({ queryKey: ["/api/settings/branding"] });
-
-        toast({
-          title: "Logo Updated",
-          description: "System logo has been successfully uploaded and saved.",
-        });
-      } catch (error: any) {
-        setLogoConfig((prev) => ({ ...prev, uploading: false }));
-        toast({
-          title: "Upload Failed",
-          description:
-            error.message || "Failed to upload logo. Please try again.",
-          variant: "destructive",
-        });
-      }
+      _uploadLogo.mutate(file, {
+        onSuccess: (result) => {
+          setLogoConfig({ current: result.logoUrl, uploading: false });
+          toast({
+            title: "Logo Updated",
+            description: "System logo has been successfully uploaded and saved.",
+          });
+        },
+        onError: (error: Error) => {
+          setLogoConfig((prev) => ({ ...prev, uploading: false }));
+          toast({
+            title: "Upload Failed",
+            description: error.message || "Failed to upload logo. Please try again.",
+            variant: "destructive",
+          });
+        },
+      });
     } else {
       toast({
         title: "Invalid File Type",

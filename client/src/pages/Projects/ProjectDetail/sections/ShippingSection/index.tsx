@@ -23,7 +23,8 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import EmailComposer from "@/components/email/EmailComposer";
-import { apiRequest } from "@/lib/queryClient";
+import { useUpdateProject } from "@/services/projects/mutations";
+import { sendCommunication } from "@/services/communications";
 import TimelineWarningBanner from "@/components/shared/TimelineWarningBanner";
 import { getDateStatus } from "@/lib/dateUtils";
 import { useShippingSection } from "./hooks";
@@ -44,6 +45,7 @@ const getShipToLabel = (dest: string) => SHIP_TO_OPTIONS.find(o => o.value === d
 
 export default function ShippingSection({ projectId, data, isLocked }: ShippingSectionProps) {
   const h = useShippingSection(projectId, data);
+  const updateProjectMutation = useUpdateProject(projectId);
 
   return (
     <div className="space-y-5">
@@ -65,13 +67,9 @@ export default function ShippingSection({ projectId, data, isLocked }: ShippingS
                   <span className="text-xs text-muted-foreground">Notifications</span>
                   <Switch
                     checked={(h.order as any)?.enableShippingNotifications !== false}
-                    onCheckedChange={(checked) => {
-                      apiRequest("PATCH", `/api/projects/${projectId}`, {
-                        enableShippingNotifications: checked,
-                      }).then(() => {
-                        h.queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}`] });
-                      });
-                    }}
+                    onCheckedChange={(checked) =>
+                      updateProjectMutation.mutate({ enableShippingNotifications: checked })
+                    }
                     disabled={isLocked}
                   />
                 </div>
@@ -88,13 +86,9 @@ export default function ShippingSection({ projectId, data, isLocked }: ShippingS
                   <span className="text-xs text-muted-foreground">Tracking Emails</span>
                   <Switch
                     checked={(h.order as any)?.enableTrackingEmails === true}
-                    onCheckedChange={(checked) => {
-                      apiRequest("PATCH", `/api/projects/${projectId}`, {
-                        enableTrackingEmails: checked,
-                      }).then(() => {
-                        h.queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}`] });
-                      });
-                    }}
+                    onCheckedChange={(checked) =>
+                      updateProjectMutation.mutate({ enableTrackingEmails: checked })
+                    }
                     disabled={isLocked}
                   />
                 </div>
@@ -743,7 +737,7 @@ export default function ShippingSection({ projectId, data, isLocked }: ShippingS
                   ? formData.attachments.map((att) => ({ fileUrl: att.cloudinaryUrl, fileName: att.fileName }))
                   : undefined;
 
-                await apiRequest("POST", `/api/projects/${projectId}/communications`, {
+                await sendCommunication(projectId, {
                   communicationType: "client_email",
                   direction: "sent",
                   recipientEmail: formData.to,

@@ -1,39 +1,39 @@
-import { useMemo } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { PdfPreviewDialog } from "@/components/documents/pdf/PdfPreviewDialog";
+import EmailComposer from "@/components/email/EmailComposer";
+import type { EmailContact } from "@/components/email/types";
+import { useAutoFillSender } from "@/components/email/useAutoFillSender";
+import { DocumentEditor } from "@/components/feature/DocumentEditor";
+import FilePickerDialog from "@/components/modals/FilePickerDialog";
+import { FilePreviewModal } from "@/components/modals/FilePreviewModal";
+import { EditableDate } from "@/components/shared/InlineEditable";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
+import { Card, CardContent } from "@/components/ui/card";
 import {
-  Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter,
+  Dialog, DialogContent, DialogDescription,
+  DialogFooter,
+  DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Input } from "@/components/ui/input";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { useToast } from "@/hooks/use-toast";
+import { getCloudinaryThumbnail } from "@/lib/media-library";
+import { sendCommunication } from "@/services/communications";
 import {
   AlertTriangle, Building2, Calendar, CheckCircle, ChevronDown, ChevronRight,
-  ClipboardList, Copy, Download, ExternalLink, Eye, FileText, Loader2,
-  Mail, MoreHorizontal, Package, Palette, Printer, Send, ShieldCheck, Upload,
+  ClipboardList, Copy, Download,
+  Eye, FileText, Loader2,
+  Mail, MoreHorizontal, Package, Palette, Printer, Send, ShieldCheck, Upload
 } from "lucide-react";
-import { apiRequest } from "@/lib/queryClient";
-import { useToast } from "@/hooks/use-toast";
-import EmailComposer from "@/components/email/EmailComposer";
-import type { EmailContact } from "@/components/email/types";
-import type { OrderItemLine } from "@shared/schema";
-import GeneratedDocumentCard from "@/components/documents/GeneratedDocumentCard";
-import { PdfPreviewDialog } from "@/components/documents/pdf/PdfPreviewDialog";
-import { DocumentEditor } from "@/components/feature/DocumentEditor";
-import { getCloudinaryThumbnail } from "@/lib/media-library";
-import FilePickerDialog from "@/components/modals/FilePickerDialog";
-import { FilePreviewModal } from "@/components/modals/FilePreviewModal";
-import { EditableDate } from "@/components/shared/InlineEditable";
-import { useAutoFillSender } from "@/components/email/useAutoFillSender";
-import type { PurchaseOrdersSectionProps } from "./types";
+import { useMemo } from "react";
 import { usePurchaseOrdersSection } from "./hooks";
+import type { PurchaseOrdersSectionProps } from "./types";
 
 export default function PurchaseOrdersSection({ projectId, data, isLocked }: PurchaseOrdersSectionProps) {
   const h = usePurchaseOrdersSection({ projectId, data, isLocked });
@@ -526,7 +526,8 @@ export default function PurchaseOrdersSection({ projectId, data, isLocked }: Pur
                                         const imgSrc = isDesignFile && url.includes("cloudinary.com")
                                           ? getCloudinaryThumbnail(url, 96, 96) : url;
                                         return <img src={imgSrc} alt="" className="w-full h-full object-contain p-0.5"
-                                          onError={(e) => { (e.target as HTMLImageElement).style.display = "none";
+                                          onError={(e) => {
+                                            (e.target as HTMLImageElement).style.display = "none";
                                             e.currentTarget.parentElement?.insertAdjacentHTML("afterbegin",
                                               `<span class="text-[9px] text-gray-400 uppercase font-medium">.${ext || "file"}</span>`);
                                           }} />;
@@ -645,8 +646,6 @@ export default function PurchaseOrdersSection({ projectId, data, isLocked }: Pur
                         </div>
                       </div>
                     )}
-
-                    
                   </div>
                 )}
               </Card>
@@ -943,7 +942,7 @@ export default function PurchaseOrdersSection({ projectId, data, isLocked }: Pur
               autoFillSender
               richText
               onSend={async (formData) => {
-                await apiRequest("POST", `/api/projects/${projectId}/communications`, {
+                await sendCommunication(projectId, {
                   communicationType: "vendor_email",
                   direction: "sent",
                   recipientEmail: formData.to,

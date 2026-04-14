@@ -1,6 +1,8 @@
 import { useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
+import { updateProject } from "@/services/projects/requests";
+import { projectKeys } from "@/services/projects/keys";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { UserAvatar } from "@/components/shared/UserAvatar";
@@ -36,17 +38,10 @@ export function KanbanBoard({ data, onViewOrder, onViewProject }: KanbanBoardPro
   const updateStageMutation = useMutation({
     mutationFn: async ({ projectId, targetStage }: { projectId: string; targetStage: BusinessStage }) => {
       const payload = getStageTransitionPayload(targetStage);
-      const response = await fetch(`/api/projects/${projectId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-        credentials: "include",
-      });
-      if (!response.ok) throw new Error("Failed to update stage");
-      return response.json();
+      await updateProject(projectId, payload);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
+      queryClient.invalidateQueries({ queryKey: projectKeys.all });
       queryClient.invalidateQueries({ queryKey: ["/api/dashboard/recent-orders"] });
       toast({ title: "Stage updated successfully" });
     },

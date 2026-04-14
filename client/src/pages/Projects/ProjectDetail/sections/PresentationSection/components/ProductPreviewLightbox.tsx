@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -12,7 +11,7 @@ import {
   Send,
   X,
 } from "lucide-react";
-import { apiRequest } from "@/lib/queryClient";
+import { usePostProductComment } from "@/services/projects/mutations";
 import { useToast } from "@/hooks/use-toast";
 import type { OrderItemLine } from "@shared/schema";
 
@@ -26,27 +25,27 @@ interface ProductPreviewLightboxProps {
 }
 
 export default function ProductPreviewLightbox({ item, projectId, companyName, hidePricing, comments, onClose }: ProductPreviewLightboxProps) {
-  const queryClient = useQueryClient();
   const { toast } = useToast();
   const lines: OrderItemLine[] = item.lines || [];
   const price = Number(item.unitPrice || 0);
   const [showComments, setShowComments] = useState(false);
   const [commentText, setCommentText] = useState("");
 
-  const postCommentMutation = useMutation({
-    mutationFn: async () => {
-      await apiRequest("POST", `/api/projects/${projectId}/product-comments`, {
-        orderItemId: item.id,
-        content: commentText,
-      });
-    },
-    onSuccess: () => {
-      setCommentText("");
-      queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/product-comments`] });
-      toast({ title: "Comment posted" });
-    },
-    onError: () => toast({ title: "Failed to post comment", variant: "destructive" }),
-  });
+  const _postComment = usePostProductComment(projectId);
+  const postCommentMutation = {
+    ..._postComment,
+    mutate: () =>
+      _postComment.mutate(
+        { orderItemId: item.id, content: commentText },
+        {
+          onSuccess: () => {
+            setCommentText("");
+            toast({ title: "Comment posted" });
+          },
+          onError: () => toast({ title: "Failed to post comment", variant: "destructive" }),
+        },
+      ),
+  };
 
   return (
     <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>

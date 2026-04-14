@@ -40,3 +40,16 @@ export function useCompanyProjects(companyId: string | undefined) {
     enabled: !!companyId,
   });
 }
+
+export function useCompanySpending(
+  companyId: string | undefined,
+  from?: string,
+  to?: string,
+  enabled = true,
+) {
+  return useQuery({
+    queryKey: companyKeys.spending(companyId ?? "", from, to),
+    queryFn: () => requests.fetchCompanySpending(companyId!, from, to),
+    enabled: !!companyId && enabled,
+  });
+}

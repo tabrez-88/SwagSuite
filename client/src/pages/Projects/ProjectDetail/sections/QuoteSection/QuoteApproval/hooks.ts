@@ -1,7 +1,11 @@
 import { useState } from "react";
-import { useRoute } from "wouter";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useRoute } from "@/lib/wouter-compat";
 import { useToast } from "@/hooks/use-toast";
+import {
+  useClientApproval,
+  useApproveClientDocument,
+  useDeclineClientDocument,
+} from "@/services/approvals";
 import type { QuoteApprovalData } from "./types";
 
 export function useQuoteApproval() {
@@ -13,77 +17,32 @@ export function useQuoteApproval() {
   const [declineReason, setDeclineReason] = useState("");
   const [showDeclineForm, setShowDeclineForm] = useState(false);
   const [pdfLoadKey, setPdfLoadKey] = useState(() => Date.now());
-  const queryClient = useQueryClient();
 
-  // Fetch quote approval data
-  const { data: approval, isLoading, error } = useQuery<QuoteApprovalData>({
-    queryKey: [`/api/client-approvals/${token}`],
-    enabled: !!token,
-    retry: false,
-  });
+  const { data: approval, isLoading, error } = useClientApproval<QuoteApprovalData>(token);
 
   const isSalesOrder = approval?.documentType === "sales_order";
   const docLabel = isSalesOrder ? "Sales Order" : "Quote";
 
-  // Approve mutation
-  const approveMutation = useMutation({
-    mutationFn: async (data: { notes?: string }) => {
-      const response = await fetch(`/api/client-approvals/${token}/approve`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-      });
-      if (!response.ok) throw new Error(`Failed to approve ${docLabel.toLowerCase()}`);
-      return response.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/client-approvals/${token}`] });
-      toast({
-        title: `${docLabel} Approved!`,
-        description: "Thank you! Your order has been confirmed and will proceed to production.",
-      });
-    },
-    onError: () => {
-      toast({
-        title: "Error",
-        description: `Failed to approve ${docLabel.toLowerCase()}. Please try again.`,
-        variant: "destructive",
-      });
-    },
-  });
-
-  // Decline mutation
-  const declineMutation = useMutation({
-    mutationFn: async (data: { reason: string }) => {
-      const response = await fetch(`/api/client-approvals/${token}/decline`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-      });
-      if (!response.ok) {
-        const err = await response.json();
-        throw new Error(err.message || `Failed to decline ${docLabel.toLowerCase()}`);
-      }
-      return response.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/client-approvals/${token}`] });
-      toast({
-        title: `${docLabel} Declined`,
-        description: "Your feedback has been sent to the sales team. They will contact you shortly.",
-      });
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Error",
-        description: error.message || `Failed to decline ${docLabel.toLowerCase()}. Please try again.`,
-        variant: "destructive",
-      });
-    },
-  });
+  const approveMutation = useApproveClientDocument(token ?? "");
+  const declineMutation = useDeclineClientDocument(token ?? "");
 
   const handleApprove = () => {
-    approveMutation.mutate({ notes: notes.trim() || undefined });
+    approveMutation.mutate(
+      { notes: notes.trim() || undefined },
+      {
+        onSuccess: () =>
+          toast({
+            title: `${docLabel} Approved!`,
+            description: "Thank you! Your order has been confirmed and will proceed to production.",
+          }),
+        onError: () =>
+          toast({
+            title: "Error",
+            description: `Failed to approve ${docLabel.toLowerCase()}. Please try again.`,
+            variant: "destructive",
+          }),
+      },
+    );
   };
 
   const handleDecline = () => {
@@ -95,13 +54,27 @@ export function useQuoteApproval() {
       });
       return;
     }
-    declineMutation.mutate({ reason: declineReason });
+    declineMutation.mutate(
+      { reason: declineReason },
+      {
+        onSuccess: () =>
+          toast({
+            title: `${docLabel} Declined`,
+            description: "Your feedback has been sent to the sales team. They will contact you shortly.",
+          }),
+        onError: (err: Error) =>
+          toast({
+            title: "Error",
+            description: err.message || `Failed to decline ${docLabel.toLowerCase()}. Please try again.`,
+            variant: "destructive",
+          }),
+      },
+    );
   };
 
   const reloadPdfPreview = () => setPdfLoadKey(Date.now());
 
   return {
-    // State
     notes,
     setNotes,
     declineReason,
@@ -109,22 +82,14 @@ export function useQuoteApproval() {
     showDeclineForm,
     setShowDeclineForm,
     pdfLoadKey,
-
-    // Query
     approval,
     isLoading,
     error,
-
-    // Computed
     isSalesOrder,
     docLabel,
     token,
-
-    // Mutations
     approveMutation,
     declineMutation,
-
-    // Handlers
     handleApprove,
     handleDecline,
     reloadPdfPreview,

@@ -1,4 +1,5 @@
 import { QueryClient, QueryFunction, QueryCache, MutationCache } from "@tanstack/react-query";
+import { setGlobalErrorHandler } from "@/api";
 
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
@@ -54,6 +55,13 @@ function handleGlobalError(error: Error) {
     queryClient.setQueryData(["/api/auth/user"], null);
   }
 }
+
+// Bridge axios errors through the same global handler used by fetch-based hooks.
+setGlobalErrorHandler((error) => {
+  if (error.response?.status === 401) {
+    queryClient.setQueryData(["/api/auth/user"], null);
+  }
+});
 
 export const queryClient = new QueryClient({
   queryCache: new QueryCache({

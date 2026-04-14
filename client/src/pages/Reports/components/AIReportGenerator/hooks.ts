@@ -1,78 +1,28 @@
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
+import {
+  useReportTemplates,
+  useReportSuggestions,
+  useRecentReports,
+  useGenerateReport,
+  useSaveReportTemplate,
+  useRunReportTemplate,
+} from "@/services/reports";
 import type { ReportTemplate, GeneratedReport, ReportSuggestion } from "./types";
 
 export function useAIReportGenerator() {
   const { toast } = useToast();
-  const queryClient = useQueryClient();
   const [naturalLanguageQuery, setNaturalLanguageQuery] = useState("");
   const [selectedTemplate, setSelectedTemplate] = useState<string>("");
   const [isGenerating, setIsGenerating] = useState(false);
 
-  const { data: templates } = useQuery<ReportTemplate[]>({
-    queryKey: ['/api/reports/templates'],
-  });
+  const { data: templates } = useReportTemplates() as unknown as { data: ReportTemplate[] | undefined };
+  const { data: suggestions } = useReportSuggestions() as unknown as { data: ReportSuggestion[] | undefined };
+  const { data: recentReports } = useRecentReports() as unknown as { data: GeneratedReport[] | undefined };
 
-  const { data: suggestions } = useQuery<ReportSuggestion[]>({
-    queryKey: ['/api/reports/suggestions'],
-  });
-
-  const { data: recentReports } = useQuery<GeneratedReport[]>({
-    queryKey: ['/api/reports/recent'],
-  });
-
-  const generateReportMutation = useMutation({
-    mutationFn: async (query: string) => {
-      setIsGenerating(true);
-      return await apiRequest('POST', '/api/reports/generate', { query });
-    },
-    onSuccess: (data) => {
-      toast({
-        title: "Report Generated",
-        description: "Your AI-powered report has been created successfully.",
-      });
-      queryClient.invalidateQueries({ queryKey: ['/api/reports/recent'] });
-      setNaturalLanguageQuery("");
-    },
-    onError: (error) => {
-      toast({
-        title: "Generation Failed",
-        description: error.message,
-        variant: "destructive",
-      });
-    },
-    onSettled: () => {
-      setIsGenerating(false);
-    },
-  });
-
-  const saveTemplateMutation = useMutation({
-    mutationFn: async (template: Partial<ReportTemplate>) => {
-      await apiRequest('POST', '/api/reports/templates', template);
-    },
-    onSuccess: () => {
-      toast({
-        title: "Template Saved",
-        description: "Report template has been saved for future use.",
-      });
-      queryClient.invalidateQueries({ queryKey: ['/api/reports/templates'] });
-    },
-  });
-
-  const runTemplateMutation = useMutation({
-    mutationFn: async (templateId: string) => {
-      return await apiRequest('POST', `/api/reports/templates/${templateId}/run`);
-    },
-    onSuccess: () => {
-      toast({
-        title: "Template Executed",
-        description: "Report has been generated from template.",
-      });
-      queryClient.invalidateQueries({ queryKey: ['/api/reports/recent'] });
-    },
-  });
+  const _generate = useGenerateReport();
+  const _saveTemplate = useSaveReportTemplate();
+  const runTemplateMutation = useRunReportTemplate();
 
   const handleGenerateReport = () => {
     if (!naturalLanguageQuery.trim()) {
@@ -84,7 +34,19 @@ export function useAIReportGenerator() {
       return;
     }
 
-    generateReportMutation.mutate(naturalLanguageQuery);
+    setIsGenerating(true);
+    _generate.mutate(naturalLanguageQuery, {
+      onSuccess: () => {
+        toast({
+          title: "Report Generated",
+          description: "Your AI-powered report has been created successfully.",
+        });
+        setNaturalLanguageQuery("");
+      },
+      onError: (error: Error) =>
+        toast({ title: "Generation Failed", description: error.message, variant: "destructive" }),
+      onSettled: () => setIsGenerating(false),
+    });
   };
 
   const handleSaveAsTemplate = () => {
@@ -92,23 +54,29 @@ export function useAIReportGenerator() {
 
     const templateName = prompt("Enter a name for this report template:");
     if (templateName) {
-      saveTemplateMutation.mutate({
-        name: templateName,
-        description: `Generated from: "${naturalLanguageQuery}"`,
-        query: naturalLanguageQuery,
-        isActive: true,
-      });
+      _saveTemplate.mutate(
+        {
+          name: templateName,
+          description: `Generated from: "${naturalLanguageQuery}"`,
+          query: naturalLanguageQuery,
+          isActive: true,
+        } as Partial<ReportTemplate>,
+        {
+          onSuccess: () =>
+            toast({ title: "Template Saved", description: "Report template has been saved for future use." }),
+        },
+      );
     }
   };
 
   const getCategoryColor = (category: string) => {
     switch (category) {
-      case 'sales': return 'bg-green-100 text-green-800';
-      case 'operations': return 'bg-blue-100 text-blue-800';
-      case 'customers': return 'bg-purple-100 text-purple-800';
-      case 'vendors': return 'bg-orange-100 text-orange-800';
-      case 'finance': return 'bg-yellow-100 text-yellow-800';
-      default: return 'bg-gray-100 text-gray-800';
+      case "sales": return "bg-green-100 text-green-800";
+      case "operations": return "bg-blue-100 text-blue-800";
+      case "customers": return "bg-purple-100 text-purple-800";
+      case "vendors": return "bg-orange-100 text-orange-800";
+      case "finance": return "bg-yellow-100 text-yellow-800";
+      default: return "bg-gray-100 text-gray-800";
     }
   };
 
@@ -120,7 +88,7 @@ export function useAIReportGenerator() {
     "Which products have the highest profit margins?",
     "List all orders that are overdue for delivery",
     "Compare this year's Q1 performance vs last year",
-    "Show me customers who haven't ordered in the last 90 days"
+    "Show me customers who haven't ordered in the last 90 days",
   ];
 
   return {

@@ -1,9 +1,14 @@
 import { useState, useMemo } from "react";
-import { useRoute, useLocation } from "wouter";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useRoute, useLocation } from "@/lib/wouter-compat";
 import { useToast } from "@/hooks/use-toast";
 import { useMarginSettings } from "@/hooks/useMarginSettings";
-import { apiRequest } from "@/lib/queryClient";
+import {
+  useProduct,
+  useProductOrders,
+  useDeleteProduct,
+  updateProduct,
+} from "@/services/products";
+import { useSuppliers } from "@/services/suppliers";
 
 // Helper to parse array fields that might be stored as strings or JSON
 export const parseArrayField = (field: any): string[] => {
@@ -26,42 +31,18 @@ export function useProductDetail() {
   const productId = params?.id;
   const [, setLocation] = useLocation();
   const { toast } = useToast();
-  const queryClient = useQueryClient();
   const marginSettings = useMarginSettings();
   const [isEditOpen, setIsEditOpen] = useState(false);
 
-  // Fetch product
-  const { data: product, isLoading } = useQuery<any>({
-    queryKey: ["/api/products", productId],
-    queryFn: async () => {
-      const res = await apiRequest("GET", `/api/products/${productId}`);
-      return res.json();
-    },
-    enabled: !!productId,
-  });
-
-  // Fetch suppliers for name lookup
-  const { data: suppliers = [] } = useQuery<any[]>({
-    queryKey: ["/api/suppliers"],
-    staleTime: Infinity,
-  });
+  const { data: product, isLoading } = useProduct(productId ?? "");
+  const { data: suppliers = [] } = useSuppliers() as unknown as { data: any[] };
+  const { data: ordersWithProduct = [] } = useProductOrders<any[]>(productId);
 
   const supplierName = useMemo(() => {
     if (!product?.supplierId || !suppliers.length) return null;
     return suppliers.find((s: any) => s.id === product.supplierId)?.name || null;
   }, [product?.supplierId, suppliers]);
 
-  // Fetch orders that use this product
-  const { data: ordersWithProduct = [] } = useQuery<any[]>({
-    queryKey: ["/api/products", productId, "orders"],
-    queryFn: async () => {
-      const res = await apiRequest("GET", `/api/products/${productId}/orders`);
-      return res.json();
-    },
-    enabled: !!productId,
-  });
-
-  // Pricing tiers from product
   const pricingTiers = useMemo(() => {
     return (product?.pricingTiers || []) as { quantity: number; cost: number }[];
   }, [product?.pricingTiers]);
@@ -72,29 +53,24 @@ export function useProductDetail() {
     setLocation(`/projects/${orderId}/overview`);
   };
 
+  const _delete = useDeleteProduct();
   const handleDelete = async () => {
     if (!productId) return;
     if (!confirm("Delete this product?")) return;
-    try {
-      await apiRequest("DELETE", `/api/products/${productId}`);
-      toast({ title: "Product deleted" });
-      queryClient.invalidateQueries({ queryKey: ["/api/products"] });
-      setLocation("/products");
-    } catch {
-      toast({ title: "Failed to delete", variant: "destructive" });
-    }
+    _delete.mutate(productId, {
+      onSuccess: () => {
+        toast({ title: "Product deleted" });
+        setLocation("/products");
+      },
+      onError: () => toast({ title: "Failed to delete", variant: "destructive" }),
+    });
   };
 
   const handleSaveTiers = (tiers: { quantity: number; cost: number }[]) => {
     if (!productId) return;
-    fetch(`/api/products/${productId}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify({ pricingTiers: tiers }),
-    }).then(() => {
-      queryClient.invalidateQueries({ queryKey: ["/api/products", productId] });
-    }).catch(() => { /* best-effort */ });
+    updateProduct(productId, { pricingTiers: tiers }).catch(() => {
+      /* best-effort */
+    });
   };
 
   return {

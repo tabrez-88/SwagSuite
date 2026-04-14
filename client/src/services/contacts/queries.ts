@@ -16,6 +16,9 @@ export function useContact(id: string | undefined) {
   });
 }
 
+/** Alias kept for readability on detail pages. */
+export const useContactDetail = useContact;
+
 export function useContactsByCompany(companyId: string | undefined) {
   return useQuery<Contact[]>({
     queryKey: contactKeys.byCompany(companyId!),

@@ -1,7 +1,10 @@
 import { useToast } from "@/hooks/use-toast";
-import { apiRequest } from "@/lib/queryClient";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState, useEffect } from "react";
+import {
+  useIntegrationSettingsList,
+  useSaveIntegrationSettings,
+  useStartQuickbooksAuth,
+} from "@/services/integrations/settings";
 import {
   FileSpreadsheet,
   Globe,
@@ -18,13 +21,11 @@ import type {
 
 export function useIntegrationsTab() {
   const { toast } = useToast();
-  const queryClient = useQueryClient();
 
   // Load integration settings
-  const { data: integrationSettings } = useQuery({
-    queryKey: ["/api/settings/integrations"],
-    staleTime: 1000 * 60 * 5,
-  });
+  const { data: integrationSettings } = useIntegrationSettingsList();
+  const saveSettingsMutation = useSaveIntegrationSettings();
+  const _qbAuth = useStartQuickbooksAuth();
 
   // Integration Settings
   const [integrations, setIntegrations] = useState<IntegrationSettings>({
@@ -175,9 +176,7 @@ export function useIntegrationsTab() {
 
   const saveSettings = async () => {
     try {
-      console.log("Saving integrations:", integrations);
-      await apiRequest("POST", "/api/settings/integrations", integrations);
-      queryClient.invalidateQueries({ queryKey: ["/api/settings/integrations"] });
+      await saveSettingsMutation.mutateAsync(integrations);
       toast({
         title: "Settings Saved",
         description: "Integration settings have been saved successfully.",
@@ -227,26 +226,18 @@ export function useIntegrationsTab() {
     setIntegrationToRemove(null);
   };
 
-  const connectQuickbooks = async () => {
-    try {
-      const res = await fetch("/api/integrations/quickbooks/auth");
-      if (res.ok) {
-        const { url } = await res.json();
+  const connectQuickbooks = () => {
+    _qbAuth.mutate(undefined, {
+      onSuccess: ({ url }) => {
         window.location.href = url;
-      } else {
+      },
+      onError: () =>
         toast({
           title: "Failed to start authentication",
           description: "Unable to connect to QuickBooks. Please try again.",
           variant: "destructive",
-        });
-      }
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "An error occurred while connecting to QuickBooks.",
-        variant: "destructive",
-      });
-    }
+        }),
+    });
   };
 
   const toggleFieldVisibility = (field: keyof ShowFields) => {

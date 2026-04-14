@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
+import { usePreviewImport, useImportCsv } from "@/services/imports";
 
 export type ImportEntity = "companies" | "contacts";
 
@@ -52,19 +52,6 @@ export const CONTACT_FIELDS = [
   { key: "isPrimary", label: "Is Primary (yes/no)" },
   { key: "mailingAddress", label: "Mailing Address" },
 ] as const;
-
-async function postFormData(url: string, formData: FormData) {
-  const res = await fetch(url, {
-    method: "POST",
-    body: formData,
-    credentials: "include",
-  });
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`${res.status}: ${text}`);
-  }
-  return res.json();
-}
 
 function suggestMapping(
   headers: string[],
@@ -126,52 +113,49 @@ export function useImportTab() {
 
   const fields = entity === "companies" ? COMPANY_FIELDS : CONTACT_FIELDS;
 
-  const previewMutation = useMutation({
-    mutationFn: async (f: File) => {
-      const fd = new FormData();
-      fd.append("file", f);
-      // Preview without a mapping first, so we learn the raw headers
-      return (await postFormData("/api/import/preview", fd)) as PreviewResult;
-    },
-    onSuccess: (data) => {
-      setPreview(data);
-      // Auto-suggest a mapping based on header names
-      setMapping(suggestMapping(data.headers, fields));
-    },
-    onError: (err: any) => {
-      toast({
-        title: "Preview failed",
-        description: err?.message || "Could not parse CSV",
-        variant: "destructive",
-      });
-    },
-  });
+  const _preview = usePreviewImport<PreviewResult>();
+  const previewMutation = {
+    ..._preview,
+    mutate: (f: File) =>
+      _preview.mutate(f, {
+        onSuccess: (data) => {
+          setPreview(data);
+          setMapping(suggestMapping(data.headers, fields));
+        },
+        onError: (err: any) =>
+          toast({
+            title: "Preview failed",
+            description: err?.message || "Could not parse CSV",
+            variant: "destructive",
+          }),
+      }),
+  };
 
-  const importMutation = useMutation({
-    mutationFn: async () => {
+  const _import = useImportCsv<ImportSummary>();
+  const importMutation = {
+    ..._import,
+    mutate: () => {
       if (!file) throw new Error("No file selected");
-      const fd = new FormData();
-      fd.append("file", file);
-      fd.append("mapping", JSON.stringify(mapping));
-      const url =
-        entity === "companies" ? "/api/import/companies" : "/api/import/contacts";
-      return (await postFormData(url, fd)) as ImportSummary;
+      _import.mutate(
+        { entity, file, mapping },
+        {
+          onSuccess: (data) => {
+            setSummary(data);
+            toast({
+              title: "Import complete",
+              description: `${data.succeeded} succeeded, ${data.failed} failed, ${data.skipped} skipped`,
+            });
+          },
+          onError: (err: any) =>
+            toast({
+              title: "Import failed",
+              description: err?.message || "Unknown error",
+              variant: "destructive",
+            }),
+        },
+      );
     },
-    onSuccess: (data) => {
-      setSummary(data);
-      toast({
-        title: "Import complete",
-        description: `${data.succeeded} succeeded, ${data.failed} failed, ${data.skipped} skipped`,
-      });
-    },
-    onError: (err: any) => {
-      toast({
-        title: "Import failed",
-        description: err?.message || "Unknown error",
-        variant: "destructive",
-      });
-    },
-  });
+  };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];

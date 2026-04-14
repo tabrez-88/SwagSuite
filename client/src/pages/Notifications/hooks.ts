@@ -1,6 +1,12 @@
 import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useLocation } from "wouter";
+import { useLocation } from "@/lib/wouter-compat";
+import {
+  useNotifications as useNotificationsQuery,
+  useUnreadNotificationCount,
+  useMarkNotificationRead,
+  useMarkAllNotificationsRead,
+  useDeleteNotification,
+} from "@/services/notifications";
 import type { Notification, FilterTab } from "./types";
 
 export function useNotifications() {
@@ -8,66 +14,16 @@ export function useNotifications() {
   const [filter, setFilter] = useState<FilterTab>("all");
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [notificationToDelete, setNotificationToDelete] = useState<Notification | null>(null);
-  const queryClient = useQueryClient();
 
-  const { data: notifications = [], isLoading } = useQuery<Notification[]>({
-    queryKey: ["/api/notifications/all"],
-    queryFn: async () => {
-      const res = await fetch("/api/notifications", { credentials: "include" });
-      if (!res.ok) throw new Error("Failed to fetch notifications");
-      return res.json();
-    },
-  });
-
-  const { data: unreadData } = useQuery<{ count: number }>({
-    queryKey: ["/api/notifications/unread-count"],
-    queryFn: async () => {
-      const res = await fetch("/api/notifications/unread-count", { credentials: "include" });
-      if (!res.ok) throw new Error("Failed to fetch unread count");
-      return res.json();
-    },
-  });
-
-  const invalidateAll = () => {
-    queryClient.invalidateQueries({ queryKey: ["/api/notifications/all"] });
-    queryClient.invalidateQueries({ queryKey: ["/api/notifications/unread-count"] });
-    queryClient.invalidateQueries({ queryKey: ["/api/notifications"] });
+  const { data: notifications = [], isLoading } = useNotificationsQuery() as unknown as {
+    data: Notification[];
+    isLoading: boolean;
   };
+  const { data: unreadData } = useUnreadNotificationCount();
 
-  const markAsReadMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const res = await fetch(`/api/notifications/${id}/read`, {
-        method: "PATCH",
-        credentials: "include",
-      });
-      if (!res.ok) throw new Error("Failed to mark as read");
-      return res.json();
-    },
-    onSuccess: invalidateAll,
-  });
-
-  const markAllAsReadMutation = useMutation({
-    mutationFn: async () => {
-      const res = await fetch("/api/notifications/mark-all-read", {
-        method: "POST",
-        credentials: "include",
-      });
-      if (!res.ok) throw new Error("Failed to mark all as read");
-      return res.json();
-    },
-    onSuccess: invalidateAll,
-  });
-
-  const deleteMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const res = await fetch(`/api/notifications/${id}`, {
-        method: "DELETE",
-        credentials: "include",
-      });
-      if (!res.ok) throw new Error("Failed to delete notification");
-    },
-    onSuccess: invalidateAll,
-  });
+  const markAsReadMutation = useMarkNotificationRead();
+  const markAllAsReadMutation = useMarkAllNotificationsRead();
+  const deleteMutation = useDeleteNotification();
 
   const unreadCount = unreadData?.count || 0;
 

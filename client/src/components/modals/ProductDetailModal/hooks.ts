@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useLocation } from "wouter";
+import { useLocation } from "@/lib/wouter-compat";
 import type { ProductDetailModalProps } from "./types";
 
 // Helper function to parse array fields that might be stored as strings or JSON

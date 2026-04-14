@@ -25,15 +25,54 @@ export function useDefaultPaymentTermName() {
   return terms?.find((t) => t.isDefault)?.name;
 }
 
-export function useSetDefaultPaymentTerm() {
+export async function createPaymentTerm(data: Partial<PaymentTerm>): Promise<PaymentTerm> {
+  const res = await apiRequest("POST", "/api/payment-terms", data);
+  return res.json();
+}
+
+export async function updatePaymentTerm(
+  id: string,
+  data: Partial<PaymentTerm>,
+): Promise<PaymentTerm> {
+  const res = await apiRequest("PATCH", `/api/payment-terms/${id}`, data);
+  return res.json();
+}
+
+export async function deletePaymentTerm(id: string): Promise<void> {
+  await apiRequest("DELETE", `/api/payment-terms/${id}`);
+}
+
+function useInvalidate() {
   const queryClient = useQueryClient();
+  return () => queryClient.invalidateQueries({ queryKey: paymentTermsKeys.all });
+}
+
+export function useCreatePaymentTerm() {
+  const invalidate = useInvalidate();
+  return useMutation({ mutationFn: createPaymentTerm, onSuccess: invalidate });
+}
+
+export function useUpdatePaymentTerm() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: Partial<PaymentTerm> }) =>
+      updatePaymentTerm(id, data),
+    onSuccess: invalidate,
+  });
+}
+
+export function useDeletePaymentTerm() {
+  const invalidate = useInvalidate();
+  return useMutation({ mutationFn: deletePaymentTerm, onSuccess: invalidate });
+}
+
+export function useSetDefaultPaymentTerm() {
+  const invalidate = useInvalidate();
   return useMutation({
     mutationFn: async (id: string) => {
       const res = await apiRequest("POST", `/api/payment-terms/${id}/set-default`);
       return res.json();
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: paymentTermsKeys.all });
-    },
+    onSuccess: invalidate,
   });
 }

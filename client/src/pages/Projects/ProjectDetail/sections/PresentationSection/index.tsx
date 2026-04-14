@@ -686,10 +686,8 @@ function PresentationEditDialog({
       // Save inHandsDate as a separate order field if changed
       const currentIHD = hook.order?.inHandsDate ? format(new Date(hook.order.inHandsDate), "yyyy-MM-dd") : "";
       if (form.inHandsDate !== currentIHD) {
-        const { apiRequest } = await import("@/lib/queryClient");
-        await apiRequest("PATCH", `/api/projects/${projectId}`, {
-          inHandsDate: form.inHandsDate || null,
-        });
+        const { updateProject } = await import("@/services/projects/requests");
+        await updateProject(projectId, { inHandsDate: form.inHandsDate || null });
       }
 
       onOpenChange(false);

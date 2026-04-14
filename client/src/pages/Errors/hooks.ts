@@ -1,8 +1,7 @@
 import { useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { apiRequest } from "@/lib/queryClient";
+import { useCreateError, useUpdateError, useResolveError } from "@/services/errors";
 import { useToast } from "@/hooks/use-toast";
 import { insertErrorSchema, type Error, type InsertError } from "@shared/schema";
 import type { UseErrorsReturn } from "./types";
@@ -170,7 +169,6 @@ function getResponsiblePartyBadge(party: string): string {
 export function useErrors(): UseErrorsReturn {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [selectedError, setSelectedError] = useState<Error | null>(null);
-  const queryClient = useQueryClient();
   const { toast } = useToast();
 
   // Use sample data
@@ -217,67 +215,48 @@ export function useErrors(): UseErrorsReturn {
   }));
 
   // Mutations
-  const createErrorMutation = useMutation({
-    mutationFn: async (data: InsertError) => {
-      return await apiRequest("/api/errors", "POST", data);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/errors"] });
-      setIsCreateModalOpen(false);
-      toast({
-        title: "Error Created",
-        description: "Error has been successfully created.",
-      });
-    },
-    onError: () => {
-      toast({
-        title: "Error",
-        description: "Failed to create error.",
-        variant: "destructive",
-      });
-    },
-  });
+  const _create = useCreateError();
+  const createErrorMutation = {
+    ..._create,
+    mutate: (data: InsertError) =>
+      _create.mutate(data as unknown as Record<string, unknown>, {
+        onSuccess: () => {
+          setIsCreateModalOpen(false);
+          toast({ title: "Error Created", description: "Error has been successfully created." });
+        },
+        onError: () =>
+          toast({ title: "Error", description: "Failed to create error.", variant: "destructive" }),
+      }),
+  };
 
-  const updateErrorMutation = useMutation({
-    mutationFn: async (data: { id: string; updates: Partial<InsertError> }) => {
-      return await apiRequest(`/api/errors/${data.id}`, "PUT", data.updates);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/errors"] });
-      setSelectedError(null);
-      toast({
-        title: "Error Updated",
-        description: "Error has been successfully updated.",
-      });
-    },
-    onError: () => {
-      toast({
-        title: "Error",
-        description: "Failed to update error.",
-        variant: "destructive",
-      });
-    },
-  });
+  const _update = useUpdateError();
+  const updateErrorMutation = {
+    ..._update,
+    mutate: (data: { id: string; updates: Partial<InsertError> }) =>
+      _update.mutate(
+        { id: data.id, data: data.updates as unknown as Record<string, unknown> },
+        {
+          onSuccess: () => {
+            setSelectedError(null);
+            toast({ title: "Error Updated", description: "Error has been successfully updated." });
+          },
+          onError: () =>
+            toast({ title: "Error", description: "Failed to update error.", variant: "destructive" }),
+        },
+      ),
+  };
 
-  const resolveErrorMutation = useMutation({
-    mutationFn: async (errorId: string) => {
-      return await apiRequest(`/api/errors/${errorId}/resolve`, "POST");
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/errors"] });
-      toast({
-        title: "Error Resolved",
-        description: "Error has been marked as resolved.",
-      });
-    },
-    onError: () => {
-      toast({
-        title: "Error",
-        description: "Failed to resolve error.",
-        variant: "destructive",
-      });
-    },
-  });
+  const _resolve = useResolveError();
+  const resolveErrorMutation = {
+    ..._resolve,
+    mutate: (errorId: string) =>
+      _resolve.mutate(errorId, {
+        onSuccess: () =>
+          toast({ title: "Error Resolved", description: "Error has been marked as resolved." }),
+        onError: () =>
+          toast({ title: "Error", description: "Failed to resolve error.", variant: "destructive" }),
+      }),
+  };
 
   const form = useForm<InsertError>({
     resolver: zodResolver(insertErrorSchema.omit({ createdBy: true })),

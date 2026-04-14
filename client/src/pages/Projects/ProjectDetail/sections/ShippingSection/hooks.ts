@@ -1,7 +1,9 @@
 import { useState, useMemo, useCallback } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { useCreateShipment, useUpdateShipment, useDeleteShipment } from "@/services/shipments";
 import { useUpdateItemShipping } from "@/services/project-items/mutations";
+import { useCompanyAddresses } from "@/services/company-addresses";
+import { useSupplierAddresses } from "@/services/supplier-addresses";
 import { useToast } from "@/hooks/use-toast";
 import { hasTimelineConflict } from "@/lib/dateUtils";
 import type { OrderShipment } from "@shared/schema";
@@ -69,10 +71,9 @@ export function useShippingSection(projectId: string, data: ProjectData) {
   const editingItem = editingItemId ? orderItems.find((i: any) => i.id === editingItemId) : null;
 
   // Fetch client company addresses (for "client" destination)
-  const { data: companyAddresses = [] } = useQuery<any[]>({
-    queryKey: [`/api/companies/${companyId}/addresses`],
-    enabled: !!companyId && !!editingItemId,
-  });
+  const { data: companyAddresses = [] } = useCompanyAddresses(
+    editingItemId && companyId ? companyId : undefined,
+  );
 
   // Fetch decorator/supplier addresses (for "decorator" or "other_supplier" destination)
   const decoratorIdForAddresses = editShippingForm.shippingDestination === "decorator"
@@ -81,10 +82,9 @@ export function useShippingSection(projectId: string, data: ProjectData) {
       ? editingItem?.supplierId
       : null;
 
-  const { data: supplierAddresses = [] } = useQuery<any[]>({
-    queryKey: [`/api/suppliers/${decoratorIdForAddresses}/addresses`],
-    enabled: !!decoratorIdForAddresses && !!editingItemId,
-  });
+  const { data: supplierAddresses = [] } = useSupplierAddresses(
+    editingItemId && decoratorIdForAddresses ? decoratorIdForAddresses : undefined,
+  );
 
   // ── Mutations ──
   const createMutation = useCreateShipment(projectId);

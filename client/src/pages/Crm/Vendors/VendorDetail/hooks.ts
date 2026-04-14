@@ -1,10 +1,10 @@
-import { useParams, useLocation } from "wouter";
-import { useQuery } from "@tanstack/react-query";
+import { useParams, useLocation } from "@/lib/wouter-compat";
 import {
+  useSupplier,
   useVendorProducts,
   useVendorContacts,
 } from "@/services/suppliers";
-import type { Vendor, VendorContact } from "@/services/suppliers";
+import type { VendorContact } from "@/services/suppliers";
 import { useTabParam } from "@/hooks/useTabParam";
 
 export function useVendorDetail() {
@@ -14,10 +14,7 @@ export function useVendorDetail() {
 
   const vendorId = params.id;
 
-  const { data: vendor, isLoading, error } = useQuery<Vendor>({
-    queryKey: [`/api/suppliers/${vendorId}`],
-    enabled: !!vendorId,
-  });
+  const { data: vendor, isLoading, error } = useSupplier(vendorId);
 
   const { data: vendorProducts, isLoading: isLoadingProducts } = useVendorProducts(
     vendorId,
