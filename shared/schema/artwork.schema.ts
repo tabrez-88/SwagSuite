@@ -23,6 +23,7 @@ export const artworkItems = pgTable("artwork_items", {
   artworkType: varchar("artwork_type", { length: 100 }), // embroidery, screen-print, heat-transfer, etc.
   location: varchar("location", { length: 255 }), // e.g., "Front - Centered"
   color: varchar("color", { length: 100 }), // e.g., "White", "PMS 186"
+  numberOfColors: integer("number_of_colors").default(1), // Number of ink/thread colors in artwork (drives decorator matrix additional color charges)
   size: varchar("size", { length: 100 }), // e.g., "3\" x 3\""
   status: varchar("status", { length: 50 }).notNull().default("pending"), // pending, awaiting_proof, proof_received, pending_approval, approved, change_requested, proofing_complete
   fileName: varchar("file_name", { length: 500 }),

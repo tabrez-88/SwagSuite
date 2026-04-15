@@ -241,7 +241,7 @@ export class DecoratorMatrixController {
         return res.status(400).json({ message: "artworkId and supplierId are required" });
       }
 
-      // Get artwork to determine imprint method
+      // Get artwork to determine imprint method and number of colors
       const [artwork] = await db.select().from(artworkItems).where(eq(artworkItems.id, artworkId));
       if (!artwork) return res.status(404).json({ message: "Artwork not found" });
 
@@ -249,6 +249,7 @@ export class DecoratorMatrixController {
       if (!method) return res.status(400).json({ message: "Artwork has no imprint method set" });
 
       const qty = parseInt(quantity) || 1;
+      const artworkColorCount = (artwork as any).numberOfColors || 1;
 
       // Find matching matrix
       const matrices = await db.select().from(decoratorMatrices)
@@ -317,16 +318,19 @@ export class DecoratorMatrixController {
               displayMode: "display_to_client",
             });
           }
-          // Additional color cost
+          // Additional color cost — based on artwork's numberOfColors vs matrix base colorCount
           const addlCost = parseFloat(match.additionalColorCost || "0");
-          if (addlCost > 0 && match.colorCount && match.colorCount > 1) {
+          const matrixBaseColors = match.colorCount || 1;
+          const extraColors = Math.max(0, artworkColorCount - matrixBaseColors);
+          if (addlCost > 0 && extraColors > 0) {
+            const totalAddlCost = addlCost * extraColors;
             chargesToCreate.push({
               artworkItemId: artworkId,
-              chargeName: `${method} additional color`,
+              chargeName: `${method} additional color (×${extraColors})`,
               chargeCategory: "run",
-              netCost: addlCost.toFixed(2),
+              netCost: totalAddlCost.toFixed(2),
               margin: "0",
-              retailPrice: addlCost.toFixed(2),
+              retailPrice: totalAddlCost.toFixed(2),
               quantity: 1,
               displayMode: "display_to_client",
             });

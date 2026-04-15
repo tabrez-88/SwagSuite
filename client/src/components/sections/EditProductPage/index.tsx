@@ -1,25 +1,9 @@
-import DecoratorMatrixDialog from "@/components/modals/DecoratorMatrixDialog";
-import FilePickerDialog from "@/components/modals/FilePickerDialog";
-import { FilePreviewModal } from "@/components/modals/FilePreviewModal";
-import MatrixChargePicker from "@/components/modals/MatrixChargePicker";
-import TierPricingPanel from "@/components/sections/TierPricingPanel";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -28,7 +12,6 @@ import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { IMPRINT_LOCATIONS, IMPRINT_METHODS } from "@/constants/imprintOptions";
 import { isBelowMinimum } from "@/hooks/useMarginSettings";
 import { getCloudinaryThumbnail } from "@/lib/media-library";
 import { calcMarginPercent, getDecorationSubtotal } from "@/lib/pricing";
@@ -60,6 +43,14 @@ import {
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useEditProductPage } from "./hooks";
+import { AddEditChargeDialog } from "./components/AddEditChargeDialog";
+import { ArtworkDialogs } from "./components/ArtworkDialogs";
+import { CopyArtworkDialog } from "./components/CopyArtworkDialog";
+import { DecoratorMatrixDialogs } from "./components/DecoratorMatrixDialogs";
+import { FilePreviewDialog } from "./components/FilePreviewDialog";
+import { MarginWarningDialog } from "./components/MarginWarningDialog";
+import { PricingTiersDialog } from "./components/PricingTiersDialog";
+import { SizesColorsDialog } from "./components/SizesColorsDialog";
 
 /** Inline Color/Size selector popover — CommonSKU style */
 function ColorSizePopover({ colors, sizes, selectedColor, selectedSize, onSelect }: {
@@ -131,92 +122,6 @@ interface EditProductPageProps {
   onClose: () => void;
 }
 
-// ── Sizes & Colors Dialog (CommonSKU-style batch line creation) ──
-function SizesColorsDialog({ open, onClose, colors, sizes, onDone }: {
-  open: boolean;
-  onClose: () => void;
-  colors: string[];
-  sizes: string[];
-  onDone: (entries: { color: string; size: string; quantity: number }[]) => void;
-}) {
-  const [selectedColor, setSelectedColor] = useState(colors[0] || "");
-  const effectiveSizes = sizes.length > 0 ? sizes : [""];
-  const [sizeQtys, setSizeQtys] = useState<Record<string, number>>(
-    Object.fromEntries(effectiveSizes.map(s => [s, 0]))
-  );
-
-  const handleDone = () => {
-    const entries = Object.entries(sizeQtys)
-      .filter(([, qty]) => qty > 0)
-      .map(([size, quantity]) => ({ color: selectedColor, size, quantity }));
-    if (entries.length > 0) onDone(entries);
-  };
-
-  const totalQty = Object.values(sizeQtys).reduce((s, q) => s + q, 0);
-
-  return (
-    <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
-      <DialogContent className="max-w-lg">
-        <DialogHeader>
-          <DialogTitle>Add Sizes & Colors</DialogTitle>
-        </DialogHeader>
-        <div className="flex gap-4 min-h-[250px]">
-          {colors.length > 0 && (
-            <div className="w-1/2 border-r pr-4">
-              <Label className="mb-2 block text-xs font-semibold text-gray-500 uppercase">Color</Label>
-              <div className="max-h-[280px] overflow-y-auto space-y-0.5">
-                {colors.map(c => (
-                  <button
-                    key={c}
-                    type="button"
-                    className={`w-full text-left px-3 py-1.5 rounded text-sm transition-colors ${
-                      selectedColor === c ? "bg-blue-100 text-blue-700 font-medium ring-1 ring-blue-300" : "hover:bg-gray-50"
-                    }`}
-                    onClick={() => setSelectedColor(c)}
-                  >
-                    {c}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-          <div className={colors.length > 0 ? "w-1/2" : "w-full"}>
-            <div className="flex justify-between mb-2">
-              <Label className="text-xs font-semibold text-gray-500 uppercase">Size</Label>
-              <Label className="text-xs font-semibold text-gray-500 uppercase">Quantity</Label>
-            </div>
-            <div className="space-y-2">
-              {effectiveSizes.map(s => (
-                <div key={s || "default"} className="flex items-center justify-between gap-3">
-                  <span className="text-sm font-medium">{s || "Default"}</span>
-                  <Input
-                    type="number"
-                    min={0}
-                    className="w-20 h-8 text-sm text-center"
-                    value={sizeQtys[s] || 0}
-                    onChange={(e) => setSizeQtys(prev => ({ ...prev, [s]: parseInt(e.target.value) || 0 }))}
-                  />
-                </div>
-              ))}
-            </div>
-            {totalQty > 0 && (
-              <div className="mt-3 pt-2 border-t text-xs text-gray-500 text-right">
-                Total: <strong className="text-gray-800">{totalQty} units</strong>
-                {selectedColor && <span className="ml-2">in {selectedColor}</span>}
-              </div>
-            )}
-          </div>
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Cancel</Button>
-          <Button disabled={totalQty === 0} onClick={handleDone}>
-            Add {totalQty > 0 ? `${totalQty} Items` : ""}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
 
 export default function EditProductPage({ projectId, itemId, data, open, onClose }: EditProductPageProps) {
   const editProductPage = useEditProductPage(projectId, itemId, data, onClose);
@@ -434,7 +339,11 @@ function EditProductPageBody({
                   <th className="text-left p-3 font-medium">Color/Size</th>
                   <th className="text-right p-3 font-medium w-20">QTY</th>
                   <th className="text-right p-3 font-medium w-28">Net Cost</th>
-                  <th className="text-right p-3 font-medium w-24">Margin</th>
+                  <th className="text-right p-3 font-medium w-24">
+                    <span title={`Min: ${editProductPage.marginSettings.minimumMargin}% | Target: ${editProductPage.marginSettings.defaultMargin}%`}>
+                      Margin
+                    </span>
+                  </th>
                   <th className="text-right p-3 font-medium w-28">
                     <button
                       className="inline-flex items-center gap-1 hover:text-blue-600 transition-colors"
@@ -588,34 +497,99 @@ function EditProductPageBody({
             </table>
           </div>
 
-          {/* Margin Summary Bar
-          <div className={`rounded-lg p-3 mt-4 ${editProductPage.marginBg(editProductPage.margin)} flex items-center justify-between text-sm`}>
-            <div className="flex items-center gap-6">
-              <span className="text-gray-600">
-                Total Qty: <strong>{editProductPage.lineTotals.qty}</strong>
-              </span>
-              <span className="text-gray-600">
-                Total Cost: <strong>${editProductPage.lineTotals.cost.toFixed(2)}</strong>
-              </span>
-              <span className="text-gray-600">
-                Margin: <strong className={editProductPage.marginColor(editProductPage.margin)}>{editProductPage.margin.toFixed(1)}%</strong>
-              </span>
-              <span className="text-gray-600">
-                Profit: <strong className="text-green-700">${(editProductPage.lineTotals.revenue - editProductPage.lineTotals.cost).toFixed(2)}</strong>
-              </span>
-            </div>
-            <span className="font-bold text-blue-600 text-base">${editProductPage.lineTotals.revenue.toFixed(2)}</span>
-          </div> */}
+          {/* Margin Summary Bar with Gauge */}
+          {editProductPage.lineTotals.qty > 0 && (() => {
+            const currentMargin = editProductPage.margin;
+            const minMargin = editProductPage.marginSettings.minimumMargin;
+            const defaultMargin = editProductPage.marginSettings.defaultMargin;
+            const profit = editProductPage.lineTotals.revenue - editProductPage.lineTotals.cost;
+            const belowMin = isBelowMinimum(currentMargin, editProductPage.marginSettings);
 
-          {isBelowMinimum(editProductPage.margin, editProductPage.marginSettings) && (
-            <div className="rounded-lg border border-red-200 bg-red-50 p-3 mt-3 flex items-center gap-2 text-sm text-red-700">
-              <AlertTriangle className="w-4 h-4 flex-shrink-0" />
-              <span>
-                Margin ({editProductPage.margin.toFixed(1)}%) is below the company minimum of {editProductPage.marginSettings.minimumMargin}%.
-                Saving will require confirmation.
-              </span>
-            </div>
-          )}
+            // Gauge calculation: 0-70% of bar width represents 0-maxScale% margin
+            const maxScale = Math.max(defaultMargin + 15, currentMargin + 10);
+            const pct = (v: number) => Math.min(100, Math.max(0, (v / maxScale) * 100));
+
+            return (
+              <div className={`rounded-lg border mt-4 overflow-hidden ${belowMin ? "border-red-200" : "border-gray-200"}`}>
+                {/* Stats row */}
+                <div className={`px-4 py-3 flex items-center justify-between text-sm ${editProductPage.marginBg(currentMargin)}`}>
+                  <div className="flex items-center gap-5">
+                    <span className="text-gray-600">
+                      Qty: <strong>{editProductPage.lineTotals.qty}</strong>
+                    </span>
+                    <span className="text-gray-600">
+                      Cost: <strong>${editProductPage.lineTotals.cost.toFixed(2)}</strong>
+                    </span>
+                    <span className="text-gray-600">
+                      Margin: <strong className={`text-base ${editProductPage.marginColor(currentMargin)}`}>{currentMargin.toFixed(1)}%</strong>
+                    </span>
+                    <span className="text-gray-600">
+                      Profit: <strong className={profit >= 0 ? "text-green-700" : "text-red-600"}>${profit.toFixed(2)}</strong>
+                    </span>
+                  </div>
+                  <span className="font-bold text-blue-600 text-base">${editProductPage.lineTotals.revenue.toFixed(2)}</span>
+                </div>
+
+                {/* Margin gauge */}
+                <div className="px-4 py-2 bg-white">
+                  <div className="relative h-3 bg-gray-100 rounded-full overflow-hidden">
+                    {/* Red zone: 0 to minimum */}
+                    <div
+                      className="absolute inset-y-0 left-0 bg-red-200"
+                      style={{ width: `${pct(minMargin)}%` }}
+                    />
+                    {/* Yellow zone: minimum to default */}
+                    <div
+                      className="absolute inset-y-0 bg-yellow-200"
+                      style={{ left: `${pct(minMargin)}%`, width: `${pct(defaultMargin) - pct(minMargin)}%` }}
+                    />
+                    {/* Green zone: default+ */}
+                    <div
+                      className="absolute inset-y-0 bg-green-200 rounded-r-full"
+                      style={{ left: `${pct(defaultMargin)}%`, right: 0 }}
+                    />
+                    {/* Current margin indicator */}
+                    <div
+                      className={`absolute top-0 bottom-0 w-1 rounded-full ${belowMin ? "bg-red-600" : currentMargin >= defaultMargin ? "bg-green-600" : "bg-yellow-600"}`}
+                      style={{ left: `${pct(currentMargin)}%`, transform: "translateX(-50%)" }}
+                    />
+                  </div>
+                  {/* Labels */}
+                  <div className="relative h-4 mt-0.5 text-[9px] text-gray-500">
+                    <span className="absolute text-red-500 font-medium" style={{ left: `${pct(minMargin)}%`, transform: "translateX(-50%)" }}>
+                      Min {minMargin}%
+                    </span>
+                    {defaultMargin !== minMargin && (
+                      <span className="absolute text-green-600 font-medium" style={{ left: `${pct(defaultMargin)}%`, transform: "translateX(-50%)" }}>
+                        Target {defaultMargin}%
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Below minimum action bar */}
+                {belowMin && (
+                  <div className="px-4 py-2 bg-red-50 border-t border-red-200 flex items-center justify-between text-sm">
+                    <div className="flex items-center gap-2 text-red-700">
+                      <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+                      <span>
+                        Margin ({currentMargin.toFixed(1)}%) is below the company minimum of {minMargin}%.
+                        Saving will require confirmation.
+                      </span>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="border-red-300 text-red-700 hover:bg-red-100 flex-shrink-0"
+                      onClick={() => editProductPage.applyMarginToAllLines(defaultMargin)}
+                    >
+                      Apply {defaultMargin}% to All
+                    </Button>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
         </CardContent>
       </Card>
 
@@ -777,12 +751,14 @@ function EditProductPageBody({
                         ? "Blank goods ship to separate decorator for imprinting"
                         : "Supplier provides both blank goods and decoration"}
                     </p>
-                    <Button
-                      type="button" variant="ghost" size="sm" className="h-6 text-[10px] gap-1 text-blue-600"
-                      onClick={() => setShowMatrixDialog(true)}
-                    >
-                      <Grid3X3 className="w-3 h-3" /> Matrix
-                    </Button>
+                    {editProductPage.editItemData.decoratorType === "third_party" && (
+                      <Button
+                        type="button" variant="ghost" size="sm" className="h-6 text-[10px] gap-1 text-blue-600"
+                        onClick={() => setShowMatrixDialog(true)}
+                      >
+                        <Grid3X3 className="w-3 h-3" /> Matrix
+                      </Button>
+                    )}
                   </div>
                 </div>
                 {editProductPage.editItemData.decoratorType === "third_party" && (
@@ -795,10 +771,15 @@ function EditProductPageBody({
                       <SelectTrigger><SelectValue placeholder="Select decorator..." /></SelectTrigger>
                       <SelectContent>
                         {editProductPage.suppliers
-                          .filter((s: any) => s.id !== editProductPage.item?.supplierId)
+                          .filter((s: any) => s.isDecorator && s.id !== editProductPage.item?.supplierId)
                           .map((s: any) => (
                             <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
                           ))}
+                        {editProductPage.suppliers.filter((s: any) => s.isDecorator && s.id !== editProductPage.item?.supplierId).length === 0 && (
+                          <div className="px-3 py-2 text-xs text-muted-foreground">
+                            No vendors marked as decorator. Go to Settings → Vendors to mark vendors as decorators.
+                          </div>
+                        )}
                       </SelectContent>
                     </Select>
                   </div>
@@ -921,22 +902,24 @@ function EditProductPageBody({
                         const cNetCost = parseFloat(charge.netCost || "0");
                         const cMargin = parseFloat(charge.margin || "0");
                         return (
-                          <div key={charge.id} className="grid grid-cols-[20px_1fr_50px_80px_65px_80px_130px_28px] gap-0 items-center px-3 py-1 border-b last:border-0 hover:bg-gray-50/50">
+                          <div key={`${charge.id}-${charge.updatedAt || ''}`} className="grid grid-cols-[20px_1fr_50px_80px_65px_80px_130px_28px] gap-0 items-center px-3 py-1 border-b last:border-0 hover:bg-gray-50/50">
                             {/* Matrix icon */}
-                            <button
-                              className="w-4 h-4 flex items-center justify-center text-blue-400 hover:text-blue-600"
-                              title="Select pricing from decorator matrix"
-                              onClick={() => setMatrixPickerTarget({
-                                artworkId: art.id,
-                                chargeId: charge.id,
-                                chargeName: charge.chargeName || (isRun ? "Imprint Cost" : "Setup Cost"),
-                                chargeType: isRun ? "run" : "fixed",
-                                artworkMethod: art.artworkType,
-                                currentMargin: cMargin,
-                              })}
-                            >
-                              <Grid3X3 className="w-3 h-3" />
-                            </button>
+                            {editProductPage.editItemData.decoratorType === "third_party" ? (
+                              <button
+                                className="w-4 h-4 flex items-center justify-center text-blue-400 hover:text-blue-600"
+                                title="Select pricing from decorator matrix"
+                                onClick={() => setMatrixPickerTarget({
+                                  artworkId: art.id,
+                                  chargeId: charge.id,
+                                  chargeName: charge.chargeName || (isRun ? "Imprint Cost" : "Setup Cost"),
+                                  chargeType: isRun ? "run" : "fixed",
+                                  artworkMethod: art.artworkType,
+                                  currentMargin: cMargin,
+                                })}
+                              >
+                                <Grid3X3 className="w-3 h-3" />
+                              </button>
+                            ) : <span />}
                             {/* Charge Name — editable */}
                             <input
                               className="text-xs font-medium bg-transparent border-0 outline-none focus:bg-white focus:ring-1 focus:ring-blue-300 rounded px-1 py-0.5 w-full"
@@ -1293,444 +1276,87 @@ function EditProductPageBody({
         </Button>
       </div>
 
-      {/* ADD/EDIT CHARGE DIALOG */}
-      <Dialog open={editProductPage.showAddCharge} onOpenChange={(open) => {
-        if (!open) {
-          editProductPage.setShowAddCharge(false);
-          editProductPage.setEditingCharge(null);
-        }
-      }}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>{editProductPage.editingCharge ? "Edit Charge" : "Add Charge"}</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            {/* Charge Category Toggle */}
-            <div>
-              <Label className="mb-1.5 block">Charge Category</Label>
-              <div className="flex gap-2">
-                <Button
-                  type="button"
-                  variant={editProductPage.newCharge.chargeCategory === "run" ? "default" : "outline"}
-                  size="sm"
-                  className="flex-1"
-                  onClick={() => editProductPage.setNewCharge(c => ({ ...c, chargeCategory: "run" as const }))}
-                >
-                  Run Charge (per unit)
-                </Button>
-                <Button
-                  type="button"
-                  variant={editProductPage.newCharge.chargeCategory === "fixed" ? "default" : "outline"}
-                  size="sm"
-                  className="flex-1"
-                  onClick={() => editProductPage.setNewCharge(c => ({ ...c, chargeCategory: "fixed" as const }))}
-                >
-                  Fixed Charge (one-time)
-                </Button>
-              </div>
-            </div>
-            <div>
-              <Label>Description *</Label>
-              <Input
-                value={editProductPage.newCharge.description}
-                onChange={(e) => editProductPage.setNewCharge(c => ({ ...c, description: e.target.value }))}
-                placeholder={editProductPage.newCharge.chargeCategory === "run" ? "e.g., Setup Fee per unit, Imprint Charge" : "e.g., Screen Setup, PMS Color Match"}
-              />
-            </div>
-            {/* Quantity (for fixed charges) */}
-            {editProductPage.newCharge.chargeCategory === "fixed" && (
-              <div>
-                <Label>Quantity</Label>
-                <Input
-                  type="number"
-                  min={1}
-                  value={editProductPage.newCharge.quantity}
-                  onChange={(e) => editProductPage.setNewCharge(c => ({ ...c, quantity: parseInt(e.target.value) || 1 }))}
-                />
-              </div>
-            )}
-            {/* Net Cost / Margin / Retail Price (CommonSKU-style) */}
-            <div className="grid grid-cols-3 gap-3">
-              <div>
-                <Label>Net Cost *</Label>
-                <Input
-                  type="number"
-                  step="0.01"
-                  min={0}
-                  value={editProductPage.newCharge.netCost || ""}
-                  placeholder="0.00"
-                  onChange={(e) => {
-                    const cost = parseFloat(e.target.value) || 0;
-                    editProductPage.setNewCharge(c => {
-                      const m = c.margin || 0;
-                      const retail = m > 0 && m < 100 ? parseFloat((cost / (1 - m / 100)).toFixed(2)) : cost;
-                      return { ...c, netCost: cost, retailPrice: retail, amount: retail };
-                    });
-                  }}
-                />
-              </div>
-              <div>
-                <Label>Margin %</Label>
-                <Input
-                  type="number"
-                  step="0.5"
-                  min={0}
-                  max={99.99}
-                  value={editProductPage.newCharge.margin || ""}
-                  placeholder="0"
-                  onChange={(e) => {
-                    const m = parseFloat(e.target.value) || 0;
-                    editProductPage.setNewCharge(c => {
-                      const cost = c.netCost || 0;
-                      const retail = cost > 0 && m > 0 && m < 100 ? parseFloat((cost / (1 - m / 100)).toFixed(2)) : cost;
-                      return { ...c, margin: m, retailPrice: retail, amount: retail };
-                    });
-                  }}
-                />
-              </div>
-              <div>
-                <Label>Retail Price *</Label>
-                <Input
-                  type="number"
-                  step="0.01"
-                  min={0}
-                  value={editProductPage.newCharge.retailPrice || ""}
-                  placeholder="0.00"
-                  onChange={(e) => {
-                    const retail = parseFloat(e.target.value) || 0;
-                    editProductPage.setNewCharge(c => {
-                      const cost = c.netCost || 0;
-                      const m = retail > 0 && cost > 0 ? parseFloat(((retail - cost) / retail * 100).toFixed(2)) : 0;
-                      return { ...c, retailPrice: retail, margin: m, amount: retail };
-                    });
-                  }}
-                />
-              </div>
-            </div>
-            {/* Margin preview */}
-            {editProductPage.newCharge.netCost > 0 && editProductPage.newCharge.retailPrice > 0 && (
-              <div className="text-xs text-gray-500 bg-gray-50 rounded px-3 py-1.5 flex justify-between">
-                <span>Profit: <strong className={editProductPage.newCharge.margin >= 40 ? "text-green-600" : editProductPage.newCharge.margin >= 30 ? "text-yellow-600" : "text-red-600"}>
-                  ${(editProductPage.newCharge.retailPrice - editProductPage.newCharge.netCost).toFixed(2)}
-                </strong></span>
-                <span>Margin: <strong className={editProductPage.newCharge.margin >= 40 ? "text-green-600" : editProductPage.newCharge.margin >= 30 ? "text-yellow-600" : "text-red-600"}>
-                  {editProductPage.newCharge.margin.toFixed(1)}%
-                </strong></span>
-              </div>
-            )}
-            <div className="flex items-center gap-2">
-              <input type="checkbox" id="ep-vendor-charge" checked={editProductPage.newCharge.isVendorCharge} onChange={(e) => editProductPage.setNewCharge(c => ({ ...c, isVendorCharge: e.target.checked }))} className="rounded border-gray-300" />
-              <Label htmlFor="ep-vendor-charge" className="font-normal text-sm">This is a vendor charge (cost, not revenue)</Label>
-            </div>
-            <div className="flex items-center gap-2">
-              <input type="checkbox" id="ep-include-price" checked={editProductPage.newCharge.includeInUnitPrice} onChange={(e) => editProductPage.setNewCharge(c => ({ ...c, includeInUnitPrice: e.target.checked }))} className="rounded border-gray-300" />
-              <Label htmlFor="ep-include-price" className="font-normal text-sm">
-                {editProductPage.newCharge.chargeCategory === "run" ? "Include in unit price" : "Subtract from margin"}
-              </Label>
-            </div>
-            {!editProductPage.newCharge.includeInUnitPrice && (
-              <div className="flex items-center gap-2">
-                <input type="checkbox" id="ep-display-client" checked={editProductPage.newCharge.displayToClient} onChange={(e) => editProductPage.setNewCharge(c => ({ ...c, displayToClient: e.target.checked }))} className="rounded border-gray-300" />
-                <Label htmlFor="ep-display-client" className="font-normal text-sm">Display to client</Label>
-              </div>
-            )}
-            <div className="flex items-center gap-2">
-              <input type="checkbox" id="ep-display-vendor" checked={editProductPage.newCharge.displayToVendor !== false} onChange={(e) => editProductPage.setNewCharge(c => ({ ...c, displayToVendor: e.target.checked }))} className="rounded border-gray-300" />
-              <Label htmlFor="ep-display-vendor" className="font-normal text-sm">Show on vendor PO</Label>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => { editProductPage.setShowAddCharge(false); editProductPage.setEditingCharge(null); }}>Cancel</Button>
-            <Button
-              disabled={!editProductPage.newCharge.description || (editProductPage.newCharge.retailPrice <= 0 && editProductPage.newCharge.amount <= 0) || editProductPage.addChargeMutation.isPending || editProductPage.updateChargeMutation.isPending}
-              onClick={() => {
-                const chargeData = {
-                  description: editProductPage.newCharge.description,
-                  chargeType: editProductPage.newCharge.chargeType,
-                  chargeCategory: editProductPage.newCharge.chargeCategory,
-                  amount: (editProductPage.newCharge.retailPrice || editProductPage.newCharge.amount).toFixed(2),
-                  netCost: editProductPage.newCharge.netCost.toFixed(4),
-                  retailPrice: (editProductPage.newCharge.retailPrice || editProductPage.newCharge.amount).toFixed(2),
-                  margin: editProductPage.newCharge.margin.toFixed(2),
-                  quantity: editProductPage.newCharge.chargeCategory === "fixed" ? editProductPage.newCharge.quantity : 1,
-                  isVendorCharge: editProductPage.newCharge.isVendorCharge,
-                  displayToClient: editProductPage.newCharge.includeInUnitPrice ? false : editProductPage.newCharge.displayToClient,
-                  displayToVendor: editProductPage.newCharge.displayToVendor !== false,
-                  includeInUnitPrice: editProductPage.newCharge.includeInUnitPrice,
-                };
-                const onSuccess = () => {
-                  editProductPage.setShowAddCharge(false);
-                  editProductPage.setEditingCharge(null);
-                  editProductPage.setNewCharge({ description: "", chargeType: "flat", chargeCategory: "fixed", amount: 0, netCost: 0, retailPrice: 0, margin: 0, quantity: 1, isVendorCharge: false, displayToClient: true, displayToVendor: true, includeInUnitPrice: false });
-                };
-                if (editProductPage.editingCharge) {
-                  editProductPage.updateChargeMutation.mutate({
-                    orderItemId: editProductPage.editingCharge.orderItemId,
-                    chargeId: editProductPage.editingCharge.id,
-                    updates: chargeData,
-                  }, { onSuccess });
-                } else {
-                  editProductPage.addChargeMutation.mutate({
-                    orderItemId: itemId,
-                    charge: chargeData,
-                  }, { onSuccess });
-                }
-              }}
-            >
-              {(editProductPage.addChargeMutation.isPending || editProductPage.updateChargeMutation.isPending)
-                ? <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                : editProductPage.editingCharge ? <Save className="w-4 h-4 mr-2" /> : <Plus className="w-4 h-4 mr-2" />
-              }
-              {editProductPage.editingCharge ? "Save Changes" : "Add Charge"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* ARTWORK FILE PICKER */}
-      <FilePickerDialog
-        open={editProductPage.pickingArtwork}
-        onClose={() => editProductPage.setPickingArtwork(false)}
-        onSelect={editProductPage.handleArtworkFilePicked}
-        multiple={false}
-        contextProjectId={projectId}
-        title="Select Artwork File"
+      {/* CHARGE DIALOG */}
+      <AddEditChargeDialog
+        open={editProductPage.showAddCharge}
+        editingCharge={editProductPage.editingCharge}
+        newCharge={editProductPage.newCharge}
+        setNewCharge={editProductPage.setNewCharge}
+        itemId={itemId}
+        addChargeMutation={editProductPage.addChargeMutation}
+        updateChargeMutation={editProductPage.updateChargeMutation}
+        onClose={() => { editProductPage.setShowAddCharge(false); editProductPage.setEditingCharge(null); }}
       />
 
-      {/* ARTWORK METADATA DIALOG */}
-      <Dialog open={!!editProductPage.artPickedFile} onOpenChange={(open) => !open && editProductPage.resetArtForm()}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Palette className="w-4 h-4" />
-              Artwork Details
-            </DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            {editProductPage.artPickedFile && (
-              <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
-                <img
-                  src={editProductPage.artPickedFile.filePath}
-                  alt={editProductPage.artPickedFile.fileName}
-                  className="w-16 h-16 object-contain rounded border bg-white"
-                  onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
-                />
-                <p className="text-sm text-gray-600 truncate flex-1">{editProductPage.artPickedFile.fileName}</p>
-              </div>
-            )}
-            <div>
-              <Label>Name</Label>
-              <Input value={editProductPage.artUploadName} onChange={(e) => editProductPage.setArtUploadName(e.target.value)} placeholder="e.g., Logo Front" />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label>Decoration Location <span className="text-red-500">*</span></Label>
-                <Select value={editProductPage.artUploadLocation} onValueChange={editProductPage.setArtUploadLocation}>
-                  <SelectTrigger><SelectValue placeholder="Select location" /></SelectTrigger>
-                  <SelectContent>
-                    {IMPRINT_LOCATIONS.map((opt) => (
-                      <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label>Imprint Method <span className="text-red-500">*</span></Label>
-                <Select value={editProductPage.artUploadMethod} onValueChange={editProductPage.setArtUploadMethod}>
-                  <SelectTrigger><SelectValue placeholder="Select method" /></SelectTrigger>
-                  <SelectContent>
-                    {IMPRINT_METHODS.map((opt) => (
-                      <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label>Design Size</Label>
-                <Input value={editProductPage.artUploadSize} onChange={(e) => editProductPage.setArtUploadSize(e.target.value)} placeholder='e.g., 3" x 3"' />
-              </div>
-              <div>
-                <Label>Design Color</Label>
-                <Input value={editProductPage.artUploadColor} onChange={(e) => editProductPage.setArtUploadColor(e.target.value)} placeholder="e.g., White, PMS 186" />
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <input type="checkbox" id="art-repeat-logo" checked={editProductPage.artUploadRepeatLogo} onChange={(e) => editProductPage.setArtUploadRepeatLogo(e.target.checked)} className="rounded border-gray-300" />
-              <Label htmlFor="art-repeat-logo" className="font-normal text-sm flex items-center gap-1">
-                <Repeat className="w-3 h-3 text-purple-500" />
-                Repeat logo
-              </Label>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={editProductPage.resetArtForm}>Cancel</Button>
-            <Button
-              disabled={editProductPage.createArtworkMutation.isPending || !editProductPage.artPickedFile || !editProductPage.artUploadLocation || !editProductPage.artUploadMethod}
-              onClick={editProductPage.handleCreateArtwork}
-            >
-              {editProductPage.createArtworkMutation.isPending ? (
-                <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Adding...</>
-              ) : (
-                "Add Artwork"
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* ADD FILE TO EXISTING ARTWORK */}
-      <FilePickerDialog
-        open={!!editProductPage.addingFileToArtworkId}
-        onClose={() => editProductPage.setAddingFileToArtworkId(null)}
-        onSelect={(files: any[]) => {
-          const file = files[0];
-          if (file && editProductPage.addingFileToArtworkId) {
-            editProductPage.addArtworkFileMutation.mutate({
-              artworkId: editProductPage.addingFileToArtworkId,
-              file: {
-                fileName: file.originalName || file.fileName,
-                filePath: file.cloudinaryUrl,
-                fileSize: file.fileSize || null,
-                mimeType: file.mimeType || null,
-              },
-            });
-          }
-          editProductPage.setAddingFileToArtworkId(null);
-        }}
-        multiple={false}
-        contextProjectId={projectId}
-        title="Add File to Artwork"
+      {/* ARTWORK DIALOGS (file picker + metadata + add file) */}
+      <ArtworkDialogs
+        projectId={projectId}
+        pickingArtwork={editProductPage.pickingArtwork}
+        setPickingArtwork={editProductPage.setPickingArtwork}
+        handleArtworkFilePicked={editProductPage.handleArtworkFilePicked}
+        artPickedFile={editProductPage.artPickedFile}
+        artUploadName={editProductPage.artUploadName}
+        setArtUploadName={editProductPage.setArtUploadName}
+        artUploadLocation={editProductPage.artUploadLocation}
+        setArtUploadLocation={editProductPage.setArtUploadLocation}
+        artUploadMethod={editProductPage.artUploadMethod}
+        setArtUploadMethod={editProductPage.setArtUploadMethod}
+        artUploadSize={editProductPage.artUploadSize}
+        setArtUploadSize={editProductPage.setArtUploadSize}
+        artUploadColor={editProductPage.artUploadColor}
+        setArtUploadColor={editProductPage.setArtUploadColor}
+        artUploadNumberOfColors={editProductPage.artUploadNumberOfColors}
+        setArtUploadNumberOfColors={editProductPage.setArtUploadNumberOfColors}
+        artUploadRepeatLogo={editProductPage.artUploadRepeatLogo}
+        setArtUploadRepeatLogo={editProductPage.setArtUploadRepeatLogo}
+        createArtworkMutation={editProductPage.createArtworkMutation}
+        handleCreateArtwork={editProductPage.handleCreateArtwork}
+        resetArtForm={editProductPage.resetArtForm}
+        addingFileToArtworkId={editProductPage.addingFileToArtworkId}
+        setAddingFileToArtworkId={editProductPage.setAddingFileToArtworkId}
+        addArtworkFileMutation={editProductPage.addArtworkFileMutation}
       />
 
-      {/* COPY ARTWORK TO ANOTHER PRODUCT */}
-      <Dialog open={!!editProductPage.copyingArtworkId} onOpenChange={(open) => !open && editProductPage.setCopyingArtworkId(null)}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle>Copy Artwork to Product</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3">
-            <p className="text-sm text-gray-500">Select a product to copy this artwork to:</p>
-            {editProductPage.orderItems
-              .filter((i: any) => i.id !== itemId)
-              .map((i: any) => (
-                <div key={i.id} className="flex items-center justify-between border rounded-lg p-3">
-                  <div>
-                    <p className="text-sm font-medium">{i.productName || "Unnamed"}</p>
-                    {i.productSku && <p className="text-[10px] text-gray-400">{i.productSku}</p>}
-                  </div>
-                  <div className="flex gap-1">
-                    <Button size="sm" variant="outline" className="h-7 text-[10px]"
-                      disabled={editProductPage.copyArtworkMutation.isPending}
-                      onClick={() => {
-                        editProductPage.copyArtworkMutation.mutate(
-                          { targetItemId: i.id, sourceArtworkId: editProductPage.copyingArtworkId!, includePricing: false },
-                          { onSuccess: () => editProductPage.setCopyingArtworkId(null) }
-                        );
-                      }}>
-                      Art Only
-                    </Button>
-                    <Button size="sm" className="h-7 text-[10px]"
-                      disabled={editProductPage.copyArtworkMutation.isPending}
-                      onClick={() => {
-                        editProductPage.copyArtworkMutation.mutate(
-                          { targetItemId: i.id, sourceArtworkId: editProductPage.copyingArtworkId!, includePricing: true },
-                          { onSuccess: () => editProductPage.setCopyingArtworkId(null) }
-                        );
-                      }}>
-                      Art + Pricing
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            {editProductPage.orderItems.filter((i: any) => i.id !== itemId).length === 0 && (
-              <p className="text-sm text-gray-400 text-center py-4">No other products in this order</p>
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
+      {/* COPY ARTWORK DIALOG */}
+      <CopyArtworkDialog
+        copyingArtworkId={editProductPage.copyingArtworkId}
+        onClose={() => editProductPage.setCopyingArtworkId(null)}
+        currentItemId={itemId}
+        orderItems={editProductPage.orderItems}
+        copyArtworkMutation={editProductPage.copyArtworkMutation}
+      />
 
       {/* MARGIN WARNING DIALOG */}
-      <AlertDialog open={!!editProductPage.marginWarningAction} onOpenChange={(open) => { if (!open) editProductPage.dismissMarginWarning(); }}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2 text-red-600">
-              <AlertTriangle className="w-5 h-5" />
-              Below Minimum Margin
-            </AlertDialogTitle>
-            <AlertDialogDescription asChild>
-              <div>
-                <p>
-                  The margin for this product is <strong className="text-red-600">{editProductPage.marginWarningValue.toFixed(1)}%</strong>, which is below
-                  the company minimum of <strong>{editProductPage.marginSettings.minimumMargin}%</strong>.
-                </p>
-                <p className="mt-2 text-orange-600 font-medium">
-                  Are you sure you want to save with this margin?
-                </p>
-              </div>
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={editProductPage.dismissMarginWarning}>Go Back & Adjust</AlertDialogCancel>
-            <AlertDialogAction onClick={editProductPage.confirmMarginWarning} className="bg-orange-600 hover:bg-orange-700">
-              Save Anyway
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <MarginWarningDialog
+        open={!!editProductPage.marginWarningAction}
+        marginWarningValue={editProductPage.marginWarningValue}
+        minimumMargin={editProductPage.marginSettings.minimumMargin}
+        onDismiss={editProductPage.dismissMarginWarning}
+        onConfirm={editProductPage.confirmMarginWarning}
+      />
 
-      {/* DECORATOR MATRIX DIALOG */}
-      {(() => {
-        const matrixVendorId = editProductPage.editItemData.decoratorType === "third_party"
-          ? editProductPage.editItemData.decoratorId
-          : editProductPage.item?.supplierId;
-        const matrixVendorName = editProductPage.editItemData.decoratorType === "third_party"
-          ? editProductPage.suppliers.find((s: any) => s.id === editProductPage.editItemData.decoratorId)?.name || "Decorator"
-          : itemSupplier?.name || "Supplier";
-        if (!matrixVendorId) return null;
-        return (
-          <DecoratorMatrixDialog
-            open={showMatrixDialog}
-            onClose={() => setShowMatrixDialog(false)}
-            supplierId={matrixVendorId}
-            supplierName={matrixVendorName}
-            artworkId={editProductPage.artworks.length === 1 ? editProductPage.artworks[0]?.id : undefined}
-            artworkMethod={editProductPage.artworks.length === 1 ? (editProductPage.artworks[0]?.artworkType ?? undefined) : undefined}
-            quantity={editProductPage.lineTotals.qty || 1}
-            projectId={editProductPage.projectId}
-          />
-        );
-      })()}
+      {/* DECORATOR MATRIX + CHARGE PICKER DIALOGS */}
+      <DecoratorMatrixDialogs
+        showMatrixDialog={showMatrixDialog}
+        setShowMatrixDialog={setShowMatrixDialog}
+        matrixPickerTarget={matrixPickerTarget}
+        setMatrixPickerTarget={setMatrixPickerTarget}
+        vendorId={
+          editProductPage.editItemData.decoratorType === "third_party"
+            ? editProductPage.editItemData.decoratorId
+            : editProductPage.item?.supplierId
+        }
+        vendorName={
+          editProductPage.editItemData.decoratorType === "third_party"
+            ? editProductPage.suppliers.find((s: any) => s.id === editProductPage.editItemData.decoratorId)?.name || "Decorator"
+            : itemSupplier?.name || "Supplier"
+        }
+        artworks={editProductPage.artworks}
+        quantity={editProductPage.lineTotals.qty}
+        projectId={editProductPage.projectId}
+      />
 
-      {/* PER-CHARGE MATRIX PICKER */}
-      {matrixPickerTarget && (() => {
-        const vendorId = editProductPage.editItemData.decoratorType === "third_party"
-          ? editProductPage.editItemData.decoratorId
-          : editProductPage.item?.supplierId;
-        const vendorName = editProductPage.editItemData.decoratorType === "third_party"
-          ? editProductPage.suppliers.find((s: any) => s.id === editProductPage.editItemData.decoratorId)?.name || "Decorator"
-          : itemSupplier?.name || "Supplier";
-        if (!vendorId) return null;
-        return (
-          <MatrixChargePicker
-            open={true}
-            onClose={() => setMatrixPickerTarget(null)}
-            supplierId={vendorId}
-            supplierName={vendorName}
-            chargeType={matrixPickerTarget.chargeType}
-            artworkId={matrixPickerTarget.artworkId}
-            chargeId={matrixPickerTarget.chargeId}
-            chargeName={matrixPickerTarget.chargeName}
-            currentMargin={matrixPickerTarget.currentMargin}
-            quantity={editProductPage.lineTotals.qty || 1}
-            projectId={editProductPage.projectId}
-            artworkMethod={matrixPickerTarget.artworkMethod}
-          />
-        );
-      })()}
-
-      {/* ADD SIZES & COLORS DIALOG */}
+      {/* SIZES & COLORS DIALOG */}
       {editProductPage.showSizesColors && (
         <SizesColorsDialog
           open={editProductPage.showSizesColors}
@@ -1741,55 +1367,32 @@ function EditProductPageBody({
             const defaultCost = editProductPage.editableLines[0]?.cost || 0;
             const defaultPrice = editProductPage.editableLines[0]?.unitPrice || 0;
             entries.forEach(({ color, size, quantity }) => {
-              editProductPage.addLine({
-                color,
-                size,
-                quantity,
-                cost: defaultCost,
-                unitPrice: defaultPrice,
-              });
+              editProductPage.addLine({ color, size, quantity, cost: defaultCost, unitPrice: defaultPrice });
             });
             editProductPage.setShowSizesColors(false);
           }}
         />
       )}
 
-      {/* CHECK PRICING MODAL */}
-      <Dialog open={showPricingTiers} onOpenChange={setShowPricingTiers}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <DollarSign className="w-5 h-5" />
-              Supplier Pricing — {editProductPage.item?.productName}
-            </DialogTitle>
-          </DialogHeader>
-          <TierPricingPanel
-            tiers={editProductPage.productCatalog.pricingTiers}
-            defaultMargin={parseFloat(String(editProductPage.marginSettings?.defaultMargin || "40"))}
-            totalQuantity={editProductPage.lineTotals.qty}
-            runChargeCostPerUnit={editProductPage.runChargeCostPerUnit}
-            onApplyTier={(cost, price) => {
-              editProductPage.applyTierToLines(cost, price);
-              setShowPricingTiers(false);
-            }}
-          />
-          <p className="text-[10px] text-gray-400 text-center">
-            To edit pricing tiers, go to the product catalog page.
-          </p>
-        </DialogContent>
-      </Dialog>
-      {editProductPage.previewFile && (
-        <FilePreviewModal
-          open={true}
-          file={{
-            fileName: editProductPage.previewFile.name,
-            originalName: editProductPage.previewFile.name,
-            filePath: editProductPage.previewFile.url,
-            mimeType: editProductPage.previewFile.url.match(/\.(png|jpg|jpeg|gif|webp|svg)$/i) ? "image/png" : "application/pdf",
-          }}
-          onClose={() => editProductPage.setPreviewFile(null)}
-        />
-      )}
+      {/* PRICING TIERS DIALOG */}
+      <PricingTiersDialog
+        open={showPricingTiers}
+        onClose={() => setShowPricingTiers(false)}
+        productName={editProductPage.item?.productName}
+        pricingTiers={editProductPage.productCatalog.pricingTiers}
+        defaultMargin={parseFloat(String(editProductPage.marginSettings?.defaultMargin || "40"))}
+        totalQuantity={editProductPage.lineTotals.qty}
+        runChargeCostPerUnit={editProductPage.runChargeCostPerUnit}
+        sizeSurcharges={editProductPage.productCatalog.sizeSurcharges || []}
+        availableSizes={editProductPage.productCatalog.sizes || []}
+        onApplyTier={editProductPage.applyTierToLines}
+      />
+
+      {/* FILE PREVIEW DIALOG */}
+      <FilePreviewDialog
+        previewFile={editProductPage.previewFile}
+        onClose={() => editProductPage.setPreviewFile(null)}
+      />
     </div>
   );
 }

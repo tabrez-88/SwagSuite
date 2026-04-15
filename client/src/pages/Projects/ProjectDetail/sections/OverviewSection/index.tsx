@@ -33,12 +33,14 @@ import EmailSection from "@/components/sections/EmailSection";
 import VendorSection from "@/components/sections/VendorSection";
 import ActivitiesSection from "@/pages/Projects/ProjectDetail/sections/OverviewSection/ActivitiesSection";
 
+import { marginColorClass, useMarginSettings } from "@/hooks/useMarginSettings";
 import { useTaxCodes } from "@/services/tax-codes";
 import { useOverviewSection } from "./hooks";
 import type { OverviewSectionProps, TeamMemberPickerProps } from "./types";
 
 export default function OverviewSection(props: OverviewSectionProps) {
   const hook = useOverviewSection(props);
+  const marginSettings = useMarginSettings();
 
   const {
     order,
@@ -372,9 +374,9 @@ export default function OverviewSection(props: OverviewSectionProps) {
                     <span>Total</span>
                     <span>${Number(order.total || 0).toFixed(2)}</span>
                   </div>
-                  <div className="flex justify-between text-sm">
+                  <div className="flex justify-between text-sm" title={`Min: ${marginSettings.minimumMargin}% | Target: ${marginSettings.defaultMargin}%`}>
                     <span className="text-gray-500">Margin</span>
-                    <span className="text-green-600 font-medium">
+                    <span className={`font-medium ${marginColorClass(Number((order as any)?.margin || 0), marginSettings)}`}>
                       {Number((order as any)?.margin || 0).toFixed(1)}%
                     </span>
                   </div>

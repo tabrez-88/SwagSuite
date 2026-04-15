@@ -183,12 +183,12 @@ export default function OrderItemCard({ item, productSection }: OrderItemCardPro
                     <p className="font-bold text-gray-900">${totals.grandTotalWithTax.toFixed(2)}</p>
                   </div>
                 )}
-                <div className="text-center">
+                <div className="text-center" title={`Min: ${productSection.marginSettings.minimumMargin}% | Target: ${productSection.marginSettings.defaultMargin}%`}>
                   <p className="text-[10px] text-gray-400 uppercase">Margin</p>
                   <p className={`font-semibold ${productSection.marginColor(totals.itemMarginPercent)}`}>
                     {totals.itemMarginPercent.toFixed(1)}%
                     {isBelowMinimum(totals.itemMarginPercent, productSection.marginSettings) && (
-                      <span title={`Below minimum margin (${productSection.marginSettings.minimumMargin}%)`}><AlertTriangle className="inline w-3 h-3 text-red-500 ml-0.5" /></span>
+                      <span title={`Below minimum margin (${productSection.marginSettings.minimumMargin}%) — Target: ${productSection.marginSettings.defaultMargin}%`}><AlertTriangle className="inline w-3 h-3 text-red-500 ml-0.5" /></span>
                     )}
                   </p>
                 </div>

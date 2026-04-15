@@ -214,6 +214,16 @@ export function useEditProductPage(projectId: string, itemId: string, data: Proj
     });
   }, []);
 
+  /** Apply a target margin to all lines at once */
+  const applyMarginToAllLines = useCallback((targetMargin: number) => {
+    setEditableLines(prev =>
+      prev.map(line => {
+        const { cost, price } = applyMargin(line.cost, line.unitPrice, targetMargin);
+        return { ...line, cost, unitPrice: price };
+      }),
+    );
+  }, []);
+
   // ── Computed totals (using shared pricing utility) ──
 
   // Convert editable lines to PricingLine format
@@ -330,12 +340,13 @@ export function useEditProductPage(projectId: string, itemId: string, data: Proj
 
   // Get available colors/sizes and pricing tiers from product catalog
   const productCatalog = useMemo(() => {
-    if (!item) return { colors: [] as string[], sizes: [] as string[], pricingTiers: [] as { quantity: number; cost: number }[] };
+    if (!item) return { colors: [] as string[], sizes: [] as string[], pricingTiers: [] as { quantity: number; cost: number }[], sizeSurcharges: [] as { size: string; surcharge: number }[] };
     const currentProduct = allProducts.find((p: any) => p.id === item.productId);
     return {
       colors: (currentProduct?.colors || []) as string[],
       sizes: (currentProduct?.sizes || []) as string[],
       pricingTiers: (currentProduct?.pricingTiers || []) as { quantity: number; cost: number }[],
+      sizeSurcharges: (currentProduct?.sizeSurcharges || []) as { size: string; surcharge: number }[],
     };
   }, [item, allProducts]);
 
@@ -368,6 +379,7 @@ export function useEditProductPage(projectId: string, itemId: string, data: Proj
   const [artUploadMethod, setArtUploadMethod] = useState("");
   const [artUploadColor, setArtUploadColor] = useState("");
   const [artUploadSize, setArtUploadSize] = useState("");
+  const [artUploadNumberOfColors, setArtUploadNumberOfColors] = useState(1);
   const [artUploadRepeatLogo, setArtUploadRepeatLogo] = useState(false);
 
   const resetArtForm = () => {
@@ -377,6 +389,7 @@ export function useEditProductPage(projectId: string, itemId: string, data: Proj
     setArtUploadMethod("");
     setArtUploadColor("");
     setArtUploadSize("");
+    setArtUploadNumberOfColors(1);
     setArtUploadRepeatLogo(false);
   };
 
@@ -406,17 +419,17 @@ export function useEditProductPage(projectId: string, itemId: string, data: Proj
       artworkType: artUploadMethod || undefined,
       color: artUploadColor || undefined,
       size: artUploadSize || undefined,
+      numberOfColors: artUploadNumberOfColors || 1,
       repeatLogo: artUploadRepeatLogo || undefined,
     }, {
       onSuccess: (newArtwork: any) => {
         resetArtForm();
         // CommonSKU: auto-create default Imprint Cost + Setup Cost charges
         if (newArtwork?.id) {
-          const method = artUploadMethod || "";
           createArtworkChargeMutation.mutate({
             artworkId: newArtwork.id,
             charge: {
-              chargeName: method ? `${method} imprint` : "Imprint Cost",
+              chargeName: "Imprint Cost",
               chargeCategory: "run",
               netCost: "0",
               margin: "0",
@@ -429,7 +442,7 @@ export function useEditProductPage(projectId: string, itemId: string, data: Proj
               createArtworkChargeMutation.mutate({
                 artworkId: newArtwork.id,
                 charge: {
-                  chargeName: method ? `${method} setup` : "Setup Cost",
+                  chargeName: "Setup Cost",
                   chargeCategory: "fixed",
                   netCost: "0",
                   margin: "0",
@@ -592,6 +605,8 @@ export function useEditProductPage(projectId: string, itemId: string, data: Proj
     setArtUploadColor,
     artUploadSize,
     setArtUploadSize,
+    artUploadNumberOfColors,
+    setArtUploadNumberOfColors,
     artUploadRepeatLogo,
     setArtUploadRepeatLogo,
     resetArtForm,
@@ -631,6 +646,7 @@ export function useEditProductPage(projectId: string, itemId: string, data: Proj
     calcMargin,
     marginColor,
     marginBg,
+    applyMarginToAllLines,
     // Price lock
     isPriceLocked,
     setIsPriceLocked,

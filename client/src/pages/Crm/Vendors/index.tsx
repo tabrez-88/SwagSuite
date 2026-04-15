@@ -167,7 +167,7 @@ export default function Vendors() {
                             <div className="flex items-start flex-col gap-2">
                               <CardTitle className="text-[16px] lg:text-lg text-swag-navy">{vendor.name}</CardTitle>
                               {vendor.apiIntegrationStatus === "active" && (
-                                <Badge className="bg-green-100 text-green-800">API Connected</Badge>
+                                <Badge className="bg-green-100 text-green-800">From SAGE</Badge>
                               )}
                             </div>
                           </div>

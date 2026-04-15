@@ -10,6 +10,7 @@ export interface Vendor {
   accountNumber?: string;
   notes?: string;
   isPreferred?: boolean;
+  isDecorator?: boolean;
   doNotOrder?: boolean;
   ytdSpend?: number;
   lastYearSpend?: number;

@@ -32,7 +32,7 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import { DollarSign, Gift, Phone, Star, Trash2 } from "lucide-react";
+import { DollarSign, Gift, Grid3X3, Phone, Star, Trash2 } from "lucide-react";
 
 interface EditVendorModalProps {
   vendor: Vendor;
@@ -57,6 +57,7 @@ export default function EditVendorModal({ vendor, isOpen, setIsOpen }: EditVendo
       accountNumber: "",
       notes: "",
       isPreferred: false,
+      isDecorator: false,
       doNotOrder: false,
       eqpPricing: undefined,
       rebatePercentage: undefined,
@@ -80,6 +81,7 @@ export default function EditVendorModal({ vendor, isOpen, setIsOpen }: EditVendo
         accountNumber: vendor.accountNumber || "",
         notes: vendor.notes || "",
         isPreferred: vendor.isPreferred || false,
+        isDecorator: vendor.isDecorator || false,
         doNotOrder: vendor.doNotOrder || false,
         eqpPricing: vendor.preferredBenefits?.eqpPricing || undefined,
         rebatePercentage: vendor.preferredBenefits?.rebatePercentage || undefined,
@@ -166,6 +168,18 @@ export default function EditVendorModal({ vendor, isOpen, setIsOpen }: EditVendo
                 <Star className="h-4 w-4" />
                 Vendor Status
               </h3>
+              <FormField control={form.control} name="isDecorator" render={({ field }) => (
+                <FormItem className="flex items-center justify-between p-3 border rounded-lg bg-purple-50 border-purple-200">
+                  <div>
+                    <FormLabel className="flex items-center gap-2 text-purple-800">
+                      <Grid3X3 className="h-4 w-4" />
+                      Decorator
+                    </FormLabel>
+                    <p className="text-sm text-purple-600">This vendor provides decoration/imprint services</p>
+                  </div>
+                  <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
+                </FormItem>
+              )} />
               <FormField control={form.control} name="isPreferred" render={({ field }) => (
                 <FormItem className="flex items-center justify-between p-3 border rounded-lg bg-yellow-50">
                   <div>

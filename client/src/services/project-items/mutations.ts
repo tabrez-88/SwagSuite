@@ -156,7 +156,7 @@ export function useCreateArtwork(projectId: string | number) {
   const { toast } = useToast();
   const invalidate = useInvalidateProjectItems(projectId);
   return useMutation({
-    mutationFn: ({ orderItemId, ...data }: { orderItemId: string | number; name: string; filePath: string; fileName: string; location?: string; artworkType?: string; color?: string; size?: string; repeatLogo?: boolean }) =>
+    mutationFn: ({ orderItemId, ...data }: { orderItemId: string | number; name: string; filePath: string; fileName: string; location?: string; artworkType?: string; color?: string; size?: string; numberOfColors?: number; repeatLogo?: boolean }) =>
       requests.createArtwork(orderItemId, { orderItemId, ...data }),
     onSuccess: () => {
       invalidate();

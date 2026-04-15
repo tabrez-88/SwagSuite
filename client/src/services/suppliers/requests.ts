@@ -28,6 +28,7 @@ export async function updateVendor({
     accountNumber: data.accountNumber,
     notes: data.notes,
     isPreferred: data.isPreferred,
+    isDecorator: data.isDecorator,
     doNotOrder: data.doNotOrder,
   };
 

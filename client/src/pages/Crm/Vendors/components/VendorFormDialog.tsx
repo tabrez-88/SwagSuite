@@ -53,6 +53,7 @@ const defaultValues: VendorFormData = {
   accountNumber: "",
   notes: "",
   isPreferred: false,
+  isDecorator: false,
   doNotOrder: false,
   eqpPricing: undefined,
   rebatePercentage: undefined,
@@ -94,6 +95,7 @@ export function VendorFormDialog({
         accountNumber: vendor.accountNumber ?? "",
         notes: vendor.notes ?? "",
         isPreferred: vendor.isPreferred ?? false,
+        isDecorator: vendor.isDecorator ?? false,
         doNotOrder: vendor.doNotOrder ?? false,
         eqpPricing: vendor.preferredBenefits?.eqpPricing ?? undefined,
         rebatePercentage: vendor.preferredBenefits?.rebatePercentage ?? undefined,
@@ -188,6 +190,23 @@ export function VendorFormDialog({
                     </SelectContent>
                   </Select>
                   <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            {/* Decorator Toggle */}
+            <FormField
+              control={form.control}
+              name="isDecorator"
+              render={({ field }) => (
+                <FormItem className="flex items-center justify-between rounded-md border border-purple-200 bg-purple-50 p-3">
+                  <div>
+                    <FormLabel className="mb-0 font-medium text-purple-800">Decorator</FormLabel>
+                    <p className="text-xs text-purple-600">This vendor provides decoration/imprint services</p>
+                  </div>
+                  <FormControl>
+                    <Switch checked={field.value} onCheckedChange={field.onChange} />
+                  </FormControl>
                 </FormItem>
               )}
             />

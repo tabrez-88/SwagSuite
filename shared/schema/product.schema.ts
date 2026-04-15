@@ -40,6 +40,7 @@ export const products = pgTable("products", {
   imageUrl: varchar("image_url"),
   productType: varchar("product_type").default("apparel"), // apparel, hard_goods, promotional
   pricingTiers: jsonb("pricing_tiers"), // Supplier quantity break pricing: [{ quantity: 24, cost: 44.82 }, ...]
+  sizeSurcharges: jsonb("size_surcharges"), // Per-size cost adjustments: [{ size: "2XL", surcharge: 2.00 }, { size: "3XL", surcharge: 3.00 }]
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

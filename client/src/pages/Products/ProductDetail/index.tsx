@@ -205,6 +205,16 @@ export default function ProductDetailPage() {
             defaultMargin={parseFloat(String(marginSettings?.defaultMargin || "40"))}
             editable
             onTiersChange={handleSaveTiers}
+            sizeSurcharges={(product as any).sizeSurcharges || []}
+            availableSizes={sizes}
+            onSizeSurchargesChange={(surcharges) => {
+              fetch(`/api/products/${product.id}`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                credentials: "include",
+                body: JSON.stringify({ sizeSurcharges: surcharges }),
+              });
+            }}
           />
 
           {/* Colors & Sizes */}

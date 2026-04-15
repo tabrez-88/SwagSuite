@@ -27,9 +27,10 @@ interface DecoratorMatrixDialogProps {
   artworkMethod?: string;
   quantity?: number;
   projectId?: string | number;
+  readOnly?: boolean;
 }
 
-export default function DecoratorMatrixDialog({ open, supplierId, supplierName, onClose, artworkId, artworkMethod, quantity, projectId }: DecoratorMatrixDialogProps) {
+export default function DecoratorMatrixDialog({ open, supplierId, supplierName, onClose, artworkId, artworkMethod, quantity, projectId, readOnly = false }: DecoratorMatrixDialogProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [, navigate] = useLocation();
@@ -178,10 +179,10 @@ export default function DecoratorMatrixDialog({ open, supplierId, supplierName, 
                 <p className="text-sm text-gray-400">No matrices yet</p>
               )}
             </div>
-            <Button variant="outline" size="sm" onClick={() => setShowAddMatrix(true)}>
+            <Button variant="outline" size="sm" onClick={() => setShowAddMatrix(true)} className={readOnly ? "hidden" : ""}>
               <Plus className="w-3 h-3 mr-1" /> New Matrix
             </Button>
-            {selectedMatrixId && (
+            {selectedMatrixId && !readOnly && (
               <Button variant="ghost" size="sm" className="text-red-500"
                 onClick={() => { if (confirm("Delete this matrix?")) deleteMatrixMutation.mutate(selectedMatrixId); }}>
                 <Trash2 className="w-3 h-3" />
@@ -190,7 +191,7 @@ export default function DecoratorMatrixDialog({ open, supplierId, supplierName, 
           </div>
 
           {/* Add matrix form */}
-          {showAddMatrix && (
+          {showAddMatrix && !readOnly && (
             <Card>
               <CardContent className="p-4 space-y-3">
                 <div className="grid grid-cols-2 gap-3">
@@ -260,50 +261,61 @@ export default function DecoratorMatrixDialog({ open, supplierId, supplierName, 
                           <th className="text-left p-2.5 font-medium text-xs w-20">Min Qty</th>
                           <th className="text-left p-2.5 font-medium text-xs w-20">Max Qty</th>
                           <th className="text-right p-2.5 font-medium text-xs w-24">Unit Cost</th>
-                          <th className="w-8"></th>
+                          {!readOnly && <th className="w-8"></th>}
                         </tr>
                       </thead>
                       <tbody>
                         {(matrixDetail.entries || []).map((entry: any) => (
                           <tr key={entry.id} className="border-b last:border-0">
                             <td className="p-1.5">
+                              {readOnly ? <span className="text-xs px-1">{entry.rowLabel || "—"}</span> : (
                               <input className="text-xs w-full bg-transparent border-0 outline-none focus:bg-white focus:ring-1 focus:ring-blue-300 rounded px-1 py-0.5"
                                 defaultValue={entry.rowLabel || ""} placeholder="Label"
                                 onBlur={(e) => {
                                   const val = e.target.value.trim();
                                   if (val !== (entry.rowLabel || "")) updateEntryMutation.mutate({ matrixId: matrixDetail.id, entryId: entry.id, updates: { rowLabel: val } });
                                 }} />
+                              )}
                             </td>
                             <td className="p-1.5">
+                              {readOnly ? <span className="text-xs px-1">{entry.minQuantity}</span> : (
                               <input type="number" min={0} className="h-7 text-xs w-full bg-transparent border-0 outline-none focus:bg-white focus:ring-1 focus:ring-blue-300 rounded px-1"
                                 defaultValue={entry.minQuantity} onBlur={(e) => {
                                   const val = parseInt(e.target.value) || 0;
                                   if (val !== entry.minQuantity) updateEntryMutation.mutate({ matrixId: matrixDetail.id, entryId: entry.id, updates: { minQuantity: val } });
                                 }} />
+                              )}
                             </td>
                             <td className="p-1.5">
+                              {readOnly ? <span className="text-xs px-1">{entry.maxQuantity ?? "∞"}</span> : (
                               <input type="number" min={0} placeholder="∞" className="h-7 text-xs w-full bg-transparent border-0 outline-none focus:bg-white focus:ring-1 focus:ring-blue-300 rounded px-1"
                                 defaultValue={entry.maxQuantity ?? ""} onBlur={(e) => {
                                   const val = e.target.value ? parseInt(e.target.value) : null;
                                   if (val !== entry.maxQuantity) updateEntryMutation.mutate({ matrixId: matrixDetail.id, entryId: entry.id, updates: { maxQuantity: val } });
                                 }} />
+                              )}
                             </td>
                             <td className="p-1.5">
+                              {readOnly ? <span className="text-xs text-right block px-1">${parseFloat(entry.unitCost || "0").toFixed(2)}</span> : (
                               <input type="number" step="0.01" min={0} className="h-7 text-xs text-right w-full bg-transparent border-0 outline-none focus:bg-white focus:ring-1 focus:ring-blue-300 rounded px-1"
                                 defaultValue={parseFloat(entry.unitCost || "0").toFixed(2)} onBlur={(e) => {
                                   const val = e.target.value;
                                   if (val !== entry.unitCost) updateEntryMutation.mutate({ matrixId: matrixDetail.id, entryId: entry.id, updates: { unitCost: val } });
                                 }} />
+                              )}
                             </td>
+                            {!readOnly && (
                             <td className="p-1.5">
                               <Button variant="ghost" size="sm" className="h-5 w-5 p-0"
                                 onClick={() => deleteEntryMutation.mutate({ matrixId: matrixDetail.id, entryId: entry.id })}>
                                 <Trash2 className="w-3 h-3 text-gray-400" />
                               </Button>
                             </td>
+                            )}
                           </tr>
                         ))}
                         {/* Add entry row */}
+                        {!readOnly && (
                         <tr className="bg-gray-50/50">
                           <td className="p-1.5">
                             <Input className="h-7 text-xs" placeholder="e.g. Tape charge"
@@ -340,6 +352,7 @@ export default function DecoratorMatrixDialog({ open, supplierId, supplierName, 
                             </Button>
                           </td>
                         </tr>
+                        )}
                       </tbody>
                     </table>
                   ) : (
@@ -347,6 +360,7 @@ export default function DecoratorMatrixDialog({ open, supplierId, supplierName, 
                     <div className="p-4 space-y-2">
                       {(matrixDetail.entries || []).map((entry: any) => (
                         <div key={entry.id} className="flex items-center gap-2 text-sm py-1 border-b last:border-0">
+                          {readOnly ? <span className="flex-1 text-sm px-1">{entry.rowLabel || "—"}</span> : (
                           <input
                             className="flex-1 text-sm bg-transparent border-0 outline-none focus:bg-white focus:ring-1 focus:ring-blue-300 rounded px-1 py-0.5"
                             defaultValue={entry.rowLabel || ""} placeholder="Label"
@@ -355,8 +369,10 @@ export default function DecoratorMatrixDialog({ open, supplierId, supplierName, 
                               if (val !== (entry.rowLabel || "")) updateEntryMutation.mutate({ matrixId: matrixDetail.id, entryId: entry.id, updates: { rowLabel: val } });
                             }}
                           />
+                          )}
                           <div className="flex items-center gap-2">
                             <span className="text-xs text-muted-foreground">$</span>
+                            {readOnly ? <span className="w-20 text-sm text-right font-medium">{parseFloat(entry.unitCost || "0").toFixed(2)}</span> : (
                             <input type="number" step="0.01" min={0}
                               className="w-20 text-sm text-right font-medium bg-transparent border-0 outline-none focus:bg-white focus:ring-1 focus:ring-blue-300 rounded px-1 py-0.5"
                               defaultValue={parseFloat(entry.unitCost || "0").toFixed(2)}
@@ -365,15 +381,19 @@ export default function DecoratorMatrixDialog({ open, supplierId, supplierName, 
                                 if (val !== entry.unitCost) updateEntryMutation.mutate({ matrixId: matrixDetail.id, entryId: entry.id, updates: { unitCost: val } });
                               }}
                             />
+                            )}
                             {entry.perUnit && <span className="text-xs text-muted-foreground">{entry.perUnit}</span>}
+                            {!readOnly && (
                             <Button variant="ghost" size="sm" className="h-5 w-5 p-0"
                               onClick={() => deleteEntryMutation.mutate({ matrixId: matrixDetail.id, entryId: entry.id })}>
                               <Trash2 className="w-3 h-3 text-muted-foreground" />
                             </Button>
+                            )}
                           </div>
                         </div>
                       ))}
                       {/* Add entry row */}
+                      {!readOnly && (
                       <div className="flex items-center gap-2 pt-2 border-t">
                         <Input className="flex-1 h-7 text-xs" placeholder={matrixDetail.matrixType === "run_charge_per_item" ? "e.g. Poly bagging" : "e.g. Screen setup"}
                           value={newSimpleEntry.rowLabel} onChange={(e) => setNewSimpleEntry(p => ({ ...p, rowLabel: e.target.value }))} />
@@ -392,11 +412,12 @@ export default function DecoratorMatrixDialog({ open, supplierId, supplierName, 
                           <Plus className="w-3 h-3" />
                         </Button>
                       </div>
+                      )}
                     </div>
                   )}
                 </div>
               ) : (
-                /* Run charge table: existing behavior */
+                /* Run charge table */
                 <div className="border rounded-lg overflow-hidden">
                   <table className="w-full text-sm">
                   <thead className="bg-gray-50 border-b">
@@ -407,63 +428,78 @@ export default function DecoratorMatrixDialog({ open, supplierId, supplierName, 
                       <th className="text-right p-2.5 font-medium text-xs">Setup Cost</th>
                       <th className="text-right p-2.5 font-medium text-xs">Run Cost</th>
                       <th className="text-right p-2.5 font-medium text-xs">Add'l Color</th>
-                      <th className="w-8"></th>
+                      {!readOnly && <th className="w-8"></th>}
                     </tr>
                   </thead>
                   <tbody>
                     {(matrixDetail.entries || []).map((entry: any) => (
                       <tr key={entry.id} className="border-b last:border-0">
                         <td className="p-1.5">
+                          {readOnly ? <span className="text-xs px-1">{entry.minQuantity}</span> : (
                           <input type="number" min={0} className="h-7 text-xs w-full bg-transparent border-0 outline-none focus:bg-white focus:ring-1 focus:ring-blue-300 rounded px-1"
                             defaultValue={entry.minQuantity} onBlur={(e) => {
                               const val = parseInt(e.target.value) || 0;
                               if (val !== entry.minQuantity) updateEntryMutation.mutate({ matrixId: matrixDetail.id, entryId: entry.id, updates: { minQuantity: val } });
                             }} />
+                          )}
                         </td>
                         <td className="p-1.5">
+                          {readOnly ? <span className="text-xs px-1">{entry.maxQuantity ?? "∞"}</span> : (
                           <input type="number" min={0} placeholder="∞" className="h-7 text-xs w-full bg-transparent border-0 outline-none focus:bg-white focus:ring-1 focus:ring-blue-300 rounded px-1"
                             defaultValue={entry.maxQuantity ?? ""} onBlur={(e) => {
                               const val = e.target.value ? parseInt(e.target.value) : null;
                               if (val !== entry.maxQuantity) updateEntryMutation.mutate({ matrixId: matrixDetail.id, entryId: entry.id, updates: { maxQuantity: val } });
                             }} />
+                          )}
                         </td>
                         <td className="p-1.5">
+                          {readOnly ? <span className="text-xs px-1">{entry.colorCount}</span> : (
                           <input type="number" min={1} className="h-7 text-xs w-full bg-transparent border-0 outline-none focus:bg-white focus:ring-1 focus:ring-blue-300 rounded px-1"
                             defaultValue={entry.colorCount} onBlur={(e) => {
                               const val = parseInt(e.target.value) || 1;
                               if (val !== entry.colorCount) updateEntryMutation.mutate({ matrixId: matrixDetail.id, entryId: entry.id, updates: { colorCount: val } });
                             }} />
+                          )}
                         </td>
                         <td className="p-1.5">
+                          {readOnly ? <span className="text-xs text-right block px-1">${parseFloat(entry.setupCost || "0").toFixed(2)}</span> : (
                           <input type="number" step="0.01" min={0} className="h-7 text-xs text-right w-full bg-transparent border-0 outline-none focus:bg-white focus:ring-1 focus:ring-blue-300 rounded px-1"
                             defaultValue={parseFloat(entry.setupCost || "0").toFixed(2)} onBlur={(e) => {
                               const val = e.target.value;
                               if (val !== entry.setupCost) updateEntryMutation.mutate({ matrixId: matrixDetail.id, entryId: entry.id, updates: { setupCost: val } });
                             }} />
+                          )}
                         </td>
                         <td className="p-1.5">
+                          {readOnly ? <span className="text-xs text-right block px-1">${parseFloat(entry.runCost || "0").toFixed(2)}</span> : (
                           <input type="number" step="0.01" min={0} className="h-7 text-xs text-right w-full bg-transparent border-0 outline-none focus:bg-white focus:ring-1 focus:ring-blue-300 rounded px-1"
                             defaultValue={parseFloat(entry.runCost || "0").toFixed(2)} onBlur={(e) => {
                               const val = e.target.value;
                               if (val !== entry.runCost) updateEntryMutation.mutate({ matrixId: matrixDetail.id, entryId: entry.id, updates: { runCost: val } });
                             }} />
+                          )}
                         </td>
                         <td className="p-1.5">
+                          {readOnly ? <span className="text-xs text-right block px-1">${parseFloat(entry.additionalColorCost || "0").toFixed(2)}</span> : (
                           <input type="number" step="0.01" min={0} className="h-7 text-xs text-right w-full bg-transparent border-0 outline-none focus:bg-white focus:ring-1 focus:ring-blue-300 rounded px-1"
                             defaultValue={parseFloat(entry.additionalColorCost || "0").toFixed(2)} onBlur={(e) => {
                               const val = e.target.value;
                               if (val !== entry.additionalColorCost) updateEntryMutation.mutate({ matrixId: matrixDetail.id, entryId: entry.id, updates: { additionalColorCost: val } });
                             }} />
+                          )}
                         </td>
+                        {!readOnly && (
                         <td className="p-1.5">
                           <Button variant="ghost" size="sm" className="h-5 w-5 p-0"
                             onClick={() => deleteEntryMutation.mutate({ matrixId: matrixDetail.id, entryId: entry.id })}>
                             <Trash2 className="w-3 h-3 text-gray-400" />
                           </Button>
                         </td>
+                        )}
                       </tr>
                     ))}
                     {/* Add entry row */}
+                    {!readOnly && (
                     <tr className="bg-gray-50/50">
                       <td className="p-1.5">
                         <Input className="h-7 text-xs" type="number" min={1}
@@ -510,6 +546,7 @@ export default function DecoratorMatrixDialog({ open, supplierId, supplierName, 
                         </Button>
                       </td>
                     </tr>
+                    )}
                   </tbody>
                 </table>
               </div>

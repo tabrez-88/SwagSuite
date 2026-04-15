@@ -107,7 +107,7 @@ export default function ProductsSection({ projectId, data, isLocked }: ProductsS
                       <p className="font-semibold">${productSection.orderTotals.totalCharges.toFixed(2)}</p>
                     </div>
                   )}
-                  <div>
+                  <div title={`Min: ${productSection.marginSettings.minimumMargin}% | Target: ${productSection.marginSettings.defaultMargin}%`}>
                     <span className="uppercase">Margin</span>
                     <p className={`font-bold flex items-center gap-1 ${productSection.marginColor(productSection.margin)}`}>
                       <TrendingUp className="w-4 h-4" />
@@ -126,7 +126,7 @@ export default function ProductsSection({ projectId, data, isLocked }: ProductsS
               {isBelowMinimum(productSection.margin, productSection.marginSettings) && (
                 <div className="mt-2 pt-2 border-t border-red-200 flex items-center gap-2 text-xs text-red-600">
                   <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
-                  <span>Overall order margin is below the company minimum of {productSection.marginSettings.minimumMargin}%</span>
+                  <span>Overall order margin ({productSection.margin.toFixed(1)}%) is below the company minimum of {productSection.marginSettings.minimumMargin}% — target is {productSection.marginSettings.defaultMargin}%</span>
                 </div>
               )}
             </CardContent>

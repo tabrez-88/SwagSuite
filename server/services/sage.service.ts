@@ -858,6 +858,17 @@ export class SageService {
                 imprintMethods: enrichedProductData.decorationMethods.length > 0
                     ? JSON.stringify(enrichedProductData.decorationMethods)
                     : null,
+                // Sync pricing tiers from SAGE quantity breaks (net prices → cost)
+                pricingTiers: (() => {
+                    const ps = enrichedProductData.pricingStructure;
+                    if (ps?.quantities?.length > 0 && ps?.netPrices?.length > 0) {
+                        return ps.quantities.map((qty: number, i: number) => ({
+                            quantity: qty,
+                            cost: parseFloat(ps.netPrices[i] || ps.prices?.[i] || '0'),
+                        })).filter((t: any) => t.quantity > 0 && t.cost > 0);
+                    }
+                    return undefined;
+                })(),
             };
 
             const matchedProduct = await productRepository.getBySupplierSku(sageProduct.productId);

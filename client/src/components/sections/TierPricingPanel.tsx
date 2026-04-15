@@ -1,13 +1,19 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Check, Layers, Plus, Save, Trash2 } from "lucide-react";
+import { Check, Layers, Plus, Save, Trash2, Ruler } from "lucide-react";
 
 export interface PricingTier {
   quantity: number;
   cost: number;
   margin?: number;
   price?: number;
+  size?: string;
+}
+
+export interface SizeSurcharge {
+  size: string;
+  surcharge: number;
 }
 
 interface TierPricingPanelProps {
@@ -18,6 +24,10 @@ interface TierPricingPanelProps {
   editable?: boolean;
   onApplyTier?: (cost: number, price: number) => void;
   onTiersChange?: (tiers: PricingTier[]) => void;
+  // Size surcharges
+  sizeSurcharges?: SizeSurcharge[];
+  availableSizes?: string[];
+  onSizeSurchargesChange?: (surcharges: SizeSurcharge[]) => void;
 }
 
 function calcPriceFromCost(cost: number, margin: number, runCharge: number = 0): number {
@@ -33,6 +43,9 @@ export default function TierPricingPanel({
   editable = false,
   onApplyTier,
   onTiersChange,
+  sizeSurcharges = [],
+  availableSizes = [],
+  onSizeSurchargesChange,
 }: TierPricingPanelProps) {
   const [localTiers, setLocalTiers] = useState<PricingTier[]>([]);
   const [isDirty, setIsDirty] = useState(false);
@@ -45,6 +58,7 @@ export default function TierPricingPanel({
         cost: t.cost,
         margin: t.margin ?? defaultMargin,
         price: t.price ?? calcPriceFromCost(t.cost, t.margin ?? defaultMargin, runChargeCostPerUnit),
+        size: t.size,
       }));
     setLocalTiers(sorted);
     setIsDirty(false);
@@ -65,22 +79,24 @@ export default function TierPricingPanel({
     return best;
   }, [displayTiers, totalQuantity]);
 
-  const updateTier = useCallback((idx: number, field: keyof PricingTier, value: number) => {
+  const updateTier = useCallback((idx: number, field: keyof PricingTier, value: number | string) => {
     setLocalTiers(prev => {
       const updated = [...prev];
       const tier = { ...updated[idx] };
       if (field === "cost") {
-        tier.cost = value;
-        tier.price = calcPriceFromCost(value, tier.margin ?? defaultMargin, runChargeCostPerUnit);
+        tier.cost = value as number;
+        tier.price = calcPriceFromCost(value as number, tier.margin ?? defaultMargin, runChargeCostPerUnit);
       } else if (field === "margin") {
-        tier.margin = value;
-        tier.price = calcPriceFromCost(tier.cost, value, runChargeCostPerUnit);
+        tier.margin = value as number;
+        tier.price = calcPriceFromCost(tier.cost, value as number, runChargeCostPerUnit);
       } else if (field === "price") {
-        tier.price = value;
+        tier.price = value as number;
         const eff = tier.cost + runChargeCostPerUnit;
-        tier.margin = value > 0 ? +((( value - eff) / value) * 100).toFixed(1) : 0;
+        tier.margin = (value as number) > 0 ? +(((value as number) - eff) / (value as number) * 100).toFixed(1) : 0;
+      } else if (field === "size") {
+        tier.size = value as string || undefined;
       } else {
-        tier.quantity = value;
+        tier.quantity = value as number;
       }
       updated[idx] = tier;
       return updated;
@@ -149,6 +165,9 @@ export default function TierPricingPanel({
             <thead>
               <tr className="border-b bg-gray-50/50">
                 <th className="text-left px-4 py-2 font-medium text-gray-500 w-28">Tier</th>
+                {(editable || availableSizes.length > 0 || displayTiers.some(t => t.size)) && (
+                  <th className="text-left px-3 py-2 font-medium text-purple-500 w-24">Size</th>
+                )}
                 <th className="text-left px-3 py-2 font-medium text-gray-500 w-24">Qty</th>
                 <th className="text-left px-3 py-2 font-medium text-gray-500 w-28">Cost</th>
                 {runChargeCostPerUnit > 0 && (
@@ -177,6 +196,35 @@ export default function TierPricingPanel({
                         )}
                       </div>
                     </td>
+                    {/* Size */}
+                    {(editable || availableSizes.length > 0 || displayTiers.some(t => t.size)) && (
+                      <td className="px-3 py-2">
+                        {editable ? (
+                          availableSizes.length > 0 ? (
+                            <select
+                              className="w-20 h-7 text-xs rounded border border-gray-200 bg-white px-1 focus:outline-none focus:ring-1 focus:ring-purple-400 focus:border-purple-400"
+                              value={tier.size || ""}
+                              onChange={(e) => updateTier(idx, "size", e.target.value)}
+                            >
+                              <option value="">All</option>
+                              {availableSizes.map(s => (
+                                <option key={s} value={s}>{s}</option>
+                              ))}
+                            </select>
+                          ) : (
+                            <input
+                              type="text"
+                              className="w-20 h-7 text-xs rounded border border-gray-200 bg-white px-2 focus:outline-none focus:ring-1 focus:ring-purple-400 focus:border-purple-400"
+                              placeholder="All"
+                              value={tier.size || ""}
+                              onChange={(e) => updateTier(idx, "size", e.target.value)}
+                            />
+                          )
+                        ) : (
+                          <span className="text-xs text-purple-600 font-medium">{tier.size || "All"}</span>
+                        )}
+                      </td>
+                    )}
                     {/* Qty */}
                     <td className="px-3 py-2">
                       {editable ? (
@@ -295,6 +343,58 @@ export default function TierPricingPanel({
         <div className="px-4 py-2 border-t bg-green-50/50 text-[10px] text-green-700 flex items-center gap-1">
           <Check className="w-3 h-3" />
           Best match for {totalQuantity} units: Tier {bestMatchIndex + 1} ({displayTiers[bestMatchIndex].quantity}+) at ${displayTiers[bestMatchIndex].cost.toFixed(2)} cost → ${(displayTiers[bestMatchIndex].price ?? 0).toFixed(2)} price
+        </div>
+      )}
+
+      {/* Size Surcharges */}
+      {(sizeSurcharges.length > 0 || (editable && availableSizes.length > 0)) && (
+        <div className="border-t">
+          <div className="flex items-center gap-2 px-4 py-2 bg-slate-50/50">
+            <Ruler className="w-3.5 h-3.5 text-purple-500" />
+            <span className="text-xs font-semibold text-gray-600">Size Surcharges</span>
+            <span className="text-[10px] text-gray-400">(added to base cost)</span>
+          </div>
+          <div className="px-4 py-2 flex flex-wrap gap-2">
+            {availableSizes.length > 0 ? availableSizes.map(size => {
+              const existing = sizeSurcharges.find(s => s.size === size);
+              const surcharge = existing?.surcharge ?? 0;
+              return (
+                <div key={size} className="flex items-center gap-1.5 bg-gray-50 rounded-md border px-2 py-1">
+                  <span className="text-xs font-medium text-gray-700 min-w-[28px]">{size}</span>
+                  {editable ? (
+                    <div className="relative">
+                      <span className="absolute left-1.5 top-1/2 -translate-y-1/2 text-[9px] text-gray-400">+$</span>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min={0}
+                        className="w-16 h-6 text-[11px] rounded border border-gray-200 bg-white pl-5 pr-1 text-right focus:outline-none focus:ring-1 focus:ring-purple-400"
+                        value={surcharge || ""}
+                        onChange={(e) => {
+                          const val = parseFloat(e.target.value) || 0;
+                          const updated = availableSizes
+                            .map(s => ({
+                              size: s,
+                              surcharge: s === size ? val : (sizeSurcharges.find(x => x.size === s)?.surcharge ?? 0),
+                            }))
+                            .filter(s => s.surcharge > 0);
+                          onSizeSurchargesChange?.(updated);
+                        }}
+                        placeholder="0"
+                      />
+                    </div>
+                  ) : (
+                    surcharge > 0 && <span className="text-[11px] text-purple-600 font-medium">+${surcharge.toFixed(2)}</span>
+                  )}
+                </div>
+              );
+            }) : sizeSurcharges.filter(s => s.surcharge > 0).map(s => (
+              <div key={s.size} className="flex items-center gap-1.5 bg-gray-50 rounded-md border px-2 py-1">
+                <span className="text-xs font-medium text-gray-700">{s.size}</span>
+                <span className="text-[11px] text-purple-600 font-medium">+${s.surcharge.toFixed(2)}</span>
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>

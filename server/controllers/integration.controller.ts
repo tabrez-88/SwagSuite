@@ -1305,6 +1305,17 @@ export class IntegrationController {
             leadTime: null, // S&S API doesn't provide this directly
             imageUrl: null, // S&S CDN images are behind Cloudflare — can't be loaded externally
             productType: 'apparel',
+            // Build pricing tiers from S&S pricing levels
+            pricingTiers: (() => {
+              const tiers = [];
+              const piecePrice = ssProduct.piecePrice || 0;
+              const dozenPrice = ssProduct.dozenPrice ? ssProduct.dozenPrice / 12 : 0;
+              const casePrice = ssProduct.casePrice ? ssProduct.casePrice / (ssProduct.caseQty || 12) : 0;
+              if (piecePrice > 0) tiers.push({ quantity: 1, cost: +piecePrice.toFixed(2) });
+              if (dozenPrice > 0 && +dozenPrice.toFixed(2) !== +piecePrice.toFixed(2)) tiers.push({ quantity: 12, cost: +dozenPrice.toFixed(2) });
+              if (casePrice > 0 && +casePrice.toFixed(2) !== +dozenPrice.toFixed(2)) tiers.push({ quantity: ssProduct.caseQty || 72, cost: +casePrice.toFixed(2) });
+              return tiers.length > 0 ? tiers : undefined;
+            })(),
           };
 
           // Check if product already exists
@@ -1489,6 +1500,17 @@ export class IntegrationController {
             leadTime: null,
             imageUrl: sanmarProduct.frontModel || sanmarProduct.colorProductImage || sanmarProduct.productImage || null,
             productType: 'apparel',
+            // Build pricing tiers from SanMar pricing levels
+            pricingTiers: (() => {
+              const tiers = [];
+              const piecePrice = sanmarProduct.pieceSalePrice || sanmarProduct.piecePrice || 0;
+              const dozenPrice = sanmarProduct.dozenPrice ? sanmarProduct.dozenPrice / 12 : 0;
+              const casePrice = sanmarProduct.casePrice ? sanmarProduct.casePrice / (sanmarProduct.caseSize || 12) : 0;
+              if (piecePrice > 0) tiers.push({ quantity: 1, cost: piecePrice });
+              if (dozenPrice > 0 && dozenPrice !== piecePrice) tiers.push({ quantity: 12, cost: +dozenPrice.toFixed(2) });
+              if (casePrice > 0 && casePrice !== dozenPrice) tiers.push({ quantity: sanmarProduct.caseSize || 72, cost: +casePrice.toFixed(2) });
+              return tiers.length > 0 ? tiers : undefined;
+            })(),
           };
 
           // Check if product already exists

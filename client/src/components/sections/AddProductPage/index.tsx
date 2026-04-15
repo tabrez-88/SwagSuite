@@ -7,27 +7,18 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import {
-  AlertDialog,
-  AlertDialogContent,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogCancel,
-  AlertDialogAction,
-} from "@/components/ui/alert-dialog";
-import {
-  ArrowLeft, Search, Package, PenLine, Loader2, Plus,
-  DollarSign, ShoppingCart, Trash2, ImageIcon, Tag, ShieldAlert, ImageOff, Database
-} from "lucide-react";
 import { IMPRINT_LOCATIONS, IMPRINT_METHODS } from "@/constants/imprintOptions";
 import { marginColorClass, isBelowMinimum, calcMarginPercent } from "@/hooks/useMarginSettings";
-import TierPricingPanel from "@/components/sections/TierPricingPanel";
+import {
+  ArrowLeft, Search, Package, PenLine, Loader2, Plus,
+  DollarSign, ShoppingCart, Tag, ImageOff, Database
+} from "lucide-react";
 import type { AddProductPageProps, ProductResult } from "./types";
 import { useAddProductPage } from "./hooks";
 import EditProductPage from "@/components/sections/EditProductPage";
+import { ProductConfigDialog } from "./components/ProductConfigDialog";
+import { VendorBlockDialog } from "./components/VendorBlockDialog";
+import { MarginWarningDialog } from "./components/MarginWarningDialog";
 
 export default function AddProductPage({ projectId, data }: AddProductPageProps) {
   const h = useAddProductPage({ projectId, data });
@@ -630,358 +621,44 @@ export default function AddProductPage({ projectId, data }: AddProductPageProps)
       </Tabs>
 
       {/* PRODUCT CONFIGURATION DIALOG */}
-      <Dialog open={!!h.selectedProduct} onOpenChange={(open) => !open && h.setSelectedProduct(null)}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <ShoppingCart className="w-5 h-5" />
-              Configure Product
-            </DialogTitle>
-          </DialogHeader>
+      <ProductConfigDialog
+        selectedProduct={h.selectedProduct}
+        onClose={() => h.setSelectedProduct(null)}
+        configLines={h.configLines}
+        configTotalQty={h.configTotalQty}
+        configTotalCost={h.configTotalCost}
+        configTotalPrice={h.configTotalPrice}
+        configMargin={h.configMargin}
+        marginSettings={h.marginSettings}
+        imprintLocation={h.imprintLocation}
+        setImprintLocation={h.setImprintLocation}
+        imprintMethod={h.imprintMethod}
+        setImprintMethod={h.setImprintMethod}
+        productNotes={h.productNotes}
+        setProductNotes={h.setProductNotes}
+        addConfigLine={h.addConfigLine}
+        removeConfigLine={h.removeConfigLine}
+        updateConfigLine={h.updateConfigLine}
+        handleConfigCostChange={h.handleConfigCostChange}
+        handleConfigMarginChange={h.handleConfigMarginChange}
+        applyTierToConfigLines={h.applyTierToConfigLines}
+        handleAddProduct={h.handleAddProduct}
+        addProductMutation={h.addProductMutation}
+        sourceBadgeColor={h.sourceBadgeColor}
+        sourceLabel={h.sourceLabel}
+      />
 
-          {h.selectedProduct && (
-            <div className="space-y-6">
-              {/* Product Summary */}
-              <div className="flex gap-4 p-4 bg-muted/50 rounded-lg">
-                {h.selectedProduct.imageUrl ? (
-                  <img
-                    src={h.selectedProduct.imageUrl}
-                    alt={h.selectedProduct.name}
-                    className="w-20 h-20 object-contain rounded border bg-white"
-                  />
-                ) : (
-                  <div className="w-20 h-20 bg-muted rounded border flex items-center justify-center">
-                    <ImageIcon className="w-8 h-8 text-muted-foreground" />
-                  </div>
-                )}
-                <div className="flex-1">
-                  <h3 className="font-semibold text-lg">{h.selectedProduct.name}</h3>
-                  <div className="flex items-center gap-2 mt-1">
-                    {h.selectedProduct.sku && (
-                      <Badge variant="outline" className="text-xs">
-                        <Tag className="w-3 h-3 mr-1" />
-                        {h.selectedProduct.sku}
-                      </Badge>
-                    )}
-                    <Badge className={`text-xs ${h.sourceBadgeColor(h.selectedProduct.source)}`}>
-                      {h.sourceLabel(h.selectedProduct.source)}
-                    </Badge>
-                    {h.selectedProduct.supplierName && (
-                      <span className="text-sm text-muted-foreground">{h.selectedProduct.supplierName}</span>
-                    )}
-                  </div>
-                  {h.selectedProduct.description && (
-                    <p className="text-sm text-muted-foreground mt-2 line-clamp-2">{h.selectedProduct.description}</p>
-                  )}
-                </div>
-              </div>
-
-              {/* Imprint Info */}
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label>Imprint Location</Label>
-                  <Select
-                    value={IMPRINT_LOCATIONS.some((o) => o.value === h.imprintLocation) ? h.imprintLocation : (h.imprintLocation ? "__custom__" : "")}
-                    onValueChange={(v) => h.setImprintLocation(v === "__custom__" ? "" : v)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select location" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {IMPRINT_LOCATIONS.map((opt) => (
-                        <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                      ))}
-                      <SelectItem value="__custom__">Custom...</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  {!IMPRINT_LOCATIONS.some((o) => o.value === h.imprintLocation) && h.imprintLocation !== undefined && (
-                    <Input
-                      className="mt-2"
-                      placeholder="Enter custom location"
-                      value={h.imprintLocation}
-                      onChange={(e) => h.setImprintLocation(e.target.value)}
-                    />
-                  )}
-                </div>
-                <div>
-                  <Label>Imprint Method</Label>
-                  {h.selectedProduct.decorationMethods && h.selectedProduct.decorationMethods.length > 0 ? (
-                    <Select
-                      value={(h.selectedProduct.decorationMethods as string[]).includes(h.imprintMethod) ? h.imprintMethod : (h.imprintMethod ? "__custom__" : "")}
-                      onValueChange={(v) => h.setImprintMethod(v === "__custom__" ? "" : v)}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select method" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {h.selectedProduct.decorationMethods.map((m: string) => (
-                          <SelectItem key={m} value={m}>{m}</SelectItem>
-                        ))}
-                        <SelectItem value="__custom__">Custom...</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  ) : (
-                    <Select
-                      value={IMPRINT_METHODS.some((o) => o.value === h.imprintMethod) ? h.imprintMethod : (h.imprintMethod ? "__custom__" : "")}
-                      onValueChange={(v) => h.setImprintMethod(v === "__custom__" ? "" : v)}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select method" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {IMPRINT_METHODS.map((opt) => (
-                          <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                        ))}
-                        <SelectItem value="__custom__">Custom...</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  )}
-                  {!(h.selectedProduct.decorationMethods && (h.selectedProduct.decorationMethods as string[]).includes(h.imprintMethod))
-                    && !IMPRINT_METHODS.some((o) => o.value === h.imprintMethod)
-                    && h.imprintMethod !== undefined
-                    && (
-                    <Input
-                      className="mt-2"
-                      placeholder="Enter custom method"
-                      value={h.imprintMethod}
-                      onChange={(e) => h.setImprintMethod(e.target.value)}
-                    />
-                  )}
-                </div>
-              </div>
-
-              {/* Supplier Pricing Tiers */}
-              {h.selectedProduct?.pricingTiers && h.selectedProduct.pricingTiers.length > 0 && (
-                <TierPricingPanel
-                  tiers={h.selectedProduct.pricingTiers}
-                  defaultMargin={parseFloat(String(h.marginSettings?.defaultMargin || "40"))}
-                  totalQuantity={h.configTotalQty}
-                  onApplyTier={h.applyTierToConfigLines}
-                />
-              )}
-
-              {/* Size/Color Line Items */}
-              <div>
-                <div className="flex items-center justify-between mb-3">
-                  <Label className="text-base font-semibold">Size & Color Breakdown</Label>
-                  <Button variant="outline" size="sm" onClick={h.addConfigLine}>
-                    <Plus className="w-3 h-3 mr-1" />
-                    Add Line
-                  </Button>
-                </div>
-
-                <div className="border rounded-lg overflow-hidden">
-                  <table className="w-full text-sm">
-                    <thead className="bg-muted/50 border-b">
-                      <tr>
-                        <th className="text-left p-3 font-medium">Color/Size</th>
-                        <th className="text-right p-3 font-medium w-20">QTY</th>
-                        <th className="text-right p-3 font-medium w-28">Net Cost</th>
-                        <th className="text-right p-3 font-medium w-24">Margin</th>
-                        <th className="text-right p-3 font-medium w-28">Retail</th>
-                        <th className="text-right p-3 font-medium w-28">Total</th>
-                        <th className="w-10"></th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {h.configLines.map((line) => {
-                        const lineTotal = line.quantity * line.unitPrice;
-                        const lineMargin = calcMarginPercent(line.unitCost, line.unitPrice);
-                        const colorSizeLabel = [line.color, line.size].filter(Boolean).join(" / ") || "—";
-                        return (
-                          <tr key={line.id} className={`border-b last:border-0 ${isBelowMinimum(lineMargin, h.marginSettings) ? "bg-red-50/30" : ""}`}>
-                            {/* Color/Size — datalist for autocomplete */}
-                            <td className="p-2">
-                              <div className="flex gap-1">
-                                <div className="relative flex-1">
-                                  <Input className="h-8 text-xs" value={line.color}
-                                    onChange={(e) => h.updateConfigLine(line.id, "color", e.target.value)}
-                                    placeholder="Color" list={`colors-${line.id}`} />
-                                  {(h.selectedProduct?.colors?.length ?? 0) > 0 && (
-                                    <datalist id={`colors-${line.id}`}>
-                                      {h.selectedProduct!.colors!.map(c => <option key={c} value={c} />)}
-                                    </datalist>
-                                  )}
-                                </div>
-                                <div className="relative w-24">
-                                  <Input className="h-8 text-xs" value={line.size}
-                                    onChange={(e) => h.updateConfigLine(line.id, "size", e.target.value)}
-                                    placeholder="Size" list={`sizes-${line.id}`} />
-                                  {(h.selectedProduct?.sizes?.length ?? 0) > 0 && (
-                                    <datalist id={`sizes-${line.id}`}>
-                                      {h.selectedProduct!.sizes!.map(s => <option key={s} value={s} />)}
-                                    </datalist>
-                                  )}
-                                </div>
-                              </div>
-                            </td>
-                            {/* QTY */}
-                            <td className="p-2">
-                              <Input className="h-8 text-xs text-right" type="number" min={1} value={line.quantity}
-                                onChange={(e) => h.updateConfigLine(line.id, "quantity", parseInt(e.target.value) || 0)} />
-                            </td>
-                            {/* Net Cost */}
-                            <td className="p-2">
-                              <div className="relative">
-                                <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-400">$</span>
-                                <input className="w-full h-8 text-xs text-right rounded border border-gray-200 bg-white pl-5 pr-2 focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400"
-                                  type="number" step="0.01" min={0} value={line.unitCost}
-                                  onChange={(e) => h.handleConfigCostChange(line.id, e)} />
-                              </div>
-                            </td>
-                            {/* Margin */}
-                            <td className="p-2">
-                              <div className="relative">
-                                <input className={`w-full h-8 text-xs text-right rounded border bg-white px-2 pr-5 focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400 ${isBelowMinimum(lineMargin, h.marginSettings) ? "border-red-300 text-red-600" : "border-gray-200"}`}
-                                  type="number" step="0.1" min={0} max={99.9}
-                                  value={parseFloat(lineMargin.toFixed(1))}
-                                  onChange={(e) => h.handleConfigMarginChange(line.id, e)} />
-                                <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-400">%</span>
-                              </div>
-                            </td>
-                            {/* Retail */}
-                            <td className="p-2">
-                              <div className="relative">
-                                <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-400">$</span>
-                                <input className="w-full h-8 text-xs text-right rounded border border-gray-200 bg-white pl-5 pr-2 focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400 font-semibold"
-                                  type="number" step="0.01" min={0} value={line.unitPrice}
-                                  onChange={(e) => h.updateConfigLine(line.id, "unitPrice", parseFloat(e.target.value) || 0)} />
-                              </div>
-                            </td>
-                            {/* Total */}
-                            <td className="p-2 text-right">
-                              <span className={`text-xs font-semibold ${marginColorClass(lineMargin, h.marginSettings)}`}>${lineTotal.toFixed(2)}</span>
-                            </td>
-                            {/* Delete */}
-                            <td className="p-2">
-                              {h.configLines.length > 1 && (
-                                <button className="w-7 h-7 flex items-center justify-center rounded text-gray-300 hover:text-red-500 hover:bg-red-50"
-                                  onClick={() => h.removeConfigLine(line.id)}>
-                                  <Trash2 className="w-3 h-3" />
-                                </button>
-                              )}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                    <tfoot className="bg-muted/50 border-t">
-                      <tr>
-                        <td className="p-3 text-sm font-semibold">Totals</td>
-                        <td className="p-3 text-right text-sm font-semibold">{h.configTotalQty}</td>
-                        <td className="p-3 text-right text-sm text-muted-foreground">${h.configTotalCost.toFixed(2)}</td>
-                        <td className="p-3 text-right">
-                          <span className={`text-sm font-semibold ${marginColorClass(h.configMargin, h.marginSettings)}`}>
-                            {h.configMargin.toFixed(1)}%
-                          </span>
-                        </td>
-                        <td className="p-3 text-right text-sm font-semibold">${h.configTotalPrice.toFixed(2)}</td>
-                        <td className="p-3 text-right text-sm font-bold">${h.configTotalPrice.toFixed(2)}</td>
-                        <td></td>
-                      </tr>
-                    </tfoot>
-                  </table>
-                </div>
-              </div>
-
-              {/* Minimum Margin Warning */}
-              {isBelowMinimum(h.configMargin, h.marginSettings) && (
-                <div className="rounded-lg border border-red-200 bg-red-50 p-3 flex items-center gap-2 text-sm text-red-700">
-                  <ShieldAlert className="w-4 h-4 flex-shrink-0" />
-                  <span>
-                    Margin ({h.configMargin.toFixed(1)}%) is below the company minimum of {h.marginSettings.minimumMargin}%.
-                    Adding this product will require confirmation.
-                  </span>
-                </div>
-              )}
-
-              {/* Notes */}
-              <div>
-                <Label>Product Notes</Label>
-                <Textarea
-                  value={h.productNotes}
-                  onChange={(e) => h.setProductNotes(e.target.value)}
-                  placeholder="Special instructions, decoration details, etc."
-                  rows={3}
-                />
-              </div>
-            </div>
-          )}
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => h.setSelectedProduct(null)}>
-              Cancel
-            </Button>
-            <Button
-              onClick={h.handleAddProduct}
-              disabled={h.addProductMutation.isPending || h.configLines.length === 0 || h.configTotalQty === 0}
-            >
-              {h.addProductMutation.isPending ? (
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              ) : (
-                <DollarSign className="w-4 h-4 mr-2" />
-              )}
-              Add to Order — ${h.configTotalPrice.toFixed(2)}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Vendor "Do Not Order" Approval Request Dialog */}
-      <AlertDialog
+      {/* VENDOR BLOCK APPROVAL DIALOG */}
+      <VendorBlockDialog
         open={h.vendorBlockDialog.open}
-        onOpenChange={(open) => {
-          if (!open) h.dismissVendorBlock();
-        }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2">
-              <ShieldAlert className="w-5 h-5 text-amber-500" />
-              Vendor Not Approved
-            </AlertDialogTitle>
-            <AlertDialogDescription asChild>
-              <div className="space-y-3">
-                <p>
-                  <span className="font-semibold">{h.vendorBlockDialog.supplierName}</span> is currently marked as "Do Not Order."
-                  You cannot add products from this vendor without admin approval.
-                </p>
-                <p>
-                  Would you like to send an approval request to an administrator?
-                </p>
-                <div className="pt-1">
-                  <Label htmlFor="approval-reason" className="text-sm font-medium">Reason (optional)</Label>
-                  <Textarea
-                    id="approval-reason"
-                    placeholder="Explain why you need to order from this vendor..."
-                    value={h.approvalReason}
-                    onChange={(e) => h.setApprovalReason(e.target.value)}
-                    className="mt-1"
-                    rows={3}
-                  />
-                </div>
-              </div>
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={h.vendorApprovalMutation.isPending}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={(e) => {
-                e.preventDefault();
-                h.vendorApprovalMutation.mutate();
-              }}
-              disabled={h.vendorApprovalMutation.isPending}
-              className="bg-amber-600 hover:bg-amber-700"
-            >
-              {h.vendorApprovalMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-              Request Approval
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        supplierName={h.vendorBlockDialog.supplierName}
+        approvalReason={h.approvalReason}
+        setApprovalReason={h.setApprovalReason}
+        onDismiss={h.dismissVendorBlock}
+        vendorApprovalMutation={h.vendorApprovalMutation}
+      />
 
-      {/* POST-CREATE EDIT DIALOG — auto-opens after product is added so user
-          can configure charges & artwork without leaving the page */}
+      {/* POST-CREATE EDIT DIALOG */}
       {h.postCreateItemId && (
         <EditProductPage
           open
@@ -995,39 +672,14 @@ export default function AddProductPage({ projectId, data }: AddProductPageProps)
         />
       )}
 
-      {/* MARGIN WARNING CONFIRMATION DIALOG */}
-      <AlertDialog open={!!h.marginWarningAction} onOpenChange={(open) => { if (!open) h.dismissMarginWarning(); }}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2 text-red-600">
-              <ShieldAlert className="w-5 h-5" />
-              Below Minimum Margin
-            </AlertDialogTitle>
-            <AlertDialogDescription asChild>
-              <div>
-                <p>
-                  The margin for this product is <strong className="text-red-600">{h.marginWarningValue.toFixed(1)}%</strong>, which is below
-                  the company minimum of <strong>{h.marginSettings.minimumMargin}%</strong>.
-                </p>
-                <p className="mt-2 text-orange-600 font-medium">
-                  Are you sure you want to add this product with a below-minimum margin?
-                </p>
-              </div>
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={h.dismissMarginWarning}>
-              Go Back & Adjust
-            </AlertDialogCancel>
-            <AlertDialogAction
-              onClick={h.confirmMarginWarning}
-              className="bg-orange-600 hover:bg-orange-700"
-            >
-              Add Anyway
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {/* MARGIN WARNING DIALOG */}
+      <MarginWarningDialog
+        open={!!h.marginWarningAction}
+        marginWarningValue={h.marginWarningValue}
+        minimumMargin={h.marginSettings.minimumMargin}
+        onDismiss={h.dismissMarginWarning}
+        onConfirm={h.confirmMarginWarning}
+      />
     </div>
   );
 }

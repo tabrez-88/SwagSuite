@@ -981,6 +981,7 @@ export class ProjectController {
             artworkType: art.artworkType,
             location: art.location,
             color: art.color,
+            numberOfColors: (art as any).numberOfColors || 1,
             size: art.size,
             status: "pending",
             fileName: art.fileName,
@@ -1200,11 +1201,13 @@ export class ProjectController {
 
       // Delete dependent records to prevent foreign key constraint violations
       const { db } = await import("../db");
-      const { artworkApprovals, artworkItems } = await import("@shared/schema");
+      const { artworkApprovals, artworkItems, mediaLibrary, orderFiles } = await import("@shared/schema");
       const { eq } = await import("drizzle-orm");
 
       await db.delete(artworkApprovals).where(eq(artworkApprovals.orderItemId, req.params.itemId));
       await db.delete(artworkItems).where(eq(artworkItems.orderItemId, req.params.itemId));
+      await db.update(mediaLibrary).set({ orderItemId: null }).where(eq(mediaLibrary.orderItemId, req.params.itemId));
+      await db.update(orderFiles).set({ orderItemId: null }).where(eq(orderFiles.orderItemId, req.params.itemId));
 
       // Now safe to delete the order item
       await projectRepository.deleteOrderItem(req.params.itemId);
@@ -1329,6 +1332,7 @@ export class ProjectController {
         artworkType: req.body.artworkType || null,
         location: req.body.location || null,
         color: req.body.color || null,
+        numberOfColors: parseInt(req.body.numberOfColors) || 1,
         size: req.body.size || null,
         status: req.body.status || 'pending',
         fileName: resolvedFileName,

@@ -110,6 +110,7 @@ export const vendorFormSchema = z.object({
   accountNumber: z.string().optional(),
   notes: z.string().optional(),
   isPreferred: z.boolean().default(false),
+  isDecorator: z.boolean().default(false),
   doNotOrder: z.boolean().default(false),
   eqpPricing: z.number().optional(),
   rebatePercentage: z.number().optional(),

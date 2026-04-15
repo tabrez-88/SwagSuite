@@ -1257,10 +1257,11 @@ export function DecoratorMatrixTab() {
     enabled: !!selectedSupplierId,
   });
 
-  // Auto-select first supplier
+  // Auto-select first decorator
   useEffect(() => {
     if (suppliers.length > 0 && !selectedSupplierId) {
-      setSelectedSupplierId(suppliers[0].id);
+      const firstDecorator = suppliers.find((s: any) => s.isDecorator);
+      if (firstDecorator) setSelectedSupplierId(firstDecorator.id);
     }
   }, [suppliers, selectedSupplierId]);
 
@@ -1318,11 +1319,17 @@ export function DecoratorMatrixTab() {
                 </SelectTrigger>
                 <SelectContent>
                   {suppliers
+                    .filter((s: any) => s.isDecorator)
                     .map((s: any) => (
                     <SelectItem key={s.id} value={s.id}>
                       {s.name}
                     </SelectItem>
                   ))}
+                  {suppliers.filter((s: any) => s.isDecorator).length === 0 && (
+                    <div className="px-2 py-3 text-sm text-muted-foreground text-center">
+                      No vendors marked as decorator. Go to CRM → Vendors to toggle the Decorator switch.
+                    </div>
+                  )}
                 </SelectContent>
               </Select>
             </div>
