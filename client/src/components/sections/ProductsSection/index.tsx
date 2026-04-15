@@ -23,7 +23,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { IMPRINT_LOCATIONS, IMPRINT_METHODS } from "@/constants/imprintOptions";
+import { ImprintOptionSelect } from "@/components/shared/ImprintOptionSelect";
 import { isBelowMinimum } from "@/hooks/useMarginSettings";
 import {
   AlertTriangle,
@@ -302,29 +302,21 @@ export default function ProductsSection({ projectId, data, isLocked }: ProductsS
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <Label>Imprint Method</Label>
-                  <Select value={productSection.editItemData.imprintMethod || ""} onValueChange={(v) => productSection.setEditItemData((d: any) => ({ ...d, imprintMethod: v }))}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select method" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {IMPRINT_METHODS.map((opt) => (
-                        <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <ImprintOptionSelect
+                    type="method"
+                    value={productSection.editItemData.imprintMethod}
+                    onChange={(v) => productSection.setEditItemData((d: any) => ({ ...d, imprintMethod: v }))}
+                    orderId={productSection.projectId}
+                  />
                 </div>
                 <div>
                   <Label>Imprint Location</Label>
-                  <Select value={productSection.editItemData.imprintLocation || ""} onValueChange={(v) => productSection.setEditItemData((d: any) => ({ ...d, imprintLocation: v }))}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select location" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {IMPRINT_LOCATIONS.map((opt) => (
-                        <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <ImprintOptionSelect
+                    type="location"
+                    value={productSection.editItemData.imprintLocation}
+                    onChange={(v) => productSection.setEditItemData((d: any) => ({ ...d, imprintLocation: v }))}
+                    orderId={productSection.projectId}
+                  />
                 </div>
               </div>
 
@@ -553,29 +545,21 @@ export default function ProductsSection({ projectId, data, isLocked }: ProductsS
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label>Decoration Location <span className="text-red-500">*</span></Label>
-                <Select value={productSection.artUploadLocation} onValueChange={productSection.setArtUploadLocation}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select location" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {IMPRINT_LOCATIONS.map((opt) => (
-                      <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <ImprintOptionSelect
+                  type="location"
+                  value={productSection.artUploadLocation}
+                  onChange={productSection.setArtUploadLocation}
+                  orderId={productSection.projectId}
+                />
               </div>
               <div>
                 <Label>Imprint Method <span className="text-red-500">*</span></Label>
-                <Select value={productSection.artUploadMethod} onValueChange={productSection.setArtUploadMethod}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select method" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {IMPRINT_METHODS.map((opt) => (
-                      <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <ImprintOptionSelect
+                  type="method"
+                  value={productSection.artUploadMethod}
+                  onChange={productSection.setArtUploadMethod}
+                  orderId={productSection.projectId}
+                />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">

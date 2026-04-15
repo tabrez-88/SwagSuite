@@ -235,8 +235,8 @@ export default function InvoiceSection(props: InvoiceSectionProps) {
                     onClick={h.handleGeneratePdf}
                     disabled={h.isGenerating}
                   >
-                    <RefreshCw className="w-4 h-4 mr-1" />
-                    Regenerate PDF
+                    <RefreshCw className={`w-4 h-4 mr-1 ${h.isGenerating ? "animate-spin" : ""}`} />
+                    {h.isGenerating ? "Regenerating..." : "Regenerate PDF"}
                   </Button>
                 </div>
               )}

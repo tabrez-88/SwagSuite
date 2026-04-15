@@ -10,7 +10,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { IMPRINT_METHODS } from "@/constants/imprintOptions";
+import { useImprintOptions } from "@/services/imprint-options";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { useLocation } from "@/lib/wouter-compat";
@@ -39,6 +39,8 @@ export default function DecoratorMatrixDialog({ open, supplierId, supplierName, 
     queryKey: [`/api/suppliers/${supplierId}/matrices`],
     enabled: open && !!supplierId,
   });
+
+  const { data: imprintMethods = [] } = useImprintOptions("method");
 
   const [selectedMatrixId, setSelectedMatrixId] = useState<string | null>(null);
   const [showAddMatrix, setShowAddMatrix] = useState(false);
@@ -204,8 +206,8 @@ export default function DecoratorMatrixDialog({ open, supplierId, supplierName, 
                     <Select value={newMatrixMethod} onValueChange={setNewMatrixMethod}>
                       <SelectTrigger><SelectValue placeholder="Select method" /></SelectTrigger>
                       <SelectContent>
-                        {IMPRINT_METHODS.map((m) => (
-                          <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
+                        {imprintMethods.map((m) => (
+                          <SelectItem key={m.id} value={m.value}>{m.label}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>

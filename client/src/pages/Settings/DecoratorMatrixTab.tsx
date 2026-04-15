@@ -21,7 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { IMPRINT_METHODS } from "@/constants/imprintOptions";
+import { useImprintOptions } from "@/services/imprint-options";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -1226,6 +1226,7 @@ function MatrixDetailPanel({
 export function DecoratorMatrixTab() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const { data: imprintMethods = [] } = useImprintOptions("method");
 
   // Supplier selector
   const { data: suppliers = [] } = useQuery<any[]>({
@@ -1398,10 +1399,10 @@ export function DecoratorMatrixTab() {
                             <SelectValue placeholder="Select method" />
                           </SelectTrigger>
                           <SelectContent>
-                            {IMPRINT_METHODS.filter(
+                            {imprintMethods.filter(
                               (m) => m.value !== "none"
                             ).map((m) => (
-                              <SelectItem key={m.value} value={m.value}>
+                              <SelectItem key={m.id} value={m.value}>
                                 {m.label}
                               </SelectItem>
                             ))}

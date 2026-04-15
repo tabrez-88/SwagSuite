@@ -12,6 +12,7 @@ import {
   List,
   Mail,
   Palette,
+  PaintBucket,
   Receipt,
   Settings2,
   Settings as SettingsIcon,
@@ -38,6 +39,8 @@ import { DecoratorMatrixTab } from "./DecoratorMatrixTab";
 import { TaxCodesTab } from "./TaxCodesTab";
 import { EmailTemplatesTab } from "./EmailTemplatesTab";
 import { PaymentTermsTab } from "./PaymentTermsTab";
+import { ImprintOptionsTab } from "./ImprintOptionsTab";
+import { useImprintSuggestionPendingCount } from "@/services/imprint-options";
 
 export default function Settings() {
   const { user, isLoading: authLoading } = useAuth();
@@ -52,6 +55,8 @@ export default function Settings() {
     (user as any)?.email === "bgoltzman@liquidscreendesign.com";
   const isManager = (user as any)?.role === "manager";
   const hasAccess = isAdmin || isManager;
+
+  const { data: imprintPending } = useImprintSuggestionPendingCount();
 
   if (settingsLoading) {
     return (
@@ -165,6 +170,15 @@ export default function Settings() {
             <CreditCard className="w-4 h-4" />
             Payment Terms
           </TabsTrigger>
+          <TabsTrigger value="imprint-options" className="flex items-center gap-2">
+            <PaintBucket className="w-4 h-4" />
+            Imprint Options
+            {imprintPending && imprintPending.count > 0 && (
+              <Badge className="bg-amber-500 text-white h-5 px-1.5 text-xs ml-1">
+                {imprintPending.count}
+              </Badge>
+            )}
+          </TabsTrigger>
           <TabsTrigger value="import" className="flex items-center gap-2">
             <Brain className="w-4 h-4" />
             Data Import
@@ -225,6 +239,10 @@ export default function Settings() {
 
         <TabsContent value="payment-terms" className="space-y-6">
           <PaymentTermsTab />
+        </TabsContent>
+
+        <TabsContent value="imprint-options" className="space-y-6">
+          <ImprintOptionsTab />
         </TabsContent>
 
         <TabsContent value="import" className="space-y-6">

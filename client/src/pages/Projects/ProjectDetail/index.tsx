@@ -92,17 +92,7 @@ export default function ProjectDetailPage() {
         return (
           <>
             <SalesOrderSection projectId={projectId!} data={data} lockStatus={lockStatus.salesOrder} />
-            <Card className="mt-4">
-              <CardHeader className="py-3">
-                <CardTitle className="text-sm flex items-center gap-2">
-                  <Truck className="w-4 h-4" />
-                  Shipping
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ShippingSection projectId={projectId!} data={data} isLocked={lockStatus.shipping.isLocked} />
-              </CardContent>
-            </Card>
+            <ShippingSection projectId={projectId!} data={data} isLocked={lockStatus.shipping.isLocked} />
           </>
         );
       case "presentation/add":

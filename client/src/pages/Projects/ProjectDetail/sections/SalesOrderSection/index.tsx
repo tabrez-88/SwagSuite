@@ -332,15 +332,12 @@ export default function SalesOrderSection(props: SalesOrderSectionProps) {
         </>
       )}
 
-
-
-
       <ProductsSection projectId={projectId} data={hook.data} isLocked={hook.isLocked} />
       {/* Sales Order Document Section */}
       <Card>
         <CardHeader className="py-3">
           <div className="flex items-center justify-between">
-            <CardTitle className="text-sm flex items-center gap-2">
+            <CardTitle className="text-xl flex items-center gap-2">
               <FileText className="w-4 h-4" />
               Sales Order Document
             </CardTitle>

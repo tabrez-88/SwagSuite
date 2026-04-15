@@ -32,6 +32,7 @@ import taxRoutes from "./tax.routes";
 import paymentTermsRoutes from "./paymentTerms.routes";
 import dataImportRoutes from "./dataImport.routes";
 import commissionRoutes from "./commission.routes";
+import imprintOptionRoutes from "./imprintOption.routes";
 
 /**
  * Register all modular route files.
@@ -128,4 +129,7 @@ export function registerModularRoutes(app: Express) {
 
   // Commission Reporting
   app.use(commissionRoutes);
+
+  // Imprint Options (dynamic location/method options + suggestion queue)
+  app.use(imprintOptionRoutes);
 }

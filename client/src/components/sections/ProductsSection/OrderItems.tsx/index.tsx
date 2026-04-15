@@ -397,16 +397,17 @@ export default function OrderItemCard({ item, productSection }: OrderItemCardPro
                             className={`text-[11px] font-medium truncate ${art.filePath ? "cursor-pointer hover:text-blue-600 hover:underline" : ""}`}
                             onClick={() => art.filePath && productSection.setPreviewFile({ name: art.name || art.fileName || "Artwork", url: art.filePath })}
                           >{art.name}</p>
-                          <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                          <div className="flex flex-col items-start gap-1.5 mt-0.5 flex-wrap">
                             <Badge variant="outline" className={`text-[9px] ${art.status === "approved" ? "border-green-300 text-green-700" : art.status === "rejected" ? "border-red-300 text-red-700" : "border-yellow-300 text-yellow-700"}`}>
                               {formatLabel(art.status)}
                             </Badge>
-                            {art.location && <span className="text-[9px] text-gray-400">{formatLabel(art.location)}</span>}
-                            {art.artworkType && <span className="text-[9px] text-gray-400">· {formatLabel(art.artworkType)}</span>}
-                            {artCharges.length > 0 && (
-                              <Badge variant="secondary" className="text-[9px]">
-                                <DollarSign className="w-2.5 h-2.5 mr-0.5" />{artCharges.length}
-                              </Badge>
+                            {/* Method header */}
+                            {art.artworkType && (
+                              <div className="flex items-center gap-1.5 text-[10px] text-gray-500">
+                                <Palette className="w-3 h-3" />
+                                {art.location && <span>· Location: <strong className="text-gray-700">{formatLabel(art.location)}</strong></span>}
+                                <span>Method: <strong className="text-gray-700">{formatLabel(art.artworkType)}</strong></span>
+                              </div>
                             )}
                           </div>
                         </div>
@@ -495,14 +496,7 @@ export default function OrderItemCard({ item, productSection }: OrderItemCardPro
 
                         return (
                           <div className="border-t bg-gray-50/50 px-3 py-2 space-y-2">
-                            {/* Method header */}
-                            {art.artworkType && (
-                              <div className="flex items-center gap-1.5 text-[10px] text-gray-500">
-                                <Palette className="w-3 h-3" />
-                                <span>Method: <strong className="text-gray-700">{formatLabel(art.artworkType)}</strong></span>
-                                {art.location && <span>· Location: <strong className="text-gray-700">{formatLabel(art.location)}</strong></span>}
-                              </div>
-                            )}
+                            
 
                             {/* Run charges */}
                             {runArtCharges.length > 0 && (

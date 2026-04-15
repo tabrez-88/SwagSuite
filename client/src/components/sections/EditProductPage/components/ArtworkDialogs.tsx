@@ -3,8 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { IMPRINT_LOCATIONS, IMPRINT_METHODS } from "@/constants/imprintOptions";
+import { ImprintOptionSelect } from "@/components/shared/ImprintOptionSelect";
 import { Loader2, Palette, Repeat } from "lucide-react";
 
 interface ArtworkDialogsProps {
@@ -79,7 +78,7 @@ export function ArtworkDialogs({
 
       {/* ARTWORK METADATA DIALOG */}
       <Dialog open={!!artPickedFile} onOpenChange={(open) => !open && resetArtForm()}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Palette className="w-4 h-4" />
@@ -105,25 +104,21 @@ export function ArtworkDialogs({
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label>Decoration Location <span className="text-red-500">*</span></Label>
-                <Select value={artUploadLocation} onValueChange={setArtUploadLocation}>
-                  <SelectTrigger><SelectValue placeholder="Select location" /></SelectTrigger>
-                  <SelectContent>
-                    {IMPRINT_LOCATIONS.map((opt) => (
-                      <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <ImprintOptionSelect
+                  type="location"
+                  value={artUploadLocation}
+                  onChange={setArtUploadLocation}
+                  orderId={projectId}
+                />
               </div>
               <div>
                 <Label>Imprint Method <span className="text-red-500">*</span></Label>
-                <Select value={artUploadMethod} onValueChange={setArtUploadMethod}>
-                  <SelectTrigger><SelectValue placeholder="Select method" /></SelectTrigger>
-                  <SelectContent>
-                    {IMPRINT_METHODS.map((opt) => (
-                      <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <ImprintOptionSelect
+                  type="method"
+                  value={artUploadMethod}
+                  onChange={setArtUploadMethod}
+                  orderId={projectId}
+                />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">

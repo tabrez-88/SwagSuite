@@ -7,7 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { IMPRINT_LOCATIONS, IMPRINT_METHODS } from "@/constants/imprintOptions";
+import { ImprintOptionSelect } from "@/components/shared/ImprintOptionSelect";
 import { marginColorClass, isBelowMinimum, calcMarginPercent } from "@/hooks/useMarginSettings";
 import {
   ArrowLeft, Search, Package, PenLine, Loader2, Plus,
@@ -529,29 +529,19 @@ export default function AddProductPage({ projectId, data }: AddProductPageProps)
                 </div>
                 <div>
                   <Label>Imprint Location</Label>
-                  <Select value={h.manualForm.imprintLocation} onValueChange={(v) => h.setManualForm(f => ({ ...f, imprintLocation: v }))}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select location" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {IMPRINT_LOCATIONS.map((opt) => (
-                        <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <ImprintOptionSelect
+                    type="location"
+                    value={h.manualForm.imprintLocation}
+                    onChange={(v) => h.setManualForm(f => ({ ...f, imprintLocation: v }))}
+                  />
                 </div>
                 <div>
                   <Label>Imprint Method</Label>
-                  <Select value={h.manualForm.imprintMethod} onValueChange={(v) => h.setManualForm(f => ({ ...f, imprintMethod: v }))}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select method" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {IMPRINT_METHODS.map((opt) => (
-                        <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <ImprintOptionSelect
+                    type="method"
+                    value={h.manualForm.imprintMethod}
+                    onChange={(v) => h.setManualForm(f => ({ ...f, imprintMethod: v }))}
+                  />
                 </div>
                 <div className="col-span-2">
                   <Label>Notes</Label>

@@ -29,6 +29,7 @@ import {
   useDeleteLine,
   useRemoveArtworkFile,
   useToggleChargeDisplay,
+  useUpdateArtwork,
   useUpdateArtworkCharge,
   useUpdateCharge,
   useUpdateLine,
@@ -129,6 +130,7 @@ export function useEditProductPage(projectId: string, itemId: string, data: Proj
   const deleteChargeMutation = useDeleteCharge(projectId);
   const toggleChargeDisplayMutation = useToggleChargeDisplay(projectId);
   const createArtworkMutation = useCreateArtwork(projectId);
+  const updateArtworkMutation = useUpdateArtwork(projectId);
   const deleteArtworkMutation = useDeleteArtwork(projectId);
   const createArtworkChargeMutation = useCreateArtworkCharge(projectId);
   const updateArtworkChargeMutation = useUpdateArtworkCharge(projectId);
@@ -370,6 +372,21 @@ export function useEditProductPage(projectId: string, itemId: string, data: Proj
     quantity: 1,
     displayMode: "display_to_client" as "include_in_price" | "display_to_client" | "subtract_from_margin",
   });
+
+  // ── Edit artwork dialog ──
+  const [editingArtwork, setEditingArtwork] = useState<any | null>(null);
+
+  const handleUpdateArtwork = (artworkId: string, updates: Record<string, any>) => {
+    updateArtworkMutation.mutate(
+      { itemId, artworkId, updates },
+      {
+        onSuccess: () => {
+          toast({ title: "Artwork updated" });
+          setEditingArtwork(null);
+        },
+      },
+    );
+  };
 
   // ── Artwork ──
   const [pickingArtwork, setPickingArtwork] = useState(false);
@@ -613,7 +630,11 @@ export function useEditProductPage(projectId: string, itemId: string, data: Proj
     handleArtworkFilePicked,
     handleCreateArtwork,
     createArtworkMutation,
+    updateArtworkMutation,
     deleteArtworkMutation,
+    editingArtwork,
+    setEditingArtwork,
+    handleUpdateArtwork,
     // Artwork charges
     showAddArtworkCharge,
     setShowAddArtworkCharge,

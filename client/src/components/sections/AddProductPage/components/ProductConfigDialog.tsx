@@ -5,7 +5,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { IMPRINT_LOCATIONS, IMPRINT_METHODS } from "@/constants/imprintOptions";
+import { ImprintOptionSelect } from "@/components/shared/ImprintOptionSelect";
 import { marginColorClass, isBelowMinimum, calcMarginPercent } from "@/hooks/useMarginSettings";
 import TierPricingPanel from "@/components/sections/TierPricingPanel";
 import { DollarSign, ImageIcon, Loader2, Plus, ShieldAlert, Tag, Trash2 } from "lucide-react";
@@ -115,28 +115,11 @@ export function ProductConfigDialog({
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label>Imprint Location</Label>
-                <Select
-                  value={IMPRINT_LOCATIONS.some((o) => o.value === imprintLocation) ? imprintLocation : (imprintLocation ? "__custom__" : "")}
-                  onValueChange={(v) => setImprintLocation(v === "__custom__" ? "" : v)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select location" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {IMPRINT_LOCATIONS.map((opt) => (
-                      <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                    ))}
-                    <SelectItem value="__custom__">Custom...</SelectItem>
-                  </SelectContent>
-                </Select>
-                {!IMPRINT_LOCATIONS.some((o) => o.value === imprintLocation) && imprintLocation !== undefined && (
-                  <Input
-                    className="mt-2"
-                    placeholder="Enter custom location"
-                    value={imprintLocation}
-                    onChange={(e) => setImprintLocation(e.target.value)}
-                  />
-                )}
+                <ImprintOptionSelect
+                  type="location"
+                  value={imprintLocation}
+                  onChange={setImprintLocation}
+                />
               </div>
               <div>
                 <Label>Imprint Method</Label>
@@ -156,23 +139,15 @@ export function ProductConfigDialog({
                     </SelectContent>
                   </Select>
                 ) : (
-                  <Select
-                    value={IMPRINT_METHODS.some((o) => o.value === imprintMethod) ? imprintMethod : (imprintMethod ? "__custom__" : "")}
-                    onValueChange={(v) => setImprintMethod(v === "__custom__" ? "" : v)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select method" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {IMPRINT_METHODS.map((opt) => (
-                        <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                      ))}
-                      <SelectItem value="__custom__">Custom...</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <ImprintOptionSelect
+                    type="method"
+                    value={imprintMethod}
+                    onChange={setImprintMethod}
+                  />
                 )}
-                {!(selectedProduct.decorationMethods && (selectedProduct.decorationMethods as string[]).includes(imprintMethod))
-                  && !IMPRINT_METHODS.some((o) => o.value === imprintMethod)
+                {selectedProduct.decorationMethods
+                  && selectedProduct.decorationMethods.length > 0
+                  && !(selectedProduct.decorationMethods as string[]).includes(imprintMethod)
                   && imprintMethod !== undefined
                   && (
                   <Input

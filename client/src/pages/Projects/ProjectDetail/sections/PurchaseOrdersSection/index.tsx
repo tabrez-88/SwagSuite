@@ -306,9 +306,17 @@ export default function PurchaseOrdersSection({ projectId, data, isLocked }: Pur
                                   </DropdownMenuItem>
                                 )}
                                 <DropdownMenuSeparator />
-                                <DropdownMenuItem onClick={() => h.handleRegeneratePO(vendorDoc)}
-                                  className="text-orange-600">
-                                  <Printer className="w-4 h-4 mr-2" /> Regenerate PO
+                                <DropdownMenuItem
+                                  onClick={() => h.handleRegeneratePO(vendorDoc)}
+                                  disabled={h.isGenerating || h.isLocked}
+                                  className="text-orange-600"
+                                >
+                                  {h.isGenerating ? (
+                                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                  ) : (
+                                    <Printer className="w-4 h-4 mr-2" />
+                                  )}
+                                  {h.isGenerating ? "Regenerating..." : "Regenerate PO"}
                                 </DropdownMenuItem>
                                 {poStage === "submitted" && (
                                   <DropdownMenuItem onClick={() => h.updateDocMetaMutation.mutate({

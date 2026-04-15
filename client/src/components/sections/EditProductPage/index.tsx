@@ -45,6 +45,7 @@ import { useEffect, useRef, useState } from "react";
 import { useEditProductPage } from "./hooks";
 import { AddEditChargeDialog } from "./components/AddEditChargeDialog";
 import { ArtworkDialogs } from "./components/ArtworkDialogs";
+import { EditArtworkDialog } from "./components/EditArtworkDialog";
 import { CopyArtworkDialog } from "./components/CopyArtworkDialog";
 import { DecoratorMatrixDialogs } from "./components/DecoratorMatrixDialogs";
 import { FilePreviewDialog } from "./components/FilePreviewDialog";
@@ -875,6 +876,15 @@ function EditProductPageBody({
 
                       {/* Actions */}
                       <div className="flex items-center gap-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 w-7 p-0"
+                          onClick={() => editProductPage.setEditingArtwork(art)}
+                          title="Edit artwork"
+                        >
+                          <Pencil className="w-3.5 h-3.5 text-gray-500" />
+                        </Button>
                         <Button variant="ghost" size="sm" className="h-7 w-7 p-0"
                           onClick={() => editProductPage.deleteArtworkMutation.mutate({ artworkId: art.id, orderItemId: itemId })}>
                           <Trash2 className="w-3.5 h-3.5 text-red-400" />
@@ -1315,6 +1325,15 @@ function EditProductPageBody({
         addingFileToArtworkId={editProductPage.addingFileToArtworkId}
         setAddingFileToArtworkId={editProductPage.setAddingFileToArtworkId}
         addArtworkFileMutation={editProductPage.addArtworkFileMutation}
+      />
+
+      {/* EDIT ARTWORK DIALOG */}
+      <EditArtworkDialog
+        projectId={projectId}
+        artwork={editProductPage.editingArtwork}
+        onClose={() => editProductPage.setEditingArtwork(null)}
+        onSave={editProductPage.handleUpdateArtwork}
+        isSaving={editProductPage.updateArtworkMutation.isPending}
       />
 
       {/* COPY ARTWORK DIALOG */}

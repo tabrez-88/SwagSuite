@@ -48,7 +48,7 @@ export default function ShippingSection({ projectId, data, isLocked }: ShippingS
   const updateProjectMutation = useUpdateProject(projectId);
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-5 p-6 mt-6 rounded-lg border bg-card text-card-foreground shadow-sm"> 
       {/* Header */}
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-semibold flex items-center gap-2">

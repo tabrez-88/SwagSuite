@@ -36,7 +36,7 @@ import { updateProduct as updateProductReq } from "@/services/products/requests"
 import { projectKeys } from "@/services/projects/keys";
 import { useToast } from "@/hooks/use-toast";
 import type { OrderItemLine } from "@shared/schema";
-import { IMPRINT_LOCATIONS, IMPRINT_METHODS } from "@/constants/imprintOptions";
+import { ImprintOptionSelect } from "@/components/shared/ImprintOptionSelect";
 import { calcMargin, marginColor } from "../hooks";
 
 interface ProductPricingEditorProps {
@@ -646,29 +646,21 @@ export default function ProductPricingEditor({ item, projectId, onClose }: Produ
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <div>
               <label className="text-xs font-medium text-gray-500 block mb-1">Imprint Location</label>
-              <Select value={imprintLocation} onValueChange={setImprintLocation}>
-                <SelectTrigger className="h-8 text-sm">
-                  <SelectValue placeholder="Select location" />
-                </SelectTrigger>
-                <SelectContent>
-                  {IMPRINT_LOCATIONS.map((opt) => (
-                    <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <ImprintOptionSelect
+                type="location"
+                value={imprintLocation}
+                onChange={setImprintLocation}
+                triggerClassName="h-8 text-sm"
+              />
             </div>
             <div>
               <label className="text-xs font-medium text-gray-500 block mb-1">Imprint Method</label>
-              <Select value={imprintMethod} onValueChange={setImprintMethod}>
-                <SelectTrigger className="h-8 text-sm">
-                  <SelectValue placeholder="Select method" />
-                </SelectTrigger>
-                <SelectContent>
-                  {IMPRINT_METHODS.map((opt) => (
-                    <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <ImprintOptionSelect
+                type="method"
+                value={imprintMethod}
+                onChange={setImprintMethod}
+                triggerClassName="h-8 text-sm"
+              />
             </div>
             <div>
               <label className="text-xs font-medium text-gray-500 block mb-1">Decorator</label>

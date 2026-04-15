@@ -32,7 +32,8 @@ import {
   Upload,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { IMPRINT_LOCATIONS, IMPRINT_METHODS } from "@/constants/imprintOptions";
+import { useImprintOptions } from "@/services/imprint-options";
+import { ImprintOptionSelect } from "@/components/shared/ImprintOptionSelect";
 import FilePickerDialog from "@/components/modals/FilePickerDialog";
 import type { useProjectData } from "../../../hooks";
 
@@ -61,6 +62,9 @@ export default function ArtworkGrid({ data, projectId, enrichedItems }: ArtworkG
 
   // Fetch supplier data for sageData.generalInfo.imprintMethods
   const { data: supplierData } = useSupplier(currentSupplierId);
+
+  // Admin-managed canonical method list (dynamic).
+  const { data: dynamicMethods = [] } = useImprintOptions("method");
 
   // Build dynamic imprint method groups
   const imprintMethodGroups = useMemo(() => {
@@ -104,14 +108,14 @@ export default function ArtworkGrid({ data, projectId, enrichedItems }: ArtworkG
       }
     }
 
-    // 3. Static fallback methods (filtered)
-    const staticMethods = IMPRINT_METHODS.filter(opt => !seenValues.has(opt.label.toLowerCase()) && !seenValues.has(opt.value.toLowerCase()));
+    // 3. Admin-managed methods (filtered to avoid dupes)
+    const staticMethods = dynamicMethods.filter(opt => !seenValues.has(opt.label.toLowerCase()) && !seenValues.has(opt.value.toLowerCase()));
 
     const hasProductMethods = productMethods.length > 0;
     const hasSupplierMethods = supplierMethods.length > 0;
 
     return { productMethods, supplierMethods, staticMethods, hasProductMethods, hasSupplierMethods };
-  }, [currentItem, supplierData]);
+  }, [currentItem, supplierData, dynamicMethods]);
 
   const resetForm = () => {
     setPickedFile(null);
@@ -293,16 +297,12 @@ export default function ArtworkGrid({ data, projectId, enrichedItems }: ArtworkG
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label>Decoration Location</Label>
-                <Select value={artLocation} onValueChange={setArtLocation}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select location" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {IMPRINT_LOCATIONS.map((opt) => (
-                      <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <ImprintOptionSelect
+                  type="location"
+                  value={artLocation}
+                  onChange={setArtLocation}
+                  orderId={projectId}
+                />
               </div>
               <div>
                 <Label>Imprint Method</Label>
