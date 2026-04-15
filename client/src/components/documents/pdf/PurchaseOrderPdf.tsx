@@ -175,6 +175,9 @@ export function PurchaseOrderPdf({
           <Text style={[styles.addressLine, styles.bold, { fontSize: 11 }]}>
             {vendorAddress?.companyNameOnDocs || vendor?.name}
           </Text>
+          {vendor?.contactPerson && (
+            <Text style={styles.addressLine}>Attn: {vendor.contactPerson}</Text>
+          )}
           {vendorAddress?.street && <Text style={styles.addressLine}>{vendorAddress.street}</Text>}
           {vendorAddress?.street2 && <Text style={styles.addressLine}>{vendorAddress.street2}</Text>}
           {(vendorAddress?.city || vendorAddress?.state || vendorAddress?.zipCode) && (

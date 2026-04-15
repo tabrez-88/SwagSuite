@@ -68,4 +68,10 @@ export class DocumentController {
     await documentService.deleteDocument(documentId);
     res.json({ success: true, message: "Document deleted" });
   }
+
+  static async nextPoSequence(_req: Request, res: Response) {
+    const { documentRepository } = await import("../repositories/document.repository");
+    const next = await documentRepository.getNextPoSequence();
+    res.json({ next });
+  }
 }

@@ -96,8 +96,13 @@ export function InvoicePdf({
             <Text style={styles.addressLabel}>SHIP TO</Text>
             {shippingAddr ? (
               <>
-                {shippingAddr.name && (
-                  <Text style={[styles.addressLine, styles.bold]}>{shippingAddr.name}</Text>
+                <Text style={[styles.addressLine, styles.bold]}>
+                  {shippingAddr.name || companyName || "N/A"}
+                </Text>
+                {primaryContact && (
+                  <Text style={styles.addressLine}>
+                    Attn: {primaryContact.firstName} {primaryContact.lastName}
+                  </Text>
                 )}
                 {shippingAddr.street && <Text style={styles.addressLine}>{shippingAddr.street}</Text>}
                 {shippingAddr.street2 && <Text style={styles.addressLine}>{shippingAddr.street2}</Text>}

@@ -32,11 +32,12 @@ interface SendInvoiceDialogProps {
   totalAmount: number;
   dueDate?: string;
   contacts?: EmailContact[];
+  stripeInvoiceUrl?: string | null;
 }
 
 export default function SendInvoiceDialog({
   open, onOpenChange, projectId, recipientEmail, recipientName, companyName, orderNumber,
-  invoiceNumber, invoiceDocument, totalAmount, dueDate, contacts,
+  invoiceNumber, invoiceDocument, totalAmount, dueDate, contacts, stripeInvoiceUrl,
 }: SendInvoiceDialogProps) {
   const {
     reminderEnabled,
@@ -59,7 +60,8 @@ export default function SendInvoiceDialog({
     invoiceNumber,
     totalAmount: `$${totalAmount.toFixed(2)}`,
     dueDate: dueDateFormatted || "",
-  }), [companyName, recipientName, orderNumber, invoiceNumber, totalAmount, dueDateFormatted]);
+    stripePaymentLink: stripeInvoiceUrl || "",
+  }), [companyName, recipientName, orderNumber, invoiceNumber, totalAmount, dueDateFormatted, stripeInvoiceUrl]);
 
   const reminderSection = (
     <div className="border rounded-lg p-3 bg-gray-50/50">
@@ -118,7 +120,7 @@ export default function SendInvoiceDialog({
             to: recipientEmail,
             toName: recipientName,
             subject: `Invoice #${invoiceNumber} from ${companyName}`,
-            body: `Hi ${recipientName.split(" ")[0] || "there"},\n\nPlease find attached Invoice #${invoiceNumber} for $${totalAmount.toFixed(2)}${dueDateFormatted ? ` due by ${dueDateFormatted}` : ""}.\n\nIf you have any questions regarding this invoice, please don't hesitate to reach out.\n\nThank you for your business!\n\nBest regards,\n${companyName}`,
+            body: `Hi ${recipientName.split(" ")[0] || "there"},\n\nPlease find attached Invoice #${invoiceNumber} for $${totalAmount.toFixed(2)}${dueDateFormatted ? ` due by ${dueDateFormatted}` : ""}.\n${stripeInvoiceUrl ? `\nPay online securely here: ${stripeInvoiceUrl}\n` : ""}\nIf you have any questions regarding this invoice, please don't hesitate to reach out.\n\nThank you for your business!\n\nBest regards,\n${companyName}`,
           }}
           templateType="invoice"
           templateMergeData={mergeData}

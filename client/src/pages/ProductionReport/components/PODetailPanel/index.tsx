@@ -46,7 +46,6 @@ import { usePODetailPanel } from "./hooks";
 export default function PODetailPanel({ documentId, open, onOpenChange }: PODetailPanelProps) {
   const {
     po,
-    isLoading,
     activeTab,
     setActiveTab,
     previewFile,
@@ -67,17 +66,7 @@ export default function PODetailPanel({ documentId, open, onOpenChange }: PODeta
       <Sheet open={open} onOpenChange={onOpenChange}>
 
         <SheetContent className="w-[600px] sm:max-w-[600px] overflow-y-auto py-12">
-          {isLoading ? (
-            <div className="flex items-center justify-center h-40">
-              <SheetTitle className="text-lg font-semibold">
-                PO #{po?.document_number || "Loading..."}
-              </SheetTitle>
-              <SheetDescription className="text-sm text-muted-foreground">
-                Loading PO details...
-              </SheetDescription>
-              <Loader2 className="h-6 w-6 animate-spin" />
-            </div>
-          ) : !po ? (
+          {!po ? (
             <>
               <SheetTitle className="text-lg font-semibold">
                 PO not found

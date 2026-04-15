@@ -729,6 +729,39 @@ export class ApprovalController {
             updatedAt: new Date(),
           })
           .where(eq(orders.id, order.id));
+
+        // Auto-generate invoice on client_approved (idempotent)
+        try {
+          const { invoiceRepository } = await import("../repositories/invoice.repository");
+          const existing = await invoiceRepository.getInvoiceByOrderId(order.id);
+          if (!existing) {
+            const taxAmount = Number(order.tax || 0);
+            const totalAmount = Number(order.subtotal || 0) + taxAmount + Number(order.shipping || 0);
+            await invoiceRepository.createInvoice({
+              orderId: order.id,
+              invoiceNumber: `INV-${Date.now()}`,
+              subtotal: order.subtotal ?? "0",
+              taxAmount: taxAmount.toString(),
+              totalAmount: totalAmount.toString(),
+              status: "pending",
+              dueDate: new Date(),
+            });
+            const { projectActivities: pa } = await import("@shared/schema");
+            const actorId = order.assignedUserId || order.csrUserId;
+            if (actorId) {
+              await db.insert(pa).values({
+                orderId: order.id,
+                userId: actorId,
+                activityType: "system_action",
+                content: `Invoice auto-generated after client approved Sales Order`,
+                metadata: { action: "invoice_auto_created", trigger: "sales_order_client_approved" },
+                isSystemGenerated: true,
+              });
+            }
+          }
+        } catch (invErr) {
+          console.error("Auto-invoice creation failed:", invErr);
+        }
       } else {
         // Quote approval: convert to sales order and move to production
         await db
@@ -742,6 +775,29 @@ export class ApprovalController {
             updatedAt: new Date(),
           })
           .where(eq(orders.id, order.id));
+
+        // Auto-generate invoice when quote approval cascades to SO client_approved
+        if (autoApproveSo) {
+          try {
+            const { invoiceRepository } = await import("../repositories/invoice.repository");
+            const existing = await invoiceRepository.getInvoiceByOrderId(order.id);
+            if (!existing) {
+              const taxAmount = Number(order.tax || 0);
+              const totalAmount = Number(order.subtotal || 0) + taxAmount + Number(order.shipping || 0);
+              await invoiceRepository.createInvoice({
+                orderId: order.id,
+                invoiceNumber: `INV-${Date.now()}`,
+                subtotal: order.subtotal ?? "0",
+                taxAmount: taxAmount.toString(),
+                totalAmount: totalAmount.toString(),
+                status: "pending",
+                dueDate: new Date(),
+              });
+            }
+          } catch (invErr) {
+            console.error("Auto-invoice creation failed:", invErr);
+          }
+        }
       }
 
       // Log activity — use order's assigned user or CSR as the activity userId (public endpoint has no req.user)

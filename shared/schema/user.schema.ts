@@ -29,6 +29,8 @@ export const users = pgTable("users", {
   twoFactorSecret: varchar("two_factor_secret"), // AES-256-GCM encrypted
   twoFactorBackupCodes: jsonb("two_factor_backup_codes"), // hashed backup codes
   trustedDevices: jsonb("trusted_devices").default([]), // [{ tokenHash, expiresAt, label, createdAt }]
+  // Notification preferences — currently scopes only to @mentions (in-app/email/slack)
+  notificationPreferences: jsonb("notification_preferences").default({ mentions: { inApp: true, email: false, slack: false } }),
   // Commission reporting (Paulina spec 3/10): flat % on gross profit
   commissionPercent: decimal("commission_percent", { precision: 5, scale: 2 }),
   createdAt: timestamp("created_at").defaultNow(),

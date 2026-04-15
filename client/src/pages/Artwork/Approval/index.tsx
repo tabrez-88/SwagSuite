@@ -90,6 +90,100 @@ function ApprovalPage() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Left Column: Artwork Preview (spans 2 cols on lg) */}
           <div className="lg:col-span-2 space-y-4">
+            {/* Approval Actions (for pending) — shown at top */}
+            {isPending && (
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Clock className="w-4 h-4 text-blue-600" /> APPROVAL
+                  </CardTitle>
+                  <CardDescription className="text-xs">
+                    Review the artwork carefully, then approve or request changes
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div>
+                    <label className="text-sm font-medium block mb-1.5">
+                      Comments or Feedback
+                    </label>
+                    <Textarea
+                      placeholder="Add any comments, suggestions, or revision requests..."
+                      value={comments}
+                      onChange={(e) => setComments(e.target.value)}
+                      rows={3}
+                    />
+                    <p className="text-[10px] text-gray-400 mt-1">Optional for approval, required for revision requests</p>
+                  </div>
+                  <Separator />
+                  <div className="grid grid-cols-2 gap-3">
+                    <Button
+                      variant="destructive"
+                      size="lg"
+                      onClick={handleReject}
+                      disabled={rejectMutation.isPending}
+                      className="w-full"
+                    >
+                      <XCircle className="w-5 h-5 mr-2" />
+                      {rejectMutation.isPending ? "Submitting..." : "Request Revisions"}
+                    </Button>
+                    <Button
+                      variant="default"
+                      size="lg"
+                      onClick={handleApprove}
+                      disabled={approveMutation.isPending}
+                      className="w-full bg-green-600 hover:bg-green-700"
+                    >
+                      <CheckCircle2 className="w-5 h-5 mr-2" />
+                      {approveMutation.isPending ? "Approving..." : "Approve Artwork"}
+                    </Button>
+                  </div>
+                  <p className="text-[10px] text-center text-gray-400">
+                    By clicking "Approve Artwork", you confirm the artwork is ready for production
+                  </p>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Approved state — shown at top */}
+            {isApproved && (
+              <Card className="border-green-200 bg-green-50">
+                <CardContent className="py-8 text-center">
+                  <CheckCircle2 className="w-14 h-14 text-green-600 mx-auto mb-3" />
+                  <h3 className="text-xl font-bold text-green-900 mb-1">Artwork Approved!</h3>
+                  <p className="text-green-700 text-sm mb-3">
+                    Approved on {new Date(approval.approvedAt!).toLocaleDateString()}
+                  </p>
+                  {approval.comments && (
+                    <div className="bg-white rounded-lg p-3 text-left max-w-xl mx-auto">
+                      <p className="text-xs text-gray-500 mb-1">Your Comments:</p>
+                      <p className="text-sm text-gray-700">{approval.comments}</p>
+                    </div>
+                  )}
+                  <p className="text-xs text-green-600 mt-3">Production has been notified and will begin shortly.</p>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Rejected state — shown at top */}
+            {isRejected && (
+              <Card className="border-red-200 bg-red-50">
+                <CardContent className="py-8 text-center">
+                  <XCircle className="w-14 h-14 text-red-600 mx-auto mb-3" />
+                  <h3 className="text-xl font-bold text-red-900 mb-1">Revision Requested</h3>
+                  <p className="text-red-700 text-sm mb-3">
+                    Submitted on {new Date(approval.rejectedAt!).toLocaleDateString()}
+                  </p>
+                  {approval.comments && (
+                    <div className="bg-white rounded-lg p-3 text-left max-w-xl mx-auto">
+                      <p className="text-xs text-gray-500 mb-1">Your Feedback:</p>
+                      <p className="text-sm text-gray-700">{approval.comments}</p>
+                    </div>
+                  )}
+                  <p className="text-xs text-red-600 mt-3">Our team is working on revisions based on your feedback.</p>
+                </CardContent>
+              </Card>
+            )}
+
             {/* Artwork Preview Card */}
             <Card className={isFullscreen ? "fixed inset-0 z-50 rounded-none" : ""}>
               <CardHeader className="pb-2">
@@ -166,100 +260,6 @@ function ApprovalPage() {
                 )}
               </CardContent>
             </Card>
-
-            {/* Approval Actions (for pending) */}
-            {isPending && (
-              <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <Clock className="w-4 h-4 text-blue-600" /> APPROVAL
-                  </CardTitle>
-                  <CardDescription className="text-xs">
-                    Review the artwork carefully, then approve or request changes
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div>
-                    <label className="text-sm font-medium block mb-1.5">
-                      Comments or Feedback
-                    </label>
-                    <Textarea
-                      placeholder="Add any comments, suggestions, or revision requests..."
-                      value={comments}
-                      onChange={(e) => setComments(e.target.value)}
-                      rows={3}
-                    />
-                    <p className="text-[10px] text-gray-400 mt-1">Optional for approval, required for revision requests</p>
-                  </div>
-                  <Separator />
-                  <div className="grid grid-cols-2 gap-3">
-                    <Button
-                      variant="destructive"
-                      size="lg"
-                      onClick={handleReject}
-                      disabled={rejectMutation.isPending}
-                      className="w-full"
-                    >
-                      <XCircle className="w-5 h-5 mr-2" />
-                      {rejectMutation.isPending ? "Submitting..." : "Request Revisions"}
-                    </Button>
-                    <Button
-                      variant="default"
-                      size="lg"
-                      onClick={handleApprove}
-                      disabled={approveMutation.isPending}
-                      className="w-full bg-green-600 hover:bg-green-700"
-                    >
-                      <CheckCircle2 className="w-5 h-5 mr-2" />
-                      {approveMutation.isPending ? "Approving..." : "Approve Artwork"}
-                    </Button>
-                  </div>
-                  <p className="text-[10px] text-center text-gray-400">
-                    By clicking "Approve Artwork", you confirm the artwork is ready for production
-                  </p>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Approved state */}
-            {isApproved && (
-              <Card className="border-green-200 bg-green-50">
-                <CardContent className="py-8 text-center">
-                  <CheckCircle2 className="w-14 h-14 text-green-600 mx-auto mb-3" />
-                  <h3 className="text-xl font-bold text-green-900 mb-1">Artwork Approved!</h3>
-                  <p className="text-green-700 text-sm mb-3">
-                    Approved on {new Date(approval.approvedAt!).toLocaleDateString()}
-                  </p>
-                  {approval.comments && (
-                    <div className="bg-white rounded-lg p-3 text-left max-w-xl mx-auto">
-                      <p className="text-xs text-gray-500 mb-1">Your Comments:</p>
-                      <p className="text-sm text-gray-700">{approval.comments}</p>
-                    </div>
-                  )}
-                  <p className="text-xs text-green-600 mt-3">Production has been notified and will begin shortly.</p>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Rejected state */}
-            {isRejected && (
-              <Card className="border-red-200 bg-red-50">
-                <CardContent className="py-8 text-center">
-                  <XCircle className="w-14 h-14 text-red-600 mx-auto mb-3" />
-                  <h3 className="text-xl font-bold text-red-900 mb-1">Revision Requested</h3>
-                  <p className="text-red-700 text-sm mb-3">
-                    Submitted on {new Date(approval.rejectedAt!).toLocaleDateString()}
-                  </p>
-                  {approval.comments && (
-                    <div className="bg-white rounded-lg p-3 text-left max-w-xl mx-auto">
-                      <p className="text-xs text-gray-500 mb-1">Your Feedback:</p>
-                      <p className="text-sm text-gray-700">{approval.comments}</p>
-                    </div>
-                  )}
-                  <p className="text-xs text-red-600 mt-3">Our team is working on revisions based on your feedback.</p>
-                </CardContent>
-              </Card>
-            )}
           </div>
 
           {/* Right Column: Details sidebar */}
@@ -272,20 +272,8 @@ function ApprovalPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
-                {approval.orderItem?.imageUrl && (
-                  <div className="w-full h-32 bg-gray-100 rounded-lg overflow-hidden flex items-center justify-center">
-                    <img
-                      src={approval.orderItem.imageUrl}
-                      alt={approval.orderItem.productName}
-                      className="max-w-full max-h-full object-contain"
-                    />
-                  </div>
-                )}
                 <div>
                   <p className="font-semibold">{approval.orderItem?.productName || "Product"}</p>
-                  {approval.orderItem?.productSku && (
-                    <p className="text-xs text-gray-500">SKU: {approval.orderItem.productSku}</p>
-                  )}
                 </div>
                 <div className="grid grid-cols-3 gap-2 text-center">
                   <div className="bg-gray-50 rounded p-2">

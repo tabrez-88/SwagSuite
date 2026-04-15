@@ -9,7 +9,6 @@ import {
   Receipt,
   ShoppingCart,
   Star,
-  Truck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { type BusinessStage, STAGE_ORDER } from "@/constants/businessStages";
@@ -38,7 +37,6 @@ const navItems: NavItem[] = [
   { name: "Presentation", href: "presentation", icon: Presentation },
   { name: "Quote", href: "quote", icon: Calculator, stageGate: "quote" },
   { name: "Sales Order", href: "sales-order", icon: ShoppingCart, showCount: true, stageGate: "sales_order" },
-  { name: "Shipping", href: "shipping", icon: Truck, stageGate: "sales_order" },
   { name: "POs", href: "pos", icon: ClipboardList, stageGate: "sales_order", requiresClientApproval: true },
   { name: "Invoice", href: "invoice", icon: Receipt, stageGate: "sales_order", requiresClientApproval: true },
   { name: "Bills", href: "bills", icon: FileText, stageGate: "sales_order", requiresClientApproval: true },

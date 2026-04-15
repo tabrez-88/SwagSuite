@@ -183,6 +183,13 @@
       "when": 1775981000000,
       "tag": "0025_seed_default_payment_term",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1776185458656,
+      "tag": "0026_cynical_iron_man",
+      "breakpoints": true
     }
   ]
 }

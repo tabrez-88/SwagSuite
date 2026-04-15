@@ -2,11 +2,17 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Bell, Save } from "lucide-react";
+import { Bell, Loader2, Save } from "lucide-react";
 import { useNotificationsTab } from "./hooks";
 
+const CHANNEL_COPY: Record<"inApp" | "email" | "slack", { label: string; description: string }> = {
+  inApp: { label: "In-app", description: "Show mention notifications in the bell menu." },
+  email: { label: "Email", description: "Also send an email when someone @mentions you in a note." },
+  slack: { label: "Slack", description: "Forward mention alerts to Slack (requires Slack integration)." },
+};
+
 export function NotificationsTab() {
-  const { notifications, handleToggle, saveSettings } = useNotificationsTab();
+  const { mentions, handleToggle, saveSettings, isSaving, isLoading } = useNotificationsTab();
 
   return (
     <Card>
@@ -16,49 +22,31 @@ export function NotificationsTab() {
           Notification Settings
         </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-4">
-        {Object.entries(notifications).map(([key, value]) => (
-          <div key={key} className="flex items-center justify-between">
-            <div>
-              <Label
-                htmlFor={key}
-                className="text-sm font-medium capitalize"
-              >
-                {key.replace(/([A-Z])/g, " $1").trim()}
-              </Label>
-              <p className="text-xs text-gray-600">
-                {key === "emailNotifications" &&
-                  "Receive notifications via email"}
-                {key === "slackNotifications" &&
-                  "Send alerts to configured Slack channels"}
-                {key === "orderUpdates" &&
-                  "Get notified when orders change status"}
-                {key === "customerUpdates" &&
-                  "Alerts for new customers and updates"}
-                {key === "supplierUpdates" &&
-                  "Notifications about supplier changes"}
-                {key === "marketingEmails" &&
-                  "Receive marketing and promotional emails"}
-                {key === "weeklyReports" &&
-                  "Weekly performance and analytics reports"}
-                {key === "instantAlerts" &&
-                  "Immediate notifications for urgent items"}
-                {key === "dailyDigest" &&
-                  "Daily summary of all activities"}
-              </p>
-            </div>
-            <Switch
-              id={key}
-              checked={value}
-              onCheckedChange={(checked) => handleToggle(key, checked)}
-            />
+      <CardContent className="space-y-6">
+        <div>
+          <h3 className="text-sm font-semibold mb-1">@Mentions in Internal Notes</h3>
+          <p className="text-xs text-gray-600 mb-4">
+            Choose how you want to be notified when a teammate tags you (@name) in a project's internal notes.
+          </p>
+          <div className="space-y-4">
+            {(["inApp", "email", "slack"] as const).map((key) => (
+              <div key={key} className="flex items-center justify-between">
+                <div>
+                  <Label htmlFor={`mention-${key}`} className="text-sm font-medium">{CHANNEL_COPY[key].label}</Label>
+                  <p className="text-xs text-gray-600">{CHANNEL_COPY[key].description}</p>
+                </div>
+                <Switch
+                  id={`mention-${key}`}
+                  checked={mentions[key]}
+                  disabled={isLoading}
+                  onCheckedChange={(checked) => handleToggle(key, checked)}
+                />
+              </div>
+            ))}
           </div>
-        ))}
-        <Button
-          onClick={saveSettings}
-          className="w-full"
-        >
-          <Save className="w-4 h-4 mr-2" />
+        </div>
+        <Button onClick={saveSettings} disabled={isSaving || isLoading} className="w-full">
+          {isSaving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
           Save Notification Settings
         </Button>
       </CardContent>

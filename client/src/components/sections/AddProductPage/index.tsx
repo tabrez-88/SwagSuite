@@ -680,7 +680,10 @@ export default function AddProductPage({ projectId, data }: AddProductPageProps)
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label>Imprint Location</Label>
-                  <Select value={h.imprintLocation} onValueChange={h.setImprintLocation}>
+                  <Select
+                    value={IMPRINT_LOCATIONS.some((o) => o.value === h.imprintLocation) ? h.imprintLocation : (h.imprintLocation ? "__custom__" : "")}
+                    onValueChange={(v) => h.setImprintLocation(v === "__custom__" ? "" : v)}
+                  >
                     <SelectTrigger>
                       <SelectValue placeholder="Select location" />
                     </SelectTrigger>
@@ -688,13 +691,25 @@ export default function AddProductPage({ projectId, data }: AddProductPageProps)
                       {IMPRINT_LOCATIONS.map((opt) => (
                         <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
                       ))}
+                      <SelectItem value="__custom__">Custom...</SelectItem>
                     </SelectContent>
                   </Select>
+                  {!IMPRINT_LOCATIONS.some((o) => o.value === h.imprintLocation) && h.imprintLocation !== undefined && (
+                    <Input
+                      className="mt-2"
+                      placeholder="Enter custom location"
+                      value={h.imprintLocation}
+                      onChange={(e) => h.setImprintLocation(e.target.value)}
+                    />
+                  )}
                 </div>
                 <div>
                   <Label>Imprint Method</Label>
                   {h.selectedProduct.decorationMethods && h.selectedProduct.decorationMethods.length > 0 ? (
-                    <Select value={h.imprintMethod} onValueChange={h.setImprintMethod}>
+                    <Select
+                      value={(h.selectedProduct.decorationMethods as string[]).includes(h.imprintMethod) ? h.imprintMethod : (h.imprintMethod ? "__custom__" : "")}
+                      onValueChange={(v) => h.setImprintMethod(v === "__custom__" ? "" : v)}
+                    >
                       <SelectTrigger>
                         <SelectValue placeholder="Select method" />
                       </SelectTrigger>
@@ -702,10 +717,14 @@ export default function AddProductPage({ projectId, data }: AddProductPageProps)
                         {h.selectedProduct.decorationMethods.map((m: string) => (
                           <SelectItem key={m} value={m}>{m}</SelectItem>
                         ))}
+                        <SelectItem value="__custom__">Custom...</SelectItem>
                       </SelectContent>
                     </Select>
                   ) : (
-                    <Select value={h.imprintMethod} onValueChange={h.setImprintMethod}>
+                    <Select
+                      value={IMPRINT_METHODS.some((o) => o.value === h.imprintMethod) ? h.imprintMethod : (h.imprintMethod ? "__custom__" : "")}
+                      onValueChange={(v) => h.setImprintMethod(v === "__custom__" ? "" : v)}
+                    >
                       <SelectTrigger>
                         <SelectValue placeholder="Select method" />
                       </SelectTrigger>
@@ -713,8 +732,20 @@ export default function AddProductPage({ projectId, data }: AddProductPageProps)
                         {IMPRINT_METHODS.map((opt) => (
                           <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
                         ))}
+                        <SelectItem value="__custom__">Custom...</SelectItem>
                       </SelectContent>
                     </Select>
+                  )}
+                  {!(h.selectedProduct.decorationMethods && (h.selectedProduct.decorationMethods as string[]).includes(h.imprintMethod))
+                    && !IMPRINT_METHODS.some((o) => o.value === h.imprintMethod)
+                    && h.imprintMethod !== undefined
+                    && (
+                    <Input
+                      className="mt-2"
+                      placeholder="Enter custom method"
+                      value={h.imprintMethod}
+                      onChange={(e) => h.setImprintMethod(e.target.value)}
+                    />
                   )}
                 </div>
               </div>

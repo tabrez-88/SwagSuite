@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
+import { useNextActionTypes } from "@/hooks/useNextActionTypes";
 import { getCloudinaryThumbnail } from "@/lib/media-library";
 import { sendCommunication } from "@/services/communications";
 import {
@@ -40,6 +41,7 @@ export default function PurchaseOrdersSection({ projectId, data, isLocked }: Pur
   const h = usePurchaseOrdersSection({ projectId, data, isLocked });
   const { toast } = useToast();
   const sender = useAutoFillSender();
+  const { actionTypes } = useNextActionTypes();
 
   // Merge data for PO email template
   const poMergeData = useMemo(() => ({
@@ -137,6 +139,34 @@ export default function PurchaseOrdersSection({ projectId, data, isLocked }: Pur
         <div className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
           <AlertTriangle className="h-4 w-4 flex-shrink-0" />
           <span>Not all products have shipping details configured. Complete shipping details in the Shipping tab before generating POs.</span>
+        </div>
+      )}
+
+      {/* Dual-PO reminder: apparel items with artwork should route through a third-party decorator */}
+      {h.itemsMissingDecorator.length > 0 && (
+        <div className="flex items-start gap-2 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
+          <AlertTriangle className="h-4 w-4 flex-shrink-0 mt-0.5" />
+          <div>
+            <p className="font-medium">Dual PO workflow recommended</p>
+            <p className="text-xs text-blue-800 mt-0.5">
+              {h.itemsMissingDecorator.length} item{h.itemsMissingDecorator.length > 1 ? "s" : ""} with artwork {h.itemsMissingDecorator.length > 1 ? "are" : "is"} routed as "Supplier Decorator" — only one PO will be generated.
+              For apparel orders that need blanks shipped to a decorator first, edit each product and set <strong>Decorator Type → Third-Party Decorator</strong>. This splits the work into two POs: one for the blanks, one for the decorator.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Batch generate all outstanding POs */}
+      {h.vendorPOs.length > 1 && h.vendorPOs.some((po: any) => !h.getVendorDoc(po.vendor.vendorKey || po.vendor.id)) && (
+        <div className="flex items-center justify-between rounded-lg border bg-white px-4 py-3">
+          <div className="text-sm">
+            <p className="font-medium">Generate POs in bulk</p>
+            <p className="text-xs text-gray-500">Create PDFs for every vendor that doesn't have one yet.</p>
+          </div>
+          <Button size="sm" onClick={h.handleGenerateAllPOs} disabled={h.isGenerating || !!h.generatingVendorId || h.isLocked}>
+            {h.generatingVendorId ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <FileText className="w-3.5 h-3.5 mr-1.5" />}
+            Generate All POs
+          </Button>
         </div>
       )}
 
@@ -386,17 +416,35 @@ export default function PurchaseOrdersSection({ projectId, data, isLocked }: Pur
                           </Select>
                         </div>
                         <div>
-                          <label className="text-[10px] font-medium text-gray-500 block mb-1">
-                            Supplier IHD <span className="text-red-500">*</span>
-                          </label>
+                          <label className="text-[10px] font-medium text-gray-500 block mb-1">Next Action</label>
+                          <Select
+                            value={vendorDoc.metadata?.nextActionType || ''}
+                            onValueChange={(val) => h.updateDocMetaMutation.mutate({
+                              docId: vendorDoc.id,
+                              updates: { metadata: { ...vendorDoc.metadata, nextActionType: val } },
+                            })}
+                            disabled={h.isLocked}
+                          >
+                            <SelectTrigger className="h-8 text-xs w-[160px]">
+                              <SelectValue placeholder="Select action" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {actionTypes.map((t: any) => (
+                                <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-medium text-gray-500 block mb-1">Next Action Date</label>
                           <Input
                             type="date"
-                            value={vendorDoc.metadata?.supplierIHD || ''}
+                            value={vendorDoc.metadata?.nextActionDate || ''}
                             onChange={(e) => h.updateDocMetaMutation.mutate({
                               docId: vendorDoc.id,
-                              updates: { metadata: { ...vendorDoc.metadata, supplierIHD: e.target.value } },
+                              updates: { metadata: { ...vendorDoc.metadata, nextActionDate: e.target.value } },
                             })}
-                            className={`h-8 text-xs w-[160px] ${!vendorDoc.metadata?.supplierIHD ? 'border-red-300' : ''}`}
+                            className="h-8 text-xs w-[160px]"
                             disabled={h.isLocked}
                           />
                         </div>
@@ -701,7 +749,7 @@ export default function PurchaseOrdersSection({ projectId, data, isLocked }: Pur
             defaults={{
               to: h.emailPOVendor?.vendor.email || "",
               toName: h.emailPOVendor?.vendor.contactPerson || h.emailPOVendor?.vendor.name || "",
-              subject: `Purchase Order #${h.emailPOVendor?.doc.documentNumber} - ${(h.order as any)?.orderNumber || ""}`,
+              subject: `${(h.order as any)?.isFirm ? "FIRM - " : ""}Purchase Order #${h.emailPOVendor?.doc.documentNumber} - ${(h.order as any)?.orderNumber || ""}`,
               body: (() => {
                 const ihd = h.emailPOVendor?.doc?.metadata?.supplierIHD || (h.order as any)?.supplierInHandsDate;
                 return `Hi ${h.emailPOVendor?.vendor.contactPerson || h.emailPOVendor?.vendor.name || "there"},\n\nPlease find the attached purchase order for your review and confirmation.\n\nOrder #: ${(h.order as any)?.orderNumber || ""}\nPO #: ${h.emailPOVendor?.doc.documentNumber || ""}\n${ihd ? `In-Hands Date: ${new Date(ihd).toLocaleDateString()}` : ""}\n\nPlease confirm receipt and acknowledge this order.\n\nThank you.`;
@@ -760,12 +808,13 @@ export default function PurchaseOrdersSection({ projectId, data, isLocked }: Pur
             defaults={{
               to: h.data.primaryContact?.email || "",
               toName: h.data.primaryContact ? `${h.data.primaryContact.firstName} ${h.data.primaryContact.lastName}` : h.data.companyName || "",
+              cc: (h.data as any)?.assignedUser?.email || "",
               subject: `Artwork Proofs for Review - ${(h.order as any)?.orderNumber || ""}`,
               body: (() => {
                 const pc = h.data.primaryContact;
                 const cn = h.data.companyName || "";
                 const artList = h.sendProofArts.map((a: any) => `  - ${a.productName} (${a.location || a.artworkType || "Artwork"})`).join("\n");
-                return `Hi ${pc?.firstName || "there"},\n\nWe've received artwork proofs for your order. Please review each proof below and let us know if you'd like to approve or request changes.\n\nProofs included:\n${artList}\n\nBest regards,\n${cn}`;
+                return `Hi ${pc?.firstName || "there"},\n\nWe've received artwork proofs for your order. Please review each proof below and let us know if you'd like to approve or request changes.\n\nProofs included:\n${artList}\n\n{{approvalLinks}}\n\nBest regards,\n${cn}`;
               })(),
             }}
             templateType="proof"

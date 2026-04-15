@@ -17,6 +17,8 @@ import BillsSection from "./sections/BillsSection";
 import FeedbackSection from "./sections/FeedbackSection";
 import AddProductPage from "@/components/sections/AddProductPage";
 import PresentationPreviewPage from "./sections/PresentationSection/PresentationPreviewPage";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Truck } from "lucide-react";
 
 export default function ProjectDetailPage() {
   const params = useParams();
@@ -87,13 +89,44 @@ export default function ProjectDetailPage() {
       case "quote":
         return <QuoteSection projectId={projectId!} data={data} lockStatus={lockStatus.quote} />;
       case "sales-order":
-        return <SalesOrderSection projectId={projectId!} data={data} lockStatus={lockStatus.salesOrder} />;
+        return (
+          <>
+            <SalesOrderSection projectId={projectId!} data={data} lockStatus={lockStatus.salesOrder} />
+            <Card className="mt-4">
+              <CardHeader className="py-3">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <Truck className="w-4 h-4" />
+                  Shipping
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ShippingSection projectId={projectId!} data={data} isLocked={lockStatus.shipping.isLocked} />
+              </CardContent>
+            </Card>
+          </>
+        );
       case "presentation/add":
       case "quote/add":
       case "sales-order/add":
         return <AddProductPage projectId={projectId!} data={data} />;
       case "shipping":
-        return <ShippingSection projectId={projectId!} data={data} isLocked={lockStatus.shipping.isLocked} />;
+        // Legacy route — shipping is merged into Sales Order; render the same layout.
+        return (
+          <>
+            <SalesOrderSection projectId={projectId!} data={data} lockStatus={lockStatus.salesOrder} />
+            <Card className="mt-4">
+              <CardHeader className="py-3">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <Truck className="w-4 h-4" />
+                  Shipping
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ShippingSection projectId={projectId!} data={data} isLocked={lockStatus.shipping.isLocked} />
+              </CardContent>
+            </Card>
+          </>
+        );
       case "pos":
         return <PurchaseOrdersSection projectId={projectId!} data={data} isLocked={lockStatus.pos.isLocked} />;
       case "invoice":

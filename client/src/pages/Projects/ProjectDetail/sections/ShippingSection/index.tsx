@@ -661,10 +661,6 @@ export default function ShippingSection({ projectId, data, isLocked }: ShippingS
                   <SelectContent>{CARRIERS.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
-              <div>
-                <Label>Shipping Method</Label>
-                <Input value={h.form.shippingMethod} onChange={(e) => h.setField("shippingMethod", e.target.value)} placeholder="e.g., Ground" />
-              </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
@@ -676,9 +672,9 @@ export default function ShippingSection({ projectId, data, isLocked }: ShippingS
                 <Input type="number" step="0.01" min={0} value={h.form.shippingCost} onChange={(e) => h.setField("shippingCost", e.target.value)} placeholder="0.00" />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div><Label>Ship Date</Label><Input type="date" value={h.form.shipDate} onChange={(e) => h.setField("shipDate", e.target.value)} /></div>
-              <div><Label>Estimated Delivery</Label><Input type="date" value={h.form.estimatedDelivery} onChange={(e) => h.setField("estimatedDelivery", e.target.value)} /></div>
+            <div>
+              <Label>Ship Date</Label>
+              <Input type="date" value={h.form.shipDate} onChange={(e) => h.setField("shipDate", e.target.value)} />
             </div>
             <div>
               <Label>Status</Label>

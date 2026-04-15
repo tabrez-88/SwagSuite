@@ -25,7 +25,6 @@ import {
 } from "@/components/ui/tooltip";
 import {
   PO_STATUSES,
-  PROOF_STATUSES,
   getPOStatusBadgeClass
 } from "@/constants/poStages";
 import { getStageBadgeClass } from "@/constants/productionStages";
@@ -66,7 +65,6 @@ export default function ProductionReport() {
     filterStatus, setFilterStatus,
     filterVendor, setFilterVendor,
     filterAssignee, setFilterAssignee,
-    filterProofStatus, setFilterProofStatus,
     filterDateType, setFilterDateType,
     filterDateFrom, setFilterDateFrom,
     filterDateTo, setFilterDateTo,
@@ -77,7 +75,7 @@ export default function ProductionReport() {
     rows, isLoading,
     vendors, users, productionStages, actionTypes,
     handleAlertClick, clearFilters, hasActiveFilters,
-    applyDatePreset, getAggregateProofStatus, handleRowClick,
+    applyDatePreset, handleRowClick,
     setLocation,
   } = useProductionReport();
 
@@ -196,19 +194,6 @@ export default function ProductionReport() {
                   <SelectItem key={u.id} value={u.id}>
                     {u.fullName || `${u.firstName} ${u.lastName}`}
                   </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            {/* Proof status filter */}
-            <Select value={filterProofStatus} onValueChange={(v) => { setFilterProofStatus(v); setPage(1); }}>
-              <SelectTrigger className="h-9 text-sm">
-                <SelectValue placeholder="Proof Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Proof Statuses</SelectItem>
-                {Object.values(PROOF_STATUSES).map((s) => (
-                  <SelectItem key={s.key} value={s.key}>{s.label}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -339,7 +324,6 @@ export default function ProductionReport() {
                 </TableHeader>
                 <TableBody>
                   {rows.map((row) => {
-                    const aggProofStatus = getAggregateProofStatus(row.proofItems);
                     const inHandsStatus = row.inHandsDate ? getDateStatus(row.inHandsDate) : null;
                     const latestShipment = row.shipments?.[0];
 

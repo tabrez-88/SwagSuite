@@ -459,6 +459,7 @@ export default function InvoiceSection(props: InvoiceSectionProps) {
           totalAmount={Number(h.invoice.totalAmount || 0)}
           dueDate={h.invoice.dueDate}
           contacts={h.formattedContacts}
+          stripeInvoiceUrl={h.invoice.stripeInvoiceUrl}
         />
       )}
 

@@ -58,12 +58,14 @@ export class MediaLibraryService {
     category?: string;
     description?: string;
     folder?: string;
+    fileName?: string;
   }) {
     const data: any = {};
     if (updates.tags !== undefined) data.tags = updates.tags;
     if (updates.category !== undefined) data.category = updates.category;
     if (updates.description !== undefined) data.description = updates.description;
     if (updates.folder !== undefined) data.folder = updates.folder;
+    if (updates.fileName !== undefined) data.fileName = updates.fileName;
     return mediaLibraryRepository.updateMediaLibraryItem(id, data);
   }
 

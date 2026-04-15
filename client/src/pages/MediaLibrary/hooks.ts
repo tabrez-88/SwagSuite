@@ -4,6 +4,7 @@ import {
   useMediaLibraryQuery,
   useUploadMediaFiles,
   useDeleteMediaItem,
+  useRenameMediaItem,
   deleteMediaItem,
   mediaLibraryKeys,
 } from "@/services/media-library";
@@ -19,6 +20,8 @@ export function useMediaLibraryPage() {
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [deleteTarget, setDeleteTarget] = useState<MediaLibraryItem | null>(null);
   const [previewItem, setPreviewItem] = useState<MediaLibraryItem | null>(null);
+  const [renameTarget, setRenameTarget] = useState<MediaLibraryItem | null>(null);
+  const [renameValue, setRenameValue] = useState("");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [selectMode, setSelectMode] = useState(false);
   const [showBulkDeleteDialog, setShowBulkDeleteDialog] = useState(false);
@@ -45,6 +48,26 @@ export function useMediaLibraryPage() {
 
   const uploadMutation = useUploadMediaFiles();
   const deleteMutation = useDeleteMediaItem();
+  const renameMutation = useRenameMediaItem();
+
+  const openRename = (item: MediaLibraryItem) => {
+    setRenameTarget(item);
+    setRenameValue(item.fileName || item.originalName || "");
+  };
+  const closeRename = () => {
+    setRenameTarget(null);
+    setRenameValue("");
+  };
+  const handleRename = async () => {
+    if (!renameTarget || !renameValue.trim()) return;
+    try {
+      await renameMutation.mutateAsync({ id: renameTarget.id, fileName: renameValue.trim() });
+      toast({ title: "Renamed", description: "File name updated." });
+      closeRename();
+    } catch {
+      toast({ title: "Rename failed", variant: "destructive" });
+    }
+  };
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files) return;
@@ -187,5 +210,14 @@ export function useMediaLibraryPage() {
     closeDeleteTarget,
     closePreview,
     setShowBulkDeleteDialog,
+
+    // Rename
+    renameTarget,
+    renameValue,
+    setRenameValue,
+    openRename,
+    closeRename,
+    handleRename,
+    renameIsPending: renameMutation.isPending,
   };
 }

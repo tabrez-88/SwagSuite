@@ -40,6 +40,28 @@ export class DocumentRepository {
     return doc;
   }
 
+  /**
+   * Compute the next global PO sequence number. Scans all purchase_order rows,
+   * parses the trailing -NN suffix from documentNumber, and returns max+1.
+   * Falls back to count+1 when no parseable suffix exists.
+   */
+  async getNextPoSequence(): Promise<number> {
+    const { generatedDocuments } = await import("@shared/schema");
+    const rows = await db
+      .select({ documentNumber: generatedDocuments.documentNumber })
+      .from(generatedDocuments)
+      .where(eq(generatedDocuments.documentType, "purchase_order"));
+    let max = 0;
+    for (const row of rows) {
+      const match = /-(\d+)$/.exec(row.documentNumber || "");
+      if (match) {
+        const n = parseInt(match[1], 10);
+        if (!isNaN(n) && n > max) max = n;
+      }
+    }
+    return (max || rows.length) + 1;
+  }
+
   async findExisting(orderId: string, documentType: string, vendorId?: string) {
     const { generatedDocuments } = await import("@shared/schema");
 

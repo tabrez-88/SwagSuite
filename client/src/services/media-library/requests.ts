@@ -50,3 +50,14 @@ export async function deleteMediaItem(id: string): Promise<void> {
   });
   if (!res.ok) throw new Error(await res.text());
 }
+
+export async function renameMediaItem(input: { id: string; fileName: string }): Promise<MediaLibraryItem> {
+  const res = await fetch(`/api/media-library/${input.id}`, {
+    method: "PATCH",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ fileName: input.fileName }),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}

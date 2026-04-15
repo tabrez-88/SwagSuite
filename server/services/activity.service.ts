@@ -46,14 +46,41 @@ export class ActivityService {
           const senderName = senderUser ? `${senderUser.firstName} ${senderUser.lastName}`.trim() : "Someone";
           const preview = data.content.length > 100 ? data.content.substring(0, 100) + "..." : data.content;
 
-          await notificationRepository.createForMultipleUsers(usersToNotify, {
-            senderId: userId,
-            orderId,
-            activityId: activity.id,
-            type: "mention",
-            title: `${senderName} mentioned you`,
-            message: `In order #${orderNumber}: "${preview}"`,
-          });
+          // Check each recipient's notification preferences and dispatch accordingly
+          const { emailService } = await import("./email.service");
+          for (const recipientId of usersToNotify) {
+            const recipient = await userRepository.getUser(recipientId);
+            const prefs = ((recipient as any)?.notificationPreferences?.mentions) || { inApp: true, email: false, slack: false };
+
+            if (prefs.inApp !== false) {
+              await notificationRepository.createForMultipleUsers([recipientId], {
+                senderId: userId,
+                orderId,
+                activityId: activity.id,
+                type: "mention",
+                title: `${senderName} mentioned you`,
+                message: `In order #${orderNumber}: "${preview}"`,
+              });
+            }
+
+            if (prefs.email && recipient?.email) {
+              try {
+                await emailService.sendEmail({
+                  to: recipient.email,
+                  subject: `${senderName} mentioned you on order #${orderNumber}`,
+                  html: `
+                    <p>Hi ${recipient.firstName || "there"},</p>
+                    <p><strong>${senderName}</strong> mentioned you in a note on order <strong>#${orderNumber}</strong>.</p>
+                    <blockquote style="border-left:3px solid #ddd;padding:8px 12px;color:#444;">${preview}</blockquote>
+                    <p><a href="${process.env.APP_URL || ""}/projects/${orderId}">Open project</a></p>
+                  `,
+                });
+              } catch (emailErr) {
+                console.error("Failed to send mention email:", emailErr);
+              }
+            }
+            // Slack dispatch is a separate integration — hook in when available.
+          }
         }
       } catch (notifyError) {
         console.error("Failed to create mention notifications:", notifyError);

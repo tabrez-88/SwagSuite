@@ -7,6 +7,8 @@ import { userRepository } from '../repositories/user.repository';
 
 interface EmailOptions {
   to: string;
+  cc?: string;
+  bcc?: string;
   subject: string;
   html: string;
   text?: string;
@@ -117,6 +119,8 @@ class EmailService {
     const info = await transporter.sendMail({
       from: `"${fromName}" <${fromEmail}>`,
       to: options.to,
+      cc: options.cc,
+      bcc: options.bcc,
       subject: options.subject,
       html: options.html,
       text: options.text,

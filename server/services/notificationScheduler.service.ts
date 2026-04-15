@@ -1021,11 +1021,15 @@ class NotificationScheduler {
         .where(eq(orderItems.orderId, orderId));
       const productNamesStr = items.map(i => i.productName).filter(Boolean).join(', ') || 'your items';
 
-      // Fetch CSR name for sign-off
+      // Fetch CSR name + email for sign-off and CC
       let csrName = '';
+      let salesRepEmail: string | undefined;
       if (order.assignedUserId) {
         const assignedUser = await userRepository.getUser(order.assignedUserId);
-        if (assignedUser) csrName = `${assignedUser.firstName || ''} ${assignedUser.lastName || ''}`.trim();
+        if (assignedUser) {
+          csrName = `${assignedUser.firstName || ''} ${assignedUser.lastName || ''}`.trim();
+          salesRepEmail = assignedUser.email || undefined;
+        }
       }
       const signOff = csrName ? `${csrName}<br>Liquid Screen Design` : 'Liquid Screen Design';
 
@@ -1111,7 +1115,7 @@ class NotificationScheduler {
           `;
         } else {
           // Fallback hardcoded template
-          emailSubject = `Your Order #${order.orderNumber} Has Shipped!`;
+          emailSubject = `Your ${productNamesStr} Order has shipped! Order #${order.orderNumber}`;
           emailHtml = `
             <!DOCTYPE html>
             <html>
@@ -1154,6 +1158,7 @@ class NotificationScheduler {
 
         await emailService.sendEmail({
           to: contact.email,
+          cc: salesRepEmail,
           subject: emailSubject,
           html: emailHtml,
         });

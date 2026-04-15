@@ -298,8 +298,18 @@ export function usePurchaseOrdersSection({ projectId, data, isLocked }: Purchase
     }
     const pdfDoc = buildVendorPoDoc(vendorKey);
     if (!pdfDoc) return;
-    const suffix = isDecorator ? `DEC-${vendorId.substring(0, 4).toUpperCase()}` : vendorId.substring(0, 4).toUpperCase();
-    const poNumber = `${(order as any)?.orderNumber || projectId}-${suffix}`;
+    // Global PO counter — fetch next sequence and zero-pad to 2 digits (e.g. 10001-01)
+    let poNumber: string;
+    try {
+      const seqRes = await fetch("/api/documents/next-po-sequence", { credentials: "include" });
+      const { next } = await seqRes.json();
+      const seq = String(next).padStart(2, "0");
+      poNumber = `${(order as any)?.orderNumber || projectId}-${seq}`;
+    } catch {
+      // Fallback to legacy format if sequence endpoint fails
+      const suffix = isDecorator ? `DEC-${vendorId.substring(0, 4).toUpperCase()}` : vendorId.substring(0, 4).toUpperCase();
+      poNumber = `${(order as any)?.orderNumber || projectId}-${suffix}`;
+    }
     setGeneratingVendorId(vendorKey);
     try {
       const newDoc = await generateDocument({
@@ -325,6 +335,33 @@ export function usePurchaseOrdersSection({ projectId, data, isLocked }: Purchase
       toast({ title: `PO PDF generated for ${vendorNameStr}` });
     } catch { /* handled */ } finally { setGeneratingVendorId(null); }
   };
+
+  // Generate POs for every vendor that doesn't yet have one. Runs sequentially
+  // so each PO gets a unique global sequence number.
+  const handleGenerateAllPOs = async () => {
+    const targets = orderVendors.filter((v: any) => {
+      const key = v.vendorKey || v.id;
+      return !getVendorDoc(key);
+    });
+    if (targets.length === 0) {
+      toast({ title: "All POs already generated" });
+      return;
+    }
+    for (const vendor of targets) {
+      await handleGeneratePO(vendor.vendorKey || vendor.id, vendor.name);
+    }
+    toast({ title: `Generated ${targets.length} PO${targets.length > 1 ? "s" : ""}` });
+  };
+
+  // Detect apparel items that have artwork but aren't routed through a third-party
+  // decorator — these typically need a dual-PO workflow (blanks → decorator → client).
+  const itemsMissingDecorator = useMemo(() => {
+    return orderItems.filter((item: any) => {
+      const hasArtwork = (allArtworkItems[item.id] || []).length > 0;
+      const isThirdParty = item.decoratorType === "third_party" && item.decoratorId;
+      return hasArtwork && !isThirdParty;
+    });
+  }, [orderItems, allArtworkItems]);
 
   const handleRegeneratePO = async (doc: any) => {
     await deleteDocument(doc.id);
@@ -458,7 +495,10 @@ export function usePurchaseOrdersSection({ projectId, data, isLocked }: Purchase
         return `${idx + 1}. ${art.productName} — ${art.location || art.artworkType || "Artwork"}\n   Review & Approve: ${link.url}`;
       }).join("\n\n");
 
-      const emailBodyFull = `${formData.body}\n\n---\nArtwork Proofs for Approval:\n\n${linksList}`;
+      const linksBlock = `---\nArtwork Proofs for Approval:\n\n${linksList}\n---`;
+      const emailBodyFull = formData.body.includes("{{approvalLinks}}")
+        ? formData.body.replace("{{approvalLinks}}", linksBlock)
+        : `${formData.body}\n\n${linksBlock}`;
 
       // Collect proof + original artwork files as attachments
       const proofAttachments = artworks
@@ -639,6 +679,8 @@ export function usePurchaseOrdersSection({ projectId, data, isLocked }: Purchase
     getDocStatus,
     vendorHashes,
     handleGeneratePO,
+    handleGenerateAllPOs,
+    itemsMissingDecorator,
     handleRegeneratePO,
     updateDocMetaMutation,
     deleteDocument,

@@ -112,6 +112,13 @@ export default function MediaLibraryPage() {
     closeDeleteTarget,
     closePreview,
     setShowBulkDeleteDialog,
+    renameTarget,
+    renameValue,
+    setRenameValue,
+    openRename,
+    closeRename,
+    handleRename,
+    renameIsPending,
   } = useMediaLibraryPage();
 
   return (
@@ -269,6 +276,9 @@ export default function MediaLibraryPage() {
                           <Download className="w-4 h-4 mr-2" /> Download
                         </a>
                       </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => openRename(item)}>
+                        <FileText className="w-4 h-4 mr-2" /> Rename
+                      </DropdownMenuItem>
                       <DropdownMenuItem className="text-red-600" onClick={() => setDeleteTarget(item)}>
                         <Trash2 className="w-4 h-4 mr-2" /> Delete
                       </DropdownMenuItem>
@@ -425,6 +435,32 @@ export default function MediaLibraryPage() {
               ) : (
                 `Delete ${selectedIds.size} file${selectedIds.size !== 1 ? "s" : ""}`
               )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Rename Dialog */}
+      <AlertDialog open={!!renameTarget} onOpenChange={(open) => !open && closeRename()}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Rename file</AlertDialogTitle>
+            <AlertDialogDescription>
+              Enter a new display name for this file. The underlying storage URL will not change.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <input
+            type="text"
+            value={renameValue}
+            onChange={(e) => setRenameValue(e.target.value)}
+            autoFocus
+            className="w-full border rounded px-3 py-2 text-sm mt-2"
+            onKeyDown={(e) => { if (e.key === "Enter") handleRename(); }}
+          />
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleRename} disabled={renameIsPending || !renameValue.trim()}>
+              {renameIsPending ? (<><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Renaming...</>) : "Rename"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

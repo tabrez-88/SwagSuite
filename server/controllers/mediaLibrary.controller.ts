@@ -44,8 +44,8 @@ export class MediaLibraryController {
   }
 
   static async update(req: Request, res: Response) {
-    const { tags, category, description, folder } = req.body;
-    const updated = await mediaLibraryService.update(req.params.id, { tags, category, description, folder });
+    const { tags, category, description, folder, fileName } = req.body;
+    const updated = await mediaLibraryService.update(req.params.id, { tags, category, description, folder, fileName });
     res.json(updated);
   }
 

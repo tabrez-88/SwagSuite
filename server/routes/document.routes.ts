@@ -9,6 +9,9 @@ const router = Router();
 // List documents for a project
 router.get("/api/projects/:projectId/documents", isAuthenticated, asyncHandler(DocumentController.list));
 
+// Get the next global PO sequence number
+router.get("/api/documents/next-po-sequence", isAuthenticated, asyncHandler(DocumentController.nextPoSequence));
+
 // Upload/create a new document
 router.post("/api/projects/:projectId/documents", isAuthenticated, (req, res, next) => {
   generatedDocsUpload.single("pdf")(req, res, (err) => {

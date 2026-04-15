@@ -16,3 +16,8 @@ export function useDeleteMediaItem() {
   const invalidate = useInvalidate();
   return useMutation({ mutationFn: requests.deleteMediaItem, onSuccess: invalidate });
 }
+
+export function useRenameMediaItem() {
+  const invalidate = useInvalidate();
+  return useMutation({ mutationFn: requests.renameMediaItem, onSuccess: invalidate });
+}

@@ -15,6 +15,20 @@ import { isSectionLocked, checkLockByOrderItemId } from "../utils/lockHelpers";
 import { updateCompanyYtdSpending, updateSupplierYtdSpending } from "../utils/ytdHelpers";
 import { registerInMediaLibrary } from "../utils/registerInMediaLibrary";
 
+// Derive the stored artwork file name from the user-entered display name.
+// If the user's name already includes an extension, use it verbatim; otherwise
+// append the extension from the original uploaded/picked file so downstream
+// email attachments and PDFs honor the extension.
+function resolveArtworkFileName(userName: string | undefined | null, originalFileName: string | null): string | null {
+  const name = typeof userName === "string" ? userName.trim() : "";
+  if (!name) return originalFileName;
+  if (/\.[A-Za-z0-9]{1,8}$/.test(name)) return name;
+  const ext = originalFileName && /\.[A-Za-z0-9]{1,8}$/.test(originalFileName)
+    ? originalFileName.slice(originalFileName.lastIndexOf("."))
+    : "";
+  return `${name}${ext}`;
+}
+
 // ── Helper: recalculate order totals (items + charges + discount + tax + shipping) ──
 /**
  * Recalculate and persist all order totals.
@@ -687,6 +701,35 @@ export class ProjectController {
             metadata: { section: 'sales_order', oldStatus: (oldOrder as any).salesOrderStatus, newStatus: req.body.salesOrderStatus },
             isSystemGenerated: false,
           });
+
+          // Auto-generate invoice when SO transitions to client_approved (idempotent)
+          if (req.body.salesOrderStatus === 'client_approved') {
+            try {
+              const { invoiceRepository } = await import("../repositories/invoice.repository");
+              const existing = await invoiceRepository.getInvoiceByOrderId(order.id);
+              if (!existing) {
+                const taxAmount = Number((order as any).tax || 0);
+                const totalAmount = Number((order as any).subtotal || 0) + taxAmount + Number((order as any).shipping || 0);
+                await invoiceRepository.createInvoice({
+                  orderId: order.id,
+                  invoiceNumber: `INV-${Date.now()}`,
+                  subtotal: (order as any).subtotal ?? "0",
+                  taxAmount: taxAmount.toString(),
+                  totalAmount: totalAmount.toString(),
+                  status: "pending",
+                  dueDate: new Date(),
+                });
+                await actDb.insert(projectActivities).values({
+                  orderId: order.id, userId: currentUserId, activityType: "system_action",
+                  content: `Invoice auto-generated after Sales Order moved to Client Approved`,
+                  metadata: { action: "invoice_auto_created", trigger: "sales_order_client_approved" },
+                  isSystemGenerated: true,
+                });
+              }
+            } catch (invErr) {
+              console.error("Auto-invoice creation failed:", invErr);
+            }
+          }
         }
 
         // Log presentationStatus changes
@@ -1278,6 +1321,8 @@ export class ProjectController {
         fileName = req.body.fileName || 'artwork';
       }
 
+      const resolvedFileName = resolveArtworkFileName(req.body.name, fileName);
+
       const artworkData = {
         orderItemId: req.params.itemId,
         name: req.body.name,
@@ -1286,7 +1331,7 @@ export class ProjectController {
         color: req.body.color || null,
         size: req.body.size || null,
         status: req.body.status || 'pending',
-        fileName: fileName,
+        fileName: resolvedFileName,
         filePath: filePath,
         repeatLogo: req.body.repeatLogo || false,
         notes: req.body.notes || null,
@@ -1355,6 +1400,17 @@ export class ProjectController {
       if (req.file) {
         updateData.filePath = (req.file as any).path; // Cloudinary URL
         updateData.fileName = req.file.originalname;
+      }
+
+      // Keep stored fileName in sync with the user-entered display name so
+      // email attachments / PDFs use the renamed value.
+      if (req.body.name !== undefined) {
+        const { artworkItems: artworkItemsTable } = await import("@shared/schema");
+        const existing = req.file
+          ? null
+          : (await db.select().from(artworkItemsTable).where(eq(artworkItemsTable.id, req.params.artworkId)))[0];
+        const baseFileName = updateData.fileName ?? existing?.fileName ?? null;
+        updateData.fileName = resolveArtworkFileName(req.body.name, baseFileName);
       }
 
       const [artwork] = await db
