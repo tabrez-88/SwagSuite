@@ -42,6 +42,7 @@ import {
   Trash2
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { ColorSizePopover } from "@/components/shared/ColorSizePopover";
 import { useEditProductPage } from "./hooks";
 import { AddEditChargeDialog } from "./components/AddEditChargeDialog";
 import { ArtworkDialogs } from "./components/ArtworkDialogs";
@@ -52,68 +53,6 @@ import { FilePreviewDialog } from "./components/FilePreviewDialog";
 import { MarginWarningDialog } from "./components/MarginWarningDialog";
 import { PricingTiersDialog } from "./components/PricingTiersDialog";
 import { SizesColorsDialog } from "./components/SizesColorsDialog";
-
-/** Inline Color/Size selector popover — CommonSKU style */
-function ColorSizePopover({ colors, sizes, selectedColor, selectedSize, onSelect }: {
-  colors: string[];
-  sizes: string[];
-  selectedColor: string;
-  selectedSize: string;
-  onSelect: (color: string, size: string) => void;
-}) {
-  const [color, setColor] = useState(selectedColor);
-  const [size, setSize] = useState(selectedSize);
-  const [search, setSearch] = useState("");
-
-  const filteredColors = colors.filter(c => c.toLowerCase().includes(search.toLowerCase()));
-
-  return (
-    <div className="flex divide-x max-h-64">
-      {colors.length > 0 && (
-        <div className="w-40 flex flex-col">
-          <div className="p-2 border-b">
-            <input
-              className="w-full h-7 text-xs rounded border border-gray-200 px-2 focus:outline-none focus:ring-1 focus:ring-blue-400"
-              placeholder="Find Color"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              autoFocus
-            />
-          </div>
-          <div className="flex-1 overflow-y-auto">
-            {filteredColors.map(c => (
-              <button
-                key={c}
-                className={`w-full text-left px-3 py-1.5 text-xs hover:bg-blue-50 transition-colors ${c === color ? "bg-blue-50 text-blue-700 font-medium" : ""}`}
-                onClick={() => { setColor(c); onSelect(c, size); }}
-              >
-                {c}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-      {sizes.length > 0 && (
-        <div className="w-36 flex flex-col">
-          <div className="p-2 border-b">
-            <span className="text-[10px] font-medium text-gray-500 uppercase">Size</span>
-          </div>
-          <div className="flex-1 overflow-y-auto">
-            {sizes.map(s => (
-              <button
-                key={s}
-                className={`w-full text-left px-3 py-1.5 text-xs hover:bg-blue-50 transition-colors ${s === size ? "bg-blue-50 text-blue-700 font-medium" : ""}`}
-                onClick={() => { setSize(s); onSelect(color, s); }}
-              >
-                {s}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
 
 interface EditProductPageProps {
   projectId: string;
@@ -315,12 +254,12 @@ function EditProductPageBody({
             </div>
             <div className="flex items-center gap-2">
               {editProductPage.productCatalog.pricingTiers.length > 0 && (
-                <Button variant="outline" size="sm" onClick={() => setShowPricingTiers(true)}>
+                <Button variant="outline" size="xs" onClick={() => setShowPricingTiers(true)}>
                   <DollarSign className="w-3 h-3 mr-1" />
                   Check Pricing
                 </Button>
               )}
-              <Button variant="outline" size="sm" onClick={() => editProductPage.addLine()}>
+              {/* <Button variant="outline" size="sm" onClick={() => editProductPage.addLine()">
                 <Plus className="w-3 h-3 mr-1" />
                 Add Line
               </Button>
@@ -329,7 +268,7 @@ function EditProductPageBody({
                   <Grid3X3 className="w-3 h-3 mr-1" />
                   Add Sizes & Colors
                 </Button>
-              )}
+              )} */}
             </div>
           </div>
 
@@ -337,15 +276,16 @@ function EditProductPageBody({
             <table className="w-full text-sm">
               <thead className="bg-gray-50 border-b">
                 <tr>
-                  <th className="text-left p-3 font-medium">Color/Size</th>
-                  <th className="text-right p-3 font-medium w-20">QTY</th>
-                  <th className="text-right p-3 font-medium w-28">Net Cost</th>
-                  <th className="text-right p-3 font-medium w-24">
+                  <th className="text-left p-3 w-20 font-bold">Color/Size</th>
+                  <th className="text-center p-3 font-bold w-20">SKU</th>
+                  <th className="text-center p-3 font-bold w-20">QTY</th>
+                  <th className="text-right p-3 font-bold w-28">Net Cost</th>
+                  <th className="text-right p-3 font-bold w-24">
                     <span title={`Min: ${editProductPage.marginSettings.minimumMargin}% | Target: ${editProductPage.marginSettings.defaultMargin}%`}>
                       Margin
                     </span>
                   </th>
-                  <th className="text-right p-3 font-medium w-28">
+                  <th className="text-right p-3 font-bold w-28">
                     <button
                       className="inline-flex items-center gap-1 hover:text-blue-600 transition-colors"
                       onClick={() => editProductPage.setIsPriceLocked(!editProductPage.isPriceLocked)}
@@ -357,10 +297,8 @@ function EditProductPageBody({
                         : <LockOpen className="w-3 h-3 text-gray-400" />}
                     </button>
                   </th>
-                  {editProductPage.bakedInChargePerUnit > 0 && (
-                    <th className="text-right p-3 font-medium w-24">Client Price</th>
-                  )}
-                  <th className="text-right p-3 font-medium w-28">Total</th>
+                  <th className="text-right p-3 font-bold w-24">Client Price</th>
+                  <th className="text-right p-3 font-bold w-28">Total</th>
                   <th className="w-10"></th>
                 </tr>
               </thead>
@@ -386,7 +324,7 @@ function EditProductPageBody({
                                 <ChevronDown className="w-3 h-3 text-gray-400 flex-shrink-0" />
                               </button>
                             </PopoverTrigger>
-                            <PopoverContent className="w-80 p-0" align="start">
+                            <PopoverContent className="w-auto p-0" align="start">
                               <ColorSizePopover
                                 colors={editProductPage.productCatalog.colors}
                                 sizes={editProductPage.productCatalog.sizes}
@@ -396,6 +334,7 @@ function EditProductPageBody({
                                   editProductPage.updateLine(line.id, "color", color);
                                   editProductPage.updateLine(line.id, "size", size);
                                 }}
+                                onAddCustom={editProductPage.addCustomColorSize}
                               />
                             </PopoverContent>
                           </Popover>
@@ -405,6 +344,10 @@ function EditProductPageBody({
                             <Input className="h-8 text-xs w-20" value={line.size} onChange={(e) => editProductPage.updateLine(line.id, "size", e.target.value)} placeholder="Size" />
                           </div>
                         )}
+                      </td>
+                      {/* SKU */}
+                      <td className="p-2">
+                        <span className="text-xs text-center text-gray-500 block">{editProductPage.item?.productSku || "—"}</span>
                       </td>
                       {/* QTY */}
                       <td className="p-2">
@@ -433,7 +376,7 @@ function EditProductPageBody({
                       <td className="p-2">
                         <div className="relative">
                           <PricingInput
-                            className={`w-full h-8 text-xs text-right rounded border bg-white px-2 pr-5 focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400 ${isBelowMinimum(lineMargin, editProductPage.marginSettings) ? "border-red-300 text-red-600" : "border-gray-200"}`}
+                            className="w-full h-8 text-xs text-right rounded border border-gray-200 bg-white px-2 pr-5 focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400"
                             step="0.1"
                             min={0}
                             max={99.9}
@@ -456,8 +399,7 @@ function EditProductPageBody({
                           />
                         </div>
                       </td>
-                      {/* Client Price */}
-                      {editProductPage.bakedInChargePerUnit > 0 && (
+                      {clientPrice > 0 && (
                         <td className="p-2 text-right">
                           <span className="text-xs text-gray-600">${clientPrice.toFixed(2)}</span>
                         </td>
@@ -467,249 +409,162 @@ function EditProductPageBody({
                         <span className="text-xs font-semibold">${lineTotal.toFixed(2)}</span>
                       </td>
                       {/* Delete */}
-                      <td className="p-2">
-                        {editProductPage.editableLines.length > 1 && (
+                      {editProductPage.editableLines.length > 1 && (
+                        <td className="p-2">
                           <button className="w-7 h-7 flex items-center justify-center rounded text-gray-300 hover:text-red-500 hover:bg-red-50"
                             onClick={() => editProductPage.removeLine(line.id)}>
                             <Trash2 className="w-3 h-3" />
                           </button>
+                        </td>
+                      )}
+                    </tr>
+                  );
+                })}
+
+                {/* ── Charge rows (CommonSKU-style: inline in same table) ── */}
+                {editProductPage.charges.map((charge: any) => {
+                  const cNetCost = parseFloat(charge.netCost || "0");
+                  const cRetail = parseFloat(charge.retailPrice || charge.amount || "0");
+                  const cMargin = parseFloat(charge.margin || "0");
+                  const isRun = charge.chargeCategory === "run";
+                  const cQty = isRun ? (editProductPage.lineTotals.qty || 1) : (charge.quantity || 1);
+                  const cTotal = cRetail * cQty;
+                  const displayMode = charge.includeInUnitPrice ? "include_in_price"
+                    : charge.displayToClient !== false ? "display_to_client"
+                      : "subtract_from_margin";
+
+                  return (
+                    <tr key={`charge-${charge.id}`} className="border-b last:border-0 bg-gray-50/50">
+                      {/* Name + badge */}
+                      <td colSpan={2} className="p-2">
+                        <div className="flex items-center juststa gap-1.5">
+                          <BlurTextInput
+                            className="h-8 text-xs bg-transparent border focus:outline-none focus:ring-0 w-full px-1"
+                            value={charge.description}
+                            onCommit={(v) => editProductPage.handleChargeDescriptionChange(charge.id, v)}
+                          />
+                          <Badge variant="outline" className="text-[9px] px-1 py-0 w-fit border-gray-300 text-gray-600">
+                            {isRun ? "Run" : "Fixed"}
+                          </Badge>
+                        </div>
+                      </td>
+                      {/* QTY */}
+                      <td className="p-2">
+                        {isRun ? (
+                          <span className="text-xs text-center text-gray-400 block">{cQty}</span>
+                        ) : (
+                          <PricingInput
+                            className="flex h-8 w-full text-xs text-right rounded-md border border-input bg-background px-3 py-1 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                            step="1"
+                            min={1}
+                            value={cQty}
+                            onCommit={(n) => editProductPage.handleChargeQtyChange(charge.id, n)}
+                          />
                         )}
+                      </td>
+                      {/* Net Cost */}
+                      <td className="p-2">
+                        <div className="relative">
+                          <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-400">$</span>
+                          <PricingInput
+                            className="w-full h-8 text-xs text-right rounded border border-gray-200 bg-white pl-5 pr-2 focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400"
+                            step="0.01"
+                            min={0}
+                            value={cNetCost}
+                            onCommit={(n) => editProductPage.handleChargeCostChange(charge.id, n)}
+                          />
+                        </div>
+                      </td>
+                      {/* Margin */}
+                      <td className="p-2">
+                        <div className="relative">
+                          <PricingInput
+                            className="w-full h-8 text-xs text-right rounded border border-gray-200 bg-white px-2 pr-5 focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400"
+                            step="0.1"
+                            min={0}
+                            max={99.9}
+                            value={parseFloat(cMargin.toFixed(1))}
+                            onCommit={(n) => editProductPage.handleChargeMarginChange(charge.id, n)}
+                          />
+                          <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-400">%</span>
+                        </div>
+                      </td>
+                      {/* Retail */}
+                      <td className="p-2">
+                        <div className="relative">
+                          <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-400">$</span>
+                          <PricingInput
+                            className="w-full h-8 text-xs text-right rounded border border-gray-200 bg-white pl-5 pr-2 focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400"
+                            step="0.01"
+                            min={0}
+                            value={cRetail}
+                            onCommit={(n) => editProductPage.handleChargeRetailChange(charge.id, n)}
+                          />
+                        </div>
+                      </td>
+                      {/* Client Price / Display Mode */}
+                      <td className="p-2">
+                        <Select value={displayMode} onValueChange={(v) => editProductPage.handleChargeDisplayModeChange(charge.id, v)}>
+                          <SelectTrigger className="h-7 text-[10px] w-full">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="include_in_price">Include in price</SelectItem>
+                            <SelectItem value="display_to_client">Display to client</SelectItem>
+                            {!isRun && <SelectItem value="subtract_from_margin">Subtract from margin</SelectItem>}
+                          </SelectContent>
+                        </Select>
+                      </td>
+                      {/* Total Charges + Display Mode */}
+                      <td className="p-2 text-right">
+                        <span className="text-xs font-semibold">${cTotal.toFixed(2)}</span>
+                      </td>
+                      {/* Delete */}
+                      <td className="p-2">
+                        <button
+                          className="w-7 h-7 flex items-center justify-center rounded text-gray-300 hover:text-red-500 hover:bg-red-50"
+                          onClick={() => editProductPage.deleteChargeMutation.mutate({ chargeId: charge.id, orderItemId: charge.orderItemId })}
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
                       </td>
                     </tr>
                   );
                 })}
               </tbody>
-              <tfoot className="bg-gray-50 border-t">
+              {/* <tfoot className="bg-gray-50 border-t">
                 <tr>
                   <td className="p-3 text-sm font-semibold">Totals</td>
                   <td className="p-3 text-right text-sm font-semibold">{editProductPage.lineTotals.qty}</td>
-                  <td className="p-3 text-right text-sm text-gray-500">${editProductPage.lineTotals.cost.toFixed(2)}</td>
+                  <td className="p-3 text-right text-sm text-gray-500">${editProductPage.productPlusChargeCost.toFixed(2)}</td>
                   <td className="p-3 text-right">
                     <span className={`text-sm font-semibold ${editProductPage.marginColor(editProductPage.margin)}`}>
                       {editProductPage.margin.toFixed(1)}%
                     </span>
                   </td>
-                  <td className="p-3 text-right text-sm font-semibold">${editProductPage.lineTotals.revenue.toFixed(2)}</td>
+                  <td className="p-3 text-right text-sm font-semibold">${editProductPage.productPlusChargeSell.toFixed(2)}</td>
                   {editProductPage.bakedInChargePerUnit > 0 && <td className="p-3"></td>}
-                  <td className="p-3 text-right text-sm font-bold">${editProductPage.lineTotals.revenue.toFixed(2)}</td>
+                  <td className="p-3 text-right text-sm font-bold">${editProductPage.productPlusChargeSell.toFixed(2)}</td>
                   <td></td>
                 </tr>
-              </tfoot>
+              </tfoot> */}
             </table>
           </div>
 
-          {/* Margin Summary Bar with Gauge */}
-          {editProductPage.lineTotals.qty > 0 && (() => {
-            const currentMargin = editProductPage.margin;
-            const minMargin = editProductPage.marginSettings.minimumMargin;
-            const defaultMargin = editProductPage.marginSettings.defaultMargin;
-            const profit = editProductPage.lineTotals.revenue - editProductPage.lineTotals.cost;
-            const belowMin = isBelowMinimum(currentMargin, editProductPage.marginSettings);
-
-            // Gauge calculation: 0-70% of bar width represents 0-maxScale% margin
-            const maxScale = Math.max(defaultMargin + 15, currentMargin + 10);
-            const pct = (v: number) => Math.min(100, Math.max(0, (v / maxScale) * 100));
-
-            return (
-              <div className={`rounded-lg border mt-4 overflow-hidden ${belowMin ? "border-red-200" : "border-gray-200"}`}>
-                {/* Stats row */}
-                <div className={`px-4 py-3 flex items-center justify-between text-sm ${editProductPage.marginBg(currentMargin)}`}>
-                  <div className="flex items-center gap-5">
-                    <span className="text-gray-600">
-                      Qty: <strong>{editProductPage.lineTotals.qty}</strong>
-                    </span>
-                    <span className="text-gray-600">
-                      Cost: <strong>${editProductPage.lineTotals.cost.toFixed(2)}</strong>
-                    </span>
-                    <span className="text-gray-600">
-                      Margin: <strong className={`text-base ${editProductPage.marginColor(currentMargin)}`}>{currentMargin.toFixed(1)}%</strong>
-                    </span>
-                    <span className="text-gray-600">
-                      Profit: <strong className={profit >= 0 ? "text-green-700" : "text-red-600"}>${profit.toFixed(2)}</strong>
-                    </span>
-                  </div>
-                  <span className="font-bold text-blue-600 text-base">${editProductPage.lineTotals.revenue.toFixed(2)}</span>
-                </div>
-
-                {/* Margin gauge */}
-                <div className="px-4 py-2 bg-white">
-                  <div className="relative h-3 bg-gray-100 rounded-full overflow-hidden">
-                    {/* Red zone: 0 to minimum */}
-                    <div
-                      className="absolute inset-y-0 left-0 bg-red-200"
-                      style={{ width: `${pct(minMargin)}%` }}
-                    />
-                    {/* Yellow zone: minimum to default */}
-                    <div
-                      className="absolute inset-y-0 bg-yellow-200"
-                      style={{ left: `${pct(minMargin)}%`, width: `${pct(defaultMargin) - pct(minMargin)}%` }}
-                    />
-                    {/* Green zone: default+ */}
-                    <div
-                      className="absolute inset-y-0 bg-green-200 rounded-r-full"
-                      style={{ left: `${pct(defaultMargin)}%`, right: 0 }}
-                    />
-                    {/* Current margin indicator */}
-                    <div
-                      className={`absolute top-0 bottom-0 w-1 rounded-full ${belowMin ? "bg-red-600" : currentMargin >= defaultMargin ? "bg-green-600" : "bg-yellow-600"}`}
-                      style={{ left: `${pct(currentMargin)}%`, transform: "translateX(-50%)" }}
-                    />
-                  </div>
-                  {/* Labels */}
-                  <div className="relative h-4 mt-0.5 text-[9px] text-gray-500">
-                    <span className="absolute text-red-500 font-medium" style={{ left: `${pct(minMargin)}%`, transform: "translateX(-50%)" }}>
-                      Min {minMargin}%
-                    </span>
-                    {defaultMargin !== minMargin && (
-                      <span className="absolute text-green-600 font-medium" style={{ left: `${pct(defaultMargin)}%`, transform: "translateX(-50%)" }}>
-                        Target {defaultMargin}%
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                {/* Below minimum action bar */}
-                {belowMin && (
-                  <div className="px-4 py-2 bg-red-50 border-t border-red-200 flex items-center justify-between text-sm">
-                    <div className="flex items-center gap-2 text-red-700">
-                      <AlertTriangle className="w-4 h-4 flex-shrink-0" />
-                      <span>
-                        Margin ({currentMargin.toFixed(1)}%) is below the company minimum of {minMargin}%.
-                        Saving will require confirmation.
-                      </span>
-                    </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="border-red-300 text-red-700 hover:bg-red-100 flex-shrink-0"
-                      onClick={() => editProductPage.applyMarginToAllLines(defaultMargin)}
-                    >
-                      Apply {defaultMargin}% to All
-                    </Button>
-                  </div>
-                )}
-              </div>
-            );
-          })()}
-        </CardContent>
-      </Card>
-
-      {/* Run Charges + Fixed Charges */}
-      <Card>
-        <CardContent className="p-5">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="font-semibold text-lg flex items-center gap-1.5">
-              <DollarSign className="w-4 h-4 text-gray-400" />
-              Charges
-            </h3>
-            <Button variant="outline" size="sm" onClick={() => editProductPage.setShowAddCharge(true)}>
-              <Plus className="w-3 h-3 mr-1" />
-              Add Charge
+          {/* Action links below table (CommonSKU style) */}
+          <div className="flex items-center gap-4 mt-3">
+            <Button variant="default" size="xs" onClick={() => editProductPage.addLine()}>
+              <Plus className="size-2" />
+              Breakdown
             </Button>
+            {(editProductPage.productCatalog.colors.length > 0 || editProductPage.productCatalog.sizes.length > 0) && (
+              <Button variant="outline" size="xs" onClick={() => editProductPage.setShowAddCharge(true)}>
+                <Plus className="size-2" />
+                Add Cost
+              </Button>
+            )}
           </div>
 
-          {(() => {
-            const runCharges = editProductPage.charges.filter((c: any) => c.chargeCategory === "run");
-            const fixedCharges = editProductPage.charges.filter((c: any) => c.chargeCategory !== "run");
-
-            if (editProductPage.charges.length === 0) {
-              return <p className="text-xs text-gray-400">No charges added</p>;
-            }
-
-            const renderCharge = (charge: any) => {
-              const cNetCost = parseFloat(charge.netCost || "0");
-              const cRetail = parseFloat(charge.retailPrice || charge.amount || "0");
-              const cMargin = parseFloat(charge.margin || "0");
-              const cQty = charge.chargeCategory === "run" ? (editProductPage.lineTotals.qty || 1) : (charge.quantity || 1);
-              return (
-              <div key={charge.id} className="flex items-center justify-between rounded-md border bg-white px-3 py-2 text-sm">
-                <div className="flex items-center gap-2 min-w-0">
-                  <span className="font-medium truncate">{charge.description}</span>
-                  {charge.includeInUnitPrice && (
-                    <Badge variant="outline" className="text-[10px] border-blue-200 text-blue-600 shrink-0">
-                      {charge.chargeCategory === "run" ? "in price" : "in margin"}
-                    </Badge>
-                  )}
-                </div>
-                <div className="flex items-center gap-3 shrink-0">
-                  {cNetCost > 0 && (
-                    <span className="text-xs text-gray-400">Cost: ${cNetCost.toFixed(2)}</span>
-                  )}
-                  {cMargin > 0 && (
-                    <span className={`text-xs ${cMargin >= 40 ? "text-green-600" : cMargin >= 30 ? "text-yellow-600" : "text-red-600"}`}>{cMargin.toFixed(1)}%</span>
-                  )}
-                  <span className={`font-semibold ${charge.includeInUnitPrice ? "text-gray-400 line-through" : ""}`}>
-                    ${cRetail.toFixed(2)}{cQty > 1 ? ` x${cQty}` : ""}
-                  </span>
-                  <Button
-                    variant="ghost" size="sm" className="h-6 w-6 p-0"
-                    title="Edit charge"
-                    onClick={() => {
-                      editProductPage.setEditingCharge(charge);
-                      editProductPage.setNewCharge({
-                        description: charge.description,
-                        chargeType: charge.chargeType || "flat",
-                        chargeCategory: charge.chargeCategory || "fixed",
-                        amount: parseFloat(charge.amount || "0"),
-                        netCost: parseFloat(charge.netCost || "0"),
-                        retailPrice: parseFloat(charge.retailPrice || charge.amount || "0"),
-                        margin: parseFloat(charge.margin || "0"),
-                        quantity: charge.quantity || 1,
-                        isVendorCharge: charge.isVendorCharge || false,
-                        displayToClient: charge.displayToClient !== false,
-                        displayToVendor: charge.displayToVendor !== false,
-                        includeInUnitPrice: charge.includeInUnitPrice || false,
-                      });
-                      editProductPage.setShowAddCharge(true);
-                    }}
-                  >
-                    <Pencil className="w-3 h-3 text-gray-400 hover:text-blue-500" />
-                  </Button>
-                  <Button
-                    variant="ghost" size="sm" className="h-6 w-6 p-0"
-                    title={charge.displayToClient !== false ? "Visible to client" : "Hidden from client"}
-                    onClick={() => editProductPage.toggleChargeDisplayMutation.mutate({
-                      chargeId: charge.id,
-                      orderItemId: charge.orderItemId,
-                      displayToClient: charge.displayToClient === false,
-                    })}
-                  >
-                    {charge.displayToClient !== false
-                      ? <Eye className="w-3 h-3 text-blue-400" />
-                      : <EyeOff className="w-3 h-3 text-gray-300" />
-                    }
-                  </Button>
-                  <Button
-                    variant="ghost" size="sm" className="h-6 w-6 p-0"
-                    onClick={() => editProductPage.deleteChargeMutation.mutate({ chargeId: charge.id, orderItemId: charge.orderItemId })}
-                  >
-                    <Trash2 className="w-3 h-3 text-gray-400 hover:text-red-500" />
-                  </Button>
-                </div>
-              </div>
-            );
-            };
-
-            return (
-              <div className="space-y-4">
-                {runCharges.length > 0 && (
-                  <div>
-                    <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Run Charges (per unit)</h4>
-                    <div className="space-y-1.5">{runCharges.map(renderCharge)}</div>
-                  </div>
-                )}
-                {fixedCharges.length > 0 && (
-                  <div>
-                    <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Fixed Charges (one-time)</h4>
-                    <div className="space-y-1.5">{fixedCharges.map(renderCharge)}</div>
-                  </div>
-                )}
-                <div className="text-right text-xs text-gray-500 pt-1">
-                  Total Charges: <strong className="text-gray-800">${editProductPage.totalCharges.toFixed(2)}</strong>
-                </div>
-              </div>
-            );
-          })()}
         </CardContent>
       </Card>
 
@@ -894,154 +749,192 @@ function EditProductPageBody({
 
                     {/* CommonSKU-style inline charge rows */}
                     <div className="border-t">
-                      {/* Column headers */}
-                      <div className="grid grid-cols-[20px_1fr_50px_80px_65px_80px_130px_28px] gap-0 items-center px-3 py-1 bg-gray-50 border-b text-[9px] font-medium text-gray-500 uppercase tracking-wider">
-                        <span></span>
-                        <span>Charge</span>
-                        <span className="text-center">Qty</span>
-                        <span className="text-right">Cost</span>
-                        <span className="text-right">Margin %</span>
-                        <span className="text-right">Sell</span>
-                        <span></span>
-                        <span></span>
-                      </div>
-
-                      {/* Charge rows — inline editable */}
-                      {artCharges.map((charge: any) => {
-                        const isRun = charge.chargeCategory === "run";
-                        const cNetCost = parseFloat(charge.netCost || "0");
-                        const cMargin = parseFloat(charge.margin || "0");
-                        return (
-                          <div key={`${charge.id}-${charge.updatedAt || ''}`} className="grid grid-cols-[20px_1fr_50px_80px_65px_80px_130px_28px] gap-0 items-center px-3 py-1 border-b last:border-0 hover:bg-gray-50/50">
-                            {/* Matrix icon */}
-                            {editProductPage.editItemData.decoratorType === "third_party" ? (
-                              <button
-                                className="w-4 h-4 flex items-center justify-center text-blue-400 hover:text-blue-600"
-                                title="Select pricing from decorator matrix"
-                                onClick={() => setMatrixPickerTarget({
-                                  artworkId: art.id,
-                                  chargeId: charge.id,
-                                  chargeName: charge.chargeName || (isRun ? "Imprint Cost" : "Setup Cost"),
-                                  chargeType: isRun ? "run" : "fixed",
-                                  artworkMethod: art.artworkType,
-                                  currentMargin: cMargin,
-                                })}
-                              >
-                                <Grid3X3 className="w-3 h-3" />
-                              </button>
-                            ) : <span />}
-                            {/* Charge Name — editable */}
-                            <input
-                              className="text-xs font-medium bg-transparent border-0 outline-none focus:bg-white focus:ring-1 focus:ring-blue-300 rounded px-1 py-0.5 w-full"
-                              defaultValue={formatLabel(charge.chargeName)}
-                              onBlur={(e) => {
-                                const val = e.target.value.trim();
-                                if (val && val !== charge.chargeName) {
-                                  editProductPage.updateArtworkChargeMutation.mutate({
-                                    artworkId: art.id, chargeId: charge.id,
-                                    updates: { chargeName: val },
-                                  });
-                                }
-                              }}
-                            />
-                            {/* Qty */}
-                            <input
-                              type="number"
-                              className="text-xs text-center bg-transparent border-0 outline-none focus:bg-white focus:ring-1 focus:ring-blue-300 rounded px-1 py-0.5 w-full [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                              defaultValue={isRun ? (editProductPage.lineTotals.qty || 1) : (charge.quantity || 1)}
-                              readOnly={isRun}
-                              onBlur={(e) => {
-                                if (isRun) return;
-                                const val = parseInt(e.target.value) || 1;
-                                if (val !== charge.quantity) {
-                                  editProductPage.updateArtworkChargeMutation.mutate({
-                                    artworkId: art.id, chargeId: charge.id,
-                                    updates: { quantity: val },
-                                  });
-                                }
-                              }}
-                            />
-                            {/* $ Cost */}
-                            <input
-                              type="number"
-                              step="0.01"
-                              className="text-xs text-right bg-transparent border-0 outline-none focus:bg-white focus:ring-1 focus:ring-blue-300 rounded px-1 py-0.5 w-full [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                              defaultValue={cNetCost.toFixed(2)}
-                              onBlur={(e) => {
-                                const val = parseFloat(e.target.value) || 0;
-                                if (Math.abs(val - cNetCost) > 0.001) {
-                                  const m = cMargin;
-                                  const retail = m > 0 && m < 100 ? val / (1 - m / 100) : val;
-                                  editProductPage.updateArtworkChargeMutation.mutate({
-                                    artworkId: art.id, chargeId: charge.id,
-                                    updates: { netCost: val.toFixed(2), retailPrice: retail.toFixed(2) },
-                                  });
-                                }
-                              }}
-                            />
-                            {/* Margin % */}
-                            <input
-                              type="number"
-                              step="0.1"
-                              className="text-xs text-right bg-transparent border-0 outline-none focus:bg-white focus:ring-1 focus:ring-blue-300 rounded px-1 py-0.5 w-full [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                              defaultValue={cMargin.toFixed(2)}
-                              onBlur={(e) => {
-                                const val = parseFloat(e.target.value) || 0;
-                                if (Math.abs(val - cMargin) > 0.1) {
-                                  const retail = val > 0 && val < 100 ? cNetCost / (1 - val / 100) : cNetCost;
-                                  editProductPage.updateArtworkChargeMutation.mutate({
-                                    artworkId: art.id, chargeId: charge.id,
-                                    updates: { margin: val.toFixed(2), retailPrice: retail.toFixed(2) },
-                                  });
-                                }
-                              }}
-                            />
-                            {/* Sell — calculated from cost + margin (read-only) */}
-                            <span className="text-xs text-right text-gray-600 px-1 py-0.5 tabular-nums">
-                              {(cMargin > 0 && cMargin < 100 ? cNetCost / (1 - cMargin / 100) : cNetCost).toFixed(2)}
-                            </span>
-                            {/* Display mode */}
-                            <Select
-                              defaultValue={charge.displayMode || "display_to_client"}
-                              onValueChange={(v) => {
-                                editProductPage.updateArtworkChargeMutation.mutate({
-                                  artworkId: art.id, chargeId: charge.id,
-                                  updates: { displayMode: v },
-                                });
-                              }}
-                            >
-                              <SelectTrigger className="h-6 text-[10px] border-0 shadow-none px-1">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {isRun ? (
-                                  <>
-                                    <SelectItem value="include_in_price">Include in price</SelectItem>
-                                    <SelectItem value="display_to_client">Display to client</SelectItem>
-                                  </>
-                                ) : (
-                                  <>
-                                    <SelectItem value="display_to_client">Display to client</SelectItem>
-                                    <SelectItem value="subtract_from_margin">Subtract from margin</SelectItem>
-                                  </>
-                                )}
-                              </SelectContent>
-                            </Select>
-                            {/* Delete */}
-                            <button
-                              className="w-5 h-5 flex items-center justify-center rounded hover:bg-red-50 text-gray-400 hover:text-red-500"
-                              onClick={() => editProductPage.deleteArtworkChargeMutation.mutate({ artworkId: art.id, chargeId: charge.id })}
-                            >
-                              <Trash2 className="w-3 h-3" />
-                            </button>
-                          </div>
-                        );
-                      })}
+                      <table className="w-full text-sm">
+                        <thead className="bg-gray-50 border-b">
+                          <tr>
+                            <th className="text-left p-3 w-20 font-bold text-sm">Charge</th>
+                            <th className="text-center p-3 font-bold text-sm w-20">Qty</th>
+                            <th className="text-right p-3 font-bold text-sm w-28">Cost</th>
+                            <th className="text-right p-3 font-bold text-sm w-24">Margin</th>
+                            <th className="text-right p-3 font-bold text-sm w-28">Retail</th>
+                            <th className="px-2 py-1 w-24"></th>
+                            <th className="text-right p-3 font-bold text-sm w-28">Total</th>
+                            <th className="w-10"></th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {artCharges.map((charge: any) => {
+                            const isRun = charge.chargeCategory === "run";
+                            const cNetCost = parseFloat(charge.netCost || "0");
+                            const cMargin = parseFloat(charge.margin || "0");
+                            const cRetail = cMargin > 0 && cMargin < 100 ? cNetCost / (1 - cMargin / 100) : cNetCost;
+                            const cQty = isRun ? (editProductPage.lineTotals.qty || 1) : (charge.quantity || 1);
+                            const cTotal = cRetail * cQty;
+                            return (
+                              <tr key={`${charge.id}-${charge.updatedAt || ''}`} className="border-b last:border-0 bg-gray-50/30 hover:bg-gray-50/50">
+                                {/* Name + matrix + badge */}
+                                <td className="p-2">
+                                  <div className="flex items-center gap-1.5">
+                                    <input
+                                      className="text-xs h-8 font-medium bg-transparent border outline-none focus:bg-white focus:ring-1 focus:ring-blue-300 rounded px-1 py-0.5 flex-1 "
+                                      defaultValue={formatLabel(charge.chargeName)}
+                                      onBlur={(e) => {
+                                        const val = e.target.value.trim();
+                                        if (val && val !== charge.chargeName) {
+                                          editProductPage.updateArtworkChargeMutation.mutate({
+                                            artworkId: art.id, chargeId: charge.id,
+                                            updates: { chargeName: val },
+                                          });
+                                        }
+                                      }}
+                                    />
+                                    {editProductPage.editItemData.decoratorType === "third_party" && (
+                                      <button
+                                        className="w-4 h-4 flex items-center justify-center text-blue-400 hover:text-blue-600"
+                                        title="Select pricing from decorator matrix"
+                                        onClick={() => setMatrixPickerTarget({
+                                          artworkId: art.id,
+                                          chargeId: charge.id,
+                                          chargeName: charge.chargeName || (isRun ? "Imprint Cost" : "Setup Cost"),
+                                          chargeType: isRun ? "run" : "fixed",
+                                          artworkMethod: art.artworkType,
+                                          currentMargin: cMargin,
+                                        })}
+                                      >
+                                        <Grid3X3 className="w-3 h-3" />
+                                      </button>
+                                    )}
+                                    <Badge variant="outline" className="text-[9px] px-1 py-0 w-fit border-gray-300 text-gray-600">
+                                      {isRun ? "Run" : "Fixed"}
+                                    </Badge>
+                                  </div>
+                                </td>
+                                {/* QTY */}
+                                <td className="p-2">
+                                  {isRun ? (
+                                    <span className="text-xs text-center text-gray-400 block">{cQty}</span>
+                                  ) : (
+                                    <PricingInput
+                                      className="flex h-8 w-full text-xs text-right rounded-md border border-input bg-background px-3 py-1 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                                      step="1"
+                                      min={1}
+                                      value={cQty}
+                                      onCommit={(n) => {
+                                        if (n !== charge.quantity) {
+                                          editProductPage.updateArtworkChargeMutation.mutate({
+                                            artworkId: art.id, chargeId: charge.id,
+                                            updates: { quantity: n },
+                                          });
+                                        }
+                                      }}
+                                    />
+                                  )}
+                                </td>
+                                {/* Net Cost */}
+                                <td className="p-2">
+                                  <div className="relative">
+                                    <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-400">$</span>
+                                    <PricingInput
+                                      className="w-full h-8 text-xs text-right rounded border border-gray-200 bg-white pl-5 pr-2 focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400"
+                                      step="0.01"
+                                      min={0}
+                                      value={cNetCost}
+                                      onCommit={(val) => {
+                                        if (Math.abs(val - cNetCost) > 0.001) {
+                                          const retail = cMargin > 0 && cMargin < 100 ? val / (1 - cMargin / 100) : val;
+                                          editProductPage.updateArtworkChargeMutation.mutate({
+                                            artworkId: art.id, chargeId: charge.id,
+                                            updates: { netCost: val.toFixed(2), retailPrice: retail.toFixed(2) },
+                                          });
+                                        }
+                                      }}
+                                    />
+                                  </div>
+                                </td>
+                                {/* Margin % */}
+                                <td className="p-2">
+                                  <div className="relative">
+                                    <PricingInput
+                                      className="w-full h-8 text-xs text-right rounded border border-gray-200 bg-white px-2 pr-5 focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400"
+                                      step="0.1"
+                                      min={0}
+                                      max={99.9}
+                                      value={parseFloat(cMargin.toFixed(1))}
+                                      onCommit={(val) => {
+                                        if (Math.abs(val - cMargin) > 0.1) {
+                                          const retail = val > 0 && val < 100 ? cNetCost / (1 - val / 100) : cNetCost;
+                                          editProductPage.updateArtworkChargeMutation.mutate({
+                                            artworkId: art.id, chargeId: charge.id,
+                                            updates: { margin: val.toFixed(2), retailPrice: retail.toFixed(2) },
+                                          });
+                                        }
+                                      }}
+                                    />
+                                    <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-400">%</span>
+                                  </div>
+                                </td>
+                                {/* Sell (read-only) */}
+                                <td className="p-2">
+                                  <div className="relative">
+                                    <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-400">$</span>
+                                    <span className="block h-8 text-xs text-right rounded border border-gray-200 bg-gray-50 pl-5 pr-2 leading-8 tabular-nums">
+                                      {cRetail.toFixed(2)}
+                                    </span>
+                                  </div>
+                                </td>
+                                {/* Display mode */}
+                                <td className="p-2">
+                                  <Select
+                                    defaultValue={charge.displayMode || "display_to_client"}
+                                    onValueChange={(v) => {
+                                      editProductPage.updateArtworkChargeMutation.mutate({
+                                        artworkId: art.id, chargeId: charge.id,
+                                        updates: { displayMode: v },
+                                      });
+                                    }}
+                                  >
+                                    <SelectTrigger className="h-8 text-[10px] w-full">
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {isRun ? (
+                                        <>
+                                          <SelectItem value="include_in_price">Include in price</SelectItem>
+                                          <SelectItem value="display_to_client">Display to client</SelectItem>
+                                        </>
+                                      ) : (
+                                        <>
+                                          <SelectItem value="display_to_client">Display to client</SelectItem>
+                                          <SelectItem value="subtract_from_margin">Subtract from margin</SelectItem>
+                                        </>
+                                      )}
+                                    </SelectContent>
+                                  </Select>
+                                </td>
+                                {/* Total */}
+                                <td className="p-2 text-right">
+                                  <span className="text-xs font-semibold">${cTotal.toFixed(2)}</span>
+                                </td>
+                                {/* Delete */}
+                                <td className="p-2">
+                                  <button
+                                    className="w-7 h-7 flex items-center justify-center rounded text-gray-300 hover:text-red-500 hover:bg-red-50"
+                                    onClick={() => editProductPage.deleteArtworkChargeMutation.mutate({ artworkId: art.id, chargeId: charge.id })}
+                                  >
+                                    <Trash2 className="w-3 h-3" />
+                                  </button>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
 
                       {/* Quick add links — CommonSKU style */}
                       <div className="flex items-center gap-4 px-3 py-1.5 text-[10px]">
-                        <button
-                          className="text-blue-600 hover:text-blue-800 hover:underline"
+                        <Button
+                          size="xs"
+                          variant={"outline"}
                           onClick={() => {
                             editProductPage.createArtworkChargeMutation.mutate({
                               artworkId: art.id,
@@ -1056,9 +949,10 @@ function EditProductPageBody({
                           }}
                         >
                           + Run charge
-                        </button>
-                        <button
-                          className="text-blue-600 hover:text-blue-800 hover:underline"
+                        </Button>
+                        <Button
+                          size="xs"
+                          variant={"outline"}
                           onClick={() => {
                             editProductPage.createArtworkChargeMutation.mutate({
                               artworkId: art.id,
@@ -1073,13 +967,15 @@ function EditProductPageBody({
                           }}
                         >
                           + Fixed charge
-                        </button>
-                        <button
-                          className="text-blue-600 hover:text-blue-800 hover:underline ml-auto"
+                        </Button>
+                        <Button
+                          size="xs"
+                          variant={"outline"}
+                          className="ml-auto"
                           onClick={() => editProductPage.setCopyingArtworkId(art.id)}
                         >
                           + Copy item location
-                        </button>
+                        </Button>
                       </div>
                     </div>
                   </div>
@@ -1137,29 +1033,24 @@ function EditProductPageBody({
         // ── Decoration-only margin (for the breakdown display) ──
         const decoMarginPercent = calcMarginPercent(decoSellTotal, decoCostTotal);
 
+        // ── Product-only margin (for the breakdown display — NOT product+charges) ──
+        const productOnlyMarginPercent = calcMarginPercent(productSellTotal, productCostTotal);
+
+        // ── Minimum margin check (uses admin setting) ──
+        const belowMinimum = isBelowMinimum(itemMarginPercent, editProductPage.marginSettings);
+
         return (
-          <div className="flex justify-between items-start gap-4 bg-primary p-4 rounded-lg">
+          <div className="flex justify-between items-start gap-4 bg-primary p-6 rounded-lg">
             {/* Left: Margin summary with full breakdown */}
             <div className="bg-white rounded-lg border p-4 space-y-1.5 w-80">
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-600">Overall Margin</span>
-                <span className={`font-bold ${itemMarginPercent >= 40 ? "text-green-600" : itemMarginPercent >= 30 ? "text-yellow-600" : "text-red-600"}`}>
-                  {itemMarginPercent.toFixed(1)}%
-                </span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-600">Profit</span>
-                <span className={`font-semibold ${itemProfitTotal < 0 ? "text-red-600" : ""}`}>${itemProfitTotal.toFixed(2)}</span>
-              </div>
-
               {/* Detailed breakdown */}
-              <div className="border-t pt-2 mt-2 space-y-1.5">
+              <div className="border-b pb-2 mt-2 space-y-1.5">
                 {/* Product layer */}
                 <div>
                   <div className="flex justify-between text-[11px] text-gray-600">
                     <span className="font-medium">Product</span>
-                    <span className={`font-semibold ${editProductPage.margin >= 30 ? "text-green-600" : editProductPage.margin >= 0 ? "text-yellow-600" : "text-red-600"}`}>
-                      {editProductPage.margin.toFixed(1)}%
+                    <span className={`font-semibold`}>
+                      {productOnlyMarginPercent.toFixed(1)}%
                     </span>
                   </div>
                   <div className="flex justify-between text-[10px] text-gray-400 pl-2">
@@ -1173,7 +1064,7 @@ function EditProductPageBody({
                   <div>
                     <div className="flex justify-between text-[11px] text-gray-600">
                       <span className="font-medium">Charges</span>
-                      <span className={`font-semibold ${calcMarginPercent(chargeSellTotal, chargeCostTotal) >= 30 ? "text-green-600" : calcMarginPercent(chargeSellTotal, chargeCostTotal) >= 0 ? "text-yellow-600" : "text-red-600"}`}>
+                      <span className={`font-semibold`}>
                         {calcMarginPercent(chargeSellTotal, chargeCostTotal).toFixed(1)}%
                       </span>
                     </div>
@@ -1189,7 +1080,7 @@ function EditProductPageBody({
                   <div>
                     <div className="flex justify-between text-[11px] text-gray-600">
                       <span className="font-medium">Decoration</span>
-                      <span className={`font-semibold ${decoMarginPercent >= 30 ? "text-green-600" : decoMarginPercent >= 0 ? "text-yellow-600" : "text-red-600"}`}>
+                      <span className={`font-semibold`}>
                         {decoMarginPercent.toFixed(1)}%
                         {decoMarginPercent < 0 && <span className="ml-1" title="Decoration cost exceeds sell price">⚠</span>}
                       </span>
@@ -1222,23 +1113,56 @@ function EditProductPageBody({
                   ⚠ Decoration is selling at a loss. Cost (${decoCostTotal.toFixed(2)}) exceeds sell price (${decoSellTotal.toFixed(2)}). Check your matrix pricing or update retail prices.
                 </div>
               )}
+
+              {/* Minimum margin warning
+              {belowMinimum && (
+                <div className={`mt-2 pt-2 border-t border-red-200 text-xs text-red-700 bg-red-50 -mx-4 px-4 py-2 ${!(decoMarginPercent < 0 && decoSellTotal > 0) ? "" : ""} ${decoMarginPercent < 0 && decoSellTotal > 0 ? "" : "-mb-4 rounded-b-lg"}`}>
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-1.5">
+                      <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
+                      <span>
+                        Overall margin ({itemMarginPercent.toFixed(1)}%) is below the company minimum of {editProductPage.marginSettings.minimumMargin}%.
+                        Saving will require confirmation.
+                      </span>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="border-red-300 text-red-700 hover:bg-red-100 flex-shrink-0 h-6 text-[10px] px-2"
+                      onClick={() => editProductPage.applyMarginToAllLines(editProductPage.marginSettings.defaultMargin)}
+                    >
+                      Apply {editProductPage.marginSettings.defaultMargin}% to All
+                    </Button>
+                  </div>
+                </div>
+              )} */}
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-600 font-semibold">Overall Margin</span>
+                <span className={`font-bold`}>
+                  {itemMarginPercent.toFixed(1)}%
+                </span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-600 font-semibold">Margin Amount</span>
+                <span className={`font-semibold ${itemProfitTotal < 0 ? "text-red-600" : ""}`}>${itemProfitTotal.toFixed(2)}</span>
+              </div>
             </div>
 
             {/* Right: Subtotal / Tax / Total */}
-            <div className="bg-gray-50 rounded-lg border p-4 space-y-2 w-72">
+            <div className="bg-gray-50 rounded-lg flex flex-col h-full border p-4 space-y-2 w-72">
               <div className="flex justify-between text-sm">
-                <span className="text-gray-600">Subtotal</span>
+                <span className="text-gray-600 font-semibold">Subtotal</span>
                 <span className="font-medium">${productPlusCharges.toFixed(2)}</span>
               </div>
               {decoSellTotal > 0 && (
                 <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">Decoration</span>
+                  <span className="text-gray-600 font-semibold">Decoration</span>
                   <span className="font-medium">${decoSellTotal.toFixed(2)}</span>
                 </div>
               )}
               <div className="flex justify-between items-center text-sm">
                 <div className="flex items-center gap-2">
-                  <span className="text-gray-600">Tax</span>
+                  <span className="text-gray-600 font-semibold">Tax</span>
                   <Select
                     value={editProductPage.editItemData.taxCodeId || "inherit"}
                     onValueChange={(val) => editProductPage.setEditItemData((d: any) => ({ ...d, taxCodeId: val === "inherit" ? "" : val }))}
@@ -1413,6 +1337,43 @@ function EditProductPageBody({
         onClose={() => editProductPage.setPreviewFile(null)}
       />
     </div>
+  );
+}
+
+// Local-state text input — commits to parent only on blur/Enter.
+function BlurTextInput({
+  value,
+  onCommit,
+  className,
+  placeholder,
+}: {
+  value: string;
+  onCommit: (v: string) => void;
+  className?: string;
+  placeholder?: string;
+}) {
+  const [draft, setDraft] = useState(value ?? "");
+  const isFocusedRef = useRef(false);
+
+  useEffect(() => {
+    if (!isFocusedRef.current) setDraft(value ?? "");
+  }, [value]);
+
+  return (
+    <input
+      className={className}
+      value={draft}
+      placeholder={placeholder}
+      onFocus={() => { isFocusedRef.current = true; }}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={() => {
+        isFocusedRef.current = false;
+        if (draft !== value) onCommit(draft);
+      }}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+      }}
+    />
   );
 }
 

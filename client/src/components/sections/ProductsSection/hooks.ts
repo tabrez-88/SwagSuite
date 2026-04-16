@@ -132,8 +132,6 @@ export function useProductsSection({ projectId, data, isLocked }: ProductsSectio
 
   const getArtworkCount = (itemId: string): number => allArtworkItems[itemId]?.length || 0;
 
-  const calcMargin = (cost: number, price: number) => price > 0 ? ((price - cost) / price) * 100 : 0;
-
   const marginColor = (m: number) => marginColorClass(m, marginSettings);
   const marginBg = (m: number) => marginBgClass(m, marginSettings);
 
@@ -372,14 +370,6 @@ export function useProductsSection({ projectId, data, isLocked }: ProductsSectio
   };
 
   const handleSaveEditLine = (line: OrderItemLine) => {
-    const price = parseFloat(editLineData.unitPrice as string || "0");
-    const cost = parseFloat(editLineData.cost as string || "0");
-    const m = calcMargin(cost, price);
-    if (isBelowMinimum(m, marginSettings)) {
-      setMarginWarningValue(m);
-      setMarginWarningAction(() => () => saveEditLine(line));
-      return;
-    }
     saveEditLine(line);
   };
 
@@ -387,7 +377,7 @@ export function useProductsSection({ projectId, data, isLocked }: ProductsSectio
     const qty = editLineData.quantity || 0;
     const price = parseFloat(editLineData.unitPrice as string || "0");
     const cost = parseFloat(editLineData.cost as string || "0");
-    const m = calcMargin(cost, price);
+    const m = calcMarginPercent(cost, price);
 
     updateLineMutation.mutate({
       lineId: line.id,
@@ -595,7 +585,6 @@ export function useProductsSection({ projectId, data, isLocked }: ProductsSectio
     getProductImage,
     getArtworkCount,
     getItemTotals,
-    calcMargin,
     marginColor,
     marginBg,
     orderTotals,

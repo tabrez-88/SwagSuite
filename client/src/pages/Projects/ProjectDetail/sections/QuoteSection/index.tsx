@@ -363,7 +363,7 @@ export default function QuoteSection(props: QuoteSectionProps) {
       <Card>
         <CardHeader className="py-3">
           <div className="flex items-center justify-between">
-            <CardTitle className="text-sm flex items-center gap-2">
+            <CardTitle className="text-xl flex items-center gap-2">
               <FileText className="w-4 h-4" />
               Quote Document
             </CardTitle>
@@ -461,7 +461,7 @@ export default function QuoteSection(props: QuoteSectionProps) {
       {/* Quote Approval Status */}
       <Card>
         <CardHeader className="py-3">
-          <CardTitle className="text-sm flex items-center gap-2">
+          <CardTitle className="text-xl flex items-center gap-2">
             <CheckCircle className="w-4 h-4" />
             Approval Status
           </CardTitle>
@@ -486,12 +486,7 @@ export default function QuoteSection(props: QuoteSectionProps) {
                     <p className="text-xs text-gray-500">{approval.clientEmail}</p>
                   </div>
                   <div className="flex items-center gap-3">
-                    {approval.viewedAt && (
-                      <div className="flex items-center gap-1 text-xs text-gray-500">
-                        <Eye className="w-3 h-3" />
-                        Viewed {format(new Date(approval.viewedAt), "MMM d")}
-                      </div>
-                    )}
+                    
                     <Badge
                       variant={
                         approval.status === "approved"
@@ -511,6 +506,12 @@ export default function QuoteSection(props: QuoteSectionProps) {
                       {approval.status === "pending" && <Clock className="w-3 h-3 mr-1" />}
                       {approval.status?.charAt(0).toUpperCase() + approval.status?.slice(1)}
                     </Badge>
+                    {approval.viewedAt && (
+                      <div className="flex items-center gap-1 text-xs text-gray-500">
+                        <Eye className="w-3 h-3" />
+                        Viewed {format(new Date(approval.viewedAt), "MMM d")}
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}

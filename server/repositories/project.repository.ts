@@ -85,19 +85,8 @@ export class ProjectRepository {
     let orderNumber = order.orderNumber;
 
     if (!orderNumber) {
-      const { companySettings } = await import("@shared/schema");
-      const [settings] = await db.select().from(companySettings).limit(1);
-      const digits = settings?.orderNumberDigits || 5;
-
-      // Find highest purely-numeric order number. Legacy "ORD-YYYY-NNN" entries are ignored.
-      const maxResult = await db.execute(
-        sql`SELECT MAX(CAST(order_number AS INTEGER)) AS max_num FROM orders WHERE order_number ~ '^[0-9]+$'`
-      );
-      const maxRows = (maxResult as any).rows ?? maxResult;
-      const currentMax = parseInt(maxRows?.[0]?.max_num || "0") || 0;
-      const nextNumber = currentMax > 0 ? currentMax + 1 : 10001;
-
-      orderNumber = String(nextNumber).padStart(digits, '0');
+      const { generateOrderNumber } = await import("../utils/orderNumber");
+      orderNumber = await generateOrderNumber();
     }
 
     const [newOrder] = await db

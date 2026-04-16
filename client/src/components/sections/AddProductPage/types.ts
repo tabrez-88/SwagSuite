@@ -37,3 +37,47 @@ export interface ConfigLine {
 }
 
 export type SourceTab = "sage" | "sanmar" | "ss_activewear" | "catalog" | "manual";
+
+// ── Local charge / artwork types (pre-creation, stored in memory) ──
+
+export interface LocalCharge {
+  tempId: string;
+  description: string;
+  chargeType: string;
+  chargeCategory: "run" | "fixed";
+  amount: number;
+  netCost: number;
+  retailPrice: number;
+  margin: number;
+  quantity: number;
+  isVendorCharge: boolean;
+  displayToClient: boolean;
+  displayToVendor: boolean;
+  includeInUnitPrice: boolean;
+}
+
+export interface LocalArtworkCharge {
+  tempId: string;
+  chargeName: string;
+  chargeCategory: "run" | "fixed";
+  netCost: number;
+  margin: number;
+  retailPrice: number;
+  quantity: number;
+  displayMode: "include_in_price" | "display_to_client" | "subtract_from_margin";
+}
+
+export interface LocalArtwork {
+  tempId: string;
+  name: string;
+  filePath: string;
+  fileName: string;
+  thumbnailUrl?: string;
+  location: string;
+  artworkType: string;
+  color: string;
+  size: string;
+  numberOfColors: number;
+  repeatLogo: boolean;
+  charges: LocalArtworkCharge[];
+}

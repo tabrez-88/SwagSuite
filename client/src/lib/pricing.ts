@@ -161,7 +161,8 @@ export function getProductSubtotal(
 /**
  * Calculate charge subtotal for product-level charges.
  *
- * Sell total: only charges visible to client AND not baked into unit price.
+ * Sell total: all charges that generate revenue ("include in price" + "display to client").
+ *   Only "subtract from margin" charges (displayToClient=false, includeInUnitPrice=false) are excluded.
  * Cost total: ALL charges (including absorbed/hidden ones count as our cost).
  */
 export function getChargeSubtotal(charges: ProductCharge[], itemQty: number): ChargeSubtotal {
@@ -173,8 +174,9 @@ export function getChargeSubtotal(charges: ProductCharge[], itemQty: number): Ch
     const sellPrice = getChargeSellPrice(c);
     const costPrice = num(c.netCost);
 
-    // Sell: only visible, non-baked-in charges
-    if (!c.includeInUnitPrice && c.displayToClient !== false) {
+    // Sell: all revenue-generating charges (both "include in price" and "display to client")
+    // Only "subtract from margin" (displayToClient=false AND includeInUnitPrice=false) is excluded
+    if (c.includeInUnitPrice || c.displayToClient !== false) {
       chargeSellTotal += sellPrice * effectiveQty;
     }
 
@@ -188,7 +190,8 @@ export function getChargeSubtotal(charges: ProductCharge[], itemQty: number): Ch
 /**
  * Calculate decoration subtotal for artwork charges.
  *
- * Sell total: only charges with displayMode = "display_to_client".
+ * Sell total: all charges that generate revenue ("include_in_price" + "display_to_client").
+ *   Only "subtract_from_margin" charges are excluded.
  * Cost total: ALL decoration charges.
  */
 export function getDecorationSubtotal(decoCharges: DecorationCharge[], itemQty: number): DecorationSubtotal {
@@ -200,8 +203,9 @@ export function getDecorationSubtotal(decoCharges: DecorationCharge[], itemQty: 
     const sellPrice = num(c.retailPrice);
     const costPrice = num(c.netCost);
 
-    // Sell: only client-visible decoration charges
-    if (c.displayMode === "display_to_client") {
+    // Sell: all revenue-generating charges (both "include_in_price" and "display_to_client")
+    // Only "subtract_from_margin" is excluded
+    if (c.displayMode !== "subtract_from_margin") {
       decoSellTotal += sellPrice * effectiveQty;
     }
 

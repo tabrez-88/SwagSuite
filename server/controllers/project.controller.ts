@@ -4,7 +4,6 @@ import { userRepository } from "../repositories/user.repository";
 import { activityRepository } from "../repositories/activity.repository";
 import { notificationRepository } from "../repositories/notification.repository";
 import { supplierRepository } from "../repositories/supplier.repository";
-import { settingsRepository } from "../repositories/settings.repository";
 import {
   insertOrderSchema,
   insertOrderItemSchema,
@@ -87,10 +86,10 @@ async function recalculateOrderTotals(orderId: string) {
   const allCharges = itemIds.length > 0
     ? await db.select().from(orderAdditionalCharges).where(inArray(orderAdditionalCharges.orderItemId, itemIds))
     : [];
-  // Sell total: only client-visible charges that are NOT baked into unit price.
-  // Treat null/undefined displayToClient as visible (matches client `c.displayToClient !== false`)
+  // Sell total: all revenue-generating charges ("include in price" + "display to client").
+  // Only "subtract from margin" (displayToClient=false, includeInUnitPrice=false) is excluded.
   const additionalChargesTotal = allCharges
-    .filter((c: any) => c.displayToClient !== false && !c.includeInUnitPrice)
+    .filter((c: any) => c.displayToClient !== false || c.includeInUnitPrice)
     .reduce((sum: number, c: any) => {
       const parentItem = allItems.find(i => i.id === c.orderItemId);
       const itemQty = parentItem?.quantity || 1;
@@ -108,9 +107,9 @@ async function recalculateOrderTotals(orderId: string) {
   const allArtCharges = artworkIds.length > 0
     ? await db.select().from(artworkCharges).where(inArray(artworkCharges.artworkItemId, artworkIds))
     : [];
-  // Only display_to_client artwork charges add to the visible subtotal
+  // All revenue-generating artwork charges (exclude only "subtract_from_margin")
   const artworkChargesTotal = allArtCharges
-    .filter((c: any) => c.displayMode === "display_to_client")
+    .filter((c: any) => c.displayMode !== "subtract_from_margin")
     .reduce((sum: number, c: any) => {
       // Find parent item via artwork → orderItem
       const parentArtwork = allArtworks.find(a => a.id === c.artworkItemId);
@@ -881,7 +880,7 @@ export class ProjectController {
       const { projectId } = req.params;
       const { db } = await import("../db");
       const { orders, orderItems, artworkItems, orderAdditionalCharges, orderServiceCharges } = await import("@shared/schema");
-      const { eq, sql } = await import("drizzle-orm");
+      const { eq } = await import("drizzle-orm");
 
       // Get source order
       const [sourceOrder] = await db.select().from(orders).where(eq(orders.id, projectId));
@@ -890,17 +889,9 @@ export class ProjectController {
       // Get source items
       const sourceItems = await db.select().from(orderItems).where(eq(orderItems.orderId, projectId));
 
-      // Generate new order number (numeric format, 5 digits, starting at 10001)
-      const { companySettings } = await import("@shared/schema");
-      const [settings] = await db.select().from(companySettings).limit(1);
-      const digits = settings?.orderNumberDigits || 5;
-      const maxResult = await db.execute(
-        sql`SELECT MAX(CAST(order_number AS INTEGER)) AS max_num FROM orders WHERE order_number ~ '^[0-9]+$'`
-      );
-      const maxRows = (maxResult as any).rows ?? maxResult;
-      const currentMax = parseInt(maxRows?.[0]?.max_num || "0") || 0;
-      const nextNum = currentMax > 0 ? currentMax + 1 : 10001;
-      const newOrderNumber = String(nextNum).padStart(digits, "0");
+      // Generate new order number using shared utility
+      const { generateOrderNumber } = await import("../utils/orderNumber");
+      const newOrderNumber = await generateOrderNumber();
 
       // Create duplicate order (reset statuses, keep content)
       const [newOrder] = await db.insert(orders).values({
@@ -1228,26 +1219,6 @@ export class ProjectController {
       const parentOrder = await projectRepository.getOrder(req.params.projectId);
       if (parentOrder && isSectionLocked(parentOrder, 'salesOrder')) {
         return res.status(403).json({ message: "Sales Order is locked. Unlock it first to make changes." });
-      }
-
-      // Minimum margin check on pricing updates
-      if (req.body.unitPrice !== undefined && req.body.cost !== undefined) {
-        const price = parseFloat(req.body.unitPrice);
-        const cost = parseFloat(req.body.cost);
-        if (price > 0) {
-          const margin = ((price - cost) / price) * 100;
-          const settings = await settingsRepository.getCompanySettings();
-          const minMargin = parseFloat(settings?.minimumMargin || "15");
-          if (margin > 0 && margin < minMargin) {
-            // Include warning in response but allow save (client handles confirmation)
-            const updatedItem = await projectRepository.updateOrderItem(req.params.itemId, req.body);
-            const pricingFields = ['quantity', 'unitPrice', 'totalPrice', 'cost', 'decorationCost', 'charges', 'taxCodeId'];
-            if (pricingFields.some(f => req.body[f] !== undefined)) {
-              await recalculateOrderTotals(req.params.projectId);
-            }
-            return res.json({ ...updatedItem, _marginWarning: { margin: margin.toFixed(1), minimumMargin: minMargin } });
-          }
-        }
       }
 
       // Convert timestamp strings to Date objects for Drizzle
@@ -1690,22 +1661,6 @@ export class ProjectController {
   static async updateLine(req: Request, res: Response) {
     try {
       if (await checkLockByOrderItemId(req.params.itemId, res)) return;
-
-      // Minimum margin check on line pricing updates
-      if (req.body.unitPrice !== undefined && req.body.cost !== undefined) {
-        const price = parseFloat(req.body.unitPrice);
-        const cost = parseFloat(req.body.cost);
-        if (price > 0) {
-          const margin = ((price - cost) / price) * 100;
-          const settings = await settingsRepository.getCompanySettings();
-          const minMargin = parseFloat(settings?.minimumMargin || "15");
-          if (margin > 0 && margin < minMargin) {
-            const line = await projectRepository.updateOrderItemLine(req.params.lineId, req.body);
-            await recalculateItemFromLines(req.params.itemId);
-            return res.json({ ...line, _marginWarning: { margin: margin.toFixed(1), minimumMargin: minMargin } });
-          }
-        }
-      }
 
       const line = await projectRepository.updateOrderItemLine(req.params.lineId, req.body);
       await recalculateItemFromLines(req.params.itemId);

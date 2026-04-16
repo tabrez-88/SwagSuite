@@ -224,7 +224,7 @@ function OptionsList({ type, title }: { type: ImprintOptionType; title: string }
                   </TableCell>
                   <TableCell className="text-center">
                     {opt.isBuiltIn && (
-                      <Badge variant="secondary" className="text-xs">Built-in</Badge>
+                      <Badge variant="secondary" className="text-xs text-nowrap">Built-in</Badge>
                     )}
                   </TableCell>
                   <TableCell className="text-center">

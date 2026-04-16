@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useMarginSettings, isBelowMinimum, calcMarginPercent, applyMargin } from "@/hooks/useMarginSettings";
 import { projectKeys } from "@/services/projects/keys";
-import type { AddProductPageProps, ProductResult, ConfigLine, SourceTab } from "./types";
+import type { AddProductPageProps, ProductResult, ConfigLine, SourceTab, LocalCharge, LocalArtwork, LocalArtworkCharge } from "./types";
 
 // S&S CDN is behind Cloudflare — images can't be loaded directly or via proxy
 // Store the raw URL for later Cloudinary caching on sync; display uses placeholder
@@ -64,12 +64,169 @@ export function useAddProductPage({ projectId, data }: AddProductPageProps) {
   const [imprintLocation, setImprintLocation] = useState("");
   const [imprintMethod, setImprintMethod] = useState("");
 
+  // ── Local charges & artwork (pre-creation, stored in memory) ──
+  const [localCharges, setLocalCharges] = useState<LocalCharge[]>([]);
+  const [localArtworks, setLocalArtworks] = useState<LocalArtwork[]>([]);
+
+  // Charge dialog state
+  const [showAddCharge, setShowAddCharge] = useState(false);
+  const [editingChargeIdx, setEditingChargeIdx] = useState<number | null>(null);
+  const EMPTY_CHARGE: Omit<LocalCharge, 'tempId'> = {
+    description: "",
+    chargeType: "flat",
+    chargeCategory: "fixed",
+    amount: 0,
+    netCost: 0,
+    retailPrice: 0,
+    margin: 0,
+    quantity: 1,
+    isVendorCharge: false,
+    displayToClient: true,
+    displayToVendor: true,
+    includeInUnitPrice: false,
+  };
+  const [newCharge, setNewCharge] = useState<Omit<LocalCharge, 'tempId'>>(EMPTY_CHARGE);
+
+  // Artwork dialog state
+  const [pickingArtwork, setPickingArtwork] = useState(false);
+  const [artPickedFile, setArtPickedFile] = useState<{ filePath: string; fileName: string } | null>(null);
+  const [artUploadName, setArtUploadName] = useState("");
+  const [artUploadLocation, setArtUploadLocation] = useState("");
+  const [artUploadMethod, setArtUploadMethod] = useState("");
+  const [artUploadSize, setArtUploadSize] = useState("");
+  const [artUploadColor, setArtUploadColor] = useState("");
+  const [artUploadNumberOfColors, setArtUploadNumberOfColors] = useState(1);
+  const [artUploadRepeatLogo, setArtUploadRepeatLogo] = useState(false);
+
+  // ── Local charge CRUD ──
+  const addLocalCharge = useCallback((charge: Omit<LocalCharge, 'tempId'>) => {
+    setLocalCharges(prev => [...prev, { ...charge, tempId: `lc_${Date.now()}_${Math.random().toString(36).slice(2, 7)}` }]);
+  }, []);
+
+  const updateLocalCharge = useCallback((tempId: string, updates: Partial<LocalCharge>) => {
+    setLocalCharges(prev => prev.map(c => c.tempId === tempId ? { ...c, ...updates } : c));
+  }, []);
+
+  const removeLocalCharge = useCallback((tempId: string) => {
+    setLocalCharges(prev => prev.filter(c => c.tempId !== tempId));
+  }, []);
+
+  // ── Local artwork CRUD ──
+  const addLocalArtwork = useCallback((artwork: Omit<LocalArtwork, 'tempId' | 'charges'>) => {
+    const tempId = `la_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    // Auto-create default charges: Imprint Cost (run) + Setup Cost (fixed)
+    const defaultCharges: LocalArtworkCharge[] = [
+      {
+        tempId: `lac_${Date.now()}_imp`,
+        chargeName: "Imprint Cost",
+        chargeCategory: "run",
+        netCost: 0,
+        margin: 0,
+        retailPrice: 0,
+        quantity: 1,
+        displayMode: "include_in_price",
+      },
+      {
+        tempId: `lac_${Date.now()}_setup`,
+        chargeName: "Setup Cost",
+        chargeCategory: "fixed",
+        netCost: 0,
+        margin: 0,
+        retailPrice: 0,
+        quantity: 1,
+        displayMode: "display_to_client",
+      },
+    ];
+    setLocalArtworks(prev => [...prev, { ...artwork, tempId, charges: defaultCharges }]);
+  }, []);
+
+  const removeLocalArtwork = useCallback((tempId: string) => {
+    setLocalArtworks(prev => prev.filter(a => a.tempId !== tempId));
+  }, []);
+
+  const addLocalArtworkCharge = useCallback((artworkTempId: string, charge: Omit<LocalArtworkCharge, 'tempId'>) => {
+    setLocalArtworks(prev => prev.map(a =>
+      a.tempId === artworkTempId
+        ? { ...a, charges: [...a.charges, { ...charge, tempId: `lac_${Date.now()}_${Math.random().toString(36).slice(2, 7)}` }] }
+        : a
+    ));
+  }, []);
+
+  const updateLocalArtworkCharge = useCallback((artworkTempId: string, chargeTempId: string, updates: Partial<LocalArtworkCharge>) => {
+    setLocalArtworks(prev => prev.map(a =>
+      a.tempId === artworkTempId
+        ? { ...a, charges: a.charges.map(c => c.tempId === chargeTempId ? { ...c, ...updates } : c) }
+        : a
+    ));
+  }, []);
+
+  const removeLocalArtworkCharge = useCallback((artworkTempId: string, chargeTempId: string) => {
+    setLocalArtworks(prev => prev.map(a =>
+      a.tempId === artworkTempId
+        ? { ...a, charges: a.charges.filter(c => c.tempId !== chargeTempId) }
+        : a
+    ));
+  }, []);
+
+  // ── Artwork dialog handlers ──
+  const handleArtworkFilePicked = useCallback((files: any[]) => {
+    const file = files[0];
+    if (!file) return;
+    setPickingArtwork(false);
+    setArtPickedFile({
+      filePath: file.cloudinaryUrl || file.filePath || file.url,
+      fileName: file.originalName || file.fileName || "artwork",
+    });
+    setArtUploadName(file.originalName || file.fileName || "");
+    // Auto-populate from product defaults
+    if (imprintLocation) setArtUploadLocation(imprintLocation);
+    if (imprintMethod) setArtUploadMethod(imprintMethod);
+  }, [imprintLocation, imprintMethod]);
+
+  const handleCreateLocalArtwork = useCallback(() => {
+    if (!artPickedFile || !artUploadLocation || !artUploadMethod) return;
+    addLocalArtwork({
+      name: artUploadName || artPickedFile.fileName,
+      filePath: artPickedFile.filePath,
+      fileName: artPickedFile.fileName,
+      thumbnailUrl: artPickedFile.filePath,
+      location: artUploadLocation,
+      artworkType: artUploadMethod,
+      color: artUploadColor,
+      size: artUploadSize,
+      numberOfColors: artUploadNumberOfColors,
+      repeatLogo: artUploadRepeatLogo,
+    });
+    resetArtForm();
+  }, [artPickedFile, artUploadName, artUploadLocation, artUploadMethod, artUploadColor, artUploadSize, artUploadNumberOfColors, artUploadRepeatLogo, addLocalArtwork]);
+
+  const resetArtForm = useCallback(() => {
+    setArtPickedFile(null);
+    setArtUploadName("");
+    setArtUploadLocation("");
+    setArtUploadMethod("");
+    setArtUploadSize("");
+    setArtUploadColor("");
+    setArtUploadNumberOfColors(1);
+    setArtUploadRepeatLogo(false);
+  }, []);
+
+  // Reset local charges/artwork when product changes
+  const setSelectedProductWithReset = useCallback((product: ProductResult | null) => {
+    setSelectedProduct(product);
+    setLocalCharges([]);
+    setLocalArtworks([]);
+    setShowAddCharge(false);
+    setEditingChargeIdx(null);
+    setNewCharge(EMPTY_CHARGE);
+    resetArtForm();
+  }, [resetArtForm]);
+
   // Margin warning state
   const [marginWarningAction, setMarginWarningAction] = useState<(() => void) | null>(null);
   const [marginWarningValue, setMarginWarningValue] = useState<number>(0);
 
-  // Post-create Edit dialog state — after item is created, open Edit dialog
-  // so user can add charges/artwork without leaving the page.
+  // Post-create Edit dialog state
   const [postCreateItemId, setPostCreateItemId] = useState<string | null>(null);
 
   // Vendor "Do Not Order" approval dialog state
@@ -507,10 +664,70 @@ export function useAddProductPage({ projectId, data }: AddProductPageProps) {
         );
       }
 
+      // 3. Create item-level charges
+      for (const ch of localCharges) {
+        await fetch(`/api/project-items/${createdItem.id}/charges`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            description: ch.description,
+            chargeType: ch.chargeType,
+            chargeCategory: ch.chargeCategory,
+            amount: (ch.retailPrice || ch.amount).toFixed(2),
+            netCost: ch.netCost.toFixed(4),
+            retailPrice: (ch.retailPrice || ch.amount).toFixed(2),
+            margin: ch.margin.toFixed(2),
+            quantity: ch.chargeCategory === "fixed" ? ch.quantity : 1,
+            isVendorCharge: ch.isVendorCharge,
+            displayToClient: ch.includeInUnitPrice ? false : ch.displayToClient,
+            displayToVendor: ch.displayToVendor !== false,
+            includeInUnitPrice: ch.includeInUnitPrice,
+          }),
+        });
+      }
+
+      // 4. Create artworks + their charges
+      for (const art of localArtworks) {
+        const artRes = await fetch(`/api/project-items/${createdItem.id}/artworks`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: art.name,
+            filePath: art.filePath,
+            fileName: art.fileName,
+            location: art.location,
+            artworkType: art.artworkType,
+            color: art.color,
+            size: art.size,
+            numberOfColors: art.numberOfColors,
+            repeatLogo: art.repeatLogo,
+          }),
+        });
+        if (artRes.ok) {
+          const createdArtwork = await artRes.json();
+          for (const ac of art.charges) {
+            await fetch(`/api/artworks/${createdArtwork.id}/charges`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                chargeName: ac.chargeName,
+                chargeCategory: ac.chargeCategory,
+                netCost: ac.netCost.toFixed(4),
+                margin: ac.margin.toFixed(2),
+                retailPrice: ac.retailPrice.toFixed(2),
+                quantity: ac.quantity,
+                displayMode: ac.displayMode,
+              }),
+            });
+          }
+        }
+      }
+
       return createdItem;
     },
     onSuccess: (createdItem: any) => {
-      toast({ title: "Product added — configure charges & artwork" });
+      const hasExtras = localCharges.length > 0 || localArtworks.length > 0;
+      toast({ title: hasExtras ? "Product added with charges & artwork" : "Product added successfully" });
       queryClient.invalidateQueries({ queryKey: projectKeys.items(projectId) });
       queryClient.invalidateQueries({ queryKey: projectKeys.itemsWithDetails(projectId) });
       queryClient.invalidateQueries({ queryKey: projectKeys.detail(projectId) });
@@ -518,7 +735,9 @@ export function useAddProductPage({ projectId, data }: AddProductPageProps) {
       queryClient.invalidateQueries({ queryKey: ["/api/suppliers"] });
       queryClient.invalidateQueries({ queryKey: ["/api/products"] });
       setSelectedProduct(null);
-      setPostCreateItemId(createdItem.id);
+      setLocalCharges([]);
+      setLocalArtworks([]);
+      setLocation(productsPath);
     },
     onError: (err: any) => {
       if (err.doNotOrder) {
@@ -645,14 +864,14 @@ export function useAddProductPage({ projectId, data }: AddProductPageProps) {
       return createdItem;
     },
     onSuccess: (createdItem: any) => {
-      toast({ title: "Product added — configure charges & artwork" });
+      toast({ title: "Product added successfully" });
       queryClient.invalidateQueries({ queryKey: projectKeys.items(projectId) });
       queryClient.invalidateQueries({ queryKey: projectKeys.itemsWithDetails(projectId) });
       queryClient.invalidateQueries({ queryKey: projectKeys.detail(projectId) });
       queryClient.invalidateQueries({ queryKey: projectKeys.itemLines(projectId) });
       queryClient.invalidateQueries({ queryKey: ["/api/suppliers"] });
       queryClient.invalidateQueries({ queryKey: ["/api/products"] });
-      setPostCreateItemId(createdItem.id);
+      setLocation(productsPath);
     },
     onError: (err: any) => {
       if (err.doNotOrder) {
@@ -780,23 +999,10 @@ export function useAddProductPage({ projectId, data }: AddProductPageProps) {
       imprintLocation,
       imprintMethod,
     });
-    if (isBelowMinimum(configMargin, marginSettings)) {
-      setMarginWarningValue(configMargin);
-      setMarginWarningAction(() => doAdd);
-      return;
-    }
     doAdd();
   };
 
   const handleAddManualProduct = () => {
-    if (manualForm.unitCost > 0) {
-      const m = ((manualForm.unitPrice - manualForm.unitCost) / manualForm.unitPrice) * 100;
-      if (isBelowMinimum(m, marginSettings)) {
-        setMarginWarningValue(m);
-        setMarginWarningAction(() => () => addManualProductMutation.mutate());
-        return;
-      }
-    }
     addManualProductMutation.mutate();
   };
 
@@ -921,6 +1127,47 @@ export function useAddProductPage({ projectId, data }: AddProductPageProps) {
     marginWarningValue,
     dismissMarginWarning,
     confirmMarginWarning,
+    // Local charges & artwork
+    localCharges,
+    localArtworks,
+    addLocalCharge,
+    updateLocalCharge,
+    removeLocalCharge,
+    addLocalArtwork,
+    removeLocalArtwork,
+    addLocalArtworkCharge,
+    updateLocalArtworkCharge,
+    removeLocalArtworkCharge,
+    // Charge dialog
+    showAddCharge,
+    setShowAddCharge,
+    editingChargeIdx,
+    setEditingChargeIdx,
+    newCharge,
+    setNewCharge: setNewCharge as (updater: (prev: any) => any) => void,
+    EMPTY_CHARGE,
+    // Artwork dialog
+    pickingArtwork,
+    setPickingArtwork,
+    artPickedFile,
+    artUploadName,
+    setArtUploadName,
+    artUploadLocation,
+    setArtUploadLocation,
+    artUploadMethod,
+    setArtUploadMethod,
+    artUploadSize,
+    setArtUploadSize,
+    artUploadColor,
+    setArtUploadColor,
+    artUploadNumberOfColors,
+    setArtUploadNumberOfColors,
+    artUploadRepeatLogo,
+    setArtUploadRepeatLogo,
+    handleArtworkFilePicked,
+    handleCreateLocalArtwork,
+    resetArtForm,
+    setSelectedProductWithReset,
     // Post-create edit dialog
     postCreateItemId,
     setPostCreateItemId,

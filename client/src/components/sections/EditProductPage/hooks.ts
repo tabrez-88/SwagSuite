@@ -3,7 +3,6 @@ import {
   applyMargin,
   calcMarginPercent,
   isBelowMinimum,
-  marginBgClass,
   marginColorClass,
   useMarginSettings,
 } from "@/hooks/useMarginSettings";
@@ -211,10 +210,17 @@ export function useEditProductPage(projectId: string, itemId: string, data: Proj
       const line = prev.find(l => l.id === id);
       if (!line) return prev;
       const targetMargin = parseFloat(e.target.value) || 0;
+      if (isPriceLocked && line.unitPrice > 0) {
+        // When price is locked, derive cost from price + margin
+        const newCost = targetMargin > 0 && targetMargin < 100
+          ? parseFloat((line.unitPrice * (1 - targetMargin / 100)).toFixed(4))
+          : line.cost;
+        return prev.map(l => l.id === id ? { ...l, cost: newCost } : l);
+      }
       const { cost, price } = applyMargin(line.cost, line.unitPrice, targetMargin);
       return prev.map(l => l.id === id ? { ...l, cost, unitPrice: price } : l);
     });
-  }, []);
+  }, [isPriceLocked]);
 
   /** Apply a target margin to all lines at once */
   const applyMarginToAllLines = useCallback((targetMargin: number) => {
@@ -266,6 +272,73 @@ export function useEditProductPage(projectId: string, itemId: string, data: Proj
   const productPlusChargeCost = productSub.productCostTotal + chargeSub.chargeCostTotal;
   const margin = calcMarginPct(productPlusChargeSell, productPlusChargeCost);
 
+  // ── Inline charge editing helpers ──
+  const handleInlineChargeUpdate = useCallback((chargeId: string, updates: Record<string, any>) => {
+    const charge = charges.find((c: any) => c.id === chargeId);
+    if (!charge) return;
+    updateChargeMutation.mutate({
+      chargeId,
+      orderItemId: charge.orderItemId,
+      updates,
+    });
+  }, [charges, updateChargeMutation]);
+
+  const handleChargeCostChange = useCallback((chargeId: string, newCost: number) => {
+    const charge = charges.find((c: any) => c.id === chargeId);
+    if (!charge) return;
+    const currentMargin = parseFloat(charge.margin || "0");
+    let newRetail = parseFloat(charge.retailPrice || "0");
+    if (currentMargin > 0 && currentMargin < 100 && newCost > 0) {
+      newRetail = parseFloat((newCost / (1 - currentMargin / 100)).toFixed(4));
+    }
+    handleInlineChargeUpdate(chargeId, { netCost: newCost.toFixed(2), retailPrice: newRetail.toFixed(2) });
+  }, [charges, handleInlineChargeUpdate]);
+
+  const handleChargeMarginChange = useCallback((chargeId: string, newMargin: number) => {
+    const charge = charges.find((c: any) => c.id === chargeId);
+    if (!charge) return;
+    const cost = parseFloat(charge.netCost || "0");
+    let newRetail = parseFloat(charge.retailPrice || "0");
+    if (newMargin > 0 && newMargin < 100 && cost > 0) {
+      newRetail = parseFloat((cost / (1 - newMargin / 100)).toFixed(4));
+    }
+    handleInlineChargeUpdate(chargeId, { margin: newMargin.toFixed(2), retailPrice: newRetail.toFixed(2) });
+  }, [charges, handleInlineChargeUpdate]);
+
+  const handleChargeRetailChange = useCallback((chargeId: string, newRetail: number) => {
+    const charge = charges.find((c: any) => c.id === chargeId);
+    if (!charge) return;
+    const cost = parseFloat(charge.netCost || "0");
+    const newMargin = newRetail > 0 ? ((newRetail - cost) / newRetail * 100) : 0;
+    handleInlineChargeUpdate(chargeId, { retailPrice: newRetail.toFixed(2), margin: newMargin.toFixed(2) });
+  }, [charges, handleInlineChargeUpdate]);
+
+  const handleChargeDisplayModeChange = useCallback((chargeId: string, mode: string) => {
+    const charge = charges.find((c: any) => c.id === chargeId);
+    if (!charge) return;
+    const isRun = charge.chargeCategory === "run";
+    const updates: Record<string, any> = {};
+    if (mode === "include_in_price") {
+      updates.includeInUnitPrice = true;
+      updates.displayToClient = true;
+    } else if (mode === "display_to_client") {
+      updates.includeInUnitPrice = false;
+      updates.displayToClient = true;
+    } else if (mode === "subtract_from_margin") {
+      updates.includeInUnitPrice = false;
+      updates.displayToClient = false;
+    }
+    handleInlineChargeUpdate(chargeId, updates);
+  }, [charges, handleInlineChargeUpdate]);
+
+  const handleChargeQtyChange = useCallback((chargeId: string, newQty: number) => {
+    handleInlineChargeUpdate(chargeId, { quantity: Math.max(1, Math.round(newQty)) });
+  }, [handleInlineChargeUpdate]);
+
+  const handleChargeDescriptionChange = useCallback((chargeId: string, description: string) => {
+    handleInlineChargeUpdate(chargeId, { description });
+  }, [handleInlineChargeUpdate]);
+
   // ── Dirty check ──
   const hasChanges = useMemo(() => {
     if (!item) return false;
@@ -300,9 +373,7 @@ export function useEditProductPage(projectId: string, itemId: string, data: Proj
   }, [item, editItemData, editableLines, serverLines]);
 
   // ── Helpers ──
-  const calcMargin = (cost: number, price: number) => price > 0 ? ((price - cost) / price) * 100 : 0;
   const marginColor = (m: number) => marginColorClass(m, marginSettings);
-  const marginBg = (m: number) => marginBgClass(m, marginSettings);
 
   const getItemSupplier = (itm: any) => {
     const currentProduct = allProducts.find((p: any) => p.id === itm.productId);
@@ -569,6 +640,31 @@ export function useEditProductPage(projectId: string, itemId: string, data: Proj
     onClose?.();
   };
 
+  // ── Persist custom color/size to product catalog ──
+  const addCustomColorSize = useCallback((color?: string, size?: string) => {
+    if (!item?.productId) return;
+    const currentProduct = allProducts.find((p: any) => p.id === item.productId);
+    if (!currentProduct) return;
+
+    const updates: Record<string, any> = {};
+    if (color && !((currentProduct.colors || []) as string[]).includes(color)) {
+      updates.colors = [...((currentProduct.colors || []) as string[]), color];
+    }
+    if (size && !((currentProduct.sizes || []) as string[]).includes(size)) {
+      updates.sizes = [...((currentProduct.sizes || []) as string[]), size];
+    }
+    if (Object.keys(updates).length === 0) return;
+
+    fetch(`/api/products/${item.productId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify(updates),
+    }).then(() => {
+      queryClient.invalidateQueries({ queryKey: ["/api/products"] });
+    }).catch(() => { /* best-effort */ });
+  }, [item, allProducts, queryClient]);
+
   return {
     item,
     projectId,
@@ -605,6 +701,16 @@ export function useEditProductPage(projectId: string, itemId: string, data: Proj
     updateChargeMutation,
     deleteChargeMutation,
     toggleChargeDisplayMutation,
+    // Inline charge editing
+    handleChargeCostChange,
+    handleChargeMarginChange,
+    handleChargeRetailChange,
+    handleChargeDisplayModeChange,
+    handleChargeQtyChange,
+    handleChargeDescriptionChange,
+    // Combined product+charges totals
+    productPlusChargeSell,
+    productPlusChargeCost,
     // Artwork
     artworks,
     allArtworkCharges,
@@ -664,9 +770,7 @@ export function useEditProductPage(projectId: string, itemId: string, data: Proj
     // Helpers
     getItemSupplier,
     getProductImage,
-    calcMargin,
     marginColor,
-    marginBg,
     applyMarginToAllLines,
     // Price lock
     isPriceLocked,
@@ -681,5 +785,6 @@ export function useEditProductPage(projectId: string, itemId: string, data: Proj
     showSizesColors,
     setShowSizesColors,
     productCatalog,
+    addCustomColorSize,
   };
 }

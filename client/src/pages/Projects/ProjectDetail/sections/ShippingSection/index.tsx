@@ -1,37 +1,58 @@
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Card, CardContent } from "@/components/ui/card";
-import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from "@/components/ui/select";
-import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
-} from "@/components/ui/dialog";
+import EmailComposer from "@/components/email/EmailComposer";
+import TimelineWarningBanner from "@/components/shared/TimelineWarningBanner";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
-  Truck, Plus, MapPin, Edit2, Trash2, ExternalLink, Send,
-  Calendar, Clock, Loader2, AlertTriangle, CheckCircle2,
-  Package, Pencil, ChevronDown, ChevronUp, Pin, Save, Bell, BellOff, Mail,
-} from "lucide-react";
+  Dialog, DialogContent,
+  DialogFooter,
+  DialogHeader, DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import EmailComposer from "@/components/email/EmailComposer";
-import { useUpdateProject } from "@/services/projects/mutations";
-import { sendCommunication } from "@/services/communications";
-import TimelineWarningBanner from "@/components/shared/TimelineWarningBanner";
 import { getDateStatus } from "@/lib/dateUtils";
-import { useShippingSection } from "./hooks";
+import { sendCommunication } from "@/services/communications";
+import { useUpdateProject } from "@/services/projects/mutations";
 import {
-  CARRIERS, STATUS_OPTIONS, SHIP_TO_OPTIONS, ACCOUNT_TYPE_OPTIONS, SHIPPING_METHOD_OPTIONS,
+  AlertTriangle,
+  Bell, BellOff,
+  Calendar,
+  CheckCircle2,
+  ChevronDown, ChevronUp,
+  Clock,
+  Edit2,
+  ExternalLink,
+  Loader2,
+  Mail,
+  MapPin,
+  Package, Pencil,
+  Pin,
+  Plus,
+  Save,
+  Send,
+  Trash2,
+  Truck,
+} from "lucide-react";
+import { useShippingSection } from "./hooks";
+import type { ShippingSectionProps } from "./types";
+import {
+  ACCOUNT_TYPE_OPTIONS,
+  CARRIERS,
+  SHIP_TO_OPTIONS,
+  SHIPPING_METHOD_OPTIONS,
+  STATUS_OPTIONS,
 } from "./types";
-import type { ShippingSectionProps, ShippingAddressData } from "./types";
 
 function getStatusBadge(status: string | null) {
   const opt = STATUS_OPTIONS.find(o => o.value === status) || STATUS_OPTIONS[0];
@@ -132,7 +153,7 @@ export default function ShippingSection({ projectId, data, isLocked }: ShippingS
         <CardContent className="p-5">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-3">
-              <h3 className="text-sm font-semibold flex items-center gap-1.5">
+              <h3 className="text-base font-semibold flex items-center gap-1.5">
                 <Package className="w-4 h-4 text-gray-400" />
                 Shipping Details
               </h3>
@@ -220,7 +241,7 @@ export default function ShippingSection({ projectId, data, isLocked }: ShippingS
                           const ds = itemDate ? getDateStatus(itemDate) : null;
                           return itemDate ? (
                             <div className="flex items-center gap-1">
-                              <span className={`text-[10px] font-medium ${isFromOrder ? "text-gray-400" : ds?.color || ""}`}>
+                              <span className={`text-[10px] font-medium px-2 py-1 rounded ${isFromOrder ? "text-gray-400" : ds?.color || ""}`}>
                                 {fmtDate(itemDate)}
                               </span>
                               {isFromOrder && <span className="text-[9px] text-gray-400">(order)</span>}

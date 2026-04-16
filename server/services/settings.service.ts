@@ -7,7 +7,7 @@ const DEFAULT_COMPANY_SETTINGS = {
   currency: "USD",
   dateFormat: "MM/DD/YYYY",
   defaultMargin: "30",
-  minimumMargin: "15",
+  minimumMargin: "42",
   maxOrderValue: "50000",
   requireApprovalOver: "5000",
 };
@@ -55,7 +55,6 @@ export class SettingsService {
     minimumMargin?: string;
     maxOrderValue?: string;
     requireApprovalOver?: string;
-    orderNumberPrefix?: string;
     orderNumberDigits?: number;
   }, userId: string) {
     return settingsRepository.upsertCompanySettings(data, userId);

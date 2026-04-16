@@ -12,7 +12,6 @@ export interface GeneralSettings {
   minimumMargin: string;
   maxOrderValue: string;
   requireApprovalOver: string;
-  orderNumberPrefix: string;
   orderNumberDigits: string;
 }
 

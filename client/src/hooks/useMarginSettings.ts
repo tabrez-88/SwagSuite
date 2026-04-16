@@ -6,8 +6,8 @@ export type { MarginSettings } from "@/types/margin-types";
 export { marginColorClass, marginBgClass, isBelowMinimum, calcMarginPercent, applyMargin } from "@/lib/margin";
 
 const DEFAULTS: MarginSettings = {
-  minimumMargin: 44,
-  defaultMargin: 44,
+  minimumMargin: 42,
+  defaultMargin: 42,
 };
 
 export function useMarginSettings(): MarginSettings {
@@ -19,7 +19,7 @@ export function useMarginSettings(): MarginSettings {
   if (!data) return DEFAULTS;
 
   return {
-    minimumMargin: parseFloat(data.minimumMargin || "44"),
-    defaultMargin: parseFloat(data.defaultMargin || "44"),
+    minimumMargin: parseFloat(data.minimumMargin || "42"),
+    defaultMargin: parseFloat(data.defaultMargin || "42"),
   };
 }

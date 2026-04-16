@@ -17,7 +17,6 @@ const DEFAULT_GENERAL_SETTINGS: GeneralSettings = {
   minimumMargin: "15",
   maxOrderValue: "50000",
   requireApprovalOver: "5000",
-  orderNumberPrefix: "",
   orderNumberDigits: "5",
 };
 
@@ -56,7 +55,6 @@ export function useGeneralTab(adminSettings: any) {
         minimumMargin: s.minimumMargin || prev.minimumMargin,
         maxOrderValue: s.maxOrderValue || prev.maxOrderValue,
         requireApprovalOver: s.requireApprovalOver || prev.requireApprovalOver,
-        orderNumberPrefix: s.orderNumberPrefix || prev.orderNumberPrefix,
         orderNumberDigits: String(s.orderNumberDigits || prev.orderNumberDigits),
       }));
     }
@@ -85,8 +83,7 @@ export function useGeneralTab(adminSettings: any) {
         minimumMargin: generalSettings.minimumMargin,
         maxOrderValue: generalSettings.maxOrderValue,
         requireApprovalOver: generalSettings.requireApprovalOver,
-        orderNumberPrefix: generalSettings.orderNumberPrefix,
-        orderNumberDigits: parseInt(generalSettings.orderNumberDigits) || 3,
+        orderNumberDigits: parseInt(generalSettings.orderNumberDigits) || 5,
       });
 
       // Also save companyName to branding

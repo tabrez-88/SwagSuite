@@ -124,7 +124,7 @@ export default function ProductsSection({ projectId, data, isLocked }: ProductsS
                 </div>
               </div>
               {isBelowMinimum(productSection.margin, productSection.marginSettings) && (
-                <div className="mt-2 pt-2 border-t border-red-200 flex items-center gap-2 text-xs text-red-600">
+                <div className="mt-2 pt-2 border-t border-red-200 flex items-center justify-end gap-2 text-xs text-red-600">
                   <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
                   <span>Overall order margin ({productSection.margin.toFixed(1)}%) is below the company minimum of {productSection.marginSettings.minimumMargin}% — target is {productSection.marginSettings.defaultMargin}%</span>
                 </div>
@@ -399,7 +399,7 @@ export default function ProductsSection({ projectId, data, isLocked }: ProductsS
                             <td className="p-2">
                               <div className="relative">
                                 <Input
-                                  className={`h-8 text-xs text-right pr-5 ${isBelowMinimum(lineMargin, productSection.marginSettings) ? "border-red-300 text-red-600" : ""}`}
+                                  className="h-8 text-xs text-right pr-5"
                                   type="number"
                                   step="0.1"
                                   min={0}

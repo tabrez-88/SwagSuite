@@ -185,11 +185,11 @@ export default function OrderItemCard({ item, productSection }: OrderItemCardPro
                 )}
                 <div className="text-center" title={`Min: ${productSection.marginSettings.minimumMargin}% | Target: ${productSection.marginSettings.defaultMargin}%`}>
                   <p className="text-[10px] text-gray-400 uppercase">Margin</p>
-                  <p className={`font-semibold ${productSection.marginColor(totals.itemMarginPercent)}`}>
+                  <p className={`font-semibold `}>
                     {totals.itemMarginPercent.toFixed(1)}%
-                    {isBelowMinimum(totals.itemMarginPercent, productSection.marginSettings) && (
+                    {/* {isBelowMinimum(totals.itemMarginPercent, productSection.marginSettings) && (
                       <span title={`Below minimum margin (${productSection.marginSettings.minimumMargin}%) — Target: ${productSection.marginSettings.defaultMargin}%`}><AlertTriangle className="inline w-3 h-3 text-red-500 ml-0.5" /></span>
-                    )}
+                    )} */}
                   </p>
                 </div>
 
@@ -243,10 +243,10 @@ export default function OrderItemCard({ item, productSection }: OrderItemCardPro
                           <td className="p-2.5 text-right text-xs text-gray-500">${cost.toFixed(2)}</td>
                           <td className="p-2.5 text-right text-xs font-medium">${price.toFixed(2)}</td>
                           <td className="p-2.5 text-right">
-                            <span className={`text-xs font-medium ${productSection.marginColor(m)}`}>{m.toFixed(1)}%</span>
-                            {isBelowMinimum(m, productSection.marginSettings) && (
+                            <span className={`text-xs font-medium`}>{m.toFixed(1)}%</span>
+                            {/* {isBelowMinimum(m, productSection.marginSettings) && (
                               <span title={`Below minimum margin (${productSection.marginSettings.minimumMargin}%)`}><AlertTriangle className="inline w-3 h-3 text-red-500 ml-0.5" /></span>
-                            )}
+                            )} */}
                           </td>
                           <td className="p-2.5 text-right text-xs font-medium">${lineTotal.toFixed(2)}</td>
                         </tr>
@@ -260,7 +260,7 @@ export default function OrderItemCard({ item, productSection }: OrderItemCardPro
                       <td className="p-2.5 text-right text-gray-500">${totals.productCostTotal.toFixed(2)}</td>
                       <td className="p-2.5"></td>
                       <td className="p-2.5 text-right">
-                        <span className={`font-semibold ${productSection.marginColor(calcMarginPercent(totals.productSellTotal, totals.productCostTotal))}`}>{calcMarginPercent(totals.productSellTotal, totals.productCostTotal).toFixed(1)}%</span>
+                        <span className={`font-semibold`}>{calcMarginPercent(totals.productSellTotal, totals.productCostTotal).toFixed(1)}%</span>
                       </td>
                       <td className="p-2.5 text-right font-semibold">${totals.productSellTotal.toFixed(2)}</td>
                     </tr>
@@ -314,19 +314,19 @@ export default function OrderItemCard({ item, productSection }: OrderItemCardPro
                       <span className="font-medium truncate">{charge.description}</span>
                       {charge.includeInUnitPrice && (
                         <Badge variant="outline" className="text-[10px] border-blue-200 text-blue-600 shrink-0">
-                          {charge.chargeCategory === "run" ? "in price" : "in margin"}
+                          {charge.chargeCategory === "run" ? "In price" : "In margin"}
                         </Badge>
                       )}
                     </div>
-                    <div className="flex items-center gap-3 shrink-0">
+                    <div className="flex w-fit gap-2 items-center">
                       {cNetCost > 0 && (
                         <span className="text-xs text-gray-400">Cost: ${cNetCost.toFixed(2)}</span>
                       )}
                       {cMargin > 0 && (
-                        <span className={`text-xs ${cMargin >= 40 ? "text-green-600" : cMargin >= 30 ? "text-yellow-600" : "text-red-600"}`}>{cMargin.toFixed(1)}%</span>
+                        <span className={`text-xs font-semibold`}>{cMargin.toFixed(1)}%</span>
                       )}
-                      <span className={`font-semibold ${charge.includeInUnitPrice ? "text-gray-400 line-through" : ""}`}>
-                        ${cRetail.toFixed(2)}{cQty > 1 ? ` x${cQty}` : ""}
+                      <span className={`font-semibold ${charge.includeInUnitPrice ? "text-gray-400" : ""}`}>
+                        ${cRetail.toFixed(2)}{cQty > 1 ?` x${cQty}` : ""}
                       </span>
                       {charge.displayToClient !== false
                         ? <Eye className="w-3 h-3 text-blue-400" />
@@ -459,8 +459,8 @@ export default function OrderItemCard({ item, productSection }: OrderItemCardPro
                                     </Badge>
                                   )}
                                 </div>
-                                <span className={`font-bold text-[11px] flex-shrink-0 ${isLoss ? "text-red-600" : "text-gray-900"}`}>
-                                  ${sellTotal.toFixed(2)}
+                                <span className={`font-bold text-[11px] flex-shrink-0`}>
+                                  Sell Total : ${sellTotal.toFixed(2)}
                                 </span>
                               </div>
                               <div className="flex items-center justify-between gap-2 text-[9px] text-gray-500 pl-5">
@@ -469,8 +469,8 @@ export default function OrderItemCard({ item, productSection }: OrderItemCardPro
                                   {" → "}
                                   ${sellPerUnit.toFixed(2)} sell × {qty}
                                 </span>
-                                <span className={`font-semibold ${isLoss ? "text-red-600" : marginPct >= 30 ? "text-green-600" : "text-yellow-600"}`}>
-                                  {marginPct.toFixed(1)}% margin
+                                <span className={`font-semibold `}>
+                                  Margin : {marginPct.toFixed(1)}%
                                   {isLoss && <AlertTriangle className="inline w-2.5 h-2.5 ml-0.5" />}
                                 </span>
                               </div>
@@ -484,8 +484,8 @@ export default function OrderItemCard({ item, productSection }: OrderItemCardPro
                         for (const c of artCharges) {
                           const isRun = c.chargeCategory === "run";
                           const qty = isRun ? (totals.totalQty || 1) : (c.quantity || 1);
-                          // Only count display_to_client charges in sell rollup
-                          if (c.displayMode === "display_to_client") {
+                          // Count all revenue-generating charges (exclude only subtract_from_margin)
+                          if (c.displayMode !== "subtract_from_margin") {
                             artSellTotal += parseFloat(c.retailPrice || "0") * qty;
                           }
                           artCostTotal += parseFloat(c.netCost || "0") * qty;
@@ -515,17 +515,14 @@ export default function OrderItemCard({ item, productSection }: OrderItemCardPro
                             )}
 
                             {/* Per-artwork rollup */}
-                            <div className={`flex justify-between items-center pt-1.5 border-t text-[10px] ${artIsLoss ? "text-red-700" : "text-gray-700"}`}>
+                            <div className={`flex justify-between items-center pt-1.5 border-t text-[10px] `}>
                               <span>
                                 Decoration subtotal:
-                                {artIsLoss && (
-                                  <span className="ml-1 text-red-600 font-semibold">⚠ Selling at loss</span>
-                                )}
                               </span>
                               <span className="flex items-center gap-2">
                                 <span className="text-gray-500">cost ${artCostTotal.toFixed(2)} →</span>
                                 <strong>${artSellTotal.toFixed(2)}</strong>
-                                <span className={`font-semibold ${artIsLoss ? "text-red-600" : artMarginPct >= 30 ? "text-green-600" : "text-yellow-600"}`}>
+                                <span className={`font-semibold `}>
                                   ({artMarginPct.toFixed(1)}%)
                                 </span>
                               </span>
@@ -560,7 +557,7 @@ export default function OrderItemCard({ item, productSection }: OrderItemCardPro
               )}
               <div className="text-right">
                 <span className="text-gray-500">Margin:</span>{" "}
-                <span className={`font-semibold ${productSection.marginColor(totals.itemMarginPercent)}`}>
+                <span className={`font-semibold`}>
                   {totals.itemMarginPercent.toFixed(1)}%
                 </span>
               </div>

@@ -195,10 +195,10 @@ export function AddEditChargeDialog({
           </div>
           {newCharge.netCost > 0 && newCharge.retailPrice > 0 && (
             <div className="text-xs text-gray-500 bg-gray-50 rounded px-3 py-1.5 flex justify-between">
-              <span>Profit: <strong className={newCharge.margin >= 40 ? "text-green-600" : newCharge.margin >= 30 ? "text-yellow-600" : "text-red-600"}>
+              <span>Profit: <strong>
                 ${(newCharge.retailPrice - newCharge.netCost).toFixed(2)}
               </strong></span>
-              <span>Margin: <strong className={newCharge.margin >= 40 ? "text-green-600" : newCharge.margin >= 30 ? "text-yellow-600" : "text-red-600"}>
+              <span>Margin: <strong>
                 {newCharge.margin.toFixed(1)}%
               </strong></span>
             </div>

@@ -15,10 +15,8 @@ import {
 } from "lucide-react";
 import type { AddProductPageProps, ProductResult } from "./types";
 import { useAddProductPage } from "./hooks";
-import EditProductPage from "@/components/sections/EditProductPage";
 import { ProductConfigDialog } from "./components/ProductConfigDialog";
 import { VendorBlockDialog } from "./components/VendorBlockDialog";
-import { MarginWarningDialog } from "./components/MarginWarningDialog";
 
 export default function AddProductPage({ projectId, data }: AddProductPageProps) {
   const h = useAddProductPage({ projectId, data });
@@ -613,7 +611,9 @@ export default function AddProductPage({ projectId, data }: AddProductPageProps)
       {/* PRODUCT CONFIGURATION DIALOG */}
       <ProductConfigDialog
         selectedProduct={h.selectedProduct}
-        onClose={() => h.setSelectedProduct(null)}
+        onClose={() => h.setSelectedProductWithReset(null)}
+        projectId={projectId}
+        data={data}
         configLines={h.configLines}
         configTotalQty={h.configTotalQty}
         configTotalCost={h.configTotalCost}
@@ -636,6 +636,45 @@ export default function AddProductPage({ projectId, data }: AddProductPageProps)
         addProductMutation={h.addProductMutation}
         sourceBadgeColor={h.sourceBadgeColor}
         sourceLabel={h.sourceLabel}
+        // Charges
+        localCharges={h.localCharges}
+        addLocalCharge={h.addLocalCharge}
+        updateLocalCharge={h.updateLocalCharge}
+        removeLocalCharge={h.removeLocalCharge}
+        showAddCharge={h.showAddCharge}
+        setShowAddCharge={h.setShowAddCharge}
+        editingChargeIdx={h.editingChargeIdx}
+        setEditingChargeIdx={h.setEditingChargeIdx}
+        newCharge={h.newCharge}
+        setNewCharge={h.setNewCharge}
+        EMPTY_CHARGE={h.EMPTY_CHARGE}
+        // Artworks
+        localArtworks={h.localArtworks}
+        removeLocalArtwork={h.removeLocalArtwork}
+        addLocalArtworkCharge={h.addLocalArtworkCharge}
+        updateLocalArtworkCharge={h.updateLocalArtworkCharge}
+        removeLocalArtworkCharge={h.removeLocalArtworkCharge}
+        // Artwork dialog
+        pickingArtwork={h.pickingArtwork}
+        setPickingArtwork={h.setPickingArtwork}
+        handleArtworkFilePicked={h.handleArtworkFilePicked}
+        artPickedFile={h.artPickedFile}
+        artUploadName={h.artUploadName}
+        setArtUploadName={h.setArtUploadName}
+        artUploadLocation={h.artUploadLocation}
+        setArtUploadLocation={h.setArtUploadLocation}
+        artUploadMethod={h.artUploadMethod}
+        setArtUploadMethod={h.setArtUploadMethod}
+        artUploadSize={h.artUploadSize}
+        setArtUploadSize={h.setArtUploadSize}
+        artUploadColor={h.artUploadColor}
+        setArtUploadColor={h.setArtUploadColor}
+        artUploadNumberOfColors={h.artUploadNumberOfColors}
+        setArtUploadNumberOfColors={h.setArtUploadNumberOfColors}
+        artUploadRepeatLogo={h.artUploadRepeatLogo}
+        setArtUploadRepeatLogo={h.setArtUploadRepeatLogo}
+        handleCreateLocalArtwork={h.handleCreateLocalArtwork}
+        resetArtForm={h.resetArtForm}
       />
 
       {/* VENDOR BLOCK APPROVAL DIALOG */}
@@ -648,28 +687,6 @@ export default function AddProductPage({ projectId, data }: AddProductPageProps)
         vendorApprovalMutation={h.vendorApprovalMutation}
       />
 
-      {/* POST-CREATE EDIT DIALOG */}
-      {h.postCreateItemId && (
-        <EditProductPage
-          open
-          onClose={() => {
-            h.setPostCreateItemId(null);
-            h.setLocation(h.productsPath);
-          }}
-          projectId={projectId}
-          itemId={h.postCreateItemId}
-          data={data}
-        />
-      )}
-
-      {/* MARGIN WARNING DIALOG */}
-      <MarginWarningDialog
-        open={!!h.marginWarningAction}
-        marginWarningValue={h.marginWarningValue}
-        minimumMargin={h.marginSettings.minimumMargin}
-        onDismiss={h.dismissMarginWarning}
-        onConfirm={h.confirmMarginWarning}
-      />
     </div>
   );
 }
