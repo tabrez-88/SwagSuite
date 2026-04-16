@@ -86,7 +86,7 @@ export function GeneralTab({ adminSettings }: GeneralTabProps) {
               </SelectContent>
             </Select>
             <p className="text-xs text-muted-foreground">
-              Format: #10001 · PO turunan: #10001-01
+              Format: #10001
             </p>
           </div>
           {/* Hidden until enforcement logic is implemented */}
