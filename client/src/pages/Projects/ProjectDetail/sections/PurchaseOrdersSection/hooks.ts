@@ -496,9 +496,21 @@ export function usePurchaseOrdersSection({ projectId, data, isLocked }: Purchase
       }).join("\n\n");
 
       const linksBlock = `---\nArtwork Proofs for Approval:\n\n${linksList}\n---`;
-      const emailBodyFull = formData.body.includes("{{approvalLinks}}")
-        ? formData.body.replace("{{approvalLinks}}", linksBlock)
-        : `${formData.body}\n\n${linksBlock}`;
+
+      // Replace merge tags: data-merge-tag spans, bare {{artworkApprovalLink}}, or legacy {{approvalLinks}}
+      let emailBodyFull = formData.body;
+      const mergeTagSpanRe = /<span\s+data-merge-tag="artworkApprovalLink"[^>]*>.*?<\/span>/g;
+      const bareMergeRe = /\{\{artworkApprovalLink\}\}/g;
+      const legacyRe = /\{\{approvalLinks\}\}/g;
+
+      if (mergeTagSpanRe.test(emailBodyFull) || bareMergeRe.test(emailBodyFull) || legacyRe.test(emailBodyFull)) {
+        emailBodyFull = emailBodyFull
+          .replace(mergeTagSpanRe, linksBlock)
+          .replace(bareMergeRe, linksBlock)
+          .replace(legacyRe, linksBlock);
+      } else {
+        emailBodyFull = `${emailBodyFull}\n\n${linksBlock}`;
+      }
 
       // Collect proof + original artwork files as attachments
       const proofAttachments = artworks

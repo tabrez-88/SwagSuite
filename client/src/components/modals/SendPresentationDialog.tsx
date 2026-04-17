@@ -7,12 +7,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Send } from "lucide-react";
+import { Send, Loader2 } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { appendHtmlBlock } from "@/lib/emailFormat";
 import EmailComposer from "@/components/email/EmailComposer";
 import type { EmailContact, EmailFormData } from "@/components/email/types";
+import { useAuth } from "@/hooks/useAuth";
+import { useDefaultEmailTemplate, applyTemplate } from "@/hooks/useEmailTemplates";
 
 interface SendPresentationDialogProps {
   open: boolean;
@@ -23,13 +24,18 @@ interface SendPresentationDialogProps {
   companyName: string;
   orderNumber: string;
   contacts?: EmailContact[];
+  assignedUserEmail?: string;
 }
 
 export default function SendPresentationDialog({
   open, onOpenChange, projectId, recipientEmail, recipientName, companyName, orderNumber, contacts,
+  assignedUserEmail,
 }: SendPresentationDialogProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { user } = useAuth();
+  const currentEmail = (user as any)?.email || "";
+  const defaultCc = assignedUserEmail && assignedUserEmail !== currentEmail ? assignedUserEmail : "";
 
   const mergeData = useMemo(() => ({
     companyName,
@@ -39,34 +45,46 @@ export default function SendPresentationDialog({
     orderNumber,
   }), [companyName, recipientName, orderNumber]);
 
+  const { data: defaultTemplate, isLoading: loadingTemplate } = useDefaultEmailTemplate("presentation");
+
+  const applied = useMemo(() => {
+    if (defaultTemplate) return applyTemplate(defaultTemplate, mergeData);
+    return {
+      subject: `Product Presentation from ${companyName}`,
+      body: `Hi ${recipientName.split(" ")[0] || "there"},\n\nPlease find our product presentation for your upcoming project. Click the link below to view and comment on the products.\n\nWe look forward to your feedback!\n\nBest regards,\n${companyName}`,
+    };
+  }, [defaultTemplate, mergeData, companyName, recipientName]);
+
   const sendMutation = useMutation({
     mutationFn: async (formData: EmailFormData & { adHocEmails: string[] }) => {
+      // Create share link
       const linkRes = await apiRequest("POST", `/api/projects/${projectId}/presentation/share-link`);
       const linkData = await linkRes.json();
-      const presentationUrl = linkData.url;
-
-      const presentationBlock = `
-<hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;">
-<p style="margin: 0 0 12px 0;">
-  <a href="${presentationUrl}" style="display: inline-block; background-color: #2563eb; color: #ffffff; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: 600;">View Presentation</a>
-</p>
-<p style="margin: 0; color: #6b7280; font-size: 12px;">Or copy this link: <a href="${presentationUrl}" style="color: #2563eb;">${presentationUrl}</a></p>`;
-      const emailBody = appendHtmlBlock(formData.body, presentationBlock);
+      const shareToken = linkData.token || linkData.url?.split("/").pop();
 
       const userAttachments = formData.attachments?.length
         ? formData.attachments.map((att) => ({ fileUrl: att.cloudinaryUrl, fileName: att.fileName }))
         : undefined;
 
+      // Send bodyHtml — server pipeline resolves merge tags + auto-appends presentation link
       await apiRequest("POST", `/api/projects/${projectId}/communications`, {
         communicationType: "client_email",
         direction: "sent",
         recipientEmail: formData.to,
         recipientName: formData.toName || recipientName,
         subject: formData.subject,
-        body: emailBody,
+        body: formData.bodyHtml || formData.body,
         cc: formData.cc || undefined,
         bcc: formData.bcc || undefined,
-        metadata: { type: "presentation", presentationUrl },
+        metadata: {
+          type: "presentation",
+          presentationUrl: linkData.url,
+        },
+        mergeContext: {
+          type: "presentation",
+          orderId: projectId,
+          shareToken,
+        },
         additionalAttachments: userAttachments,
       });
 
@@ -97,26 +115,32 @@ export default function SendPresentationDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <EmailComposer
-          contacts={contacts}
-          defaults={{
-            to: recipientEmail,
-            toName: recipientName,
-            subject: `Product Presentation from ${companyName}`,
-            body: `Hi ${recipientName.split(" ")[0] || "there"},\n\nPlease find our product presentation for your upcoming project. Click the link below to view and comment on the products.\n\nWe look forward to your feedback!\n\nBest regards,\n${companyName}`,
-          }}
-          templateType="presentation"
-          templateMergeData={mergeData}
-          showAdvancedFields
-          richText
-          showAttachments
-          contextProjectId={projectId}
-          footerHint="The presentation link will be automatically added to the email."
-          onSend={(data) => sendMutation.mutate(data)}
-          isSending={sendMutation.isPending}
-          onCancel={() => onOpenChange(false)}
-          resetTrigger={open}
-        />
+        {loadingTemplate ? (
+          <div className="flex items-center justify-center py-16">
+            <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+          </div>
+        ) : (
+          <EmailComposer
+            contacts={contacts}
+            defaults={{
+              to: recipientEmail,
+              toName: recipientName,
+              cc: defaultCc,
+              subject: applied.subject,
+              body: applied.body,
+            }}
+            templateType="presentation"
+            templateMergeData={mergeData}
+            showAdvancedFields
+            showAttachments
+            contextProjectId={projectId}
+            footerHint="The presentation link will be automatically added to the email."
+            onSend={(data) => sendMutation.mutate(data)}
+            isSending={sendMutation.isPending}
+            onCancel={() => onOpenChange(false)}
+            resetTrigger={open}
+          />
+        )}
       </DialogContent>
     </Dialog>
   );

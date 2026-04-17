@@ -438,6 +438,7 @@ export default function SalesOrderSection(props: SalesOrderSectionProps) {
           quoteApprovals={hook.quoteApprovals}
           createQuoteApproval={hook.createQuoteApproval}
           contacts={hook.contactsList}
+          assignedUserEmail={hook.data?.assignedUser?.email}
         />
       )}
 

@@ -6,9 +6,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Send } from "lucide-react";
+import { Send, Loader2 } from "lucide-react";
 import EmailComposer from "@/components/email/EmailComposer";
 import type { EmailContact } from "@/components/email/types";
+import { useAuth } from "@/hooks/useAuth";
+import { useDefaultEmailTemplate, applyTemplate } from "@/hooks/useEmailTemplates";
 import { useSendQuote } from "./hooks";
 
 interface SendQuoteDialogProps {
@@ -25,23 +27,45 @@ interface SendQuoteDialogProps {
   quoteApprovals: any[];
   createQuoteApproval: (data: any) => Promise<any>;
   contacts?: EmailContact[];
+  assignedUserEmail?: string;
 }
 
 export default function SendQuoteDialog({
   open, onOpenChange, projectId, recipientEmail, recipientName, companyName, orderNumber,
   quoteDocument, primaryContact, quoteTotal, quoteApprovals, createQuoteApproval, contacts,
+  assignedUserEmail,
 }: SendQuoteDialogProps) {
+  const { user } = useAuth();
+  const currentEmail = (user as any)?.email || "";
+  const senderName = user ? `${(user as any).firstName || ""} ${(user as any).lastName || ""}`.trim() : "";
+  const defaultCc = assignedUserEmail && assignedUserEmail !== currentEmail ? assignedUserEmail : "";
   const { sendMutation } = useSendQuote({
     projectId, recipientName, quoteDocument, quoteTotal, quoteApprovals, createQuoteApproval, onOpenChange,
   });
 
+  const existingApproval = quoteApprovals?.find((a: any) => a.status === "pending");
+  const approvalUrl = existingApproval
+    ? `${window.location.origin}/client-approval/${existingApproval.approvalToken}`
+    : "";
+
   const mergeData = useMemo(() => ({
     companyName,
-    senderName: "",
+    senderName,
     recipientName,
     recipientFirstName: recipientName.split(" ")[0] || "there",
     orderNumber,
-  }), [companyName, recipientName, orderNumber]);
+    approvalLink: approvalUrl,
+  }), [companyName, senderName, recipientName, orderNumber, approvalUrl]);
+
+  const { data: defaultTemplate, isLoading: loadingTemplate } = useDefaultEmailTemplate("quote");
+
+  const applied = useMemo(() => {
+    if (defaultTemplate) return applyTemplate(defaultTemplate, mergeData);
+    return {
+      subject: `Quote #${orderNumber} from ${companyName}`,
+      body: `<p>Hi ${recipientName.split(" ")[0] || "there"},</p><p>Please find our quote for your upcoming project. You can review and approve it using the link below:</p><p><span data-merge-tag="approvalLink">{{approvalLink}}</span></p><p>We look forward to working with you!</p><p>Best regards,<br>${companyName}</p>`,
+    };
+  }, [defaultTemplate, mergeData, orderNumber, companyName, recipientName]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -56,26 +80,32 @@ export default function SendQuoteDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <EmailComposer
-          contacts={contacts}
-          defaults={{
-            to: recipientEmail,
-            toName: recipientName,
-            subject: `Quote #${orderNumber} from ${companyName}`,
-            body: `Hi ${recipientName.split(" ")[0] || "there"},\n\nPlease find our quote for your upcoming project. Click the link below to review and approve the quote.\n\nWe look forward to working with you!\n\nBest regards,\n${companyName}`,
-          }}
-          templateType="quote"
-          templateMergeData={mergeData}
-          showAdvancedFields
-          richText
-          showAttachments
-          contextProjectId={projectId}
-          footerHint="The quote approval link will be automatically added to the email."
-          onSend={(data) => sendMutation.mutate(data)}
-          isSending={sendMutation.isPending}
-          onCancel={() => onOpenChange(false)}
-          resetTrigger={open}
-        />
+        {loadingTemplate ? (
+          <div className="flex items-center justify-center py-16">
+            <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+          </div>
+        ) : (
+          <EmailComposer
+            contacts={contacts}
+            defaults={{
+              to: recipientEmail,
+              toName: recipientName,
+              cc: defaultCc,
+              subject: applied.subject,
+              body: applied.body,
+            }}
+            templateType="quote"
+            templateMergeData={mergeData}
+            showAdvancedFields
+            showAttachments
+            contextProjectId={projectId}
+            footerHint="The quote PDF will be attached to the email."
+            onSend={(data) => sendMutation.mutate(data)}
+            isSending={sendMutation.isPending}
+            onCancel={() => onOpenChange(false)}
+            resetTrigger={open}
+          />
+        )}
       </DialogContent>
     </Dialog>
   );

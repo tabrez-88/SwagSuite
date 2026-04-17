@@ -30,7 +30,6 @@ export default function EmailSection({ projectId, data }: EmailSectionProps) {
               toName: h.primaryContact ? `${h.primaryContact.firstName} ${h.primaryContact.lastName}` : "",
             }}
             showAdvancedFields
-            richText
             showPreview
             showAttachments
             contextProjectId={projectId}

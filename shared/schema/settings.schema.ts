@@ -102,7 +102,9 @@ export const emailTemplates = pgTable("email_templates", {
   templateType: varchar("template_type").notNull(), // quote, sales_order, invoice, purchase_order, presentation, proof
   name: varchar("name").notNull(),
   subject: text("subject").notNull(),
-  body: text("body").notNull(),
+  body: text("body").notNull(), // deprecated — kept for search/back-compat
+  bodyHtml: text("body_html").default(""), // canonical HTML from Lexical (contains data-merge-tag spans)
+  bodyJson: jsonb("body_json"), // Lexical SerializedEditorState for lossless round-trip
   isDefault: boolean("is_default").default(false),
   isActive: boolean("is_active").default(true),
   updatedBy: varchar("updated_by").references(() => users.id),

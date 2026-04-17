@@ -6,6 +6,7 @@ import {
   useApproveArtwork,
   useRejectArtwork,
 } from "@/services/approvals";
+import { getRenderableImageUrl } from "@/lib/media-library";
 import type { ApprovalData } from "./types";
 
 export function useApproval() {
@@ -73,19 +74,20 @@ export function useApproval() {
   const toggleFullscreen = useCallback(() => setIsFullscreen(f => !f), []);
 
   // Get the proof image URL — use vendor proof from artworkDetails if available
+  // Wraps through getRenderableImageUrl so .ai/.eps/.psd get Cloudinary PNG conversion
   const getProofImageUrl = useCallback(() => {
-    if (approval?.artworkFile?.filePath) return approval.artworkFile.filePath;
-    if (approval?.artworkUrl) return approval.artworkUrl;
+    if (approval?.artworkFile?.filePath) return getRenderableImageUrl(approval.artworkFile.filePath);
+    if (approval?.artworkUrl) return getRenderableImageUrl(approval.artworkUrl);
     const withProof = approval?.artworkDetails?.find(a => a.proofFilePath);
-    if (withProof?.proofFilePath) return withProof.proofFilePath;
+    if (withProof?.proofFilePath) return getRenderableImageUrl(withProof.proofFilePath);
     const withFile = approval?.artworkDetails?.find(a => a.filePath);
-    if (withFile?.filePath) return withFile.filePath;
+    if (withFile?.filePath) return getRenderableImageUrl(withFile.filePath);
     return null;
   }, [approval]);
 
   const getOriginalImageUrl = useCallback(() => {
     const withFile = approval?.artworkDetails?.find(a => a.filePath);
-    return withFile?.filePath || null;
+    return getRenderableImageUrl(withFile?.filePath) || null;
   }, [approval]);
 
   const currentImageUrl = viewMode === "proof" ? getProofImageUrl() : getOriginalImageUrl();

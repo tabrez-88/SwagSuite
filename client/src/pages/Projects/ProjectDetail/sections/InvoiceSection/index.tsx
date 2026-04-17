@@ -447,6 +447,7 @@ export default function InvoiceSection(props: InvoiceSectionProps) {
           dueDate={h.invoice.dueDate}
           contacts={h.formattedContacts}
           stripeInvoiceUrl={h.invoice.stripeInvoiceUrl}
+          assignedUserEmail={props.data?.assignedUser?.email}
         />
       )}
 

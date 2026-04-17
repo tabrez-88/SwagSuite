@@ -1,8 +1,7 @@
-import { useState, useRef } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
@@ -32,10 +31,12 @@ import {
   useEmailTemplates,
   useEmailTemplateMutations,
   applyTemplate,
-  TEMPLATE_MERGE_FIELDS,
-  TEMPLATE_TYPE_LABELS,
   type EmailTemplate,
 } from "@/hooks/useEmailTemplates";
+import RichEmailEditor from "@/components/lexical/RichEmailEditor";
+import type { RichEmailEditorOutput } from "@/components/lexical/RichEmailEditor";
+import { getMergeFields, TEMPLATE_TYPE_LABELS } from "@shared/email-merge-fields";
+import { textToHtml } from "@/lib/emailFormat";
 
 const TEMPLATE_TYPES = ["presentation", "quote", "sales_order", "purchase_order", "proof", "invoice", "shipping_notification"] as const;
 
@@ -67,11 +68,11 @@ export function EmailTemplatesTab() {
   const { createMutation, updateMutation, deleteMutation, setDefaultMutation } = useEmailTemplateMutations();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [expandedTypes, setExpandedTypes] = useState<Set<string>>(new Set(TEMPLATE_TYPES));
-  const [editForm, setEditForm] = useState<Partial<EmailTemplate> | null>(null);
+  const [editForm, setEditForm] = useState<Partial<EmailTemplate> & { bodyHtml?: string; bodyJson?: any } | null>(null);
   const [isNew, setIsNew] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [showPreview, setShowPreview] = useState(false);
-  const bodyRef = useRef<HTMLTextAreaElement>(null);
+  const [editorKey, setEditorKey] = useState(0);
 
   const selected = selectedId ? templates.find((t) => t.id === selectedId) : null;
 
@@ -86,50 +87,57 @@ export function EmailTemplatesTab() {
 
   const selectTemplate = (t: EmailTemplate) => {
     setSelectedId(t.id);
-    setEditForm({ name: t.name, subject: t.subject, body: t.body, isDefault: t.isDefault, isActive: t.isActive });
+    // Load bodyHtml if available, else convert plain body to HTML
+    const bodyHtml = (t as any).bodyHtml || textToHtml(t.body);
+    const bodyJson = (t as any).bodyJson || undefined;
+    setEditForm({ name: t.name, subject: t.subject, body: t.body, bodyHtml, bodyJson, isDefault: t.isDefault, isActive: t.isActive });
     setIsNew(false);
     setShowPreview(false);
+    setEditorKey((k) => k + 1);
   };
 
   const startNew = (type: string) => {
     setSelectedId(null);
-    setEditForm({ templateType: type, name: "", subject: "", body: "", isDefault: false, isActive: true });
+    setEditForm({ templateType: type, name: "", subject: "", body: "", bodyHtml: "", isDefault: false, isActive: true });
     setIsNew(true);
     setShowPreview(false);
+    setEditorKey((k) => k + 1);
   };
 
-  const insertMergeField = (key: string) => {
-    const textarea = bodyRef.current;
-    if (!textarea) return;
-    const start = textarea.selectionStart;
-    const end = textarea.selectionEnd;
-    const text = editForm?.body || "";
-    const insertion = `{{${key}}}`;
-    const newText = text.substring(0, start) + insertion + text.substring(end);
-    setEditForm((prev) => prev ? { ...prev, body: newText } : prev);
-    setTimeout(() => {
-      textarea.focus();
-      textarea.setSelectionRange(start + insertion.length, start + insertion.length);
-    }, 0);
+  const handleEditorChange = (output: RichEmailEditorOutput) => {
+    setEditForm((prev) => prev ? {
+      ...prev,
+      bodyHtml: output.html,
+      bodyJson: output.json,
+      // Keep plain body in sync for search/back-compat
+      body: stripForPlainText(output.html),
+    } : prev);
   };
 
   const handleSave = () => {
-    if (!editForm?.name || !editForm?.subject || !editForm?.body) {
+    if (!editForm?.name || !editForm?.subject || !(editForm?.body || editForm?.bodyHtml)) {
       toast({ title: "Missing fields", description: "Name, subject, and body are required.", variant: "destructive" });
       return;
     }
 
+    const payload = {
+      ...editForm,
+      bodyHtml: editForm.bodyHtml || "",
+      bodyJson: editForm.bodyJson || null,
+    };
+
     if (isNew) {
-      createMutation.mutate(editForm, {
+      createMutation.mutate(payload, {
         onSuccess: (created: EmailTemplate) => {
           toast({ title: "Template created" });
           setSelectedId(created.id);
           setIsNew(false);
-          setEditForm({ name: created.name, subject: created.subject, body: created.body, isDefault: created.isDefault, isActive: created.isActive });
+          const bodyHtml = (created as any).bodyHtml || textToHtml(created.body);
+          setEditForm({ name: created.name, subject: created.subject, body: created.body, bodyHtml, isDefault: created.isDefault, isActive: created.isActive });
         },
       });
     } else if (selectedId) {
-      updateMutation.mutate({ id: selectedId, ...editForm }, {
+      updateMutation.mutate({ id: selectedId, ...payload }, {
         onSuccess: () => toast({ title: "Template updated" }),
       });
     }
@@ -159,10 +167,10 @@ export function EmailTemplatesTab() {
   };
 
   const currentType = isNew ? editForm?.templateType : selected?.templateType;
-  const mergeFields = currentType ? TEMPLATE_MERGE_FIELDS[currentType] || [] : [];
+  const mergeFields = currentType ? getMergeFields(currentType) : [];
 
   const preview = editForm ? applyTemplate(
-    { subject: editForm.subject || "", body: editForm.body || "" },
+    { subject: editForm.subject || "", body: editForm.body || "", bodyHtml: editForm.bodyHtml || null },
     SAMPLE_DATA
   ) : null;
 
@@ -279,7 +287,7 @@ export function EmailTemplatesTab() {
 
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
-                  <Label htmlFor="tpl-body">Body</Label>
+                  <Label>Body</Label>
                   <button
                     className="text-xs text-blue-600 hover:underline"
                     onClick={() => setShowPreview(!showPreview)}
@@ -288,46 +296,31 @@ export function EmailTemplatesTab() {
                   </button>
                 </div>
                 {showPreview ? (
-                  <div className="border rounded-lg p-4 bg-gray-50 min-h-[200px] whitespace-pre-wrap text-sm">
+                  <div className="border rounded-lg p-4 bg-gray-50 min-h-[200px] text-sm">
                     <p className="text-xs text-gray-500 mb-2 font-medium">Subject: {preview?.subject}</p>
                     <hr className="mb-2" />
-                    {preview?.body}
+                    <div
+                      className="prose prose-sm max-w-none"
+                      dangerouslySetInnerHTML={{ __html: preview?.body || "" }}
+                    />
                   </div>
                 ) : (
-                  <Textarea
-                    ref={bodyRef}
-                    id="tpl-body"
-                    value={editForm.body || ""}
-                    onChange={(e) => setEditForm((prev) => prev ? { ...prev, body: e.target.value } : prev)}
-                    rows={10}
+                  <RichEmailEditor
+                    key={editorKey}
+                    initialHtml={editForm.bodyHtml || textToHtml(editForm.body || "")}
+                    initialJson={editForm.bodyJson}
+                    onChange={handleEditorChange}
+                    mergeFields={mergeFields}
+                    mode="full"
                     placeholder="Hi {{recipientFirstName}},\n\nPlease find..."
-                    className="text-sm"
+                    minHeight="250px"
                   />
                 )}
               </div>
 
-              {/* Merge field chips */}
-              {mergeFields.length > 0 && !showPreview && (
-                <div className="space-y-1.5">
-                  <Label className="text-xs text-gray-500">Insert merge field (click to add at cursor)</Label>
-                  <div className="flex flex-wrap gap-1.5">
-                    {mergeFields.map((f) => (
-                      <button
-                        key={f.key}
-                        type="button"
-                        className="px-2 py-0.5 text-xs rounded-full border bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors"
-                        onClick={() => insertMergeField(f.key)}
-                      >
-                        {`{{${f.key}}}`}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
               <div className="flex items-center gap-2 p-2.5 bg-blue-50 border border-blue-200 rounded-lg text-xs text-blue-700">
                 <Info className="w-3.5 h-3.5 flex-shrink-0" />
-                Approval links, PDF attachments, and proof thumbnails are added automatically by each dialog.
+                Use merge tags (type {"{{"}  to trigger) for dynamic content. Approval links and PDF attachments are added automatically.
               </div>
 
               <div className="flex items-center justify-between pt-2 border-t">
@@ -393,4 +386,19 @@ export function EmailTemplatesTab() {
       </AlertDialog>
     </div>
   );
+}
+
+/** Lightweight HTML → plain text for back-compat body field */
+function stripForPlainText(html: string): string {
+  return html
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/(p|div|h[1-6]|li|tr|blockquote)>/gi, "\n")
+    .replace(/<li[^>]*>/gi, "- ")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 }

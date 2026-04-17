@@ -375,7 +375,10 @@ export class IntegrationController {
       });
     } catch (error) {
       console.error('Error searching SAGE products:', error);
-      res.status(500).json({ message: "Failed to fetch SAGE products" });
+      res.status(500).json({
+        message: 'Failed to fetch SAGE products',
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
     }
   }
 

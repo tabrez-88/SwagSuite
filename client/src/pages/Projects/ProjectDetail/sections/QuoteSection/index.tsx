@@ -557,6 +557,7 @@ export default function QuoteSection(props: QuoteSectionProps) {
           quoteApprovals={quoteApprovals}
           createQuoteApproval={createQuoteApproval}
           contacts={contactsList}
+          assignedUserEmail={data?.assignedUser?.email}
         />
       )}
 

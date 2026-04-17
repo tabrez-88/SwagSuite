@@ -127,7 +127,6 @@ export default function VendorSection({ projectId, data }: VendorSectionProps) {
                     : h.selectedVendor?.name || "",
                 }}
                 showAdvancedFields
-                richText
                 showPreview
                 showAttachments
                 contextProjectId={projectId}

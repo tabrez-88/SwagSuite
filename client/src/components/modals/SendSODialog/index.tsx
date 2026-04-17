@@ -6,9 +6,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Send } from "lucide-react";
+import { Send, Loader2 } from "lucide-react";
 import EmailComposer from "@/components/email/EmailComposer";
 import type { EmailContact } from "@/components/email/types";
+import { useAuth } from "@/hooks/useAuth";
+import { useDefaultEmailTemplate, applyTemplate } from "@/hooks/useEmailTemplates";
 import { useSendSO } from "./hooks";
 
 interface SendSODialogProps {
@@ -24,23 +26,45 @@ interface SendSODialogProps {
   quoteApprovals: any[];
   createQuoteApproval: (data: any) => Promise<any>;
   contacts?: EmailContact[];
+  assignedUserEmail?: string;
 }
 
 export default function SendSODialog({
   open, onOpenChange, projectId, recipientEmail, recipientName, companyName, orderNumber,
   soDocument, soTotal, quoteApprovals, createQuoteApproval, contacts,
+  assignedUserEmail,
 }: SendSODialogProps) {
+  const { user } = useAuth();
+  const currentEmail = (user as any)?.email || "";
+  const senderName = user ? `${(user as any).firstName || ""} ${(user as any).lastName || ""}`.trim() : "";
+  const defaultCc = assignedUserEmail && assignedUserEmail !== currentEmail ? assignedUserEmail : "";
   const { sendMutation } = useSendSO({
     projectId, recipientName, soDocument, soTotal, quoteApprovals, createQuoteApproval, onOpenChange,
   });
 
+  const existingApproval = quoteApprovals?.find((a: any) => a.status === "pending");
+  const approvalUrl = existingApproval
+    ? `${window.location.origin}/client-approval/${existingApproval.approvalToken}`
+    : "";
+
   const mergeData = useMemo(() => ({
     companyName,
-    senderName: "",
+    senderName,
     recipientName,
     recipientFirstName: recipientName.split(" ")[0] || "there",
     orderNumber,
-  }), [companyName, recipientName, orderNumber]);
+    approvalLink: approvalUrl,
+  }), [companyName, senderName, recipientName, orderNumber, approvalUrl]);
+
+  const { data: defaultTemplate, isLoading: loadingTemplate } = useDefaultEmailTemplate("sales_order");
+
+  const applied = useMemo(() => {
+    if (defaultTemplate) return applyTemplate(defaultTemplate, mergeData);
+    return {
+      subject: `Sales Order #${orderNumber} from ${companyName}`,
+      body: `<p>Hi ${recipientName.split(" ")[0] || "there"},</p><p>Please find the sales order for your project. You can review and approve it using the link below:</p><p><span data-merge-tag="approvalLink">{{approvalLink}}</span></p><p>If you have any questions or need changes, please don't hesitate to reach out.</p><p>Best regards,<br>${companyName}</p>`,
+    };
+  }, [defaultTemplate, mergeData, orderNumber, companyName, recipientName]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -55,26 +79,32 @@ export default function SendSODialog({
           </DialogDescription>
         </DialogHeader>
 
-        <EmailComposer
-          contacts={contacts}
-          defaults={{
-            to: recipientEmail,
-            toName: recipientName,
-            subject: `Sales Order #${orderNumber} from ${companyName}`,
-            body: `Hi ${recipientName.split(" ")[0] || "there"},\n\nPlease find the sales order for your project. Click the link below to review and approve.\n\nIf you have any questions or need changes, please don't hesitate to reach out.\n\nBest regards,\n${companyName}`,
-          }}
-          templateType="sales_order"
-          templateMergeData={mergeData}
-          showAdvancedFields
-          richText
-          showAttachments
-          contextProjectId={projectId}
-          footerHint="The approval link will be automatically added to the email."
-          onSend={(data) => sendMutation.mutate(data)}
-          isSending={sendMutation.isPending}
-          onCancel={() => onOpenChange(false)}
-          resetTrigger={open}
-        />
+        {loadingTemplate ? (
+          <div className="flex items-center justify-center py-16">
+            <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+          </div>
+        ) : (
+          <EmailComposer
+            contacts={contacts}
+            defaults={{
+              to: recipientEmail,
+              toName: recipientName,
+              cc: defaultCc,
+              subject: applied.subject,
+              body: applied.body,
+            }}
+            templateType="sales_order"
+            templateMergeData={mergeData}
+            showAdvancedFields
+            showAttachments
+            contextProjectId={projectId}
+            footerHint="The sales order PDF will be attached to the email."
+            onSend={(data) => sendMutation.mutate(data)}
+            isSending={sendMutation.isPending}
+            onCancel={() => onOpenChange(false)}
+            resetTrigger={open}
+          />
+        )}
       </DialogContent>
     </Dialog>
   );

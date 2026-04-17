@@ -746,7 +746,6 @@ export default function ShippingSection({ projectId, data, isLocked }: ShippingS
               templateType="shipping_notification"
               templateMergeData={notifyEmail.mergeData}
               autoFillSender
-              richText
               showAttachments
               contextProjectId={projectId}
               onSend={async (formData) => {

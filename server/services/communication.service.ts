@@ -1,9 +1,12 @@
+import type { Request } from "express";
 import { communicationRepository } from "../repositories/communication.repository";
 import { companyRepository } from "../repositories/company.repository";
 import { supplierRepository } from "../repositories/supplier.repository";
 import { projectRepository } from "../repositories/project.repository";
 import { userRepository } from "../repositories/user.repository";
 import { db } from "../db";
+import { prepareEmailBody } from "./emailPipeline.service";
+import type { MergeContext } from "./emailMerge.service";
 
 export class CommunicationService {
   async getByOrderId(orderId: string, type?: string) {
@@ -26,7 +29,8 @@ export class CommunicationService {
     autoAttachArtworkForVendor?: string;
     autoAttachDocumentFile?: { fileUrl: string; fileName?: string };
     additionalAttachments?: Array<{ fileUrl: string; fileName: string }>;
-  }) {
+    mergeContext?: MergeContext;
+  }, req?: Request) {
     // Create communication record
     const communication = await communicationRepository.create({
       orderId,
@@ -97,6 +101,13 @@ export class CommunicationService {
       }
 
       try {
+        // Resolve merge tags if mergeContext was provided
+        let resolvedBody = data.body;
+        if (data.mergeContext && req) {
+          const result = await prepareEmailBody(data.body, data.mergeContext, req);
+          resolvedBody = result.html;
+        }
+
         const { emailService } = await import("./email.service");
         const order = await projectRepository.getOrder(orderId);
         const company = order?.companyId ? await companyRepository.getById(order.companyId) : null;
@@ -110,7 +121,7 @@ export class CommunicationService {
             to: data.recipientEmail,
             toName: data.recipientName,
             subject: data.subject,
-            body: data.body,
+            body: resolvedBody,
             orderNumber: order?.orderNumber,
             companyName: company?.name,
             attachments: emailAttachments,
@@ -126,7 +137,7 @@ export class CommunicationService {
             to: data.recipientEmail,
             toName: data.recipientName,
             subject: data.subject,
-            body: data.body,
+            body: resolvedBody,
             orderNumber: order?.orderNumber,
             supplierName: supplier?.name,
             attachments: emailAttachments,

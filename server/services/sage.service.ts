@@ -90,6 +90,9 @@ interface SageApiResponse {
 export class SageService {
     private baseUrl = 'https://www.promoplace.com/ws/ws.dll/ConnectAPI';
     private config: SageConfig;
+    private static readonly TIMEOUT_MS = 8000;
+    private static readonly MAX_RETRIES = 2;
+    private static readonly RETRY_DELAY_MS = 1000;
 
     constructor(config: SageConfig) {
         this.config = config;
@@ -103,6 +106,51 @@ export class SageService {
         };
     }
 
+    private async fetchWithRetry(payload: any, label: string): Promise<any> {
+        let lastError: Error | null = null;
+
+        for (let attempt = 1; attempt <= SageService.MAX_RETRIES; attempt++) {
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), SageService.TIMEOUT_MS);
+
+            try {
+                const response = await fetch(this.baseUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json; charset=UTF-8' },
+                    body: JSON.stringify(payload),
+                    signal: controller.signal,
+                });
+                clearTimeout(timeout);
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`SAGE API ${label} failed (${response.status}): ${errorText}`);
+                }
+
+                return await response.json();
+            } catch (error: any) {
+                clearTimeout(timeout);
+                lastError = error;
+
+                const isTimeout = error.name === 'AbortError' || error.cause?.code === 'UND_ERR_CONNECT_TIMEOUT';
+                const isNetwork = error.message === 'fetch failed' || error.cause?.code?.startsWith('UND_ERR');
+
+                if (isTimeout || isNetwork) {
+                    console.warn(`SAGE ${label} attempt ${attempt}/${SageService.MAX_RETRIES} failed: ${isTimeout ? 'timeout' : 'network error'}`);
+                    if (attempt < SageService.MAX_RETRIES) {
+                        await new Promise(r => setTimeout(r, SageService.RETRY_DELAY_MS * attempt));
+                        continue;
+                    }
+                }
+                throw new Error(
+                    `SAGE API unreachable (${label}): ${isTimeout ? 'connection timed out' : error.message}. ` +
+                    `Tried ${attempt} time(s). PromoPlace server may be down.`
+                );
+            }
+        }
+        throw lastError;
+    }
+
     /**
      * Test the SAGE API connection
      */
@@ -113,28 +161,13 @@ export class SageService {
                 apiVer: 130,
                 auth: this.getAuthPayload()
             };
-            
+
             console.log('Testing SAGE connection with acctId:', this.config.acctId);
 
-            const response = await fetch(this.baseUrl, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json; charset=UTF-8',
-                },
-                body: JSON.stringify(payload)
-            });
+            const data: any = await this.fetchWithRetry(payload, 'testConnection');
 
-            if (!response.ok) {
-                const errorText = await response.text();
-                console.error('SAGE API connection failed:', response.status, errorText);
-                return false;
-            }
-
-            const data: any = await response.json();
-            
             console.log('SAGE test connection response:', data);
 
-            // Check for API errors
             if (data.ErrNum && data.ErrNum !== 0) {
                 console.error('SAGE API Error:', data.ErrNum, data.ErrMsg);
                 return false;
@@ -185,21 +218,7 @@ export class SageService {
                 endBuyerSearch: false
             };
 
-            const response = await fetch(this.baseUrl, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json; charset=UTF-8',
-                },
-                body: JSON.stringify(payload)
-            });
-
-            if (!response.ok) {
-                const errorText = await response.text();
-                console.error('SAGE API request failed:', response.status, errorText);
-                throw new Error(`SAGE API request failed: ${response.statusText}`);
-            }
-
-            const data: any = await response.json();
+            const data: any = await this.fetchWithRetry(payload, 'searchProducts');
 
             // Check for API errors
             if (data.ErrNum && data.ErrNum !== 0) {
@@ -303,19 +322,7 @@ export class SageService {
 
             console.log('Fetching SAGE full product detail for:', prodEId);
 
-            const response = await fetch(this.baseUrl, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json; charset=UTF-8',
-                },
-                body: JSON.stringify(payload)
-            });
-
-            if (!response.ok) {
-                throw new Error(`SAGE API request failed: ${response.statusText}`);
-            }
-
-            const data: any = await response.json();
+            const data: any = await this.fetchWithRetry(payload, 'getFullProductDetail');
 
             if (data.errNum && data.errNum !== 0) {
                 throw new Error(`SAGE API Error (${data.errNum}): ${data.errMsg}`);

@@ -2,8 +2,6 @@ import { useState, forwardRef, useImperativeHandle, useEffect, type ReactNode } 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { RichTextEditor } from "@/components/shared/RichTextEditor";
 import { Send, Eye, Edit, Loader2, Paperclip, X, FileText } from "lucide-react";
 import EmailAutocompleteInput from "./EmailAutocompleteInput";
 import EmailContactPicker from "./EmailContactPicker";
@@ -13,7 +11,11 @@ import FilePickerDialog from "@/components/modals/FilePickerDialog";
 import { FilePreviewModal } from "@/components/modals/FilePreviewModal";
 import { useEmailForm } from "./useEmailForm";
 import { useAutoFillSender } from "./useAutoFillSender";
-import { textToHtml } from "@/lib/emailFormat";
+import { textToHtml, looksLikeHtml } from "@/lib/emailFormat";
+import RichEmailEditor from "@/components/lexical/RichEmailEditor";
+import type { RichEmailEditorOutput } from "@/components/lexical/RichEmailEditor";
+import { getMergeFields } from "@shared/email-merge-fields";
+import type { MergeField } from "@shared/email-merge-fields";
 import type { EmailContact, EmailFormData, EmailFormField, EmailAttachment } from "./types";
 
 export interface EmailComposerProps {
@@ -23,8 +25,6 @@ export interface EmailComposerProps {
   contacts?: EmailContact[];
   /** Show From, CC, BCC fields (default: true) */
   showAdvancedFields?: boolean;
-  /** Use RichTextEditor vs plain Textarea */
-  richText?: boolean;
   /** Show Compose/Preview toggle */
   showPreview?: boolean;
   /** Auto-fill From from current user */
@@ -43,8 +43,10 @@ export interface EmailComposerProps {
   contextProjectId?: string;
   /** Template type for template selector (e.g. 'quote', 'invoice') */
   templateType?: string;
-  /** Merge data for template field replacement */
+  /** @deprecated Use mergeContext instead — merge data for template field replacement */
   templateMergeData?: Record<string, string>;
+  /** Server-side merge context — replaces templateMergeData for new pipeline */
+  mergeContext?: Record<string, any>;
   /** Called with form data on send */
   onSend: (data: EmailFormData & { adHocEmails: string[] }) => void;
   /** Whether send is in progress */
@@ -69,7 +71,6 @@ const EmailComposer = forwardRef<EmailComposerRef, EmailComposerProps>(function 
   defaults,
   contacts,
   showAdvancedFields = true,
-  richText = false,
   showPreview = false,
   autoFillSender = true,
   beforeRecipients,
@@ -80,6 +81,7 @@ const EmailComposer = forwardRef<EmailComposerRef, EmailComposerProps>(function 
   contextProjectId,
   templateType,
   templateMergeData,
+  mergeContext,
   onSend,
   isSending = false,
   sendLabel = "Send Email",
@@ -87,9 +89,8 @@ const EmailComposer = forwardRef<EmailComposerRef, EmailComposerProps>(function 
   resetTrigger,
   className,
 }, ref) {
-  // When using the rich text editor, plain-text defaults (with \n) need to be
-  // converted to HTML so Quill doesn't normalize away the line breaks.
-  const normalizedDefaults = richText && defaults?.body
+  // Convert plain-text defaults to HTML for Lexical
+  const normalizedDefaults = defaults?.body
     ? { ...defaults, body: textToHtml(defaults.body) }
     : defaults;
 
@@ -104,6 +105,13 @@ const EmailComposer = forwardRef<EmailComposerRef, EmailComposerProps>(function 
   const [showFilePicker, setShowFilePicker] = useState(false);
   const [previewAttachment, setPreviewAttachment] = useState<EmailAttachment | null>(null);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
+  const [editorKey, setEditorKey] = useState(0);
+
+  // Track Lexical HTML/JSON output
+  const [lexicalOutput, setLexicalOutput] = useState<RichEmailEditorOutput | null>(null);
+
+  // Merge fields for the Lexical editor typeahead
+  const mergeFields: MergeField[] = templateType ? getMergeFields(templateType) : [];
 
   // Reset ad-hoc emails and template selection when trigger changes
   useEffect(() => {
@@ -111,6 +119,9 @@ const EmailComposer = forwardRef<EmailComposerRef, EmailComposerProps>(function 
       setAdHocEmails([]);
       setMode("compose");
       setSelectedTemplateId(null);
+      setLexicalOutput(null);
+      // Force re-mount Lexical editor on reset
+      setEditorKey((k) => k + 1);
     }
   }, [resetTrigger]);
 
@@ -118,14 +129,15 @@ const EmailComposer = forwardRef<EmailComposerRef, EmailComposerProps>(function 
   const handleTemplateApply = (applied: { subject: string; body: string } | null) => {
     if (applied) {
       setField("subject", applied.subject);
-      // Templates may be authored as plain text — normalize to HTML for Quill
-      setField("body", richText ? textToHtml(applied.body) : applied.body);
+      // Body from applyTemplate may already be HTML (from bodyHtml), use textToHtml only as safety net
+      setField("body", looksLikeHtml(applied.body) ? applied.body : textToHtml(applied.body));
     } else {
-      // Reset to defaults when "No template" selected
       setField("subject", defaults?.subject || "");
       const fallbackBody = defaults?.body || "";
-      setField("body", richText ? textToHtml(fallbackBody) : fallbackBody);
+      setField("body", textToHtml(fallbackBody));
     }
+    // Force re-mount Lexical editor with new content
+    setEditorKey((k) => k + 1);
   };
 
   // Auto-fill sender
@@ -175,6 +187,9 @@ const EmailComposer = forwardRef<EmailComposerRef, EmailComposerProps>(function 
     to: getRecipientEmails(),
     toName: getRecipientNames(),
     adHocEmails,
+    // Include Lexical output in form data
+    bodyHtml: lexicalOutput?.html || form.body,
+    bodyJson: lexicalOutput?.json,
   });
 
   // Expose ref methods
@@ -188,6 +203,12 @@ const EmailComposer = forwardRef<EmailComposerRef, EmailComposerProps>(function 
     const recipientEmails = getRecipientEmails();
     if (!recipientEmails) return;
     onSend(getFormDataWithAdHoc());
+  };
+
+  const handleEditorChange = (output: RichEmailEditorOutput) => {
+    setLexicalOutput(output);
+    // Keep form.body in sync for compatibility
+    setField("body", output.html);
   };
 
   const recipientDisplay = hasContacts
@@ -323,25 +344,18 @@ const EmailComposer = forwardRef<EmailComposerRef, EmailComposerProps>(function 
           {/* Before body slot */}
           {beforeBody}
 
-          {/* Body */}
+          {/* Body — always Lexical */}
           <div>
             <Label>Message *</Label>
-            {richText ? (
-              <RichTextEditor
-                value={form.body}
-                onChange={(val) => setField("body", val)}
-                placeholder="Compose your email..."
-                imageUploadOrderId={contextProjectId}
-                imageUploadFolder={contextProjectId ? `email-inline/${contextProjectId}` : "email-inline"}
-              />
-            ) : (
-              <Textarea
-                value={form.body}
-                onChange={(e) => setField("body", e.target.value)}
-                className="min-h-[140px] resize-none text-sm"
-                placeholder="Compose your email..."
-              />
-            )}
+            <RichEmailEditor
+              key={editorKey}
+              initialHtml={form.body}
+              onChange={handleEditorChange}
+              mergeFields={mergeFields}
+              mode={templateType ? "full" : "notes"}
+              placeholder="Compose your email..."
+              minHeight="200px"
+            />
             {footerHint && (
               <p className="text-xs text-gray-400 mt-1">{footerHint}</p>
             )}

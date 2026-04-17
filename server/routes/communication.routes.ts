@@ -14,6 +14,9 @@ router.post("/api/projects/:projectId/communications", asyncHandler(Communicatio
 // General email (no order context)
 router.post("/api/send-email", isAuthenticated, asyncHandler(CommunicationController.sendEmail));
 
+// Email preview (resolve merge tags for live preview)
+router.post("/api/email/preview", isAuthenticated, asyncHandler(CommunicationController.previewEmail));
+
 // Attachments
 router.get("/api/projects/:projectId/attachments", isAuthenticated, asyncHandler(AttachmentController.list));
 router.post("/api/projects/:projectId/attachments", isAuthenticated, upload.array('files', 10), asyncHandler(AttachmentController.upload));

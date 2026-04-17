@@ -24,6 +24,10 @@ export interface EmailFormData {
   bcc: string;
   subject: string;
   body: string;
+  /** HTML produced by Lexical editor */
+  bodyHtml?: string;
+  /** Lexical JSON state for lossless round-trip */
+  bodyJson?: any;
   selectedContactIds: Set<string>;
   attachments: EmailAttachment[];
 }

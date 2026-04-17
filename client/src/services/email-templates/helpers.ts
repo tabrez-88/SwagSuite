@@ -1,13 +1,21 @@
 import type { MergeField } from "./types";
 
-/** Replace `{{mergeField}}` placeholders with actual values. */
+/** Replace `{{mergeField}}` placeholders with actual values.
+ *  Tags with empty/missing values are left intact for server-side resolution.
+ *  Prefers bodyHtml (Lexical output with data-merge-tag spans) over plain body. */
 export function applyTemplate(
-  template: { subject: string; body: string },
+  template: { subject: string; body: string; bodyHtml?: string | null },
   mergeData: Record<string, string>,
 ): { subject: string; body: string } {
+  const has = (key: string) => key in mergeData && mergeData[key];
   const replace = (str: string) =>
-    str.replace(/\{\{(\w+)\}\}/g, (_, key) => mergeData[key] || "");
-  return { subject: replace(template.subject), body: replace(template.body) };
+    str.replace(/\{\{(\w+)\}\}/g, (match, key) => has(key) ? mergeData[key] : match);
+  const replaceSpans = (str: string) =>
+    str.replace(/<span\s+data-merge-tag="([^"]+)"[^>]*>.*?<\/span>/g, (match, key: string) =>
+      has(key) ? mergeData[key] : match);
+  const bodySource = template.bodyHtml || template.body;
+  const resolvedBody = replaceSpans(replace(bodySource));
+  return { subject: replace(template.subject), body: resolvedBody };
 }
 
 export const TEMPLATE_MERGE_FIELDS: Record<string, MergeField[]> = {

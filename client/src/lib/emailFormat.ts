@@ -1,7 +1,7 @@
 /**
  * Email formatting helpers for converting between plain text and HTML.
  *
- * Used by EmailComposer (RichTextEditor / Quill) and Send*Dialog hooks
+ * Used by EmailComposer (Lexical) and email template management
  * so that line breaks and paragraphs survive the journey from compose →
  * preview → server → received email.
  */
@@ -69,12 +69,3 @@ export function htmlToText(value: string): string {
     .trim();
 }
 
-/**
- * Append a block of HTML to an existing email body.
- * If the body is plain text, it gets converted to HTML first so the result
- * is always a single coherent HTML string.
- */
-export function appendHtmlBlock(body: string, htmlBlock: string): string {
-  const base = textToHtml(body);
-  return `${base}${htmlBlock}`;
-}

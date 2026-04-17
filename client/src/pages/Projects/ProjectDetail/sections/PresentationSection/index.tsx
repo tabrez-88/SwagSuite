@@ -429,6 +429,7 @@ export default function PresentationSection(props: PresentationSectionProps) {
           companyName={hook.companyName}
           orderNumber={hook.order.orderNumber || ""}
           contacts={hook.formattedContacts}
+          assignedUserEmail={props.data?.assignedUser?.email}
         />
       )}
 

@@ -1,5 +1,6 @@
 import type { Request, Response } from "express";
 import { communicationService } from "../services/communication.service";
+import { previewEmailBody } from "../services/emailPipeline.service";
 import { getUserId } from "../utils/getUserId";
 
 export class CommunicationController {
@@ -17,15 +18,15 @@ export class CommunicationController {
       communicationType, direction, fromEmail, fromName,
       recipientEmail, recipientName, subject, body, metadata,
       attachmentIds, autoAttachArtworkForVendor, autoAttachDocumentFile,
-      additionalAttachments, cc, bcc,
+      additionalAttachments, cc, bcc, mergeContext,
     } = req.body;
 
     const result = await communicationService.create(projectId, userId, {
       communicationType, direction, fromEmail, fromName,
       recipientEmail, recipientName, subject, body, metadata,
       cc, bcc, attachmentIds, autoAttachArtworkForVendor, autoAttachDocumentFile,
-      additionalAttachments,
-    });
+      additionalAttachments, mergeContext,
+    }, req);
 
     // If email failed, return 207 (partial success)
     if (result && (result as any).emailStatus === 'failed') {
@@ -52,5 +53,16 @@ export class CommunicationController {
     });
 
     res.json({ success: true, message: "Email sent successfully" });
+  }
+
+  static async previewEmail(req: Request, res: Response) {
+    const { html, mergeContext } = req.body;
+
+    if (!html || !mergeContext) {
+      return res.status(400).json({ error: "html and mergeContext are required" });
+    }
+
+    const resolved = await previewEmailBody(html, mergeContext, req);
+    res.json({ html: resolved });
   }
 }

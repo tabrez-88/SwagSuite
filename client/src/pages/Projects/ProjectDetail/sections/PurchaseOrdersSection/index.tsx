@@ -766,7 +766,6 @@ export default function PurchaseOrdersSection({ projectId, data, isLocked }: Pur
             templateType="purchase_order"
             templateMergeData={poMergeData}
             showAdvancedFields
-            richText
             showAttachments
             contextProjectId={String(h.order?.id || "")}
             footerHint="The PO PDF and artwork files will be automatically attached. You can also attach additional files above."
@@ -821,14 +820,13 @@ export default function PurchaseOrdersSection({ projectId, data, isLocked }: Pur
               body: (() => {
                 const pc = h.data.primaryContact;
                 const cn = h.data.companyName || "";
-                const artList = h.sendProofArts.map((a: any) => `  - ${a.productName} (${a.location || a.artworkType || "Artwork"})`).join("\n");
-                return `Hi ${pc?.firstName || "there"},\n\nWe've received artwork proofs for your order. Please review each proof below and let us know if you'd like to approve or request changes.\n\nProofs included:\n${artList}\n\n{{approvalLinks}}\n\nBest regards,\n${cn}`;
+                const artItems = h.sendProofArts.map((a: any) => `<li>${a.productName} (${a.location || a.artworkType || "Artwork"})</li>`).join("");
+                return `<p>Hi ${pc?.firstName || "there"},</p><p>We've received artwork proofs for your order. Please review each proof and let us know if you'd like to approve or request changes.</p><p>Proofs included:</p><ul>${artItems}</ul><p>Review and approve here: <span data-merge-tag="artworkApprovalLink">{{artworkApprovalLink}}</span></p><p>Best regards,<br>${cn}</p>`;
               })(),
             }}
             templateType="proof"
             templateMergeData={proofMergeData}
             showAdvancedFields
-            richText
             beforeBody={
               <div className="space-y-2 max-h-[200px] overflow-y-auto">
                 {h.sendProofArts.map((art: any) => {
@@ -862,7 +860,7 @@ export default function PurchaseOrdersSection({ projectId, data, isLocked }: Pur
                 })}
               </div>
             }
-            footerHint={`${h.sendProofArts.length} approval link${h.sendProofArts.length > 1 ? "s" : ""} will be automatically included in the email.`}
+            footerHint="Proof files will be attached to the email."
             onSend={(formData) => {
               h.sendBatchProofMutation.mutate({ artworks: h.sendProofArts, formData });
             }}
@@ -978,7 +976,6 @@ export default function PurchaseOrdersSection({ projectId, data, isLocked }: Pur
                 body: h.notifyVendor.body || "",
               }}
               autoFillSender
-              richText
               onSend={async (formData) => {
                 await sendCommunication(projectId, {
                   communicationType: "vendor_email",

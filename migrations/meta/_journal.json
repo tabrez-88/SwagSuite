@@ -204,6 +204,13 @@
       "when": 1776259049153,
       "tag": "0028_slimy_angel",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1776405280972,
+      "tag": "0029_windy_giant_girl",
+      "breakpoints": true
     }
   ]
 }

@@ -84,7 +84,6 @@ export default function SendEmailDialog({
             subject: defaultSubject,
           }}
           showAdvancedFields
-          richText
           showPreview
           showAttachments
           autoFillSender

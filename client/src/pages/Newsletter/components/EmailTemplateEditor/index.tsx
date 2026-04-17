@@ -1,7 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -16,13 +15,10 @@ import {
   Type,
   Square,
   Columns,
-  Bold,
-  Italic,
-  Link,
-  Palette
 } from "lucide-react";
 import { useEmailTemplateEditor } from "./hooks";
 import type { EditorElement } from "./types";
+import RichEmailEditor from "@/components/lexical/RichEmailEditor";
 
 export function EmailTemplateEditor() {
   const {
@@ -338,32 +334,16 @@ export function EmailTemplateEditor() {
                     <p className="text-sm text-muted-foreground">
                       Editing: {elements.find(el => el.id === selectedElement)?.type} element
                     </p>
-                    {/* Dynamic property controls based on element type would go here */}
                     <div className="space-y-3">
                       <div>
-                        <Label htmlFor="element-text">Content</Label>
-                        <Textarea
-                          id="element-text"
+                        <Label>Content</Label>
+                        <RichEmailEditor
+                          mode="notes"
+                          initialHtml={elements.find(el => el.id === selectedElement)?.content.text || ""}
+                          onChange={() => {}}
                           placeholder="Element content..."
-                          data-testid="input-element-content"
+                          minHeight="120px"
                         />
-                      </div>
-                      <div>
-                        <Label htmlFor="element-style">Style</Label>
-                        <div className="flex gap-2">
-                          <Button variant="outline" size="sm" data-testid="button-bold">
-                            <Bold className="w-4 h-4" />
-                          </Button>
-                          <Button variant="outline" size="sm" data-testid="button-italic">
-                            <Italic className="w-4 h-4" />
-                          </Button>
-                          <Button variant="outline" size="sm" data-testid="button-link">
-                            <Link className="w-4 h-4" />
-                          </Button>
-                          <Button variant="outline" size="sm" data-testid="button-color">
-                            <Palette className="w-4 h-4" />
-                          </Button>
-                        </div>
                       </div>
                     </div>
                   </div>

@@ -14,9 +14,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Send, Bell } from "lucide-react";
+import { Send, Bell, Loader2 } from "lucide-react";
 import EmailComposer from "@/components/email/EmailComposer";
 import type { EmailContact } from "@/components/email/types";
+import { useAuth } from "@/hooks/useAuth";
+import { useDefaultEmailTemplate, applyTemplate } from "@/hooks/useEmailTemplates";
 import { useSendInvoice } from "./hooks";
 
 interface SendInvoiceDialogProps {
@@ -33,12 +35,18 @@ interface SendInvoiceDialogProps {
   dueDate?: string;
   contacts?: EmailContact[];
   stripeInvoiceUrl?: string | null;
+  assignedUserEmail?: string;
 }
 
 export default function SendInvoiceDialog({
   open, onOpenChange, projectId, recipientEmail, recipientName, companyName, orderNumber,
   invoiceNumber, invoiceDocument, totalAmount, dueDate, contacts, stripeInvoiceUrl,
+  assignedUserEmail,
 }: SendInvoiceDialogProps) {
+  const { user } = useAuth();
+  const currentEmail = (user as any)?.email || "";
+  const senderName = user ? `${(user as any).firstName || ""} ${(user as any).lastName || ""}`.trim() : "";
+  const defaultCc = assignedUserEmail && assignedUserEmail !== currentEmail ? assignedUserEmail : "";
   const {
     reminderEnabled,
     setReminderEnabled,
@@ -53,7 +61,7 @@ export default function SendInvoiceDialog({
 
   const mergeData = useMemo(() => ({
     companyName,
-    senderName: "",
+    senderName,
     recipientName,
     recipientFirstName: recipientName.split(" ")[0] || "there",
     orderNumber,
@@ -61,7 +69,17 @@ export default function SendInvoiceDialog({
     totalAmount: `$${totalAmount.toFixed(2)}`,
     dueDate: dueDateFormatted || "",
     stripePaymentLink: stripeInvoiceUrl || "",
-  }), [companyName, recipientName, orderNumber, invoiceNumber, totalAmount, dueDateFormatted, stripeInvoiceUrl]);
+  }), [companyName, senderName, recipientName, orderNumber, invoiceNumber, totalAmount, dueDateFormatted, stripeInvoiceUrl]);
+
+  const { data: defaultTemplate, isLoading: loadingTemplate } = useDefaultEmailTemplate("invoice");
+
+  const applied = useMemo(() => {
+    if (defaultTemplate) return applyTemplate(defaultTemplate, mergeData);
+    return {
+      subject: `Invoice #${invoiceNumber} from ${companyName}`,
+      body: `Hi ${recipientName.split(" ")[0] || "there"},\n\nPlease find attached Invoice #${invoiceNumber} for $${totalAmount.toFixed(2)}${dueDateFormatted ? ` due by ${dueDateFormatted}` : ""}.\n${stripeInvoiceUrl ? `\nPay online securely here: ${stripeInvoiceUrl}\n` : ""}\nIf you have any questions regarding this invoice, please don't hesitate to reach out.\n\nThank you for your business!\n\nBest regards,\n${companyName}`,
+    };
+  }, [defaultTemplate, mergeData, invoiceNumber, companyName, recipientName, totalAmount, dueDateFormatted, stripeInvoiceUrl]);
 
   const reminderSection = (
     <div className="border rounded-lg p-3 bg-gray-50/50">
@@ -114,28 +132,34 @@ export default function SendInvoiceDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <EmailComposer
-          contacts={contacts}
-          defaults={{
-            to: recipientEmail,
-            toName: recipientName,
-            subject: `Invoice #${invoiceNumber} from ${companyName}`,
-            body: `Hi ${recipientName.split(" ")[0] || "there"},\n\nPlease find attached Invoice #${invoiceNumber} for $${totalAmount.toFixed(2)}${dueDateFormatted ? ` due by ${dueDateFormatted}` : ""}.\n${stripeInvoiceUrl ? `\nPay online securely here: ${stripeInvoiceUrl}\n` : ""}\nIf you have any questions regarding this invoice, please don't hesitate to reach out.\n\nThank you for your business!\n\nBest regards,\n${companyName}`,
-          }}
-          templateType="invoice"
-          templateMergeData={mergeData}
-          showAdvancedFields
-          richText
-          showAttachments
-          contextProjectId={projectId}
-          footerHint="The invoice PDF will be attached to the email."
-          afterBody={reminderSection}
-          onSend={(data) => sendMutation.mutate(data)}
-          isSending={sendMutation.isPending}
-          sendLabel="Send Invoice"
-          onCancel={() => onOpenChange(false)}
-          resetTrigger={open}
-        />
+        {loadingTemplate ? (
+          <div className="flex items-center justify-center py-16">
+            <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+          </div>
+        ) : (
+          <EmailComposer
+            contacts={contacts}
+            defaults={{
+              to: recipientEmail,
+              toName: recipientName,
+              cc: defaultCc,
+              subject: applied.subject,
+              body: applied.body,
+            }}
+            templateType="invoice"
+            templateMergeData={mergeData}
+            showAdvancedFields
+            showAttachments
+            contextProjectId={projectId}
+            footerHint="The invoice PDF will be attached to the email."
+            afterBody={reminderSection}
+            onSend={(data) => sendMutation.mutate(data)}
+            isSending={sendMutation.isPending}
+            sendLabel="Send Invoice"
+            onCancel={() => onOpenChange(false)}
+            resetTrigger={open}
+          />
+        )}
       </DialogContent>
     </Dialog>
   );
