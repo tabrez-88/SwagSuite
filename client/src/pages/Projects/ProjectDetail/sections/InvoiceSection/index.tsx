@@ -262,7 +262,7 @@ export default function InvoiceSection(props: InvoiceSectionProps) {
                 </div>
               )}
 
-              {/* Stripe generation if no Stripe invoice yet */}
+              {/* Stripe invoice — auto-created with invoice, fallback button if missing */}
               {!h.hasStripeInvoice && (
                 <div className="border-t pt-3 mt-3">
                   <Button
@@ -278,6 +278,7 @@ export default function InvoiceSection(props: InvoiceSectionProps) {
                     )}
                     Create Stripe Invoice
                   </Button>
+                  <p className="text-xs text-gray-400 mt-1">Stripe link is auto-created for new invoices</p>
                 </div>
               )}
 
@@ -335,8 +336,8 @@ export default function InvoiceSection(props: InvoiceSectionProps) {
                     {h.invoice.dueDate && ` by ${format(new Date(h.invoice.dueDate), "MMM d, yyyy")}`}
                   </p>
 
-                  {/* Stripe payment link */}
-                  {h.invoice.stripeInvoiceUrl ? (
+                  {/* Stripe payment link (auto-created with invoice) */}
+                  {h.invoice.stripeInvoiceUrl && (
                     <div className="flex items-center gap-2">
                       <Button
                         variant="outline"
@@ -352,20 +353,6 @@ export default function InvoiceSection(props: InvoiceSectionProps) {
                         </a>
                       </Button>
                     </div>
-                  ) : (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={h.handleStripePayment}
-                      disabled={h.stripePaymentMutation.isPending}
-                    >
-                      {h.stripePaymentMutation.isPending ? (
-                        <Loader2 className="w-4 h-4 mr-1 animate-spin" />
-                      ) : (
-                        <CreditCard className="w-4 h-4 mr-1" />
-                      )}
-                      Generate Stripe Payment Link
-                    </Button>
                   )}
 
                   {/* Manual payment */}

@@ -34,6 +34,7 @@ export const TEMPLATE_MERGE_FIELDS: Record<string, MergeField[]> = {
     { key: "invoiceNumber", label: "Invoice Number" },
     { key: "totalAmount", label: "Total Amount" },
     { key: "dueDate", label: "Due Date" },
+    { key: "stripePaymentLink", label: "Stripe Payment Link" },
   ],
   purchase_order: [
     { key: "companyName", label: "Company Name" },

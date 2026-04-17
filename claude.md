@@ -406,3 +406,4 @@ External product images (e.g., SanMar CDN) are blocked by CORS, preventing html2
 - Pre-existing TS errors exist in `AINewsMonitor.tsx` and `HubSpotIntegration.tsx` (wrong `apiRequest` call signature) - not our changes.
 - Cloudinary URL detection: use `url.includes('cloudinary.com')` consistently (not just `'cloudinary'`).
 - Session cookie: `connect.sid` with `credentials: "include"` on all fetch calls.
+- Always use /caveman when we start a new claude session

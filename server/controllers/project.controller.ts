@@ -709,7 +709,7 @@ export class ProjectController {
               if (!existing) {
                 const taxAmount = Number((order as any).tax || 0);
                 const totalAmount = Number((order as any).subtotal || 0) + taxAmount + Number((order as any).shipping || 0);
-                await invoiceRepository.createInvoice({
+                const newInvoice = await invoiceRepository.createInvoice({
                   orderId: order.id,
                   invoiceNumber: `INV-${Date.now()}`,
                   subtotal: (order as any).subtotal ?? "0",
@@ -724,6 +724,9 @@ export class ProjectController {
                   metadata: { action: "invoice_auto_created", trigger: "sales_order_client_approved" },
                   isSystemGenerated: true,
                 });
+                // Auto-create Stripe payment link
+                const { createStripePaymentForInvoice } = await import("../utils/stripeInvoice");
+                await createStripePaymentForInvoice(newInvoice.id);
               }
             } catch (invErr) {
               console.error("Auto-invoice creation failed:", invErr);

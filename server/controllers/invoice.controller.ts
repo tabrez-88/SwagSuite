@@ -153,139 +153,20 @@ export class InvoiceController {
 
   static async createPaymentLink(req: Request, res: Response) {
     try {
-      const invoice = await invoiceRepository.getInvoice(req.params.id);
-      if (!invoice) return res.status(404).json({ message: "Invoice not found" });
+      const { createStripePaymentForInvoice } = await import("../utils/stripeInvoice");
+      await createStripePaymentForInvoice(req.params.id);
 
-      console.log("Invoice payment-link:", invoice);
-
-      const stripeService = await getStripeCredentials();
-      if (!stripeService) return res.status(400).json({ message: "Stripe not configured" });
-
-      if (!invoice.orderId) {
-        return res.status(400).json({ message: "Invoice is not linked to an order" });
+      // Re-fetch to return updated Stripe details
+      const updated = await invoiceRepository.getInvoice(req.params.id);
+      if (!updated?.stripeInvoiceUrl) {
+        return res.status(400).json({ message: "Stripe payment link creation failed — check server logs" });
       }
-
-      // Get order and company details
-      const order = await projectRepository.getOrder(invoice.orderId);
-      if (!order || !order.companyId) {
-        return res.status(400).json({ message: "Order or company not found" });
-      }
-
-      console.log("Order payment-link:", order);
-
-      const company = await companyRepository.getById(order.companyId);
-      if (!company) {
-        return res.status(400).json({ message: "Company not found" });
-      }
-
-      console.log("Company payment-link:", company);
-
-      // Find or create Stripe customer
-      let stripeCustomer = await stripeService.searchCustomer(company.email || `${company.name}@example.com`);
-
-      if (!stripeCustomer) {
-        stripeCustomer = await stripeService.createCustomer(
-          company.email || `${company.name}@example.com`,
-          company.name
-        );
-      }
-
-      console.log("Stripe customer payment-link:", stripeCustomer);
-
-      // 1. Create draft invoice FIRST
-      // pending_invoice_items_behavior: 'exclude' ensures we don't pick up random pending items from other failed attempts
-      // Calculate days until due from invoice due date
-      const daysUntilDue = invoice.dueDate
-        ? Math.max(1, Math.ceil((new Date(invoice.dueDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
-        : 30;
-
-      const stripeInvoice = await stripeService.createInvoice({
-        customerId: stripeCustomer.id,
-        collection_method: 'send_invoice',
-        days_until_due: daysUntilDue,
-        pending_invoice_items_behavior: 'exclude',
-        payment_method_types: ['card', 'us_bank_account'],
-        metadata: {
-          invoiceId: invoice.id,
-          invoiceNumber: invoice.invoiceNumber,
-          orderId: order.id,
-          orderNumber: order.orderNumber
-        }
-      });
-
-      console.log("stripe invoice payment-link: ", stripeInvoice);
-
-      // 2. Create detailed invoice line items
-      // Add Subtotal line item
-      const subtotalItem = await stripeService.createInvoiceItem({
-        customerId: stripeCustomer.id,
-        invoiceId: stripeInvoice.id,
-        amount: Math.round(Number(invoice.subtotal) * 100), // Convert to cents
-        currency: 'usd',
-        description: `Order ${order.orderNumber} - Products & Services`
-      });
-
-      console.log("invoice subtotal item: ", subtotalItem);
-
-      // Add Shipping line item (if > 0)
-      if (Number(order.shipping) > 0) {
-        const shippingItem = await stripeService.createInvoiceItem({
-          customerId: stripeCustomer.id,
-          invoiceId: stripeInvoice.id,
-          amount: Math.round(Number(order.shipping) * 100),
-          currency: 'usd',
-          description: 'Shipping & Handling'
-        });
-        console.log("invoice shipping item: ", shippingItem);
-      }
-
-      // Add Tax line item (if > 0)
-      if (Number(invoice.taxAmount) > 0) {
-        const taxItem = await stripeService.createInvoiceItem({
-          customerId: stripeCustomer.id,
-          invoiceId: stripeInvoice.id,
-          amount: Math.round(Number(invoice.taxAmount) * 100),
-          currency: 'usd',
-          description: 'Sales Tax (calculated via TaxJar)'
-        });
-        console.log("invoice tax item: ", taxItem);
-      }
-
-      // Add Credit Card Processing Fee (3%) — only applies if paying by credit card
-      // Note: ACH payments do not incur this fee
-      const invoiceTotal = Math.round(Number(invoice.totalAmount) * 100); // total in cents
-      const ccFeeAmount = Math.round(invoiceTotal * 0.03);
-      if (ccFeeAmount > 0) {
-        const ccFeeItem = await stripeService.createInvoiceItem({
-          customerId: stripeCustomer.id,
-          invoiceId: stripeInvoice.id,
-          amount: ccFeeAmount,
-          currency: 'usd',
-          description: 'Credit Card Processing Fee (3%) — waived if paying via ACH/Bank Transfer'
-        });
-        console.log("invoice cc fee item: ", ccFeeItem);
-      }
-
-      console.log("invoice items created with detailed breakdown");
-
-      // 3. Finalize invoice to get hosted URL
-      const finalizedInvoice = await stripeService.finalizeInvoice(stripeInvoice.id);
-
-      console.log("finalized invoice payment-link: ", finalizedInvoice);
-
-      // Update local invoice with Stripe details (including PDF URL)
-      await invoiceRepository.updateInvoice(invoice.id, {
-        stripeInvoiceId: finalizedInvoice.id,
-        stripePaymentIntentId: finalizedInvoice.payment_intent,
-        stripeInvoiceUrl: finalizedInvoice.hosted_invoice_url,
-        stripeInvoicePdfUrl: finalizedInvoice.invoice_pdf
-      });
 
       res.json({
-        paymentLink: finalizedInvoice.hosted_invoice_url,
-        stripeInvoiceId: finalizedInvoice.id,
-        stripeInvoiceUrl: finalizedInvoice.hosted_invoice_url,
-        stripeInvoicePdfUrl: finalizedInvoice.invoice_pdf
+        paymentLink: updated.stripeInvoiceUrl,
+        stripeInvoiceId: updated.stripeInvoiceId,
+        stripeInvoiceUrl: updated.stripeInvoiceUrl,
+        stripeInvoicePdfUrl: updated.stripeInvoicePdfUrl,
       });
     } catch (error) {
       console.error("Payment link error:", error);
