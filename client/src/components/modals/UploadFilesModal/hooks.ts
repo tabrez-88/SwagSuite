@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { fetchFileBlob } from "@/services/media-library/requests";
 import type { FilePreview, ArtworkSelection, UploadFilesModalProps } from "./types";
 
 export function useUploadFilesModal({
@@ -109,8 +110,7 @@ export function useUploadFilesModal({
       Promise.all(
         selectedArtworks.map(async (artwork) => {
           try {
-            const response = await fetch(artwork.filePath);
-            const blob = await response.blob();
+            const blob = await fetchFileBlob(artwork.filePath);
             const file = new File([blob], artwork.fileName, { type: blob.type });
             return {
               file,

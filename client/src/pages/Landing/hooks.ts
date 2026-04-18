@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { useTheme } from "@/providers/ThemeProvider";
+import { loginUser, verify2FALogin } from "@/services/users/requests";
 
 export type LoginStep = "welcome" | "credentials" | "2fa";
 
@@ -31,41 +32,26 @@ export function useLanding() {
     setIsLoading(true);
 
     try {
-      const response = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ username, password }),
-      });
+      const data = await loginUser({ username, password });
 
-      const data = await response.json();
-
-      if (response.ok) {
-        if (data.requires2FA) {
-          setTempToken(data.tempToken);
-          setLoginStep("2fa");
-          toast({
-            title: "Verification Required",
-            description: "Enter the code from your authenticator app.",
-          });
-        } else {
-          toast({ title: "Login Successful", description: "Welcome back!" });
-          const redirectTo = sessionStorage.getItem("redirectAfterLogin") || "/";
-          sessionStorage.removeItem("redirectAfterLogin");
-          window.location.href = redirectTo;
-        }
-      } else {
+      if (data.requires2FA) {
+        setTempToken(data.tempToken);
+        setLoginStep("2fa");
         toast({
-          variant: "destructive",
-          title: "Login Failed",
-          description: data.message || "Invalid username or password",
+          title: "Verification Required",
+          description: "Enter the code from your authenticator app.",
         });
+      } else {
+        toast({ title: "Login Successful", description: "Welcome back!" });
+        const redirectTo = sessionStorage.getItem("redirectAfterLogin") || "/";
+        sessionStorage.removeItem("redirectAfterLogin");
+        window.location.href = redirectTo;
       }
-    } catch (error) {
+    } catch (error: any) {
       toast({
         variant: "destructive",
-        title: "Error",
-        description: "Failed to login. Please try again.",
+        title: "Login Failed",
+        description: error.message || "Invalid username or password",
       });
     } finally {
       setIsLoading(false);
@@ -79,37 +65,22 @@ export function useLanding() {
     const code = useBackupCode ? backupCode.trim() : twoFaCode.join("");
 
     try {
-      const response = await fetch("/api/auth/2fa/verify", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ tempToken, code, trustDevice }),
-      });
+      const data = await verify2FALogin({ tempToken, code, trustDevice });
 
-      const data = await response.json();
-
-      if (response.ok) {
-        toast({ title: "Login Successful", description: "Welcome back!" });
-        const redirectTo = sessionStorage.getItem("redirectAfterLogin") || "/";
-        sessionStorage.removeItem("redirectAfterLogin");
-        window.location.href = redirectTo;
-      } else {
-        toast({
-          variant: "destructive",
-          title: "Verification Failed",
-          description: data.message || "Invalid code",
-        });
-        // Reset code inputs
-        setTwoFaCode(["", "", "", "", "", ""]);
-        setBackupCode("");
-        if (!useBackupCode) inputRefs.current[0]?.focus();
-      }
-    } catch (error) {
+      toast({ title: "Login Successful", description: "Welcome back!" });
+      const redirectTo = sessionStorage.getItem("redirectAfterLogin") || "/";
+      sessionStorage.removeItem("redirectAfterLogin");
+      window.location.href = redirectTo;
+    } catch (error: any) {
       toast({
         variant: "destructive",
-        title: "Error",
-        description: "Verification failed. Please try again.",
+        title: "Verification Failed",
+        description: error.message || "Invalid code",
       });
+      // Reset code inputs
+      setTwoFaCode(["", "", "", "", "", ""]);
+      setBackupCode("");
+      if (!useBackupCode) inputRefs.current[0]?.focus();
     } finally {
       setIsLoading(false);
     }

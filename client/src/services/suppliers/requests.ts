@@ -83,6 +83,12 @@ export async function updateBenefits({
   return response.json();
 }
 
+/** Simple PATCH for supplier fields (no form transformation) */
+export async function patchSupplier(id: string, data: Record<string, any>) {
+  const response = await apiRequest("PATCH", `/api/suppliers/${id}`, data);
+  return response.json();
+}
+
 // ── Vendor Contact requests ──────────────────────────────────────
 
 export async function createVendorContact(
@@ -110,17 +116,11 @@ export async function deleteVendorContact(contactId: string) {
 // ── Fetch helpers (used by queries) ──────────────────────────────
 
 export async function fetchVendorProducts(vendorId: string) {
-  const res = await fetch(`/api/products?supplierId=${vendorId}`, {
-    credentials: "include",
-  });
-  if (!res.ok) throw new Error("Failed to fetch products");
+  const res = await apiRequest("GET", `/api/products?supplierId=${vendorId}`);
   return res.json();
 }
 
 export async function fetchVendorContacts(vendorId: string) {
-  const res = await fetch(`/api/contacts?supplierId=${vendorId}`, {
-    credentials: "include",
-  });
-  if (!res.ok) throw new Error("Failed to fetch contacts");
+  const res = await apiRequest("GET", `/api/contacts?supplierId=${vendorId}`);
   return res.json();
 }

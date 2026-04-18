@@ -54,6 +54,40 @@ export async function acceptInvitation(
   return res.json();
 }
 
+// ---- Auth (Login / 2FA Verify) ----
+
+export async function loginUser(data: { username: string; password: string }): Promise<any> {
+  const res = await apiRequest("POST", "/api/auth/login", data);
+  return res.json();
+}
+
+export async function verify2FALogin(data: { tempToken: string; code: string; trustDevice: boolean }): Promise<any> {
+  const res = await apiRequest("POST", "/api/auth/2fa/verify", data);
+  return res.json();
+}
+
+// ---- Two-Factor Authentication ----
+
+export async function setup2FA(): Promise<any> {
+  const res = await apiRequest("POST", "/api/auth/2fa/setup");
+  return res.json();
+}
+
+export async function verifySetup2FA(code: string): Promise<any> {
+  const res = await apiRequest("POST", "/api/auth/2fa/verify-setup", { code });
+  return res.json();
+}
+
+export async function disable2FA(password: string): Promise<any> {
+  const res = await apiRequest("POST", "/api/auth/2fa/disable", { password });
+  return res.json();
+}
+
+export async function generateBackupCodes(password: string): Promise<any> {
+  const res = await apiRequest("POST", "/api/auth/2fa/backup-codes", { password });
+  return res.json();
+}
+
 export async function uploadAvatar(file: File): Promise<User> {
   const formData = new FormData();
   formData.append("avatar", file);

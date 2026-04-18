@@ -1,10 +1,30 @@
-import { useState, useCallback, useMemo } from "react";
-import { useLocation } from "@/lib/wouter-compat";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
-import { useMarginSettings, isBelowMinimum, calcMarginPercent, applyMargin } from "@/hooks/useMarginSettings";
+import { applyMargin, calcMarginPercent, useMarginSettings } from "@/hooks/useMarginSettings";
+import { useLocation } from "@/lib/wouter-compat";
+import { createVendorApproval } from "@/services/approvals/requests";
+import {
+  searchSageIntegration,
+} from "@/services/integrations/sage/requests";
+import {
+  fetchAllProducts,
+  fetchSagePricing,
+  fetchSsBrands,
+  searchSanMar as searchSanMarApi,
+  searchSSActivewear as searchSsApi,
+  syncProductFromSupplier,
+  updateProduct,
+} from "@/services/products/requests";
+import {
+  addCharge,
+  addLine,
+  createArtwork,
+  createArtworkCharge,
+  createProjectItem,
+} from "@/services/project-items/requests";
 import { projectKeys } from "@/services/projects/keys";
-import type { AddProductPageProps, ProductResult, ConfigLine, SourceTab, LocalCharge, LocalArtwork, LocalArtworkCharge } from "./types";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useCallback, useMemo, useState } from "react";
+import type { AddProductPageProps, ConfigLine, LocalArtwork, LocalArtworkCharge, LocalCharge, ProductResult, SourceTab } from "./types";
 
 // S&S CDN is behind Cloudflare — images can't be loaded directly or via proxy
 // Store the raw URL for later Cloudinary caching on sync; display uses placeholder
@@ -242,11 +262,7 @@ export function useAddProductPage({ projectId, data }: AddProductPageProps) {
   const [catalogFilter, setCatalogFilter] = useState("");
   const { data: allCatalogProducts = [], isLoading: isCatalogLoading } = useQuery<any[]>({
     queryKey: ["/api/products"],
-    queryFn: async () => {
-      const res = await fetch("/api/products");
-      if (!res.ok) throw new Error("Failed to load catalog");
-      return res.json();
-    },
+    queryFn: fetchAllProducts,
   });
 
   const filteredCatalogProducts = useMemo(() => {
@@ -268,11 +284,7 @@ export function useAddProductPage({ projectId, data }: AddProductPageProps) {
 
   const { data: ssBrands = [] } = useQuery<any[]>({
     queryKey: ["/api/ss-activewear/brands"],
-    queryFn: async () => {
-      const res = await fetch("/api/ss-activewear/brands");
-      if (!res.ok) return [];
-      return res.json();
-    },
+    queryFn: fetchSsBrands,
     staleTime: 30 * 60 * 1000, // cache 30min
   });
 
@@ -298,9 +310,7 @@ export function useAddProductPage({ projectId, data }: AddProductPageProps) {
     if (!q) return;
     updateTabSearch("sage", { isSearching: true, error: null, results: [] });
     try {
-      const res = await fetch("/api/integrations/sage/products?" + new URLSearchParams({ search: q }));
-      if (!res.ok) throw new Error("SAGE search failed");
-      const data = await res.json();
+      const data = await searchSageIntegration(q);
       const results: ProductResult[] = (data.products || []).map((p: any) => {
         let basePrice: number | undefined;
         let pricingTiers: { quantity: number; cost: number }[] | undefined;
@@ -351,9 +361,7 @@ export function useAddProductPage({ projectId, data }: AddProductPageProps) {
     if (!q) return;
     updateTabSearch("sanmar", { isSearching: true, error: null, results: [] });
     try {
-      const res = await fetch("/api/sanmar/search?" + new URLSearchParams({ q }));
-      if (!res.ok) throw new Error("SanMar search failed");
-      const products = await res.json();
+      const products = await searchSanMarApi(q);
       const results: ProductResult[] = (Array.isArray(products) ? products : []).map((p: any) => {
         const tiers: { quantity: number; cost: number }[] = [];
         if (p.piecePrice) tiers.push({ quantity: 1, cost: parseFloat(p.piecePrice) || 0 });
@@ -391,9 +399,7 @@ export function useAddProductPage({ projectId, data }: AddProductPageProps) {
     if (!q) return;
     updateTabSearch("ss_activewear", { isSearching: true, error: null, results: [] });
     try {
-      const res = await fetch("/api/ss-activewear/search?" + new URLSearchParams({ q }));
-      if (!res.ok) throw new Error("S&S search failed");
-      const products = await res.json();
+      const products = await searchSsApi(q);
       const arr = Array.isArray(products) ? products : [];
       // Aggregate per-SKU entries into one result per style
       const styleMap = new Map<number, { base: any; colors: Set<string>; sizes: Set<string> }>();
@@ -467,31 +473,26 @@ export function useAddProductPage({ projectId, data }: AddProductPageProps) {
         ? (product.rawData?.prodEId || "")
         : "";
 
-      const [syncRes, sagePricingRes] = await Promise.all([
-        fetch("/api/products/sync-from-supplier", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            name: product.name,
-            sku: product.sku,
-            supplierName: product.supplierName || "Unknown",
-            description: product.description,
-            basePrice: product.basePrice,
-            category: product.category,
-            colors: product.colors,
-            sizes: product.sizes,
-            imageUrl: product.imageUrl,
-            source: product.source,
-            pricingTiers: product.pricingTiers,
-          }),
+      const [syncResult, sagePricingRes] = await Promise.all([
+        syncProductFromSupplier({
+          name: product.name,
+          sku: product.sku,
+          supplierName: product.supplierName || "Unknown",
+          description: product.description,
+          basePrice: product.basePrice,
+          category: product.category,
+          colors: product.colors,
+          sizes: product.sizes,
+          imageUrl: product.imageUrl,
+          source: product.source,
+          pricingTiers: product.pricingTiers,
         }),
         sageProdEId
-          ? fetch(`/api/sage/product-pricing/${sageProdEId}`).then(r => r.ok ? r.json() : null).catch(() => null)
+          ? fetchSagePricing(sageProdEId).catch(() => null)
           : Promise.resolve(null),
       ]);
 
-      if (!syncRes.ok) throw new Error("Sync failed");
-      const { product: catalogProduct, supplier, isNew } = await syncRes.json();
+      const { product: catalogProduct, supplier, isNew } = syncResult;
 
       if (isNew) {
         toast({ title: `Product "${product.name}" added to catalog`, description: `Vendor: ${supplier.name}` });
@@ -502,12 +503,7 @@ export function useAddProductPage({ projectId, data }: AddProductPageProps) {
       if (sagePricingRes?.pricingTiers?.length) {
         mergedTiers = sagePricingRes.pricingTiers;
         // Also persist tiers to product catalog
-        fetch(`/api/products/${catalogProduct.id}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify({ pricingTiers: mergedTiers }),
-        }).catch(() => { /* best-effort */ });
+        updateProduct(catalogProduct.id, { pricingTiers: mergedTiers }).catch(() => { /* best-effort */ });
       }
 
       // Invalidate product + supplier queries so catalog & vendor info is up to date
@@ -606,59 +602,36 @@ export function useAddProductPage({ projectId, data }: AddProductPageProps) {
       });
 
       // 1. Create the order item
-      const itemRes = await fetch(`/api/projects/${projectId}/items`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          productId: product.id,
-          quantity: totalQty,
-          cost: avgUnitCost.toFixed(2),
-          unitPrice: avgUnitPrice.toFixed(2),
-          totalPrice: totalPrice.toFixed(2),
-          decorationCost: "0",
-          charges: "0",
-          color: lines.length === 1 ? lines[0].color : "",
-          size: lines.length === 1 ? lines[0].size : "",
-          imprintLocation,
-          imprintMethod,
-          notes,
-          sizePricing,
-        }),
+      const createdItem = await createProjectItem(projectId, {
+        productId: product.id,
+        quantity: totalQty,
+        cost: avgUnitCost.toFixed(2),
+        unitPrice: avgUnitPrice.toFixed(2),
+        totalPrice: totalPrice.toFixed(2),
+        decorationCost: "0",
+        charges: "0",
+        color: lines.length === 1 ? lines[0].color : "",
+        size: lines.length === 1 ? lines[0].size : "",
+        imprintLocation,
+        imprintMethod,
+        notes,
+        sizePricing,
       });
-
-      if (!itemRes.ok) {
-        const err = await itemRes.json().catch(() => ({}));
-        if (itemRes.status === 403 && err.doNotOrder) {
-          const e = new Error(err.message || "Vendor is blocked") as any;
-          e.doNotOrder = true;
-          e.supplierId = err.supplierId;
-          e.supplierName = err.supplierName;
-          throw e;
-        }
-        throw new Error(err.message || "Failed to create order item");
-      }
-
-      const createdItem = await itemRes.json();
 
       // 2. Create order item lines (size/color breakdown)
       if (lines.length > 0) {
         await Promise.all(
           lines.map(line =>
-            fetch(`/api/project-items/${createdItem.id}/lines`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                orderItemId: createdItem.id,
-                color: line.color,
-                size: line.size,
-                quantity: line.quantity,
-                cost: line.unitCost.toFixed(2),
-                unitPrice: line.unitPrice.toFixed(2),
-                totalPrice: (line.quantity * line.unitPrice).toFixed(2),
-                margin: line.unitPrice > 0
-                  ? (((line.unitPrice - line.unitCost) / line.unitPrice) * 100).toFixed(2)
-                  : "0",
-              }),
+            addLine(createdItem.id, {
+              color: line.color,
+              size: line.size,
+              quantity: line.quantity,
+              cost: line.unitCost.toFixed(2),
+              unitPrice: line.unitPrice.toFixed(2),
+              totalPrice: (line.quantity * line.unitPrice).toFixed(2),
+              margin: line.unitPrice > 0
+                ? (((line.unitPrice - line.unitCost) / line.unitPrice) * 100).toFixed(2)
+                : "0",
             })
           )
         );
@@ -666,60 +639,45 @@ export function useAddProductPage({ projectId, data }: AddProductPageProps) {
 
       // 3. Create item-level charges
       for (const ch of localCharges) {
-        await fetch(`/api/project-items/${createdItem.id}/charges`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            description: ch.description,
-            chargeType: ch.chargeType,
-            chargeCategory: ch.chargeCategory,
-            amount: (ch.retailPrice || ch.amount).toFixed(2),
-            netCost: ch.netCost.toFixed(4),
-            retailPrice: (ch.retailPrice || ch.amount).toFixed(2),
-            margin: ch.margin.toFixed(2),
-            quantity: ch.chargeCategory === "fixed" ? ch.quantity : 1,
-            isVendorCharge: ch.isVendorCharge,
-            displayToClient: ch.includeInUnitPrice ? false : ch.displayToClient,
-            displayToVendor: ch.displayToVendor !== false,
-            includeInUnitPrice: ch.includeInUnitPrice,
-          }),
+        await addCharge(createdItem.id, {
+          description: ch.description,
+          chargeType: ch.chargeType,
+          chargeCategory: ch.chargeCategory,
+          amount: (ch.retailPrice || ch.amount).toFixed(2),
+          netCost: ch.netCost.toFixed(4),
+          retailPrice: (ch.retailPrice || ch.amount).toFixed(2),
+          margin: ch.margin.toFixed(2),
+          quantity: ch.chargeCategory === "fixed" ? ch.quantity : 1,
+          isVendorCharge: ch.isVendorCharge,
+          displayToClient: ch.includeInUnitPrice ? false : ch.displayToClient,
+          displayToVendor: ch.displayToVendor !== false,
+          includeInUnitPrice: ch.includeInUnitPrice,
         });
       }
 
       // 4. Create artworks + their charges
       for (const art of localArtworks) {
-        const artRes = await fetch(`/api/project-items/${createdItem.id}/artworks`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            name: art.name,
-            filePath: art.filePath,
-            fileName: art.fileName,
-            location: art.location,
-            artworkType: art.artworkType,
-            color: art.color,
-            size: art.size,
-            numberOfColors: art.numberOfColors,
-            repeatLogo: art.repeatLogo,
-          }),
+        const createdArtwork = await createArtwork(createdItem.id, {
+          name: art.name,
+          filePath: art.filePath,
+          fileName: art.fileName,
+          location: art.location,
+          artworkType: art.artworkType,
+          color: art.color,
+          size: art.size,
+          numberOfColors: art.numberOfColors,
+          repeatLogo: art.repeatLogo,
         });
-        if (artRes.ok) {
-          const createdArtwork = await artRes.json();
-          for (const ac of art.charges) {
-            await fetch(`/api/artworks/${createdArtwork.id}/charges`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                chargeName: ac.chargeName,
-                chargeCategory: ac.chargeCategory,
-                netCost: ac.netCost.toFixed(4),
-                margin: ac.margin.toFixed(2),
-                retailPrice: ac.retailPrice.toFixed(2),
-                quantity: ac.quantity,
-                displayMode: ac.displayMode,
-              }),
-            });
-          }
+        for (const ac of art.charges) {
+          await createArtworkCharge(createdArtwork.id, {
+            chargeName: ac.chargeName,
+            chargeCategory: ac.chargeCategory,
+            netCost: ac.netCost.toFixed(4),
+            margin: ac.margin.toFixed(2),
+            retailPrice: ac.retailPrice.toFixed(2),
+            quantity: ac.quantity,
+            displayMode: ac.displayMode,
+          });
         }
       }
 
@@ -755,23 +713,11 @@ export function useAddProductPage({ projectId, data }: AddProductPageProps) {
 
   // ── Vendor Approval Request Mutation ──
   const vendorApprovalMutation = useMutation({
-    mutationFn: async () => {
-      const res = await fetch("/api/vendor-approvals", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({
-          supplierId: vendorBlockDialog.supplierId,
-          orderId: projectId,
-          reason: approvalReason || `Requesting approval to order from ${vendorBlockDialog.supplierName} for this project.`,
-        }),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.message || "Failed to submit approval request");
-      }
-      return res.json();
-    },
+    mutationFn: () => createVendorApproval({
+      supplierId: vendorBlockDialog.supplierId,
+      orderId: projectId,
+      reason: approvalReason || `Requesting approval to order from ${vendorBlockDialog.supplierName} for this project.`,
+    }),
     onSuccess: () => {
       toast({ title: "Approval request sent", description: "An admin will be notified to review your request." });
       setVendorBlockDialog({ open: false, supplierId: "", supplierName: "", reason: "" });
@@ -786,78 +732,48 @@ export function useAddProductPage({ projectId, data }: AddProductPageProps) {
   const addManualProductMutation = useMutation({
     mutationFn: async () => {
       // Sync manual product to catalog to get productId
-      let productId: string | undefined;
+      let catalogProductId: string | undefined;
       if (manualForm.productName) {
         try {
-          const syncRes = await fetch("/api/products/sync-from-supplier", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              name: manualForm.productName,
-              sku: manualForm.productSku,
-              supplierName: manualForm.supplierName || "Manual Entry",
-              basePrice: manualForm.unitPrice,
-              source: "manual",
-            }),
+          const { product: catalogProduct } = await syncProductFromSupplier({
+            name: manualForm.productName,
+            sku: manualForm.productSku,
+            supplierName: manualForm.supplierName || "Manual Entry",
+            basePrice: manualForm.unitPrice,
+            source: "manual",
           });
-          if (syncRes.ok) {
-            const { product: catalogProduct } = await syncRes.json();
-            productId = catalogProduct.id;
-          }
+          catalogProductId = catalogProduct.id;
         } catch { /* proceed without productId */ }
       }
 
       const totalPrice = manualForm.quantity * manualForm.unitPrice;
 
-      const res = await fetch(`/api/projects/${projectId}/items`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          productId,
+      const createdItem = await createProjectItem(projectId, {
+        productId: catalogProductId,
+        quantity: manualForm.quantity,
+        cost: manualForm.unitCost.toFixed(2),
+        unitPrice: manualForm.unitPrice.toFixed(2),
+        totalPrice: totalPrice.toFixed(2),
+        decorationCost: "0",
+        charges: "0",
+        color: manualForm.color,
+        size: manualForm.size,
+        imprintLocation: manualForm.imprintLocation,
+        imprintMethod: manualForm.imprintMethod,
+        notes: manualForm.notes,
+      });
+
+      if (manualForm.color || manualForm.size) {
+        await addLine(createdItem.id, {
+          color: manualForm.color,
+          size: manualForm.size,
           quantity: manualForm.quantity,
           cost: manualForm.unitCost.toFixed(2),
           unitPrice: manualForm.unitPrice.toFixed(2),
           totalPrice: totalPrice.toFixed(2),
-          decorationCost: "0",
-          charges: "0",
-          color: manualForm.color,
-          size: manualForm.size,
-          imprintLocation: manualForm.imprintLocation,
-          imprintMethod: manualForm.imprintMethod,
-          notes: manualForm.notes,
-        }),
-      });
-
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        if (res.status === 403 && err.doNotOrder) {
-          const e = new Error(err.message || "Vendor is blocked") as any;
-          e.doNotOrder = true;
-          e.supplierId = err.supplierId;
-          e.supplierName = err.supplierName;
-          throw e;
-        }
-        throw new Error(err.message || "Failed to create product");
-      }
-
-      const createdItem = await res.json();
-
-      if (manualForm.color || manualForm.size) {
-        await fetch(`/api/project-items/${createdItem.id}/lines`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            orderItemId: createdItem.id,
-            color: manualForm.color,
-            size: manualForm.size,
-            quantity: manualForm.quantity,
-            cost: manualForm.unitCost.toFixed(2),
-            unitPrice: manualForm.unitPrice.toFixed(2),
-            totalPrice: totalPrice.toFixed(2),
-            margin: manualForm.unitPrice > 0
-              ? (((manualForm.unitPrice - manualForm.unitCost) / manualForm.unitPrice) * 100).toFixed(2)
-              : "0",
-          }),
+          margin: manualForm.unitPrice > 0
+            ? (((manualForm.unitPrice - manualForm.unitCost) / manualForm.unitPrice) * 100).toFixed(2)
+            : "0",
         });
       }
 
@@ -918,8 +834,7 @@ export function useAddProductPage({ projectId, data }: AddProductPageProps) {
   // Brand search helpers — write to the specific tab's state
   const searchSanMarBrand = (brand: string) => {
     updateTabSearch("sanmar", { query: brand, isSearching: true, error: null, results: [] });
-    fetch("/api/sanmar/search?" + new URLSearchParams({ q: brand }))
-      .then(r => r.ok ? r.json() : Promise.reject())
+    searchSanMarApi(brand)
       .then(products => {
         const arr = Array.isArray(products) ? products : [];
         const results: ProductResult[] = arr.map((p: any) => ({
@@ -947,8 +862,7 @@ export function useAddProductPage({ projectId, data }: AddProductPageProps) {
 
   const searchSsBrand = (brandName: string) => {
     updateTabSearch("ss_activewear", { query: brandName, isSearching: true, error: null, results: [] });
-    fetch("/api/ss-activewear/search?" + new URLSearchParams({ q: brandName }))
-      .then(r => r.ok ? r.json() : Promise.reject())
+    searchSsApi(brandName)
       .then(products => {
         const arr = Array.isArray(products) ? products : [];
         const styleMap = new Map<number, { base: any; colors: Set<string>; sizes: Set<string> }>();

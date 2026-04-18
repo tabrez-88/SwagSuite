@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
+import { aiSearch } from "@/services/products/requests";
 import { useLocation } from "@/lib/wouter-compat";
 import type { SearchResult } from "./types";
 
@@ -33,10 +33,7 @@ export function useGlobalSearch() {
 
   // AI-powered search mutation
   const searchMutation = useMutation({
-    mutationFn: async (searchQuery: string) => {
-      const response = await apiRequest("POST", "/api/search/ai", { query: searchQuery });
-      return await response.json();
-    },
+    mutationFn: (searchQuery: string) => aiSearch(searchQuery),
     onSuccess: (data: SearchResult[]) => {
       setResults(data || []);
       setIsOpen(true);

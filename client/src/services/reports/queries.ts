@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { reportKeys } from "./keys";
 import type { LeadSourceReport, ReportTemplate, ReportSuggestion, GeneratedReport } from "./types";
+import * as requests from "./requests";
 
 export function useLeadSourceReport() {
   return useQuery<LeadSourceReport[]>({ queryKey: reportKeys.leadSources });
@@ -40,15 +41,6 @@ export function useArAging<T = any>() {
 export function useCommissionReport<T = any>(from?: string, to?: string) {
   return useQuery<T>({
     queryKey: reportKeys.commissions(from, to),
-    queryFn: async () => {
-      const params = new URLSearchParams();
-      if (from) params.set("from", from);
-      if (to) params.set("to", to);
-      const res = await fetch(`/api/reports/commissions?${params.toString()}`, {
-        credentials: "include",
-      });
-      if (!res.ok) throw new Error(`${res.status}`);
-      return res.json();
-    },
+    queryFn: () => requests.fetchCommissionReport(from, to),
   });
 }

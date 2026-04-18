@@ -23,7 +23,16 @@ import {
 } from "@/components/ui/select";
 import { useImprintOptions } from "@/services/imprint-options";
 import { useToast } from "@/hooks/use-toast";
-import { apiRequest } from "@/lib/queryClient";
+import {
+  createMatrixEntry,
+  updateMatrixEntry,
+  deleteMatrixEntry,
+  updateMatrix,
+  deleteMatrix,
+  copyMatrix,
+  createSupplierMatrix,
+} from "@/services/decorator-matrix/requests";
+import { patchSupplier } from "@/services/suppliers/requests";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -106,12 +115,7 @@ function RunChargeTableEditor({
 
   const addMutation = useMutation({
     mutationFn: async (entry: any) => {
-      const res = await apiRequest(
-        "POST",
-        `/api/matrices/${matrixId}/entries`,
-        entry
-      );
-      return res.json();
+      return createMatrixEntry(matrixId, entry);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
@@ -136,12 +140,7 @@ function RunChargeTableEditor({
       entryId: string;
       data: any;
     }) => {
-      const res = await apiRequest(
-        "PATCH",
-        `/api/matrices/${matrixId}/entries/${entryId}`,
-        data
-      );
-      return res.json();
+      return updateMatrixEntry(matrixId, entryId, data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
@@ -152,10 +151,7 @@ function RunChargeTableEditor({
 
   const deleteMutation = useMutation({
     mutationFn: async (entryId: string) => {
-      await apiRequest(
-        "DELETE",
-        `/api/matrices/${matrixId}/entries/${entryId}`
-      );
+      await deleteMatrixEntry(matrixId, entryId);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
@@ -470,12 +466,7 @@ function RunChargePerItemEditor({
 
   const addMutation = useMutation({
     mutationFn: async (entry: any) => {
-      const res = await apiRequest(
-        "POST",
-        `/api/matrices/${matrixId}/entries`,
-        entry
-      );
-      return res.json();
+      return createMatrixEntry(matrixId, entry);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
@@ -493,12 +484,7 @@ function RunChargePerItemEditor({
       entryId: string;
       data: any;
     }) => {
-      const res = await apiRequest(
-        "PATCH",
-        `/api/matrices/${matrixId}/entries/${entryId}`,
-        data
-      );
-      return res.json();
+      return updateMatrixEntry(matrixId, entryId, data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
@@ -509,10 +495,7 @@ function RunChargePerItemEditor({
 
   const deleteMutation = useMutation({
     mutationFn: async (entryId: string) => {
-      await apiRequest(
-        "DELETE",
-        `/api/matrices/${matrixId}/entries/${entryId}`
-      );
+      await deleteMatrixEntry(matrixId, entryId);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
@@ -636,12 +619,7 @@ function FixedChargeTableEditor({
 
   const addMutation = useMutation({
     mutationFn: async (entry: any) => {
-      const res = await apiRequest(
-        "POST",
-        `/api/matrices/${matrixId}/entries`,
-        entry
-      );
-      return res.json();
+      return createMatrixEntry(matrixId, entry);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
@@ -659,12 +637,7 @@ function FixedChargeTableEditor({
       entryId: string;
       data: any;
     }) => {
-      const res = await apiRequest(
-        "PATCH",
-        `/api/matrices/${matrixId}/entries/${entryId}`,
-        data
-      );
-      return res.json();
+      return updateMatrixEntry(matrixId, entryId, data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
@@ -675,10 +648,7 @@ function FixedChargeTableEditor({
 
   const deleteMutation = useMutation({
     mutationFn: async (entryId: string) => {
-      await apiRequest(
-        "DELETE",
-        `/api/matrices/${matrixId}/entries/${entryId}`
-      );
+      await deleteMatrixEntry(matrixId, entryId);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
@@ -804,12 +774,7 @@ function FixedChargeListEditor({
 
   const addMutation = useMutation({
     mutationFn: async (entry: any) => {
-      const res = await apiRequest(
-        "POST",
-        `/api/matrices/${matrixId}/entries`,
-        entry
-      );
-      return res.json();
+      return createMatrixEntry(matrixId, entry);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
@@ -827,12 +792,7 @@ function FixedChargeListEditor({
       entryId: string;
       data: any;
     }) => {
-      const res = await apiRequest(
-        "PATCH",
-        `/api/matrices/${matrixId}/entries/${entryId}`,
-        data
-      );
-      return res.json();
+      return updateMatrixEntry(matrixId, entryId, data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
@@ -843,10 +803,7 @@ function FixedChargeListEditor({
 
   const deleteMutation = useMutation({
     mutationFn: async (entryId: string) => {
-      await apiRequest(
-        "DELETE",
-        `/api/matrices/${matrixId}/entries/${entryId}`
-      );
+      await deleteMatrixEntry(matrixId, entryId);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
@@ -1005,12 +962,7 @@ function MatrixDetailPanel({
 
   const updateMutation = useMutation({
     mutationFn: async (data: any) => {
-      const res = await apiRequest(
-        "PATCH",
-        `/api/matrices/${matrixId}`,
-        data
-      );
-      return res.json();
+      return updateMatrix(matrixId, data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
@@ -1025,7 +977,7 @@ function MatrixDetailPanel({
 
   const deleteMutation = useMutation({
     mutationFn: async () => {
-      await apiRequest("DELETE", `/api/matrices/${matrixId}`);
+      await deleteMatrix(matrixId);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
@@ -1038,11 +990,7 @@ function MatrixDetailPanel({
 
   const copyMutation = useMutation({
     mutationFn: async () => {
-      const res = await apiRequest(
-        "POST",
-        `/api/matrices/${matrixId}/copy`
-      );
-      return res.json();
+      return copyMatrix(matrixId, {});
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
@@ -1273,12 +1221,7 @@ export function DecoratorMatrixTab() {
 
   const createMutation = useMutation({
     mutationFn: async (data: any) => {
-      const res = await apiRequest(
-        "POST",
-        `/api/suppliers/${selectedSupplierId}/matrices`,
-        data
-      );
-      return res.json();
+      return createSupplierMatrix(selectedSupplierId!, data);
     },
     onSuccess: (newMatrix) => {
       queryClient.invalidateQueries({
@@ -1347,7 +1290,7 @@ export function DecoratorMatrixTab() {
                 defaultValue={selectedSupplier?.notes || ""}
                 onBlur={async (e) => {
                   try {
-                    await apiRequest("PATCH", `/api/suppliers/${selectedSupplierId}`, { notes: e.target.value });
+                    await patchSupplier(selectedSupplierId!, { notes: e.target.value });
                   } catch { /* ignore */ }
                 }}
               />

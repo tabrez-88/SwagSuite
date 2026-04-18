@@ -41,3 +41,44 @@ export async function updateFeatureToggles(featureToggles: Record<string, boolea
   const res = await apiRequest("PUT", "/api/admin/settings/features", { featureToggles });
   return res.json();
 }
+
+// ---- Notification Preferences ----
+
+export async function fetchNotificationPrefs(): Promise<any> {
+  const res = await apiRequest("GET", "/api/users/me/notification-preferences");
+  return res.json();
+}
+
+export async function updateNotificationPrefs(data: Record<string, any>): Promise<any> {
+  const res = await apiRequest("PATCH", "/api/users/me/notification-preferences", data);
+  return res.json();
+}
+
+// ---- ShipStation ----
+
+export async function testShipStationConnection(data: { apiKey: string; apiSecret: string }): Promise<any> {
+  const res = await apiRequest("POST", "/api/shipstation/test-connection", data);
+  return res.json();
+}
+
+// ---- User Email Settings (Mail Credentials) ----
+
+export async function saveUserEmailSettings(data: Record<string, any>): Promise<any> {
+  const res = await apiRequest("POST", "/api/user-email-settings", data);
+  return res.json();
+}
+
+export async function testSmtpConnection(data: Record<string, any>): Promise<any> {
+  const res = await apiRequest("POST", "/api/user-email-settings/test-smtp", data);
+  return res.json();
+}
+
+export async function testImapConnection(data: Record<string, any>): Promise<any> {
+  const res = await apiRequest("POST", "/api/user-email-settings/test-imap", data);
+  return res.json();
+}
+
+export async function searchGeocode(query: string): Promise<any> {
+  const res = await apiRequest("GET", `/api/geocode/search?q=${encodeURIComponent(query)}`);
+  return res.json();
+}

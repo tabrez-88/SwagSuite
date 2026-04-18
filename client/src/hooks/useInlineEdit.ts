@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
+import { updateProject } from "@/services/projects/requests";
 import { useToast } from "@/hooks/use-toast";
 import { projectKeys } from "@/services/projects/keys";
 
@@ -15,8 +15,7 @@ export function useInlineEdit({ projectId, isLocked = false }: UseInlineEditOpti
   const updateFieldMutation = useMutation({
     mutationFn: async (fields: Record<string, any>) => {
       if (isLocked) throw new Error("Section is locked");
-      const res = await apiRequest("PATCH", `/api/projects/${projectId}`, fields);
-      return res.json();
+      await updateProject(projectId, fields);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: projectKeys.detail(projectId) });

@@ -1,23 +1,24 @@
-import { useState, useMemo, useCallback } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useToast } from "@/hooks/use-toast";
-import type { OrderItemLine } from "@shared/schema";
-import { useDocumentGeneration, buildItemsHash } from "@/hooks/useDocumentGeneration";
 import { buildPurchaseOrderPdf } from "@/components/documents/pdf/builders";
-import { useProductionStages } from "@/hooks/useProductionStages";
+import type { EmailFormData } from "@/components/email/types";
+import { useToast } from "@/hooks/use-toast";
+import { buildItemsHash, useDocumentGeneration } from "@/hooks/useDocumentGeneration";
 import { useInlineEdit } from "@/hooks/useInlineEdit";
+import { useProductionStages } from "@/hooks/useProductionStages";
 import { getEditedItem } from "@/lib/projectDetailUtils";
+import { postActivity } from "@/services/activities";
+import { sendCommunication } from "@/services/communications";
+import { useUpdatePODocMeta } from "@/services/documents/mutations";
+import { fetchNextPoSequence } from "@/services/documents/requests";
+import { updateArtwork as updateArtworkRequest } from "@/services/project-items";
+import { useUpdateArtwork } from "@/services/project-items/mutations";
 import { projectKeys } from "@/services/projects/keys";
 import { useGenerateApproval } from "@/services/projects/mutations";
 import { useBranding } from "@/services/settings";
-import { useVendorContacts } from "@/services/suppliers";
 import { fetchSupplierAddresses } from "@/services/supplier-addresses";
-import { sendCommunication } from "@/services/communications";
-import { postActivity } from "@/services/activities";
-import { updateArtwork as updateArtworkRequest } from "@/services/project-items";
-import { useUpdatePODocMeta } from "@/services/documents/mutations";
-import { useUpdateArtwork } from "@/services/project-items/mutations";
-import type { EmailFormData } from "@/components/email/types";
+import { useVendorContacts } from "@/services/suppliers";
+import type { OrderItemLine } from "@shared/schema";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useCallback, useMemo, useState } from "react";
 import type { PurchaseOrdersSectionProps, VendorPO } from "./types";
 import { PO_STATUSES, PROOF_STATUSES } from "./types";
 
@@ -301,8 +302,7 @@ export function usePurchaseOrdersSection({ projectId, data, isLocked }: Purchase
     // Global PO counter — fetch next sequence and zero-pad to 2 digits (e.g. 10001-01)
     let poNumber: string;
     try {
-      const seqRes = await fetch("/api/documents/next-po-sequence", { credentials: "include" });
-      const { next } = await seqRes.json();
+      const { next } = await fetchNextPoSequence();
       const seq = String(next).padStart(2, "0");
       poNumber = `${(order as any)?.orderNumber || projectId}-${seq}`;
     } catch {

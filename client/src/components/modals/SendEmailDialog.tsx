@@ -5,7 +5,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useMutation } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
+import { sendGenericEmail } from "@/services/communications/requests";
 import { useToast } from "@/hooks/use-toast";
 import EmailComposer from "@/components/email/EmailComposer";
 import type { EmailFormData } from "@/components/email/types";
@@ -46,7 +46,7 @@ export default function SendEmailDialog({
         ? data.attachments.map((att) => ({ fileUrl: att.cloudinaryUrl, fileName: att.fileName }))
         : undefined;
 
-      const res = await apiRequest("POST", "/api/send-email", {
+      return sendGenericEmail({
         fromEmail: data.from,
         fromName: data.fromName,
         recipientEmail: data.to,
@@ -58,7 +58,6 @@ export default function SendEmailDialog({
         companyName: companyName || undefined,
         additionalAttachments: userAttachments,
       });
-      return res.json();
     },
     onSuccess: () => {
       toast({ title: "Email sent", description: "Email has been sent successfully." });

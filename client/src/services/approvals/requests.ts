@@ -99,6 +99,26 @@ export async function reviewVendorApprovalRequest(
   return res.json();
 }
 
+// ---- Vendor approval creation ----
+
+export async function createVendorApproval(data: {
+  supplierId: string;
+  orderId: string | number;
+  reason: string;
+}): Promise<any> {
+  const res = await fetch("/api/vendor-approvals", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.message || "Failed to submit approval request");
+  }
+  return res.json();
+}
+
 // ---- Public presentation ----
 
 export async function fetchPublicPresentation<T = any>(token: string): Promise<T> {

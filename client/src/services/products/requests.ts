@@ -15,31 +15,13 @@ export async function deleteProduct(id: string | number) {
 }
 
 export async function searchSSActivewear(query: string) {
-  const response = await fetch(`/api/ss-activewear/search?q=${encodeURIComponent(query)}`, {
-    credentials: "include",
-  });
-  if (!response.ok) {
-    if (response.status === 404) {
-      throw new Error("No products found in S&S Activewear catalog");
-    }
-    const errorData = await response.json().catch(() => ({ error: "Unknown error" }));
-    throw new Error(errorData.error || "Failed to search products");
-  }
-  return response.json();
+  const res = await apiRequest("GET", `/api/ss-activewear/search?q=${encodeURIComponent(query)}`);
+  return res.json();
 }
 
 export async function searchSage(query: string) {
-  const response = await fetch(`/api/sage/products?search=${encodeURIComponent(query)}`, {
-    credentials: "include",
-  });
-  if (!response.ok) {
-    if (response.status === 404) {
-      throw new Error("No products found in SAGE catalog");
-    }
-    const errorData = await response.json().catch(() => ({ message: "Unknown error" }));
-    throw new Error(errorData.message || "Failed to search SAGE products");
-  }
-  const products = await response.json();
+  const res = await apiRequest("GET", `/api/sage/products?search=${encodeURIComponent(query)}`);
+  const products = await res.json();
   return products.map((p: any) => ({
     id: p.productId || p.spc || p.SPC || p.id || "",
     name: p.productName || p.name || "Unnamed Product",
@@ -58,15 +40,36 @@ export async function searchSage(query: string) {
 }
 
 export async function searchSanMar(query: string) {
-  const response = await fetch(`/api/sanmar/search?q=${encodeURIComponent(query)}`, {
-    credentials: "include",
-  });
-  if (!response.ok) {
-    if (response.status === 404) {
-      throw new Error("No products found in SanMar catalog");
-    }
-    const errorData = await response.json().catch(() => ({ message: "Unknown error" }));
-    throw new Error(errorData.message || "Failed to search SanMar products");
-  }
-  return response.json();
+  const res = await apiRequest("GET", `/api/sanmar/search?q=${encodeURIComponent(query)}`);
+  return res.json();
+}
+
+export async function fetchProductOrders(productId: string | number) {
+  const res = await apiRequest("GET", `/api/products/${productId}/orders`);
+  return res.json();
+}
+
+export async function fetchAllProducts(): Promise<any[]> {
+  const res = await apiRequest("GET", "/api/products");
+  return res.json();
+}
+
+export async function fetchSsBrands(): Promise<any[]> {
+  const res = await apiRequest("GET", "/api/ss-activewear/brands");
+  return res.json();
+}
+
+export async function syncProductFromSupplier(data: Record<string, any>): Promise<any> {
+  const res = await apiRequest("POST", "/api/products/sync-from-supplier", data);
+  return res.json();
+}
+
+export async function aiSearch(query: string): Promise<any> {
+  const res = await apiRequest("POST", "/api/search/ai", { query });
+  return res.json();
+}
+
+export async function fetchSagePricing(prodEId: string): Promise<any> {
+  const res = await apiRequest("GET", `/api/sage/product-pricing/${prodEId}`);
+  return res.json();
 }

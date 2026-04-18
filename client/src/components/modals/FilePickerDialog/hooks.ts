@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMediaLibrary, useUploadToMediaLibrary } from "@/hooks/useMediaLibrary";
 import { useToast } from "@/hooks/use-toast";
 import { getFileTypeIcon } from "@/lib/media-library";
+import { uploadProjectFiles, fetchProjectFiles } from "@/services/projects/requests";
 import type { FilePickerDialogProps, FilterOption, MediaLibraryItem } from "./types";
 import { FILTER_OPTIONS } from "./types";
 
@@ -100,11 +101,7 @@ export function useFilePickerDialog({
   // Project files query
   const { data: projectFilesRaw, isLoading: projectFilesLoading } = useQuery<any[]>({
     queryKey: [`/api/projects/${contextProjectId}/files`],
-    queryFn: async () => {
-      const res = await fetch(`/api/projects/${contextProjectId}/files`, { credentials: "include" });
-      if (!res.ok) return [];
-      return res.json();
-    },
+    queryFn: () => fetchProjectFiles(contextProjectId!).catch(() => []),
     enabled: open && hasOrderContext,
   });
 
@@ -134,17 +131,7 @@ export function useFilePickerDialog({
       const formData = new FormData();
       files.forEach((f) => formData.append("files", f));
       formData.append("fileType", "other_document");
-      const res = await fetch(`/api/projects/${contextProjectId}/files`, {
-        method: "POST",
-        body: formData,
-        credentials: "include",
-      });
-      if (!res.ok) {
-        const text = await res.text();
-        let msg = text;
-        try { msg = JSON.parse(text).error || JSON.parse(text).message || text; } catch {}
-        throw new Error(msg);
-      }
+      await uploadProjectFiles(contextProjectId, formData);
       toast({ title: "Uploaded", description: `${files.length} file(s) uploaded to project.` });
       queryClient.invalidateQueries({ queryKey: [`/api/projects/${contextProjectId}/files`] });
       queryClient.invalidateQueries({ queryKey: ["/api/media-library"] });

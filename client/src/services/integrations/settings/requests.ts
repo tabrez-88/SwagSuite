@@ -11,8 +11,7 @@ export async function saveIntegrationSettings(data: any): Promise<any> {
 }
 
 export async function startQuickbooksAuth(): Promise<{ url: string }> {
-  const res = await fetch("/api/integrations/quickbooks/auth");
-  if (!res.ok) throw new Error("Failed to start QuickBooks auth");
+  const res = await apiRequest("GET", "/api/integrations/quickbooks/auth");
   return res.json();
 }
 

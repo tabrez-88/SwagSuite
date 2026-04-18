@@ -2,10 +2,7 @@ import { apiRequest } from "@/lib/queryClient";
 import type { CreateCompanyAddress, UpdateCompanyAddress } from "./types";
 
 export async function fetchCompanyAddresses(companyId: string) {
-  const res = await fetch(`/api/companies/${companyId}/addresses`, {
-    credentials: "include",
-  });
-  if (!res.ok) throw new Error("Failed to fetch company addresses");
+  const res = await apiRequest("GET", `/api/companies/${companyId}/addresses`);
   return res.json();
 }
 

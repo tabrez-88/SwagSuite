@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
+import { fetchContactsBySupplier } from "@/services/contacts/requests";
 import { useSendVendorEmail } from "@/services/communications/mutations";
 import type { EmailComposerRef } from "@/components/email/EmailComposer";
 import type { EmailContact, EmailFormData } from "@/components/email/types";
@@ -27,11 +27,7 @@ export function useVendorSection(projectId: string, data: ProjectData) {
   // Fetch vendor contacts
   const { data: vendorContacts = [] } = useQuery<any[]>({
     queryKey: [`/api/contacts`, { supplierId: selectedVendor?.id }],
-    queryFn: async () => {
-      if (!selectedVendor?.id) return [];
-      const res = await apiRequest("GET", `/api/contacts?supplierId=${selectedVendor.id}`);
-      return res.json();
-    },
+    queryFn: () => selectedVendor?.id ? fetchContactsBySupplier(selectedVendor.id) : [],
     enabled: !!selectedVendor?.id,
   });
 

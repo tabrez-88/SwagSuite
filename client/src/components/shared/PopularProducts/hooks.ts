@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { aiSearch } from '@/services/products/requests';
 import { useLocation } from '@/lib/wouter-compat';
 import type { PopularProduct, SuggestedProduct, ProductDetails } from './types';
 
@@ -25,19 +26,7 @@ export function usePopularProducts() {
 
     setIsSearching(true);
     try {
-      const response = await fetch('/api/search/ai', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ query: aiSearchQuery }),
-      });
-
-      if (!response.ok) {
-        throw new Error('AI search failed');
-      }
-
-      const searchResults = await response.json();
+      const searchResults = await aiSearch(aiSearchQuery);
       console.log('AI Search Results:', searchResults);
 
       // Display first result in product modal if available

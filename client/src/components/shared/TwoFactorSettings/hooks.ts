@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
-import { apiRequest } from "@/lib/queryClient";
+import { setup2FA, verifySetup2FA, disable2FA, generateBackupCodes } from "@/services/users/requests";
 import type { SetupStep } from "./types";
 
 export function useTwoFactorSettings() {
@@ -23,10 +23,7 @@ export function useTwoFactorSettings() {
   });
 
   const setupMutation = useMutation({
-    mutationFn: async () => {
-      const res = await apiRequest("POST", "/api/auth/2fa/setup");
-      return res.json();
-    },
+    mutationFn: () => setup2FA(),
     onSuccess: (data) => {
       setQrCode(data.qrCode);
       setManualSecret(data.secret);
@@ -38,10 +35,7 @@ export function useTwoFactorSettings() {
   });
 
   const verifySetupMutation = useMutation({
-    mutationFn: async (code: string) => {
-      const res = await apiRequest("POST", "/api/auth/2fa/verify-setup", { code });
-      return res.json();
-    },
+    mutationFn: (code: string) => verifySetup2FA(code),
     onSuccess: (data) => {
       setBackupCodes(data.backupCodes);
       setSetupStep("backup");
@@ -58,10 +52,7 @@ export function useTwoFactorSettings() {
   });
 
   const disableMutation = useMutation({
-    mutationFn: async (password: string) => {
-      const res = await apiRequest("POST", "/api/auth/2fa/disable", { password });
-      return res.json();
-    },
+    mutationFn: (password: string) => disable2FA(password),
     onSuccess: () => {
       setDisableDialogOpen(false);
       setPasswordInput("");
@@ -75,10 +66,7 @@ export function useTwoFactorSettings() {
   });
 
   const regenBackupMutation = useMutation({
-    mutationFn: async (password: string) => {
-      const res = await apiRequest("POST", "/api/auth/2fa/backup-codes", { password });
-      return res.json();
-    },
+    mutationFn: (password: string) => generateBackupCodes(password),
     onSuccess: (data) => {
       setRegenDialogOpen(false);
       setPasswordInput("");

@@ -3,6 +3,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { MapPin, Loader2 } from "lucide-react";
+import { searchGeocode } from "@/services/settings/requests";
 
 export interface AddressSuggestion {
   id: string;
@@ -65,16 +66,7 @@ export function AddressAutocomplete({
     setIsLoading(true);
     const timeoutId = setTimeout(async () => {
       try {
-        const res = await fetch(
-          `/api/geocode/search?q=${encodeURIComponent(value)}`,
-          { credentials: "include" }
-        );
-        if (!res.ok) {
-          console.warn("Address autocomplete: server returned", res.status);
-          setIsLoading(false);
-          return;
-        }
-        const data = await res.json();
+        const data = await searchGeocode(value);
 
         if (data.configured === false) {
           setIsConfigured(false);

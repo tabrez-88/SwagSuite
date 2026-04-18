@@ -2,8 +2,8 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { apiRequest } from "@/lib/queryClient";
 import { useSequences, useSequenceEnrollments, sequenceKeys } from "@/services/sequences";
+import { createSequence, replaceSequence, deleteSequence, createSequenceStep } from "@/services/sequences/requests";
 import { sequenceFormSchema, stepFormSchema, type SequenceFormData, type StepFormData } from "@/schemas/sequence.schemas";
 import { useToast } from "@/hooks/use-toast";
 import type { Sequence, SequenceStep } from "@shared/schema";
@@ -39,12 +39,8 @@ export function useSequenceBuilder() {
     enabled: !!selectedSequence?.id,
   });
 
-  // Mutations — sequence CRUD flows through services/sequences.
-  // Step operations nested under /api/sequences/:id/steps stay inline with
-  // apiRequest until we factor out a dedicated steps service.
   const createSequenceMutation = useMutation({
-    mutationFn: (data: SequenceFormData) =>
-      apiRequest("POST", "/api/sequences", data),
+    mutationFn: (data: SequenceFormData) => createSequence(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: sequenceKeys.all });
       setShowCreateDialog(false);
@@ -54,7 +50,7 @@ export function useSequenceBuilder() {
 
   const updateSequenceMutation = useMutation({
     mutationFn: ({ id, data }: { id: string; data: Partial<Sequence> }) =>
-      apiRequest("PUT", `/api/sequences/${id}`, data),
+      replaceSequence(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: sequenceKeys.all });
       toast({ title: "Success", description: "Sequence updated successfully" });
@@ -62,7 +58,7 @@ export function useSequenceBuilder() {
   });
 
   const deleteSequenceMutation = useMutation({
-    mutationFn: (id: string) => apiRequest("DELETE", `/api/sequences/${id}`),
+    mutationFn: (id: string) => deleteSequence(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: sequenceKeys.all });
       setSelectedSequence(null);
@@ -72,7 +68,7 @@ export function useSequenceBuilder() {
 
   const createStepMutation = useMutation({
     mutationFn: (data: StepFormData) =>
-      apiRequest("POST", `/api/sequences/${selectedSequence?.id}/steps`, data),
+      createSequenceStep(selectedSequence?.id!, data),
     onSuccess: () => {
       queryClient.invalidateQueries({
         queryKey: ["/api/sequences", selectedSequence?.id, "steps"],

@@ -2,10 +2,7 @@ import { apiRequest } from "@/lib/queryClient";
 import type { CreateSupplierAddress, UpdateSupplierAddress } from "./types";
 
 export async function fetchSupplierAddresses(supplierId: string) {
-  const res = await fetch(`/api/suppliers/${supplierId}/addresses`, {
-    credentials: "include",
-  });
-  if (!res.ok) throw new Error("Failed to fetch supplier addresses");
+  const res = await apiRequest("GET", `/api/suppliers/${supplierId}/addresses`);
   return res.json();
 }
 

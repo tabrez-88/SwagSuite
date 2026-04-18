@@ -2,6 +2,7 @@ import { useState, useCallback, type ReactElement } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { pdf } from "@react-pdf/renderer";
+import { uploadDocument, deleteDocument as deleteDocumentRequest, createQuoteApproval } from "@/services/documents/requests";
 
 // Build a fingerprint string for items + order-level fields to detect changes.
 // Stored in document metadata so we can flag stale PDFs after edits.
@@ -99,14 +100,7 @@ export function useDocumentGeneration(projectId: string) {
       };
       formData.append("metadata", JSON.stringify(metadata));
 
-      const response = await fetch(`/api/projects/${projectId}/documents`, {
-        method: "POST",
-        credentials: "include",
-        body: formData,
-      });
-
-      if (!response.ok) throw new Error("Failed to save document");
-      return response.json();
+      return uploadDocument(projectId, formData);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/documents`] });
@@ -119,14 +113,7 @@ export function useDocumentGeneration(projectId: string) {
   });
 
   const deleteDocumentMutation = useMutation({
-    mutationFn: async (documentId: string) => {
-      const response = await fetch(`/api/documents/${documentId}`, {
-        method: "DELETE",
-        credentials: "include",
-      });
-      if (!response.ok) throw new Error("Failed to delete document");
-      return response.json();
-    },
+    mutationFn: (documentId: string) => deleteDocumentRequest(documentId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/documents`] });
     },
@@ -136,16 +123,8 @@ export function useDocumentGeneration(projectId: string) {
   });
 
   const createQuoteApprovalMutation = useMutation({
-    mutationFn: async (data: { clientEmail: string; clientName: string; documentId?: string; pdfPath?: string; quoteTotal?: string }) => {
-      const response = await fetch(`/api/projects/${projectId}/quote-approvals`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify(data),
-      });
-      if (!response.ok) throw new Error("Failed to create quote approval");
-      return response.json();
-    },
+    mutationFn: (data: { clientEmail: string; clientName: string; documentId?: string; pdfPath?: string; quoteTotal?: string }) =>
+      createQuoteApproval(projectId, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/quote-approvals`] });
     },

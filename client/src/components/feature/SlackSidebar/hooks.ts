@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { sendSlackMessage } from '@/services/communications/requests';
 import type { SlackMessage, ThreadReply } from './types';
 
 export function useSlackSidebar(isMinimized: boolean) {
@@ -22,18 +23,7 @@ export function useSlackSidebar(isMinimized: boolean) {
 
   // Send message mutation
   const sendMessageMutation = useMutation({
-    mutationFn: async (content: string) => {
-      const response = await fetch('/api/slack/send-message', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content }),
-      });
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || 'Failed to send message');
-      }
-      return response.json();
-    },
+    mutationFn: (content: string) => sendSlackMessage(content),
     onSuccess: () => {
       setNewMessage('');
       // Refetch after a short delay to ensure message is in Slack

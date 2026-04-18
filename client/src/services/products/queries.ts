@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { productKeys } from "./keys";
+import * as requests from "./requests";
 
 export function useProducts<T = any[]>() {
   return useQuery<T>({
@@ -30,10 +31,6 @@ export function useProductOrders<T = any[]>(productId: string | number | undefin
   return useQuery<T>({
     queryKey: ["/api/products", productId, "orders"],
     enabled: !!productId,
-    queryFn: async () => {
-      const res = await fetch(`/api/products/${productId}/orders`, { credentials: "include" });
-      if (!res.ok) throw new Error("Failed to fetch product orders");
-      return res.json();
-    },
+    queryFn: () => requests.fetchProductOrders(productId!),
   });
 }

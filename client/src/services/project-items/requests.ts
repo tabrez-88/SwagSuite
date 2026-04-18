@@ -66,6 +66,28 @@ export async function copyArtwork(targetItemId: string | number, sourceArtworkId
   return res.json();
 }
 
+// Create project item (special handling for 403 vendor "Do Not Order" responses)
+export async function createProjectItem(projectId: string | number, data: Record<string, any>) {
+  const res = await fetch(`/api/projects/${projectId}/items`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+    credentials: "include",
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    if (res.status === 403 && err.doNotOrder) {
+      const e = new Error(err.message || "Vendor is blocked") as any;
+      e.doNotOrder = true;
+      e.supplierId = err.supplierId;
+      e.supplierName = err.supplierName;
+      throw e;
+    }
+    throw new Error(err.message || "Failed to create order item");
+  }
+  return res.json();
+}
+
 // Artwork Charges
 export async function createArtworkCharge(artworkId: string | number, data: Record<string, any>) {
   const res = await apiRequest("POST", `/api/artworks/${artworkId}/charges`, data);

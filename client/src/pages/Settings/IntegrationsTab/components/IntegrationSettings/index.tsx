@@ -6,6 +6,7 @@ import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { AlertCircle, CheckCircle, Database, Key, RefreshCw, Settings, Eye, EyeOff } from "lucide-react";
+import { startQuickbooksAuth } from "@/services/integrations/settings/requests";
 import { useIntegrationSettings } from "./hooks";
 import { SlackIntegration } from "../SlackIntegration";
 
@@ -109,11 +110,10 @@ export function IntegrationSettings() {
                       size="sm"
                       className="w-full mt-2"
                       onClick={async () => {
-                         const res = await fetch('/api/integrations/quickbooks/auth');
-                         if (res.ok) {
-                            const { url } = await res.json();
+                         try {
+                            const { url } = await startQuickbooksAuth();
                             window.location.href = url;
-                         } else {
+                         } catch {
                             toast({ title: "Failed to start auth", variant: "destructive" });
                          }
                       }}

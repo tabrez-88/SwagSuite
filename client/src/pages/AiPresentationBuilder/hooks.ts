@@ -9,6 +9,7 @@ import {
   useDeletePresentation,
   presentationKeys,
 } from "@/services/presentations";
+import { createPresentationWithFiles } from "@/services/presentations/requests";
 import type { PresentationData, PresentationStatus } from "./types";
 
 export function useAiPresentationBuilder() {
@@ -116,22 +117,8 @@ export function useAiPresentationBuilder() {
       return;
     }
 
-    const formData = new FormData();
-    formData.append('title', newPresentation.title);
-    formData.append('description', newPresentation.description);
-    formData.append('dealNotes', newPresentation.dealNotes);
-
-    uploadedFiles.forEach((file) => {
-      formData.append('files', file);
-    });
-
     try {
-      const response = await fetch('/api/presentations', {
-        method: 'POST',
-        body: formData
-      });
-
-      if (!response.ok) throw new Error('Failed to create presentation');
+      await createPresentationWithFiles(newPresentation, uploadedFiles);
 
       toast({
         title: "Presentation Created",

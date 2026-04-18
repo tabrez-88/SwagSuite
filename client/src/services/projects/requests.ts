@@ -72,3 +72,70 @@ export async function updateVendorInvoice(projectId: string | number, invoiceId:
   const res = await apiRequest("PATCH", `/api/projects/${projectId}/vendor-invoices/${invoiceId}`, data);
   return res.json();
 }
+
+/** Upload files to a project (FormData — must use raw fetch) */
+export async function uploadProjectFiles(projectId: string | number, formData: FormData) {
+  const res = await fetch(`/api/projects/${projectId}/files`, {
+    method: "POST",
+    body: formData,
+    credentials: "include",
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    let msg = text;
+    try { msg = JSON.parse(text).error || JSON.parse(text).message || text; } catch {}
+    throw new Error(msg);
+  }
+  return res.json();
+}
+
+export async function fetchProject(projectId: string | number) {
+  const res = await apiRequest("GET", `/api/projects/${projectId}`);
+  return res.json();
+}
+
+export async function createProject(data: Record<string, any>) {
+  const res = await apiRequest("POST", "/api/projects", data);
+  return res.json();
+}
+
+export async function fetchProjectFiles(projectId: string | number) {
+  const res = await apiRequest("GET", `/api/projects/${projectId}/files`);
+  return res.json();
+}
+
+export async function linkLibraryFiles(projectId: string | number, data: { mediaLibraryIds: string[]; fileType: string }) {
+  const res = await apiRequest("POST", `/api/projects/${projectId}/files/from-library`, data);
+  return res.json();
+}
+
+export async function deleteProjectFile(projectId: string | number, fileId: string | number) {
+  await apiRequest("DELETE", `/api/projects/${projectId}/files/${fileId}`);
+}
+
+export async function updateQuoteApproval(
+  projectId: string | number,
+  approvalId: string | number,
+  data: Record<string, any>,
+) {
+  const res = await apiRequest("PATCH", `/api/projects/${projectId}/quote-approvals/${approvalId}`, data);
+  return res.json();
+}
+
+/** Generic DELETE by full URL path (used by useSectionItemDelete) */
+export async function deleteByEndpoint(url: string) {
+  await apiRequest("DELETE", url);
+}
+
+export async function fetchProjectInvoice<T = any>(projectId: string | number): Promise<T | null> {
+  const res = await apiRequest("GET", `/api/projects/${projectId}/invoice`);
+  return res.json();
+}
+
+export async function fetchProjectCommunications(
+  projectId: string | number,
+  type: "client_email" | "vendor_email",
+) {
+  const res = await apiRequest("GET", `/api/projects/${projectId}/communications?type=${type}`);
+  return res.json();
+}

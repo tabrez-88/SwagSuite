@@ -38,3 +38,27 @@ export async function copyMatrix(id: string, data: Record<string, unknown>): Pro
   const res = await apiRequest("POST", `/api/matrices/${id}/copy`, data);
   return res.json();
 }
+
+export async function createSupplierMatrix(supplierId: string, data: Record<string, unknown>): Promise<any> {
+  const res = await apiRequest("POST", `/api/suppliers/${supplierId}/matrices`, data);
+  return res.json();
+}
+
+export async function createMatrixEntry(matrixId: string, entry: Record<string, unknown>): Promise<any> {
+  const res = await apiRequest("POST", `/api/matrices/${matrixId}/entries`, entry);
+  return res.json();
+}
+
+export async function deleteMatrixEntry(matrixId: string, entryId: string): Promise<void> {
+  await apiRequest("DELETE", `/api/matrices/${matrixId}/entries/${entryId}`);
+}
+
+export async function updateMatrixEntry(matrixId: string, entryId: string, updates: Record<string, unknown>): Promise<any> {
+  const res = await apiRequest("PATCH", `/api/matrices/${matrixId}/entries/${entryId}`, updates);
+  return res.json();
+}
+
+export async function applyMatrix(data: { artworkId: string; supplierId: string; quantity: number }): Promise<any> {
+  const res = await apiRequest("POST", "/api/matrices/apply", data);
+  return res.json();
+}

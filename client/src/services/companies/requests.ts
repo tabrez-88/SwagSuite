@@ -67,10 +67,7 @@ export async function deleteCompany(id: string) {
 }
 
 export async function fetchCompanyContacts(companyId: string) {
-  const res = await fetch(`/api/contacts?companyId=${companyId}`, {
-    credentials: "include",
-  });
-  if (!res.ok) throw new Error("Failed to fetch contacts");
+  const res = await apiRequest("GET", `/api/contacts?companyId=${companyId}`);
   return res.json();
 }
 
@@ -90,8 +87,7 @@ export async function fetchCompanySpending(
   if (to) params.set("to", to);
   const qs = params.toString();
   const url = `/api/companies/${companyId}/spending${qs ? `?${qs}` : ""}`;
-  const res = await fetch(url, { credentials: "include" });
-  if (!res.ok) throw new Error("Failed to fetch spending");
+  const res = await apiRequest("GET", url);
   return res.json();
 }
 

@@ -8,7 +8,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Send, Loader2 } from "lucide-react";
-import { apiRequest } from "@/lib/queryClient";
+import { createShareLink, updateProject } from "@/services/projects/requests";
+import { sendCommunication } from "@/services/communications/requests";
 import { useToast } from "@/hooks/use-toast";
 import EmailComposer from "@/components/email/EmailComposer";
 import type { EmailContact, EmailFormData } from "@/components/email/types";
@@ -58,8 +59,7 @@ export default function SendPresentationDialog({
   const sendMutation = useMutation({
     mutationFn: async (formData: EmailFormData & { adHocEmails: string[] }) => {
       // Create share link
-      const linkRes = await apiRequest("POST", `/api/projects/${projectId}/presentation/share-link`);
-      const linkData = await linkRes.json();
+      const linkData = await createShareLink(projectId);
       const shareToken = linkData.token || linkData.url?.split("/").pop();
 
       const userAttachments = formData.attachments?.length
@@ -67,7 +67,7 @@ export default function SendPresentationDialog({
         : undefined;
 
       // Send bodyHtml — server pipeline resolves merge tags + auto-appends presentation link
-      await apiRequest("POST", `/api/projects/${projectId}/communications`, {
+      await sendCommunication(projectId, {
         communicationType: "client_email",
         direction: "sent",
         recipientEmail: formData.to,
@@ -88,7 +88,7 @@ export default function SendPresentationDialog({
         additionalAttachments: userAttachments,
       });
 
-      await apiRequest("PATCH", `/api/projects/${projectId}`, {
+      await updateProject(projectId, {
         presentationStatus: "client_review",
       });
     },

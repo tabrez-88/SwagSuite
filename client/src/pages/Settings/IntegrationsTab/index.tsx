@@ -37,6 +37,7 @@ import {
   Slack,
   Trash2,
 } from "lucide-react";
+import { testShipStationConnection } from "@/services/settings/requests";
 import { useIntegrationsTab } from "./hooks";
 import { AddIntegrationModal } from "./components/AddIntegrationModal";
 
@@ -740,16 +741,10 @@ export function IntegrationsTab() {
                       return;
                     }
                     try {
-                      const res = await fetch("/api/shipstation/test-connection", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        credentials: "include",
-                        body: JSON.stringify({
-                          apiKey: hook.integrations.shipstationApiKey,
-                          apiSecret: hook.integrations.shipstationApiSecret,
-                        }),
+                      const data = await testShipStationConnection({
+                        apiKey: hook.integrations.shipstationApiKey,
+                        apiSecret: hook.integrations.shipstationApiSecret,
                       });
-                      const data = await res.json();
                       if (data.success) {
                         hook.toast({
                           title: "Connection Successful",

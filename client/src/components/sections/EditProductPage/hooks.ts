@@ -35,6 +35,7 @@ import {
   useUpdateProjectItem,
 } from "@/services/project-items";
 import * as orderItemRequests from "@/services/project-items/requests";
+import { updateProduct } from "@/services/products/requests";
 import { projectKeys } from "@/services/projects/keys";
 import type { ProjectData } from "@/types/project-types";
 import type { OrderAdditionalCharge, OrderItemLine } from "@shared/schema";
@@ -175,12 +176,7 @@ export function useEditProductPage(projectId: string, itemId: string, data: Proj
   const savePricingTiers = useCallback((tiers: { quantity: number; cost: number }[]) => {
     if (!item?.productId) return;
     // Fire-and-forget PATCH to persist tiers
-    fetch(`/api/products/${item.productId}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify({ pricingTiers: tiers }),
-    }).then(() => {
+    updateProduct(item.productId, { pricingTiers: tiers }).then(() => {
       queryClient.invalidateQueries({ queryKey: ["/api/products"] });
     }).catch(() => { /* best-effort */ });
   }, [item?.productId, queryClient]);
@@ -655,12 +651,7 @@ export function useEditProductPage(projectId: string, itemId: string, data: Proj
     }
     if (Object.keys(updates).length === 0) return;
 
-    fetch(`/api/products/${item.productId}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify(updates),
-    }).then(() => {
+    updateProduct(item.productId, updates).then(() => {
       queryClient.invalidateQueries({ queryKey: ["/api/products"] });
     }).catch(() => { /* best-effort */ });
   }, [item, allProducts, queryClient]);

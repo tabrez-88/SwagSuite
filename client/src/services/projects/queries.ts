@@ -8,6 +8,7 @@ import type {
 import { projectKeys } from "./keys";
 import type { Project } from "./types";
 import type { ProjectActivity, Communication } from "@/types/project-types";
+import * as requests from "./requests";
 
 // ---- Project-level ----
 
@@ -46,12 +47,14 @@ export function useProjectItemsWithDetails(
 // ---- Section-specific resources ----
 
 export function useProjectInvoice<T = any>(projectId: string | number, enabled = true) {
-  return useQuery<T>({
+  return useQuery<T | null>({
     queryKey: projectKeys.invoice(projectId),
     queryFn: async () => {
-      const res = await fetch(`/api/projects/${projectId}/invoice`, { credentials: "include" });
-      if (!res.ok) return null as T;
-      return res.json();
+      try {
+        return await requests.fetchProjectInvoice<T>(projectId);
+      } catch {
+        return null;
+      }
     },
     enabled: !!projectId && enabled,
     retry: false,
@@ -72,11 +75,7 @@ export function useProjectCommunications(
 ) {
   return useQuery<Communication[]>({
     queryKey: projectKeys.communications(projectId, type),
-    queryFn: async () => {
-      const res = await fetch(`/api/projects/${projectId}/communications?type=${type}`);
-      if (!res.ok) throw new Error(`Failed to fetch ${type} communications`);
-      return res.json();
-    },
+    queryFn: () => requests.fetchProjectCommunications(projectId, type),
     enabled: !!projectId && enabled,
   });
 }

@@ -9,3 +9,8 @@ export async function sendGenericEmail(data: Record<string, any>) {
   const res = await apiRequest("POST", "/api/send-email", data);
   return res.json();
 }
+
+export async function sendSlackMessage(content: string) {
+  const res = await apiRequest("POST", "/api/slack/send-message", { content });
+  return res.json();
+}

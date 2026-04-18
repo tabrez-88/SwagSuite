@@ -46,3 +46,8 @@ export async function reorderActionTypes(typeIds: string[]): Promise<NextActionT
 export async function resetActionTypes(): Promise<NextActionType[]> {
   return json(await apiRequest("POST", "/api/production/next-action-types/reset"));
 }
+
+export async function fetchPoReport(queryParams: string) {
+  const res = await apiRequest("GET", `/api/production/po-report?${queryParams}`);
+  return res.json();
+}

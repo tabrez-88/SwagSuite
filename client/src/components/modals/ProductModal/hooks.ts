@@ -13,6 +13,7 @@ import {
 import { useCreateVendor } from "@/services/suppliers";
 import { supplierKeys } from "@/services/suppliers/keys";
 import * as supplierRequests from "@/services/suppliers/requests";
+import { uploadToCloudinary } from "@/services/media-library/requests";
 import type {
   ProductModalProps,
   ProductFormData,
@@ -128,18 +129,7 @@ export function useProductModal({ open, onOpenChange, product }: ProductModalPro
   const handleImageUpload = async (file: File): Promise<string> => {
     setIsUploadingImage(true);
     try {
-      const fd = new FormData();
-      fd.append('file', file);
-      const response = await fetch('/api/cloudinary/upload', {
-        method: 'POST',
-        credentials: 'include',
-        body: fd,
-      });
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ message: 'Unknown error' }));
-        throw new Error(errorData.message || 'Failed to upload image');
-      }
-      const data = await response.json();
+      const data = await uploadToCloudinary(file);
       return data.url;
     } catch (error) {
       setIsUploadingImage(false);

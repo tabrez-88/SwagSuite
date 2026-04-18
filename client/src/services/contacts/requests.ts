@@ -98,9 +98,17 @@ export async function deleteContact(id: string) {
  * Fetch contacts for a specific company.
  */
 export async function fetchContactsByCompany(companyId: string) {
-  const res = await fetch(`/api/contacts?companyId=${companyId}`, {
-    credentials: "include",
-  });
-  if (!res.ok) throw new Error("Failed to fetch contacts");
+  const res = await apiRequest("GET", `/api/contacts?companyId=${companyId}`);
+  return res.json();
+}
+
+export async function fetchContactsBySupplier(supplierId: string) {
+  const res = await apiRequest("GET", `/api/contacts?supplierId=${supplierId}`);
+  return res.json();
+}
+
+/** Simple contact creation (no schema transformation — raw payload) */
+export async function createSimpleContact(data: Record<string, any>) {
+  const res = await apiRequest("POST", "/api/contacts", data);
   return res.json();
 }

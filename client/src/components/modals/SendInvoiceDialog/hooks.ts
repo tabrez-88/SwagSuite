@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
+import { sendCommunication } from "@/services/communications/requests";
+import { updateInvoice } from "@/services/invoices/requests";
 import { useToast } from "@/hooks/use-toast";
 import type { EmailFormData } from "@/components/email/types";
 
@@ -30,7 +31,7 @@ export function useSendInvoice({
         ? formData.attachments.map((att) => ({ fileUrl: att.cloudinaryUrl, fileName: att.fileName }))
         : undefined;
 
-      await apiRequest("POST", `/api/projects/${projectId}/communications`, {
+      await sendCommunication(projectId, {
         communicationType: "client_email",
         direction: "sent",
         fromEmail: formData.from || undefined,
@@ -54,7 +55,7 @@ export function useSendInvoice({
         additionalAttachments: userAttachments,
       });
 
-      await apiRequest("PATCH", `/api/projects/${projectId}/invoice`, {
+      await updateInvoice(projectId, {
         status: "sent",
         sentAt: new Date().toISOString(),
         ...(reminderEnabled ? {

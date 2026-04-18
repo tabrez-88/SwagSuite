@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
+import { updateQuoteApproval, updateProject } from "@/services/projects/requests";
+import { sendCommunication } from "@/services/communications/requests";
 import { useToast } from "@/hooks/use-toast";
 import type { EmailFormData } from "@/components/email/types";
 
@@ -32,7 +33,7 @@ export function useSendSO({
 
       if (existingApproval) {
         approvalToken = existingApproval.approvalToken;
-        await apiRequest("PATCH", `/api/projects/${projectId}/quote-approvals/${existingApproval.id}`, {
+        await updateQuoteApproval(projectId, existingApproval.id, {
           documentId: soDocument.id,
           pdfPath: soDocument.fileUrl,
           quoteTotal: soTotal,
@@ -53,7 +54,7 @@ export function useSendSO({
         : undefined;
 
       // Send bodyHtml (with merge-tag pills) — server pipeline resolves tags + auto-appends approval link
-      await apiRequest("POST", `/api/projects/${projectId}/communications`, {
+      await sendCommunication(projectId, {
         communicationType: "client_email",
         direction: "sent",
         fromEmail: formData.from || undefined,
@@ -79,7 +80,7 @@ export function useSendSO({
         additionalAttachments: userAttachments,
       });
 
-      await apiRequest("PATCH", `/api/projects/${projectId}`, {
+      await updateProject(projectId, {
         salesOrderStatus: "pending_client_approval",
       });
     },

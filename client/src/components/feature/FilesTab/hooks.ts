@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
+import { uploadProjectFiles, linkLibraryFiles, deleteProjectFile } from "@/services/projects/requests";
 import type { OrderFile } from "./types";
 import { FILE_TYPE_OPTIONS } from "./types";
 
@@ -64,17 +65,7 @@ export function useFilesTab(projectId: string) {
                 formData.append("notes", data.notes);
             }
 
-            const res = await fetch(`/api/projects/${projectId}/files`, {
-                method: "POST",
-                body: formData,
-                credentials: "include",
-            });
-
-            if (!res.ok) {
-                throw new Error(await res.text());
-            }
-
-            return res.json();
+            return uploadProjectFiles(projectId, formData);
         },
         onSuccess: (data) => {
             queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/files`] });
@@ -111,19 +102,10 @@ export function useFilesTab(projectId: string) {
 
     // Link from media library mutation
     const linkFromLibraryMutation = useMutation({
-        mutationFn: async (mediaLibraryIds: string[]) => {
-            const res = await fetch(`/api/projects/${projectId}/files/from-library`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    mediaLibraryIds,
-                    fileType: selectedFileType,
-                }),
-                credentials: "include",
-            });
-            if (!res.ok) throw new Error(await res.text());
-            return res.json();
-        },
+        mutationFn: (mediaLibraryIds: string[]) => linkLibraryFiles(projectId, {
+            mediaLibraryIds,
+            fileType: selectedFileType,
+        }),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/files`] });
             toast({
@@ -142,16 +124,7 @@ export function useFilesTab(projectId: string) {
 
     // Delete mutation
     const deleteMutation = useMutation({
-        mutationFn: async (fileId: string) => {
-            const res = await fetch(`/api/projects/${projectId}/files/${fileId}`, {
-                method: "DELETE",
-                credentials: "include",
-            });
-
-            if (!res.ok) {
-                throw new Error(await res.text());
-            }
-        },
+        mutationFn: (fileId: string) => deleteProjectFile(projectId, fileId),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/files`] });
             toast({

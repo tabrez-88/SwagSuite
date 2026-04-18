@@ -12,7 +12,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { apiRequest } from "@/lib/queryClient";
+import { fetchProject, updateProject } from "@/services/projects/requests";
 import { useToast } from "@/hooks/use-toast";
 import type { SectionLockStatus } from "@/hooks/useLockStatus";
 
@@ -38,10 +38,7 @@ export default function LockBanner({
   const unlockMutation = useMutation({
     mutationFn: async () => {
       // Fetch current order to get existing stageData
-      const res = await fetch(`/api/projects/${projectId}`, {
-        credentials: "include",
-      });
-      const order = await res.json();
+      const order = await fetchProject(projectId);
       const currentStageData = order.stageData || {};
 
       const updatedStageData = {
@@ -54,9 +51,7 @@ export default function LockBanner({
         },
       };
 
-      await apiRequest("PATCH", `/api/projects/${projectId}`, {
-        stageData: updatedStageData,
-      });
+      await updateProject(projectId, { stageData: updatedStageData });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({

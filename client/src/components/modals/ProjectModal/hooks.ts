@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "@/lib/wouter-compat";
 import { useToast } from "@/hooks/use-toast";
-import { apiRequest } from "@/lib/queryClient";
+import { updateProject, createProject } from "@/services/projects/requests";
 import { isUnauthorizedError } from "@/lib/authUtils";
 import type { Company } from "@shared/schema";
 import { useCompanyAddresses } from "@/services/company-addresses";
@@ -269,8 +269,7 @@ export function useProjectModal({ open, onOpenChange, order, initialCompanyId, b
       if (payload.supplierInHandsDate) payload.supplierInHandsDate = new Date(payload.supplierInHandsDate);
       else if (payload.supplierInHandsDate === "") payload.supplierInHandsDate = null;
       payload.isFirm = payload.isFirm || false;
-      const response = await apiRequest("PATCH", `/api/projects/${order?.id}`, payload);
-      return response.json();
+      await updateProject(order?.id!, payload);
     },
     onSuccess: () => {
       toast({ title: "Project updated" });
@@ -284,10 +283,7 @@ export function useProjectModal({ open, onOpenChange, order, initialCompanyId, b
   });
 
   const createProjectMutation = useMutation({
-    mutationFn: async (data: any) => {
-      const response = await apiRequest("POST", "/api/projects", data);
-      return response.json();
-    },
+    mutationFn: (data: any) => createProject(data),
     onSuccess: (newProject) => {
       toast({ title: "Project created" });
       queryClient.invalidateQueries({ queryKey: ["/api/projects"] });

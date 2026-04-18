@@ -14,6 +14,7 @@ import {
   DollarSign,
 } from "lucide-react";
 import { format } from "date-fns";
+import { downloadFile } from "@/services/media-library/requests";
 import { useQuoteApproval } from "./hooks";
 
 export default function QuoteApprovalPage() {
@@ -202,22 +203,11 @@ export default function QuoteApprovalPage() {
                   onClick={async () => {
                     const fileName = `${docLabel.replace(' ', '-')}-${approval.orderNumber || 'document'}.pdf`;
                     try {
-                      // Fetch through proxy to get proper PDF binary
                       const url = approval.pdfPath!.includes('cloudinary.com')
                         ? `/api/pdf-proxy?url=${encodeURIComponent(approval.pdfPath!)}`
                         : approval.pdfPath!;
-                      const response = await fetch(url);
-                      const blob = await response.blob();
-                      const blobUrl = URL.createObjectURL(blob);
-                      const a = document.createElement('a');
-                      a.href = blobUrl;
-                      a.download = fileName;
-                      document.body.appendChild(a);
-                      a.click();
-                      document.body.removeChild(a);
-                      URL.revokeObjectURL(blobUrl);
+                      await downloadFile(url, fileName);
                     } catch {
-                      // Fallback: open in new tab
                       window.open(approval.pdfPath!, '_blank');
                     }
                   }}

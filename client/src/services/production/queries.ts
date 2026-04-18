@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { DEFAULT_STAGES } from "@/constants/productionStages";
 import { productionKeys } from "./keys";
 import type { ProductionStage, NextActionType } from "./types";
+import * as requests from "./requests";
 
 const STALE = 5 * 60 * 1000; // 5 minutes
 
@@ -41,13 +42,7 @@ export function getActionTypeBadgeClass(types: NextActionType[], typeId: string)
 export function usePoReport<T = any>(queryParams: string) {
   return useQuery<T>({
     queryKey: productionKeys.poReport(queryParams),
-    queryFn: async () => {
-      const res = await fetch(`/api/production/po-report?${queryParams}`, {
-        credentials: "include",
-      });
-      if (!res.ok) throw new Error("Failed to fetch PO report");
-      return res.json();
-    },
+    queryFn: () => requests.fetchPoReport(queryParams),
   });
 }
 

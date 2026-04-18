@@ -8,7 +8,7 @@
 
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
+import { updateProject, deleteByEndpoint } from "@/services/projects/requests";
 import { useToast } from "./use-toast";
 import { projectKeys } from "@/services/projects/keys";
 import type { SectionContext } from "@/lib/projectDetailUtils";
@@ -30,8 +30,7 @@ export function useSectionFieldUpdate({ projectId, section, isLocked = false }: 
   return useMutation({
     mutationFn: async (updates: Record<string, any>) => {
       if (isLocked) throw new Error("Section is locked");
-      const res = await apiRequest("PATCH", `/api/projects/${projectId}`, updates);
-      return res.json();
+      await updateProject(projectId, updates);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: projectKeys.detail(projectId) });
@@ -60,7 +59,7 @@ export function useSectionItemDelete({ projectId, section, endpoint, itemName = 
 
   return useMutation({
     mutationFn: (itemId: string | number) =>
-      apiRequest("DELETE", endpoint.replace(":id", String(itemId))),
+      deleteByEndpoint(endpoint.replace(":id", String(itemId))),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: projectKeys.detail(projectId) });
       queryClient.invalidateQueries({ queryKey: projectKeys.itemsWithDetails(projectId) });

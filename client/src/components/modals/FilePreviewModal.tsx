@@ -8,6 +8,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Download, Loader2 } from "lucide-react";
 import { getRenderableImageUrl } from "@/lib/media-library";
+import { fetchFileBlob, downloadFile } from "@/services/media-library/requests";
 
 interface FilePreviewModalProps {
   open: boolean;
@@ -81,8 +82,7 @@ function PdfViewer({ url, title }: { url: string; title: string }) {
 
   useEffect(() => {
     let revoke: string | null = null;
-    fetch(url)
-      .then((res) => res.blob())
+    fetchFileBlob(url)
       .then((blob) => {
         const u = URL.createObjectURL(new Blob([blob], { type: "application/pdf" }));
         revoke = u;
@@ -123,16 +123,7 @@ export function FilePreviewModal({ open, onClose, file }: FilePreviewModalProps)
       ? file.filePath
       : `/api/files/download/${file.fileName}`;
     try {
-      const response = await fetch(url);
-      const blob = await response.blob();
-      const blobUrl = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = blobUrl;
-      a.download = file.originalName || file.fileName || "download";
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(blobUrl);
+      await downloadFile(url, file.originalName || file.fileName || "download");
     } catch {
       window.open(url, "_blank");
     }

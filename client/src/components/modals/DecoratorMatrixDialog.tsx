@@ -12,7 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useImprintOptions } from "@/services/imprint-options";
 import { useToast } from "@/hooks/use-toast";
-import { apiRequest } from "@/lib/queryClient";
+import { createSupplierMatrix, deleteMatrix, createMatrixEntry, deleteMatrixEntry, updateMatrixEntry, applyMatrix } from "@/services/decorator-matrix/requests";
 import { useLocation } from "@/lib/wouter-compat";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Grid3X3, Loader2, Plus, Settings, Trash2 } from "lucide-react";
@@ -62,10 +62,7 @@ export default function DecoratorMatrixDialog({ open, supplierId, supplierName, 
 
   // Mutations
   const createMatrixMutation = useMutation({
-    mutationFn: async (data: any) => {
-      const res = await apiRequest("POST", `/api/suppliers/${supplierId}/matrices`, data);
-      return res.json();
-    },
+    mutationFn: (data: any) => createSupplierMatrix(supplierId, data),
     onSuccess: (newMatrix) => {
       queryClient.invalidateQueries({ queryKey: [`/api/suppliers/${supplierId}/matrices`] });
       setSelectedMatrixId(newMatrix.id);
@@ -78,9 +75,7 @@ export default function DecoratorMatrixDialog({ open, supplierId, supplierName, 
   });
 
   const deleteMatrixMutation = useMutation({
-    mutationFn: async (matrixId: string) => {
-      await apiRequest("DELETE", `/api/matrices/${matrixId}`);
-    },
+    mutationFn: (matrixId: string) => deleteMatrix(matrixId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/suppliers/${supplierId}/matrices`] });
       setSelectedMatrixId(null);
@@ -89,10 +84,7 @@ export default function DecoratorMatrixDialog({ open, supplierId, supplierName, 
   });
 
   const addEntryMutation = useMutation({
-    mutationFn: async ({ matrixId, entry }: { matrixId: string; entry: any }) => {
-      const res = await apiRequest("POST", `/api/matrices/${matrixId}/entries`, entry);
-      return res.json();
-    },
+    mutationFn: ({ matrixId, entry }: { matrixId: string; entry: any }) => createMatrixEntry(matrixId, entry),
     onSuccess: () => {
       if (selectedMatrixId) queryClient.invalidateQueries({ queryKey: [`/api/matrices/${selectedMatrixId}`] });
       toast({ title: "Entry added" });
@@ -100,29 +92,21 @@ export default function DecoratorMatrixDialog({ open, supplierId, supplierName, 
   });
 
   const deleteEntryMutation = useMutation({
-    mutationFn: async ({ matrixId, entryId }: { matrixId: string; entryId: string }) => {
-      await apiRequest("DELETE", `/api/matrices/${matrixId}/entries/${entryId}`);
-    },
+    mutationFn: ({ matrixId, entryId }: { matrixId: string; entryId: string }) => deleteMatrixEntry(matrixId, entryId),
     onSuccess: () => {
       if (selectedMatrixId) queryClient.invalidateQueries({ queryKey: [`/api/matrices/${selectedMatrixId}`] });
     },
   });
 
   const updateEntryMutation = useMutation({
-    mutationFn: async ({ matrixId, entryId, updates }: { matrixId: string; entryId: string; updates: any }) => {
-      const res = await apiRequest("PATCH", `/api/matrices/${matrixId}/entries/${entryId}`, updates);
-      return res.json();
-    },
+    mutationFn: ({ matrixId, entryId, updates }: { matrixId: string; entryId: string; updates: any }) => updateMatrixEntry(matrixId, entryId, updates),
     onSuccess: () => {
       if (selectedMatrixId) queryClient.invalidateQueries({ queryKey: [`/api/matrices/${selectedMatrixId}`] });
     },
   });
 
   const applyToArtworkMutation = useMutation({
-    mutationFn: async ({ artworkId, supplierId, quantity }: { artworkId: string; supplierId: string; quantity: number }) => {
-      const res = await apiRequest("POST", "/api/matrices/apply", { artworkId, supplierId, quantity });
-      return res.json();
-    },
+    mutationFn: ({ artworkId, supplierId, quantity }: { artworkId: string; supplierId: string; quantity: number }) => applyMatrix({ artworkId, supplierId, quantity }),
     onSuccess: (data) => {
       if (projectId) {
         queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/items-with-details`] });

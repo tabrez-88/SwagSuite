@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { saveUserEmailSettings, testSmtpConnection, testImapConnection } from "@/services/settings/requests";
 import type { MailFormData } from "./types";
 
 const DEFAULT_FORM_DATA: MailFormData = {
@@ -51,16 +52,7 @@ export function useMailCredentials(open: boolean) {
   }, [settings]);
 
   const saveMutation = useMutation({
-    mutationFn: async (data: MailFormData) => {
-      const response = await fetch("/api/user-email-settings", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-        credentials: "include",
-      });
-      if (!response.ok) throw new Error("Failed to save");
-      return response.json();
-    },
+    mutationFn: (data: MailFormData) => saveUserEmailSettings(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/user-email-settings"] });
       toast({ title: "Saved", description: "Mail credentials saved successfully." });
@@ -77,18 +69,12 @@ export function useMailCredentials(open: boolean) {
     }
     setTestingSmtp(true);
     try {
-      const response = await fetch("/api/user-email-settings/test-smtp", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          smtpHost: formData.smtpHost,
-          smtpPort: formData.smtpPort,
-          smtpUser: formData.smtpUser,
-          smtpPassword: formData.smtpPassword,
-        }),
-        credentials: "include",
+      const result = await testSmtpConnection({
+        smtpHost: formData.smtpHost,
+        smtpPort: formData.smtpPort,
+        smtpUser: formData.smtpUser,
+        smtpPassword: formData.smtpPassword,
       });
-      const result = await response.json();
       toast({
         title: result.success ? "SMTP Connected" : "SMTP Failed",
         description: result.message,
@@ -108,18 +94,12 @@ export function useMailCredentials(open: boolean) {
     }
     setTestingImap(true);
     try {
-      const response = await fetch("/api/user-email-settings/test-imap", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          imapHost: formData.imapHost,
-          imapPort: formData.imapPort,
-          imapUser: formData.imapUser,
-          imapPassword: formData.imapPassword,
-        }),
-        credentials: "include",
+      const result = await testImapConnection({
+        imapHost: formData.imapHost,
+        imapPort: formData.imapPort,
+        imapUser: formData.imapUser,
+        imapPassword: formData.imapPassword,
       });
-      const result = await response.json();
       toast({
         title: result.success ? "IMAP OK" : "IMAP Failed",
         description: result.message,
