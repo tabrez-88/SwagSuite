@@ -72,17 +72,28 @@ export interface SanMarInventory {
  */
 export class SanMarService {
   private credentials: SanMarCredentials;
+  private static readonly MAX_RETRIES = 2;
+  private static readonly RETRY_DELAY_MS = 1000;
+  private static readonly TIMEOUT_MS = 30000;
 
   constructor(credentials: SanMarCredentials) {
     this.credentials = credentials;
   }
 
+  private isRetryableError(error: any): boolean {
+    const code = error.code || error.cause?.code;
+    return code === 'ECONNRESET' || code === 'ECONNABORTED' || code === 'ETIMEDOUT'
+      || code === 'UND_ERR_CONNECT_TIMEOUT' || error.message === 'fetch failed'
+      || error.message?.includes('stream has been aborted')
+      || error.message?.includes('socket hang up');
+  }
+
   /**
-   * Make raw SOAP request to SanMar API
+   * Make raw SOAP request to SanMar API with retry on transient errors
    */
   private async makeSoapRequest(action: string, body: string): Promise<any> {
     const soapEnvelope = `<?xml version="1.0" encoding="UTF-8"?>
-<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" 
+<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/"
                   xmlns:impl="http://impl.webservice.integration.sanmar.com/">
   <soapenv:Header/>
   <soapenv:Body>
@@ -90,20 +101,35 @@ ${body}
   </soapenv:Body>
 </soapenv:Envelope>`;
 
-    try {
-      const response = await axios.post(SANMAR_PRODUCT_INFO_ENDPOINT, soapEnvelope, {
-        headers: {
-          'Content-Type': 'text/xml',
-          'SOAPAction': action,
-        },
-        timeout: 60000,
-      });
+    let lastError: any = null;
 
-      return response.data;
-    } catch (error: any) {
-      console.error('SOAP request error:', error.response?.data || error.message);
-      throw error;
+    for (let attempt = 1; attempt <= SanMarService.MAX_RETRIES; attempt++) {
+      try {
+        const response = await axios.post(SANMAR_PRODUCT_INFO_ENDPOINT, soapEnvelope, {
+          headers: {
+            'Content-Type': 'text/xml',
+            'SOAPAction': action,
+          },
+          timeout: SanMarService.TIMEOUT_MS,
+        });
+
+        return response.data;
+      } catch (error: any) {
+        lastError = error;
+
+        if (this.isRetryableError(error)) {
+          console.warn(`SanMar SOAP ${action} attempt ${attempt}/${SanMarService.MAX_RETRIES} failed: ${error.code || error.message}`);
+          if (attempt < SanMarService.MAX_RETRIES) {
+            await new Promise(r => setTimeout(r, SanMarService.RETRY_DELAY_MS * attempt));
+            continue;
+          }
+        }
+
+        console.error('SOAP request error:', error.response?.data || error.message);
+        throw error;
+      }
     }
+    throw lastError;
   }
 
   /** Escape special XML characters to prevent SOAP parsing errors */
@@ -294,42 +320,48 @@ ${body}
     // Try exact brand name match (skip if query is purely numeric)
     if (!isNumericOnly) {
       console.log(`SanMar: searching by brand name "${trimmed}"...`);
+      let brandApiError = false;
       try {
         const brandResults = await this.searchByBrand(trimmed, 50);
         if (brandResults.length > 0) {
           return brandResults;
         }
-      } catch {
-        console.log(`SanMar: brand search for "${trimmed}" failed`);
+      } catch (err: any) {
+        // Distinguish API errors ("Invalid brand") from network errors
+        const msg = err.message || '';
+        brandApiError = msg.includes('Invalid brand') || msg.includes('SanMar API:');
+        console.log(`SanMar: brand search for "${trimmed}" failed${brandApiError ? ' (not a valid SanMar brand)' : ' (network error)'}`);
       }
 
-      // For keyword queries, try matching against known brands
-      // Only for text queries — not numeric style numbers
-      console.log(`SanMar: trying keyword search by scanning popular brands for "${trimmed}"...`);
-      const lowerQuery = trimmed.toLowerCase();
-      const results: SanMarProduct[] = [];
+      // Only do keyword fallback if the query isn't a known-invalid brand
+      // and matches a known SanMar brand or is a generic keyword
+      if (!brandApiError) {
+        const lowerQuery = trimmed.toLowerCase();
+        const matchingBrands = SanMarService.SANMAR_BRANDS.filter(b =>
+          b.toLowerCase().includes(lowerQuery) || lowerQuery.includes(b.toLowerCase())
+        );
 
-      const brandsToTry = ['Port & Company', 'Port Authority', 'Sport-Tek', 'District'];
-      const brandSearchResults = await Promise.allSettled(
-        brandsToTry.map(brand =>
-          this.searchByBrand(brand, 20).catch(() => [] as SanMarProduct[])
-        )
-      );
+        if (matchingBrands.length > 0) {
+          console.log(`SanMar: trying matched brands: ${matchingBrands.join(', ')}...`);
+          const results: SanMarProduct[] = [];
+          const brandSearchResults = await Promise.allSettled(
+            matchingBrands.slice(0, 4).map(brand =>
+              this.searchByBrand(brand, 20).catch(() => [] as SanMarProduct[])
+            )
+          );
 
-      for (const result of brandSearchResults) {
-        if (results.length >= 30) break;
-        if (result.status === 'fulfilled' && Array.isArray(result.value)) {
-          const matched = result.value.filter(p => {
-            const text = `${p.productTitle} ${p.productDescription} ${p.categoryName} ${p.keywords || ''}`.toLowerCase();
-            return text.includes(lowerQuery);
-          });
-          results.push(...matched);
+          for (const result of brandSearchResults) {
+            if (results.length >= 30) break;
+            if (result.status === 'fulfilled' && Array.isArray(result.value)) {
+              results.push(...result.value);
+            }
+          }
+
+          if (results.length > 0) {
+            console.log(`SanMar: found ${results.length} products from matched brands`);
+            return results.slice(0, 50);
+          }
         }
-      }
-
-      if (results.length > 0) {
-        console.log(`SanMar: keyword search found ${results.length} products matching "${trimmed}"`);
-        return results.slice(0, 50);
       }
     }
 
