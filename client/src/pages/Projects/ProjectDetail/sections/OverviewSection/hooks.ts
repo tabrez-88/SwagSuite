@@ -51,12 +51,12 @@ export function useOverviewSection({ projectId, data, isLocked = false }: Overvi
    * Based on highest PO stage reached
    */
   const { completedStageCount, currentStageId, poDocuments, reachedStages } = computeProductionProgress(
-    data as any,
+    data,
     productionStages
   );
 
   /** Total quantity across all items */
-  const totalQuantity = orderItems.reduce((sum: number, item: any) => sum + (item.quantity || 0), 0);
+  const totalQuantity = orderItems.reduce((sum: number, item) => sum + (item.quantity || 0), 0);
 
   // ── 6. RETURN ORGANIZED ──
   return {
@@ -100,10 +100,11 @@ export function useOverviewSection({ projectId, data, isLocked = false }: Overvi
  * Helper: Compute production pipeline progress
  * Determines which production stages have been completed based on PO stages
  */
-function computeProductionProgress(data: any, productionStages: any[]) {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- data shape includes dynamic `documents` not on ProjectData type
+function computeProductionProgress(data: any, productionStages: Array<{ id: string; name: string }>) {
   const poDocuments = (data?.documents || []).filter((d: any) => d.documentType === "purchase_order");
   const stageOrder = productionStages
-    ? new Map(productionStages.map((s: any, i: number) => [s.id, i]))
+    ? new Map(productionStages.map((s, i: number) => [s.id, i]))
     : new Map();
 
   const reachedStages = new Set<string>();
@@ -121,7 +122,7 @@ function computeProductionProgress(data: any, productionStages: any[]) {
     poDocuments,
     reachedStages,
     completedStageCount: reachedStages.size,
-    currentStageId: productionStages?.find((s: any) => !reachedStages.has(s.id))?.id || "",
+    currentStageId: productionStages?.find((s) => !reachedStages.has(s.id))?.id || "",
   };
 }
 

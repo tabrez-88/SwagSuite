@@ -1,7 +1,9 @@
 import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { saveUserEmailSettings, testSmtpConnection, testImapConnection } from "@/services/settings/requests";
+import { useQuery } from "@tanstack/react-query";
+import { testSmtpConnection, testImapConnection } from "@/services/settings/requests";
+import { settingsKeys } from "@/services/settings/keys";
+import { useSaveEmailCredentials } from "@/services/settings/mutations";
 import type { MailFormData } from "./types";
 
 const DEFAULT_FORM_DATA: MailFormData = {
@@ -20,14 +22,13 @@ const DEFAULT_FORM_DATA: MailFormData = {
 
 export function useMailCredentials(open: boolean) {
   const { toast } = useToast();
-  const queryClient = useQueryClient();
   const [showSmtpPassword, setShowSmtpPassword] = useState(false);
   const [showImapPassword, setShowImapPassword] = useState(false);
   const [testingSmtp, setTestingSmtp] = useState(false);
   const [testingImap, setTestingImap] = useState(false);
 
   const { data: settings, isLoading } = useQuery<any>({
-    queryKey: ["/api/user-email-settings"],
+    queryKey: settingsKeys.emailCredentials,
     enabled: open,
   });
 
@@ -51,16 +52,7 @@ export function useMailCredentials(open: boolean) {
     }
   }, [settings]);
 
-  const saveMutation = useMutation({
-    mutationFn: (data: MailFormData) => saveUserEmailSettings(data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/user-email-settings"] });
-      toast({ title: "Saved", description: "Mail credentials saved successfully." });
-    },
-    onError: () => {
-      toast({ variant: "destructive", title: "Error", description: "Failed to save mail credentials." });
-    },
-  });
+  const saveMutation = useSaveEmailCredentials();
 
   const testSmtp = async () => {
     if (!formData.smtpHost || !formData.smtpPort || !formData.smtpUser || !formData.smtpPassword) {

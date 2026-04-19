@@ -7,7 +7,7 @@ import { useSupplierAddresses } from "@/services/supplier-addresses";
 import { useToast } from "@/hooks/use-toast";
 import { hasTimelineConflict } from "@/lib/dateUtils";
 import type { OrderShipment } from "@shared/schema";
-import type { ProjectData } from "@/types/project-types";
+import type { ProjectData, EnrichedOrderItem } from "@/types/project-types";
 import { EMPTY_FORM, EMPTY_BULK, EMPTY_ITEM_SHIPPING } from "./types";
 import type { ShipmentFormData, BulkEditData, ItemShippingFormData, ShippingAddressData } from "./types";
 
@@ -37,38 +37,38 @@ export function useShippingSection(projectId: string, data: ProjectData) {
   // Parse order shipping address for auto-fill
   const parsedAddress = useMemo(() => {
     try {
-      if ((order as any)?.shippingAddress) {
-        return JSON.parse((order as any).shippingAddress as string);
+      if (order?.shippingAddress) {
+        return JSON.parse(order.shippingAddress as string);
       }
     } catch {
-      return { street: (order as any)?.shippingAddress || "" };
+      return { street: order?.shippingAddress || "" };
     }
     return null;
   }, [order]);
 
   // Build supplier list from vendors
   const suppliers = useMemo(() => {
-    return orderVendors.map((v: any) => ({ id: v.id, name: v.companyName || v.name || "Unknown Supplier" }));
+    return orderVendors.map((v) => ({ id: v.id, name: v.name || "Unknown Supplier" }));
   }, [orderVendors]);
 
   // Filter items by supplier
   const filteredItems = useMemo(() => {
     if (supplierFilter === "all") return orderItems;
-    return orderItems.filter((item: any) => item.supplierId === supplierFilter);
+    return orderItems.filter((item: EnrichedOrderItem) => item.supplierId === supplierFilter);
   }, [orderItems, supplierFilter]);
 
   // Shipping config progress — configured = has destination + address
   const shippingProgress = useMemo(() => {
     const total = orderItems.length;
-    const configured = orderItems.filter((item: any) => {
+    const configured = orderItems.filter((item: EnrichedOrderItem) => {
       return item.shippingDestination && item.shipToAddress;
     }).length;
     return { total, configured };
   }, [orderItems]);
 
   // ── Address fetching for edit dialog ──
-  const companyId = (order as any)?.companyId;
-  const editingItem = editingItemId ? orderItems.find((i: any) => i.id === editingItemId) : null;
+  const companyId = order?.companyId;
+  const editingItem = editingItemId ? orderItems.find((i: EnrichedOrderItem) => i.id === editingItemId) : null;
 
   // Fetch client company addresses (for "client" destination)
   const { data: companyAddresses = [] } = useCompanyAddresses(
@@ -93,7 +93,7 @@ export function useShippingSection(projectId: string, data: ProjectData) {
   const updateItemShippingMutation = useUpdateItemShipping(projectId);
 
   // ── Edit Dialog handlers ──
-  const openEditDialog = (item: any) => {
+  const openEditDialog = (item: EnrichedOrderItem) => {
     setEditingItemId(item.id);
     const addr = item.shipToAddress as ShippingAddressData | null;
     const leg2Addr = item.leg2Address as ShippingAddressData | null;
@@ -106,8 +106,8 @@ export function useShippingSection(projectId: string, data: ProjectData) {
       shipToAddress: addr || null,
       shipInHandsDate: item.shipInHandsDate
         ? new Date(item.shipInHandsDate).toISOString().slice(0, 10)
-        : (order as any)?.inHandsDate
-          ? new Date((order as any).inHandsDate).toISOString().slice(0, 10)
+        : order?.inHandsDate
+          ? new Date(order.inHandsDate).toISOString().slice(0, 10)
           : "",
       shipFirm: item.shipFirm || false,
       shippingQuote: item.shippingQuote || "",
@@ -130,7 +130,7 @@ export function useShippingSection(projectId: string, data: ProjectData) {
   const handleEditSave = () => {
     if (!editingItemId) return;
     const f = editShippingForm;
-    const fields: Record<string, any> = {
+    const fields: Record<string, unknown> = {
       shippingDestination: f.shippingDestination || null,
       shippingAccountType: f.shippingAccountType || null,
       shippingMethodOverride: f.shippingMethodOverride || null,
@@ -164,6 +164,7 @@ export function useShippingSection(projectId: string, data: ProjectData) {
   };
 
   // Select a stored address → populate form fields
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- addresses come from CompanyAddress | SupplierAddress with varying shapes
   const selectStoredAddress = (addr: any, leg: "leg1" | "leg2") => {
     const snapshot: ShippingAddressData = {
       contactName: addr.contactName || "",
@@ -205,23 +206,25 @@ export function useShippingSection(projectId: string, data: ProjectData) {
           };
           updated.shipToAddressId = "";
         } else if (companyAddresses.length > 0) {
-          const defaultAddr = companyAddresses.find((a: any) => a.isDefault && (a.addressType === "shipping" || a.addressType === "both"))
-            || companyAddresses.find((a: any) => a.addressType === "shipping" || a.addressType === "both")
+          const defaultAddr = companyAddresses.find((a) => a.isDefault && (a.addressType === "shipping" || a.addressType === "both"))
+            || companyAddresses.find((a) => a.addressType === "shipping" || a.addressType === "both")
             || companyAddresses[0];
           if (defaultAddr) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any -- CompanyAddress has these fields but TS can't narrow after find()
+            const da: any = defaultAddr;
             updated.shipToAddress = {
-              contactName: (defaultAddr as any).contactName || "",
-              companyName: (defaultAddr as any).companyNameOnDocs || (defaultAddr as any).addressName || "",
-              street: (defaultAddr as any).street || "",
-              street2: (defaultAddr as any).street2 || "",
-              city: (defaultAddr as any).city || "",
-              state: (defaultAddr as any).state || "",
-              zipCode: (defaultAddr as any).zipCode || "",
-              country: (defaultAddr as any).country || "",
-              email: (defaultAddr as any).email || "",
-              phone: (defaultAddr as any).phone || "",
+              contactName: da.contactName || "",
+              companyName: da.companyNameOnDocs || da.addressName || "",
+              street: da.street || "",
+              street2: da.street2 || "",
+              city: da.city || "",
+              state: da.state || "",
+              zipCode: da.zipCode || "",
+              country: da.country || "",
+              email: da.email || "",
+              phone: da.phone || "",
             };
-            updated.shipToAddressId = (defaultAddr as any).id || "";
+            updated.shipToAddressId = da.id || "";
           }
         }
       }
@@ -247,7 +250,7 @@ export function useShippingSection(projectId: string, data: ProjectData) {
   };
 
   // Get readable address summary for table display
-  const getAddressSummary = (addr: any): string => {
+  const getAddressSummary = (addr: ShippingAddressData | null): string => {
     if (!addr) return "";
     const parts = [addr.street, addr.city, addr.state, addr.zipCode].filter(Boolean);
     return parts.join(", ");
@@ -256,7 +259,7 @@ export function useShippingSection(projectId: string, data: ProjectData) {
   // ── Bulk Edit ──
   const handleBulkEdit = () => {
     if (selectedItems.size === 0) return;
-    const fields: Record<string, any> = {};
+    const fields: Record<string, unknown> = {};
     if (bulkForm.shippingDestination) fields.shippingDestination = bulkForm.shippingDestination;
     if (bulkForm.shippingAccountType) fields.shippingAccountType = bulkForm.shippingAccountType;
     if (bulkForm.shippingMethodOverride) fields.shippingMethodOverride = bulkForm.shippingMethodOverride;
@@ -286,7 +289,7 @@ export function useShippingSection(projectId: string, data: ProjectData) {
 
   const toggleSelectAll = () => {
     if (selectedItems.size === filteredItems.length) setSelectedItems(new Set());
-    else setSelectedItems(new Set(filteredItems.map((i: any) => i.id)));
+    else setSelectedItems(new Set(filteredItems.map((i: EnrichedOrderItem) => i.id)));
   };
 
   const toggleItem = (itemId: string) => {
@@ -299,7 +302,7 @@ export function useShippingSection(projectId: string, data: ProjectData) {
 
   const getSupplierName = (supplierId: string | null) => {
     if (!supplierId) return "No Supplier";
-    const s = allSuppliers?.find((v: any) => v.id === supplierId);
+    const s = allSuppliers?.find((v) => v.id === supplierId);
     return s?.name || "Unknown";
   };
 
@@ -344,7 +347,7 @@ export function useShippingSection(projectId: string, data: ProjectData) {
   const isSaving = createMutation.isPending || updateMutation.isPending;
 
   const handleSave = () => {
-    const payload: Record<string, any> = {
+    const payload: Record<string, unknown> = {
       carrier: form.carrier || null,
       shippingMethod: form.shippingMethod || null,
       trackingNumber: form.trackingNumber || null,
@@ -376,19 +379,19 @@ export function useShippingSection(projectId: string, data: ProjectData) {
   };
 
   // ── Notify Client ──
-  const [notifyShipment, setNotifyShipment] = useState<any>(null);
+  const [notifyShipment, setNotifyShipment] = useState<OrderShipment | null>(null);
 
-  const getNotifyEmail = (s: any): { subject: string; body: string; mergeData: Record<string, string> } => {
+  const getNotifyEmail = (s: OrderShipment): { subject: string; body: string; mergeData: Record<string, string> } => {
     const trackUrl = getTrackingUrl(s.carrier, s.trackingNumber);
     const clientFirstName = data.primaryContact?.firstName || "there";
     const productNames = orderItems
-      .map((item: any) => item.productName || item.name || item.product?.name)
+      .map((item) => item.productName)
       .filter(Boolean)
       .join(", ") || "your items";
     const csrName = data.assignedUser
       ? `${data.assignedUser.firstName || ""} ${data.assignedUser.lastName || ""}`.trim()
       : "";
-    const orderNum = (order as any)?.orderNumber || "";
+    const orderNum = order?.orderNumber || "";
 
     const mergeData = {
       recipientFirstName: clientFirstName,

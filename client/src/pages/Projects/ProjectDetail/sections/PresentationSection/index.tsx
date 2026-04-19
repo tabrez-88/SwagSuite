@@ -4,7 +4,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Select,
   SelectContent,
@@ -27,7 +26,6 @@ import {
   ExternalLink,
   Eye,
   EyeOff,
-  Image,
   ArrowRight,
   Loader2,
   Package,
@@ -35,8 +33,6 @@ import {
   Pencil,
   Plus,
   Send,
-  Type,
-  Upload,
 } from "lucide-react";
 import { format } from "date-fns";
 import type { OrderItemLine } from "@shared/schema";
@@ -196,27 +192,16 @@ export default function PresentationSection(props: PresentationSectionProps) {
         projectId={projectId}
       />
 
-      {/* Products / Artwork Tabs */}
-      <Tabs defaultValue="products" className="w-full">
-        <div className="flex items-center justify-between flex-wrap gap-3">
-          <TabsList>
-            <TabsTrigger value="products" className="gap-1"><Package className="w-4 h-4" />Products</TabsTrigger>
-            <TabsTrigger value="artwork" className="gap-1"><Palette className="w-4 h-4" />Artwork</TabsTrigger>
-            {/* Design tab hidden - not yet functional */}
-          </TabsList>
-          <div className="flex border rounded-md overflow-hidden">
-            <Button variant={hook.viewMode === "detailed" ? "default" : "ghost"} size="sm" className="rounded-none px-3 h-8" onClick={() => hook.setViewMode("detailed")}>Detailed</Button>
-            <Button variant={hook.viewMode === "grid" ? "default" : "ghost"} size="sm" className="rounded-none px-3 h-8" onClick={() => hook.setViewMode("grid")}>Grid</Button>
-          </div>
+      {/* Products Header */}
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div className="flex border rounded-md overflow-hidden">
+          <Button variant={hook.viewMode === "detailed" ? "default" : "ghost"} size="sm" className="rounded-none px-3 h-8" onClick={() => hook.setViewMode("detailed")}>Detailed</Button>
+          <Button variant={hook.viewMode === "grid" ? "default" : "ghost"} size="sm" className="rounded-none px-3 h-8" onClick={() => hook.setViewMode("grid")}>Grid</Button>
         </div>
-
-        {/* Action Buttons */}
-        <div className="flex items-center justify-between mt-4">
-          <div className="flex items-center gap-3">
-            <Button onClick={() => { hook.setLocation(`/projects/${projectId}/presentation/add`); }} size="sm" className="gap-1 text-white" style={{ backgroundColor: hook.primaryColor }}>
-              <Plus className="w-4 h-4" />Product From Database
-            </Button>
-          </div>
+        <div className="flex items-center gap-2">
+          <Button onClick={() => { hook.setLocation(`/projects/${projectId}/presentation/add`); }} size="sm" className="gap-1 text-white" style={{ backgroundColor: hook.primaryColor }}>
+            <Plus className="w-4 h-4" />Product From Database
+          </Button>
           {hook.hiddenCount > 0 && (
             <Button
               variant="ghost"
@@ -229,163 +214,28 @@ export default function PresentationSection(props: PresentationSectionProps) {
             </Button>
           )}
         </div>
+      </div>
 
-        {/* Products Tab */}
-        <TabsContent value="products" className="mt-4">
-          {hook.enrichedItems.length === 0 ? (
-            <Card>
-              <CardContent className="p-12 text-center">
-                <Package className="w-12 h-12 mx-auto text-gray-300 mb-4" />
-                <h3 className="text-lg font-medium text-gray-900 mb-2">No products yet</h3>
-                <p className="text-gray-500 mb-4">Add products from the database or get AI recommendations</p>
-                <Button variant="outline" onClick={() => hook.setLocation(`/projects/${projectId}/presentation/add`)}>
-                  <Plus className="w-4 h-4 mr-2" />Add Product
-                </Button>
-              </CardContent>
-            </Card>
-          ) : hook.viewMode === "grid" ? (
-            <GridView items={hook.displayItems} hidePricing={hook.hidePricing} onPreview={hook.setPreviewItem} onToggleVisibility={hook.toggleItemVisibility} />
-          ) : (
-            <DetailedView items={hook.displayItems} hidePricing={hook.hidePricing} onEdit={hook.setEditingItem} onPreview={hook.setPreviewItem} onToggleVisibility={hook.toggleItemVisibility} onMoveItem={hook.moveItem} />
-          )}
-        </TabsContent>
+      {/* Products */}
+      {hook.enrichedItems.length === 0 ? (
+        <Card>
+          <CardContent className="p-12 text-center">
+            <Package className="w-12 h-12 mx-auto text-gray-300 mb-4" />
+            <h3 className="text-lg font-medium text-gray-900 mb-2">No products yet</h3>
+            <p className="text-gray-500 mb-4">Add products from the database or get AI recommendations</p>
+            <Button variant="outline" onClick={() => hook.setLocation(`/projects/${projectId}/presentation/add`)}>
+              <Plus className="w-4 h-4 mr-2" />Add Product
+            </Button>
+          </CardContent>
+        </Card>
+      ) : hook.viewMode === "grid" ? (
+        <GridView items={hook.displayItems} hidePricing={hook.hidePricing} onPreview={hook.setPreviewItem} onToggleVisibility={hook.toggleItemVisibility} />
+      ) : (
+        <DetailedView items={hook.displayItems} hidePricing={hook.hidePricing} onEdit={hook.setEditingItem} onPreview={hook.setPreviewItem} onToggleVisibility={hook.toggleItemVisibility} onMoveItem={hook.moveItem} />
+      )}
 
-        {/* Artwork Tab */}
-        <TabsContent value="artwork" className="mt-4">
-          <ArtworkGrid data={hook.data} projectId={projectId} enrichedItems={hook.enrichedItems} />
-        </TabsContent>
-
-        {/* Design Tab */}
-        <TabsContent value="design" className="mt-4">
-          <div className="space-y-6">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Branding */}
-              <Card>
-                <CardHeader className="py-3">
-                  <CardTitle className="text-sm flex items-center gap-2">
-                    <Image className="w-4 h-4" />
-                    Branding
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div>
-                    <Label className="text-xs text-gray-500">Company Logo</Label>
-                    <div className="mt-1 border-2 border-dashed rounded-lg p-6 text-center hover:border-gray-400 transition-colors cursor-pointer">
-                      <Upload className="w-8 h-8 mx-auto text-gray-300 mb-2" />
-                      <p className="text-sm text-gray-500">Drop logo here or click to upload</p>
-                      <p className="text-xs text-gray-400 mt-1">PNG, JPG, SVG up to 5MB</p>
-                    </div>
-                  </div>
-                  <div>
-                    <Label className="text-xs text-gray-500">Company Name</Label>
-                    <Input defaultValue={(hook.companyData as any)?.name || hook.companyName} className="mt-1" />
-                  </div>
-                  <div>
-                    <Label className="text-xs text-gray-500">Primary Color</Label>
-                    <div className="flex items-center gap-2 mt-1">
-                      <input
-                        type="color"
-                        value={hook.primaryColor}
-                        onChange={(e) => hook.setPrimaryColor(e.target.value)}
-                        onBlur={() => hook.saveSetting("primaryColor", hook.primaryColor)}
-                        className="w-10 h-10 rounded cursor-pointer border border-gray-200"
-                      />
-                      <Input
-                        value={hook.primaryColor}
-                        onChange={(e) => hook.setPrimaryColor(e.target.value)}
-                        onBlur={() => hook.saveSetting("primaryColor", hook.primaryColor)}
-                        className="w-28"
-                      />
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Layout & Typography */}
-              <Card>
-                <CardHeader className="py-3">
-                  <CardTitle className="text-sm flex items-center gap-2">
-                    <Type className="w-4 h-4" />
-                    Layout & Typography
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div>
-                    <Label className="text-xs text-gray-500">Header Style</Label>
-                    <Select value={hook.headerStyle} onValueChange={(val) => { hook.setHeaderStyle(val); hook.saveSetting("headerStyle", val); }}>
-                      <SelectTrigger className="mt-1">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="banner">Banner with Logo</SelectItem>
-                        <SelectItem value="minimal">Minimal</SelectItem>
-                        <SelectItem value="centered">Centered</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label className="text-xs text-gray-500">Font Family</Label>
-                    <Select value={hook.fontFamily} onValueChange={(val) => { hook.setFontFamily(val); hook.saveSetting("fontFamily", val); }}>
-                      <SelectTrigger className="mt-1">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="default">System Default</SelectItem>
-                        <SelectItem value="inter">Inter</SelectItem>
-                        <SelectItem value="roboto">Roboto</SelectItem>
-                        <SelectItem value="poppins">Poppins</SelectItem>
-                        <SelectItem value="playfair">Playfair Display</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label className="text-xs text-gray-500">Footer Text</Label>
-                    <Textarea
-                      value={hook.footerText}
-                      onChange={(e) => hook.setFooterText(e.target.value)}
-                      onBlur={() => hook.saveSetting("footerText", hook.footerText)}
-                      placeholder="Custom footer message (e.g., Thank you for your business!)"
-                      className="mt-1 min-h-[60px] resize-none"
-                    />
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Live Preview */}
-            <Card>
-              <CardHeader className="py-3">
-                <CardTitle className="text-sm">Live Preview</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div
-                  className="rounded-lg overflow-hidden border"
-                  style={{ backgroundColor: hook.primaryColor }}
-                >
-                  <div className="px-6 py-4 text-white">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center">
-                        <Image className="w-5 h-5 text-white" />
-                      </div>
-                      <div>
-                        <h3 className="font-bold">{(hook.companyData as any)?.name || hook.companyName}</h3>
-                        <p className="text-white/80 text-sm">Presentation for your project</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                <div className="mt-4 grid grid-cols-3 gap-3">
-                  {[1, 2, 3].map((i) => (
-                    <div key={i} className="aspect-square bg-gray-100 rounded-lg flex items-center justify-center">
-                      <Image className="w-8 h-8 text-gray-300" />
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
-      </Tabs>
+      {/* Artwork */}
+      <ArtworkGrid data={hook.data} projectId={projectId} enrichedItems={hook.enrichedItems} />
 
       {/* Product Pricing Editor Dialog */}
       {hook.editingItem && (

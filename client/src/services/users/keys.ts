@@ -7,4 +7,5 @@ export const userKeys = {
   invitations: ["/api/invitations"] as const,
   pendingInvitations: ["/api/invitations/pending"] as const,
   invitationByToken: (token: string) => [`/api/invitations/verify/${token}`] as const,
+  twoFaStatus: ["/api/auth/2fa/status"] as const,
 };

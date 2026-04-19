@@ -112,7 +112,7 @@ export default function BillsSection(props: BillsSectionProps) {
 
           {/* Bills List */}
           {Object.entries(invoicesByVendor).map(([supplierId, invoices]) => {
-            const vendor = orderVendors.find((v: any) => v.id === supplierId);
+            const vendor = orderVendors.find((v) => v.id === supplierId);
             return (
               <Card key={supplierId}>
                 <CardHeader className="py-3">
@@ -128,9 +128,9 @@ export default function BillsSection(props: BillsSectionProps) {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-3">
-                    {(invoices as any[]).map((inv: any) => {
+                    {invoices.map((inv) => {
                       const linkedDoc = inv.documentId
-                        ? poDocuments.find((d: any) => d.id === inv.documentId)
+                        ? poDocuments.find((d) => d.id === inv.documentId)
                         : null;
                       return (
                         <div key={inv.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
@@ -164,7 +164,7 @@ export default function BillsSection(props: BillsSectionProps) {
                             <span className="text-sm font-bold">
                               ${Number(inv.amount || 0).toLocaleString()}
                             </span>
-                            <Badge className={billStatusColors[inv.status] || ""}>
+                            <Badge className={billStatusColors[inv.status || "pending"] || ""}>
                               {inv.status?.toUpperCase()}
                             </Badge>
                             <Button
@@ -206,7 +206,7 @@ export default function BillsSection(props: BillsSectionProps) {
                   <SelectValue placeholder="Select vendor" />
                 </SelectTrigger>
                 <SelectContent>
-                  {orderVendors.map((v: any) => (
+                  {orderVendors.map((v) => (
                     <SelectItem key={v.id} value={v.id}>{v.name}</SelectItem>
                   ))}
                 </SelectContent>
@@ -222,7 +222,7 @@ export default function BillsSection(props: BillsSectionProps) {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="none">No PO link</SelectItem>
-                    {filteredPoDocuments.map((d: any) => (
+                    {filteredPoDocuments.map((d) => (
                       <SelectItem key={d.id} value={d.id}>
                         PO #{d.documentNumber} — {d.vendorName || "Vendor"}
                       </SelectItem>

@@ -38,50 +38,50 @@ import { usePurchaseOrdersSection } from "./hooks";
 import type { PurchaseOrdersSectionProps } from "./types";
 
 export default function PurchaseOrdersSection({ projectId, data, isLocked }: PurchaseOrdersSectionProps) {
-  const h = usePurchaseOrdersSection({ projectId, data, isLocked });
+  const hook = usePurchaseOrdersSection({ projectId, data, isLocked });
   const { toast } = useToast();
   const sender = useAutoFillSender();
   const { actionTypes } = useNextActionTypes();
 
   // Merge data for PO email template
   const poMergeData = useMemo(() => ({
-    companyName: h.data.companyName || "",
+    companyName: hook.data.companyName || "",
     senderName: sender.name || "",
-    vendorName: h.emailPOVendor?.vendor.name || "",
-    vendorContactName: h.emailPOVendor?.vendor.contactPerson || h.emailPOVendor?.vendor.name || "",
-    orderNumber: (h.order as any)?.orderNumber || "",
-    poNumber: h.emailPOVendor?.doc.documentNumber || "",
+    vendorName: hook.emailPOVendor?.vendor.name || "",
+    vendorContactName: hook.emailPOVendor?.vendor.contactPerson || hook.emailPOVendor?.vendor.name || "",
+    orderNumber: hook.order?.orderNumber || "",
+    poNumber: hook.emailPOVendor?.doc.documentNumber || "",
     supplierInHandsDate: (() => {
-      const ihd = h.emailPOVendor?.doc?.metadata?.supplierIHD || (h.order as any)?.supplierInHandsDate;
-      return ihd ? new Date(ihd).toLocaleDateString() : "";
+      const ihd = (hook.emailPOVendor?.doc?.metadata as Record<string, unknown> | undefined)?.supplierIHD || hook.order?.supplierInHandsDate;
+      return ihd ? new Date(ihd as string).toLocaleDateString() : "";
     })(),
-  }), [h.emailPOVendor, h.order, h.data, sender]);
+  }), [hook.emailPOVendor, hook.order, hook.data, sender]);
 
   // Merge data for Proof email template
   const proofMergeData = useMemo(() => ({
-    companyName: h.data.companyName || "",
+    companyName: hook.data.companyName || "",
     senderName: sender.name || "",
-    recipientName: h.data.primaryContact ? `${h.data.primaryContact.firstName} ${h.data.primaryContact.lastName}` : "",
-    recipientFirstName: h.data.primaryContact?.firstName || "there",
-    artworkList: h.sendProofArts.map((a: any) => `  - ${a.productName} (${a.location || a.artworkType || "Artwork"})`).join("\n"),
-  }), [h.data, h.sendProofArts, sender]);
+    recipientName: hook.data.primaryContact ? `${hook.data.primaryContact.firstName} ${hook.data.primaryContact.lastName}` : "",
+    recipientFirstName: hook.data.primaryContact?.firstName || "there",
+    artworkList: hook.sendProofArts.map((a) => `  - ${a.productName} (${a.location || a.artworkType || "Artwork"})`).join("\n"),
+  }), [hook.data, hook.sendProofArts, sender]);
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <h2 className="text-xl font-semibold flex items-center gap-2">
+          <h2 className="text-lg font-semibold flex items-center gap-2">
             <ClipboardList className="w-5 h-5" /> Purchase Orders
           </h2>
           <Badge variant="secondary" className="text-xs">
-            {h.vendorPOs.length} vendor{h.vendorPOs.length !== 1 ? "s" : ""}
+            {hook.vendorPOs.length} vendor{hook.vendorPOs.length !== 1 ? "s" : ""}
           </Badge>
         </div>
-        {!h.isLocked && h.getAllSendableProofs().length > 0 && (
-          <Button variant="default" size="sm" className="gap-1.5" onClick={h.openSendAllVendorProofs}>
-            <Send className="w-4 h-4" />
-            Send All Proofs to Client ({h.getAllSendableProofs().length})
+        {!hook.isLocked && hook.getAllSendableProofs().length > 0 && (
+          <Button variant="default" size="sm" onClick={hook.openSendAllVendorProofs}>
+            <Send className="w-4 h-4 mr-1.5" />
+            Send All Proofs to Client ({hook.getAllSendableProofs().length})
           </Button>
         )}
       </div>
@@ -101,19 +101,19 @@ export default function PurchaseOrdersSection({ projectId, data, isLocked }: Pur
               </div>
             </div>
             <EditableDate
-              value={(h.order as any)?.supplierInHandsDate}
+              value={hook.order?.supplierInHandsDate}
               field="supplierInHandsDate"
-              onSave={h.updateField}
+              onSave={hook.updateField}
               emptyText="Click to set date"
-              isLocked={h.isLocked}
-              isPending={h.isFieldPending}
+              isLocked={hook.isLocked}
+              isPending={hook.isFieldPending}
             />
           </div>
-          {(h.order as any)?.inHandsDate && (
+          {hook.order?.inHandsDate && (
             <div className="mt-2 pt-2 border-t border-blue-200 flex items-center gap-4 text-xs text-blue-700">
-              <span>Customer In-Hands: <strong>{new Date((h.order as any).inHandsDate).toLocaleDateString()}</strong></span>
-              {(h.order as any)?.eventDate && (
-                <span>Event Date: <strong>{new Date((h.order as any).eventDate).toLocaleDateString()}</strong></span>
+              <span>Customer In-Hands: <strong>{new Date(hook.order!.inHandsDate).toLocaleDateString()}</strong></span>
+              {hook.order?.eventDate && (
+                <span>Event Date: <strong>{new Date(hook.order!.eventDate).toLocaleDateString()}</strong></span>
               )}
             </div>
           )}
@@ -121,7 +121,7 @@ export default function PurchaseOrdersSection({ projectId, data, isLocked }: Pur
       </Card>
 
       {/* Supplier IHD Warning */}
-      {!h.hasSupplierIHD && h.orderItems.length > 0 && (
+      {!hook.hasSupplierIHD && hook.orderItems.length > 0 && (
         <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
           <AlertTriangle className="h-4 w-4 flex-shrink-0" />
           <span>Supplier In-Hands Date is required before generating POs. Set the date above.</span>
@@ -129,13 +129,13 @@ export default function PurchaseOrdersSection({ projectId, data, isLocked }: Pur
       )}
 
       {/* Shipping Warnings */}
-      {!h.hasShippingAddress && h.orderItems.length > 0 && (
+      {!hook.hasShippingAddress && hook.orderItems.length > 0 && (
         <div className="flex items-center gap-2 rounded-lg border border-orange-200 bg-orange-50 px-4 py-3 text-sm text-orange-800">
           <AlertTriangle className="h-4 w-4 flex-shrink-0" />
           <span>No shipping address set. POs require a ship-to address — set it in the Sales Order section.</span>
         </div>
       )}
-      {h.hasShippingAddress && !h.allShippingConfigured && h.orderItems.length > 0 && (
+      {hook.hasShippingAddress && !hook.allShippingConfigured && hook.orderItems.length > 0 && (
         <div className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
           <AlertTriangle className="h-4 w-4 flex-shrink-0" />
           <span>Not all products have shipping details configured. Complete shipping details in the Shipping tab before generating POs.</span>
@@ -143,13 +143,13 @@ export default function PurchaseOrdersSection({ projectId, data, isLocked }: Pur
       )}
 
       {/* Dual-PO reminder: apparel items with artwork should route through a third-party decorator */}
-      {h.itemsMissingDecorator.length > 0 && (
+      {hook.itemsMissingDecorator.length > 0 && (
         <div className="flex items-start gap-2 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
           <AlertTriangle className="h-4 w-4 flex-shrink-0 mt-0.5" />
           <div>
             <p className="font-medium">Dual PO workflow recommended</p>
             <p className="text-xs text-blue-800 mt-0.5">
-              {h.itemsMissingDecorator.length} item{h.itemsMissingDecorator.length > 1 ? "s" : ""} with artwork {h.itemsMissingDecorator.length > 1 ? "are" : "is"} routed as "Supplier Decorator" — only one PO will be generated.
+              {hook.itemsMissingDecorator.length} item{hook.itemsMissingDecorator.length > 1 ? "s" : ""} with artwork {hook.itemsMissingDecorator.length > 1 ? "are" : "is"} routed as "Supplier Decorator" — only one PO will be generated.
               For apparel orders that need blanks shipped to a decorator first, edit each product and set <strong>Decorator Type → Third-Party Decorator</strong>. This splits the work into two POs: one for the blanks, one for the decorator.
             </p>
           </div>
@@ -157,48 +157,48 @@ export default function PurchaseOrdersSection({ projectId, data, isLocked }: Pur
       )}
 
       {/* Batch generate all outstanding POs */}
-      {h.vendorPOs.length > 1 && h.vendorPOs.some((po: any) => !h.getVendorDoc(po.vendor.vendorKey || po.vendor.id)) && (
+      {hook.vendorPOs.length > 1 && hook.vendorPOs.some((po) => !hook.getVendorDoc(po.vendor.vendorKey || po.vendor.id)) && (
         <div className="flex items-center justify-between rounded-lg border bg-white px-4 py-3">
           <div className="text-sm">
             <p className="font-medium">Generate POs in bulk</p>
             <p className="text-xs text-gray-500">Create PDFs for every vendor that doesn't have one yet.</p>
           </div>
-          <Button size="sm" onClick={h.handleGenerateAllPOs} disabled={h.isGenerating || !!h.generatingVendorId || h.isLocked}>
-            {h.generatingVendorId ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <FileText className="w-3.5 h-3.5 mr-1.5" />}
+          <Button size="sm" onClick={hook.handleGenerateAllPOs} disabled={hook.isGenerating || !!hook.generatingVendorId || hook.isLocked}>
+            {hook.generatingVendorId ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <FileText className="w-3.5 h-3.5 mr-1.5" />}
             Generate All POs
           </Button>
         </div>
       )}
 
       {/* Empty state */}
-      {h.vendorPOs.length === 0 ? (
+      {hook.vendorPOs.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center">
-            <ClipboardList className="w-14 h-14 text-gray-300 mx-auto mb-3" />
-            <p className="text-gray-500 font-medium mb-1">No vendors on this order</p>
-            <p className="text-xs text-gray-400">Add products with vendor/supplier info to generate POs</p>
+            <ClipboardList className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-gray-900 mb-2">No vendors on this order</h3>
+            <p className="text-sm text-gray-500">Add products with vendor/supplier info to generate POs</p>
           </CardContent>
         </Card>
       ) : (
         <div className="space-y-3">
-          {h.vendorPOs.map((po) => {
+          {hook.vendorPOs.map((po) => {
             const vendorKey = po.vendor.vendorKey || po.vendor.id;
             const isDecorator = po.vendor.role === "decorator";
-            const isExpanded = h.expandedVendors.has(vendorKey);
-            const vendorDoc = h.getVendorDoc(vendorKey);
-            const isVendorGenerating = h.generatingVendorId === vendorKey;
-            const poStage = vendorDoc ? h.getDocStage(vendorDoc) : null;
-            const poStatus = vendorDoc ? h.getDocStatus(vendorDoc) : null;
-            const stageInfo = poStage ? h.PO_STAGES[poStage] || h.PO_STAGES.created : null;
-            const statusInfo = poStatus ? h.PO_STATUSES[poStatus] || h.PO_STATUSES.ok : null;
-            const vendorArtworks = h.getVendorArtworks(vendorKey);
+            const isExpanded = hook.expandedVendors.has(vendorKey);
+            const vendorDoc = hook.getVendorDoc(vendorKey);
+            const isVendorGenerating = hook.generatingVendorId === vendorKey;
+            const poStage = vendorDoc ? hook.getDocStage(vendorDoc) : null;
+            const poStatus = vendorDoc ? hook.getDocStatus(vendorDoc) : null;
+            const stageInfo = poStage ? hook.PO_STAGES[poStage] || hook.PO_STAGES.created : null;
+            const statusInfo = poStatus ? hook.PO_STATUSES[poStatus] || hook.PO_STATUSES.ok : null;
+            const vendorArtworks = hook.getVendorArtworks(vendorKey);
             const vendorIhdValue = vendorDoc?.metadata?.supplierIHD;
-            const effectiveIhd = vendorIhdValue || (h.order as any)?.supplierInHandsDate;
+            const effectiveIhd = vendorIhdValue || hook.order?.supplierInHandsDate;
 
             return (
               <Card key={vendorKey} className="overflow-hidden">
                 {/* Vendor header row */}
-                <div className="p-4 cursor-pointer hover:bg-gray-50 transition-colors" onClick={() => h.toggleVendor(vendorKey)}>
+                <div className="p-4 cursor-pointer hover:bg-gray-50 transition-colors" onClick={() => hook.toggleVendor(vendorKey)}>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       {isExpanded ? <ChevronDown className="w-4 h-4 text-gray-400" /> : <ChevronRight className="w-4 h-4 text-gray-400" />}
@@ -209,7 +209,7 @@ export default function PurchaseOrdersSection({ projectId, data, isLocked }: Pur
                           {isDecorator && <Badge variant="outline" className="text-[10px] border-purple-200 text-purple-600 bg-purple-50">Decorator</Badge>}
                           {stageInfo && <Badge variant="outline" className={`text-[10px] ${stageInfo.color}`}>{stageInfo.label}</Badge>}
                           {statusInfo && poStatus !== "ok" && <Badge variant="outline" className={`text-[10px] ${statusInfo.color}`}>{statusInfo.label}</Badge>}
-                          {vendorDoc && h.isVendorDocStale(vendorDoc) && (
+                          {vendorDoc && hook.isVendorDocStale(vendorDoc) && (
                             <Badge variant="outline" className="text-[10px] border-orange-300 text-orange-600 bg-orange-50">
                               <AlertTriangle className="w-2.5 h-2.5 mr-0.5" /> Outdated
                             </Badge>
@@ -230,7 +230,7 @@ export default function PurchaseOrdersSection({ projectId, data, isLocked }: Pur
                           {po.vendor.contactPerson && <span>Attn: {po.vendor.contactPerson}</span>}
                           {po.vendor.email && <span>{po.vendor.email}</span>}
                           {(() => {
-                            const addr = h.getVendorDefaultAddress(po.vendor.id);
+                            const addr = hook.getVendorDefaultAddress(po.vendor.id);
                             if (!addr) return null;
                             const parts = [addr.city, addr.state].filter(Boolean).join(", ");
                             return parts ? <span className="text-gray-400">| {parts}</span> : null;
@@ -256,40 +256,40 @@ export default function PurchaseOrdersSection({ projectId, data, isLocked }: Pur
                       {/* Actions */}
                       <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
                         <Button variant="outline" size="sm" className="h-7 text-xs gap-1"
-                          onClick={() => h.handlePreviewPO(vendorKey)}>
+                          onClick={() => hook.handlePreviewPO(vendorKey)}>
                           <Eye className="w-3 h-3" /> Preview
                         </Button>
                         {!vendorDoc ? (
                           <Button variant="default" size="sm" className="h-7 text-xs gap-1"
-                            onClick={() => h.handleGeneratePO(vendorKey, po.vendor.name)}
-                            disabled={isVendorGenerating || h.isGenerating || h.isLocked || (!h.hasSupplierIHD && !isDecorator)}>
+                            onClick={() => hook.handleGeneratePO(vendorKey, po.vendor.name)}
+                            disabled={isVendorGenerating || hook.isGenerating || hook.isLocked || (!hook.hasSupplierIHD && !isDecorator)}>
                             {isVendorGenerating ? <Loader2 className="w-3 h-3 animate-spin" /> : <FileText className="w-3 h-3" />}
                             Generate PO
                           </Button>
                         ) : (
                           <>
-                            {h.isVendorDocStale(vendorDoc) && (
+                            {hook.isVendorDocStale(vendorDoc) && (
                               <Button variant="destructive" size="sm" className="h-7 text-xs gap-1"
-                                onClick={() => h.handleRegeneratePO(vendorDoc)}
-                                disabled={h.isGenerating || h.isLocked}>
-                                {h.generatingVendorId ? <Loader2 className="w-3 h-3 animate-spin" /> : <AlertTriangle className="w-3 h-3" />}
+                                onClick={() => hook.handleRegeneratePO(vendorDoc)}
+                                disabled={hook.isGenerating || hook.isLocked}>
+                                {hook.generatingVendorId ? <Loader2 className="w-3 h-3 animate-spin" /> : <AlertTriangle className="w-3 h-3" />}
                                 Regenerate PO
                               </Button>
                             )}
                             {poStage === "created" && (
                               <Button variant="default" size="sm" className="h-7 text-xs gap-1"
-                                onClick={() => h.openEmailPO(vendorDoc, po.vendor)} disabled={h.isLocked}>
+                                onClick={() => hook.openEmailPO(vendorDoc, po.vendor)} disabled={hook.isLocked}>
                                 <Mail className="w-3 h-3" /> Email to Vendor
                               </Button>
                             )}
                             {(poStage === "submitted") && vendorDoc && (
                               <Button variant="outline" size="sm" className="h-7 text-xs gap-1 border-green-200 text-green-700"
-                                onClick={() => h.updateDocMetaMutation.mutate({
+                                onClick={() => hook.updateDocMetaMutation.mutate({
                                   docId: vendorDoc.id,
                                   updates: { metadata: { ...vendorDoc.metadata, poStage: "confirmed" } },
                                 })}
-                                disabled={h.isLocked || h.updateDocMetaMutation.isPending}>
-                                {h.updateDocMetaMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle className="w-3 h-3" />}
+                                disabled={hook.isLocked || hook.updateDocMetaMutation.isPending}>
+                                {hook.updateDocMetaMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle className="w-3 h-3" />}
                                 Mark Confirmed
                               </Button>
                             )}
@@ -301,25 +301,25 @@ export default function PurchaseOrdersSection({ projectId, data, isLocked }: Pur
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
                                 {poStage !== "created" && (
-                                  <DropdownMenuItem onClick={() => h.openEmailPO(vendorDoc, po.vendor)}>
+                                  <DropdownMenuItem onClick={() => hook.openEmailPO(vendorDoc, po.vendor)}>
                                     <Mail className="w-4 h-4 mr-2" /> Resend PO
                                   </DropdownMenuItem>
                                 )}
                                 <DropdownMenuSeparator />
                                 <DropdownMenuItem
-                                  onClick={() => h.handleRegeneratePO(vendorDoc)}
-                                  disabled={h.isGenerating || h.isLocked}
+                                  onClick={() => hook.handleRegeneratePO(vendorDoc)}
+                                  disabled={hook.isGenerating || hook.isLocked}
                                   className="text-orange-600"
                                 >
-                                  {h.isGenerating ? (
+                                  {hook.isGenerating ? (
                                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                                   ) : (
                                     <Printer className="w-4 h-4 mr-2" />
                                   )}
-                                  {h.isGenerating ? "Regenerating..." : "Regenerate PO"}
+                                  {hook.isGenerating ? "Regenerating..." : "Regenerate PO"}
                                 </DropdownMenuItem>
                                 {poStage === "submitted" && (
-                                  <DropdownMenuItem onClick={() => h.updateDocMetaMutation.mutate({
+                                  <DropdownMenuItem onClick={() => hook.updateDocMetaMutation.mutate({
                                     docId: vendorDoc.id,
                                     updates: { metadata: { ...vendorDoc.metadata, poStage: "confirmed" } },
                                   })}>
@@ -327,7 +327,7 @@ export default function PurchaseOrdersSection({ projectId, data, isLocked }: Pur
                                   </DropdownMenuItem>
                                 )}
                                 {poStage === "confirmed" && (
-                                  <DropdownMenuItem onClick={() => h.updateDocMetaMutation.mutate({
+                                  <DropdownMenuItem onClick={() => hook.updateDocMetaMutation.mutate({
                                     docId: vendorDoc.id,
                                     updates: { metadata: { ...vendorDoc.metadata, poStage: "shipped" } },
                                   })}>
@@ -335,7 +335,7 @@ export default function PurchaseOrdersSection({ projectId, data, isLocked }: Pur
                                   </DropdownMenuItem>
                                 )}
                                 {poStage === "shipped" && (
-                                  <DropdownMenuItem onClick={() => h.updateDocMetaMutation.mutate({
+                                  <DropdownMenuItem onClick={() => hook.updateDocMetaMutation.mutate({
                                     docId: vendorDoc.id,
                                     updates: { metadata: { ...vendorDoc.metadata, poStage: "ready_for_billing" } },
                                   })}>
@@ -343,7 +343,7 @@ export default function PurchaseOrdersSection({ projectId, data, isLocked }: Pur
                                   </DropdownMenuItem>
                                 )}
                                 {poStage === "ready_for_billing" && (
-                                  <DropdownMenuItem onClick={() => h.updateDocMetaMutation.mutate({
+                                  <DropdownMenuItem onClick={() => hook.updateDocMetaMutation.mutate({
                                     docId: vendorDoc.id,
                                     updates: { metadata: { ...vendorDoc.metadata, poStage: "billed" } },
                                   })}>
@@ -351,7 +351,7 @@ export default function PurchaseOrdersSection({ projectId, data, isLocked }: Pur
                                   </DropdownMenuItem>
                                 )}
                                 {poStage === "billed" && (
-                                  <DropdownMenuItem onClick={() => h.updateDocMetaMutation.mutate({
+                                  <DropdownMenuItem onClick={() => hook.updateDocMetaMutation.mutate({
                                     docId: vendorDoc.id,
                                     updates: { metadata: { ...vendorDoc.metadata, poStage: "closed" } },
                                   })}>
@@ -376,18 +376,18 @@ export default function PurchaseOrdersSection({ projectId, data, isLocked }: Pur
                         <div>
                           <label className="text-[10px] font-medium text-gray-500 block mb-1">PO Stage</label>
                           <Select
-                            value={h.getDocStage(vendorDoc)}
-                            onValueChange={(val) => h.updateDocMetaMutation.mutate({
+                            value={hook.getDocStage(vendorDoc)}
+                            onValueChange={(val) => hook.updateDocMetaMutation.mutate({
                               docId: vendorDoc.id,
                               updates: { metadata: { ...vendorDoc.metadata, poStage: val } },
                             })}
-                            disabled={h.isLocked}
+                            disabled={hook.isLocked}
                           >
                             <SelectTrigger className="h-8 text-xs w-[180px]">
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
-                              {Object.entries(h.PO_STAGES).map(([key, val]) => (
+                              {Object.entries(hook.PO_STAGES).map(([key, val]) => (
                                 <SelectItem key={key} value={key}>
                                   <span className="flex items-center gap-2">
                                     <span className={`inline-block w-2 h-2 rounded-full ${val.color.split(" ")[0]}`} />
@@ -401,18 +401,18 @@ export default function PurchaseOrdersSection({ projectId, data, isLocked }: Pur
                         <div>
                           <label className="text-[10px] font-medium text-gray-500 block mb-1">PO Status</label>
                           <Select
-                            value={h.getDocStatus(vendorDoc)}
-                            onValueChange={(val) => h.updateDocMetaMutation.mutate({
+                            value={hook.getDocStatus(vendorDoc)}
+                            onValueChange={(val) => hook.updateDocMetaMutation.mutate({
                               docId: vendorDoc.id,
                               updates: { metadata: { ...vendorDoc.metadata, poStatus: val } },
                             })}
-                            disabled={h.isLocked}
+                            disabled={hook.isLocked}
                           >
                             <SelectTrigger className="h-8 text-xs w-[150px]">
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
-                              {Object.entries(h.PO_STATUSES).map(([key, val]) => (
+                              {Object.entries(hook.PO_STATUSES).map(([key, val]) => (
                                 <SelectItem key={key} value={key}>
                                   <span className="flex items-center gap-2">
                                     <span className={`inline-block w-2 h-2 rounded-full ${val.color.split(" ")[0]}`} />
@@ -427,17 +427,17 @@ export default function PurchaseOrdersSection({ projectId, data, isLocked }: Pur
                           <label className="text-[10px] font-medium text-gray-500 block mb-1">Next Action</label>
                           <Select
                             value={vendorDoc.metadata?.nextActionType || ''}
-                            onValueChange={(val) => h.updateDocMetaMutation.mutate({
+                            onValueChange={(val) => hook.updateDocMetaMutation.mutate({
                               docId: vendorDoc.id,
                               updates: { metadata: { ...vendorDoc.metadata, nextActionType: val } },
                             })}
-                            disabled={h.isLocked}
+                            disabled={hook.isLocked}
                           >
                             <SelectTrigger className="h-8 text-xs w-[160px]">
                               <SelectValue placeholder="Select action" />
                             </SelectTrigger>
                             <SelectContent>
-                              {actionTypes.map((t: any) => (
+                              {actionTypes.map((t) => (
                                 <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
                               ))}
                             </SelectContent>
@@ -448,24 +448,24 @@ export default function PurchaseOrdersSection({ projectId, data, isLocked }: Pur
                           <Input
                             type="date"
                             value={vendorDoc.metadata?.nextActionDate || ''}
-                            onChange={(e) => h.updateDocMetaMutation.mutate({
+                            onChange={(e) => hook.updateDocMetaMutation.mutate({
                               docId: vendorDoc.id,
                               updates: { metadata: { ...vendorDoc.metadata, nextActionDate: e.target.value } },
                             })}
                             className="h-8 text-xs w-[160px]"
-                            disabled={h.isLocked}
+                            disabled={hook.isLocked}
                           />
                         </div>
-                        {(h.order as any)?.inHandsDate && (
+                        {hook.order?.inHandsDate && (
                           <div className="text-[10px] text-gray-500 ml-auto">
-                            Customer IHD: <strong>{new Date((h.order as any).inHandsDate).toLocaleDateString()}</strong>
+                            Customer IHD: <strong>{new Date(hook.order!.inHandsDate).toLocaleDateString()}</strong>
                           </div>
                         )}
                       </div>
                     )}
                     {/* Items List */}
                     <div className="bg-gray-50/50">
-                      {po.items.map((item: any, idx: number) => {
+                      {po.items.map((item, idx: number) => {
                         const itemLines = po.lines[item.id] || [];
                         return (
                           <div key={item.id} className={`px-6 py-3 ${idx < po.items.length - 1 ? "border-b" : ""}`}>
@@ -525,20 +525,20 @@ export default function PurchaseOrdersSection({ projectId, data, isLocked }: Pur
                             <Palette className="w-4 h-4 text-purple-500" />
                             Artwork Proofs
                             <Badge variant="secondary" className="text-[10px]">
-                              {vendorArtworks.filter((a: any) => a.proofRequired !== false && ["approved", "proofing_complete"].includes(a.status)).length}/{vendorArtworks.filter((a: any) => a.proofRequired !== false).length} approved
+                              {vendorArtworks.filter((a) => a.proofRequired !== false && ["approved", "proofing_complete"].includes(a.status)).length}/{vendorArtworks.filter((a) => a.proofRequired !== false).length} approved
                             </Badge>
                           </h4>
-                          {!h.isLocked && vendorArtworks.some((a: any) => a.proofRequired !== false && a.proofFilePath && ["proof_received", "change_requested"].includes(a.status)) && (
+                          {!hook.isLocked && vendorArtworks.some((a) => a.proofRequired !== false && a.proofFilePath && ["proof_received", "change_requested"].includes(a.status)) && (
                             <Button variant="default" size="sm" className="h-7 text-xs gap-1"
-                              onClick={() => h.openSendAllProofs(vendorKey)}>
+                              onClick={() => hook.openSendAllProofs(vendorKey)}>
                               <Send className="w-3 h-3" /> Send All Proofs to Client
                             </Button>
                           )}
                         </div>
                         <div className="space-y-3">
-                          {vendorArtworks.map((art: any) => {
+                          {vendorArtworks.map((art) => {
                             const proofRequired = art.proofRequired !== false;
-                            const si = h.PROOF_STATUSES[art.status] || h.PROOF_STATUSES.pending;
+                            const si = hook.PROOF_STATUSES[art.status] || hook.PROOF_STATUSES.pending;
                             const canRequestProof = proofRequired && ["pending", "change_requested"].includes(art.status || "pending");
                             const canUpload = proofRequired && ["pending", "awaiting_proof", "change_requested"].includes(art.status || "pending");
                             const canMarkComplete = proofRequired && art.status === "approved";
@@ -547,10 +547,10 @@ export default function PurchaseOrdersSection({ projectId, data, isLocked }: Pur
                               <div key={art.id} className={`rounded-lg border`}>
                                 <div className="flex items-center gap-3 p-3">
                                   <div className="w-12 h-12 flex-shrink-0 bg-white rounded border overflow-hidden flex items-center justify-center cursor-pointer"
-                                    onClick={() => { const url = art.fileUrl || art.filePath; if (url) h.setPreviewFile({ url, name: art.name || "Artwork" }); }}>
+                                    onClick={() => { const url = (art.fileUrl || art.filePath) as string | undefined; if (url) hook.setPreviewFile({ url, name: (art.name as string) || "Artwork" }); }}>
                                     {art.fileUrl || art.filePath ? (
                                       (() => {
-                                        const url = art.fileUrl || art.filePath;
+                                        const url = (art.fileUrl || art.filePath) as string;
                                         const ext = url.split("?")[0].split(".").pop()?.toLowerCase();
                                         const isDesignFile = ["ai", "eps", "psd"].includes(ext || "");
                                         const imgSrc = isDesignFile && url.includes("cloudinary.com")
@@ -585,12 +585,12 @@ export default function PurchaseOrdersSection({ projectId, data, isLocked }: Pur
                                       <Switch
                                         checked={proofRequired}
                                         onCheckedChange={(checked) => {
-                                          h.updateArtworkMutation.mutate({
+                                          hook.updateArtworkMutation.mutate({
                                             artworkId: art.id, orderItemId: art.orderItemId,
                                             updates: { name: art.name, proofRequired: checked },
                                           });
                                         }}
-                                        disabled={h.isLocked}
+                                        disabled={hook.isLocked}
                                       />
                                       {proofRequired ? (
                                         <Badge className={`text-[10px] ${si.color}`}>{si.label}</Badge>
@@ -607,22 +607,23 @@ export default function PurchaseOrdersSection({ projectId, data, isLocked }: Pur
                                   <div className="px-3 pb-2">
                                     <div className="flex items-center gap-3 p-2 bg-blue-50 rounded-md border border-blue-100">
                                       <div className="w-10 h-10 flex-shrink-0 bg-white rounded border overflow-hidden cursor-pointer"
-                                        onClick={() => h.setPreviewFile({ url: art.proofFilePath, name: art.proofFileName || "Vendor Proof" })}>
+                                        onClick={() => hook.setPreviewFile({ url: art.proofFilePath as string, name: (art.proofFileName as string) || "Vendor Proof" })}>
                                         {(() => {
-                                          const pExt = art.proofFilePath.split("?")[0].split(".").pop()?.toLowerCase();
+                                          const pPath = art.proofFilePath as string;
+                                          const pExt = pPath.split("?")[0].split(".").pop()?.toLowerCase();
                                           const pIsDesign = ["ai", "eps", "psd"].includes(pExt || "");
-                                          const pSrc = pIsDesign && art.proofFilePath.includes("cloudinary.com")
-                                            ? getCloudinaryThumbnail(art.proofFilePath, 80, 80) : art.proofFilePath;
+                                          const pSrc = pIsDesign && pPath.includes("cloudinary.com")
+                                            ? getCloudinaryThumbnail(pPath, 80, 80) : pPath;
                                           return <img src={pSrc} alt="Proof" className="w-full h-full object-contain p-0.5"
                                             onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />;
                                         })()}
                                       </div>
                                       <div className="flex-1 min-w-0">
                                         <p className="text-xs font-medium text-blue-700">Vendor Proof</p>
-                                        <p className="text-[10px] text-blue-500 truncate">{art.proofFileName || "proof-file"}</p>
+                                        <p className="text-[10px] text-blue-500 truncate">{(art.proofFileName as string) || "proof-file"}</p>
                                       </div>
                                       <Button variant="ghost" size="sm" className="h-7 text-xs text-blue-600 hover:text-blue-800"
-                                        onClick={() => h.setPreviewFile({ url: art.proofFilePath, name: art.proofFileName || "Vendor Proof" })}>
+                                        onClick={() => hook.setPreviewFile({ url: art.proofFilePath as string, name: (art.proofFileName as string) || "Vendor Proof" })}>
                                         <Eye className="w-3 h-3 mr-1" /> View
                                       </Button>
                                     </div>
@@ -631,47 +632,49 @@ export default function PurchaseOrdersSection({ projectId, data, isLocked }: Pur
 
                                 <div className="flex items-center gap-2 px-3 pb-3 flex-wrap">
                                   <Button variant="outline" size="sm" className="h-7 text-xs gap-1 border-purple-200 text-purple-700 hover:bg-purple-50"
-                                    onClick={() => h.handleOpenArtworkApprovalLink(art)}>
+                                    onClick={() => hook.handleOpenArtworkApprovalLink(art)}>
                                     <ExternalLink className="w-3 h-3" /> Open Approval Link
                                   </Button>
                                 </div>
 
-                                {proofRequired && !h.isLocked && (
+                                {proofRequired && !hook.isLocked && (
                                   <div className="flex items-center gap-2 px-3 pb-3 flex-wrap">
                                     {canRequestProof && (
                                       <Button variant="outline" size="sm" className="h-7 text-xs gap-1"
+                                        disabled={hook.updateArtworkMutation.isPending}
                                         onClick={() => {
-                                          h.updateArtworkMutation.mutate({
+                                          hook.updateArtworkMutation.mutate({
                                             artworkId: art.id, orderItemId: art.orderItemId,
                                             updates: { name: art.name, status: "awaiting_proof" },
                                           });
                                         }}>
-                                        <Mail className="w-3 h-3" /> Request Proof
+                                        {hook.updateArtworkMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Mail className="w-3 h-3" />} Request Proof
                                       </Button>
                                     )}
 
                                     {canUpload && (
                                       <Button variant="outline" size="sm" className="h-7 text-xs gap-1 border-blue-200 text-blue-700 hover:bg-blue-50"
-                                        onClick={() => h.setUploadProofArt(art)}>
+                                        onClick={() => hook.setUploadProofArt(art)}>
                                         <Upload className="w-3 h-3" /> Upload Proof
                                       </Button>
                                     )}
 
                                     {canMarkComplete && (
                                       <Button variant="outline" size="sm" className="h-7 text-xs gap-1 border-green-200 text-green-700 hover:bg-green-50"
+                                        disabled={hook.updateArtworkMutation.isPending}
                                         onClick={() => {
-                                          h.updateArtworkMutation.mutate({
+                                          hook.updateArtworkMutation.mutate({
                                             artworkId: art.id, orderItemId: art.orderItemId,
                                             updates: { name: art.name, status: "proofing_complete" },
                                           });
                                         }}>
-                                        <CheckCircle className="w-3 h-3" /> Complete
+                                        {hook.updateArtworkMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle className="w-3 h-3" />} Complete
                                       </Button>
                                     )}
 
                                     {art.status === "change_requested" && art.proofFilePath && (
                                       <Button variant="outline" size="sm" className="h-7 text-xs gap-1 border-orange-200 text-orange-700 hover:bg-orange-50"
-                                        onClick={() => h.setUploadProofArt(art)}>
+                                        onClick={() => hook.setUploadProofArt(art)}>
                                         <Upload className="w-3 h-3" /> Re-upload Proof
                                       </Button>
                                     )}
@@ -696,28 +699,28 @@ export default function PurchaseOrdersSection({ projectId, data, isLocked }: Pur
                 <div className="flex items-center gap-5">
                   <div>
                     <span className="text-gray-500 text-xs">Vendors</span>
-                    <p className="font-semibold">{h.vendorPOs.length}</p>
+                    <p className="font-semibold">{hook.vendorPOs.length}</p>
                   </div>
                   <div>
                     <span className="text-gray-500 text-xs">Total Qty</span>
-                    <p className="font-semibold">{h.grandTotalQty}</p>
+                    <p className="font-semibold">{hook.grandTotalQty}</p>
                   </div>
-                  {(h.order as any)?.supplierInHandsDate && (
+                  {hook.order?.supplierInHandsDate && (
                     <div>
                       <span className="text-gray-500 text-xs">Supplier IHD</span>
-                      <p className="font-semibold text-blue-700">{new Date((h.order as any).supplierInHandsDate).toLocaleDateString()}</p>
+                      <p className="font-semibold text-blue-700">{new Date(hook.order!.supplierInHandsDate).toLocaleDateString()}</p>
                     </div>
                   )}
-                  {(h.order as any)?.inHandsDate && (
+                  {hook.order?.inHandsDate && (
                     <div>
                       <span className="text-gray-500 text-xs">Customer IHD</span>
-                      <p className="font-semibold">{new Date((h.order as any).inHandsDate).toLocaleDateString()}</p>
+                      <p className="font-semibold">{new Date(hook.order!.inHandsDate).toLocaleDateString()}</p>
                     </div>
                   )}
                 </div>
                 <div className="text-right">
                   <span className="text-xs text-gray-500">Total PO Cost</span>
-                  <p className="text-lg font-bold text-purple-700">${h.grandTotalCost.toFixed(2)}</p>
+                  <p className="text-lg font-bold text-purple-700">${hook.grandTotalCost.toFixed(2)}</p>
                 </div>
               </div>
             </CardContent>
@@ -727,25 +730,25 @@ export default function PurchaseOrdersSection({ projectId, data, isLocked }: Pur
 
       {/* Live PDF preview for vendor POs (uses react-pdf PDFViewer) */}
       <PdfPreviewDialog
-        open={!!h.previewVendorKey}
-        onOpenChange={(open) => !open && h.setPreviewVendorKey(null)}
+        open={!!hook.previewVendorKey}
+        onOpenChange={(open) => !open && hook.setPreviewVendorKey(null)}
         title={`PO Preview`}
-        document={h.previewVendorKey ? h.buildVendorPoDoc(h.previewVendorKey) : null}
+        document={hook.previewVendorKey ? hook.buildVendorPoDoc(hook.previewVendorKey) : null}
       />
 
       {/* Email PO to Vendor Dialog */}
-      <Dialog open={!!h.emailPOVendor} onOpenChange={(open) => !open && h.setEmailPOVendor(null)}>
+      <Dialog open={!!hook.emailPOVendor} onOpenChange={(open) => !open && hook.setEmailPOVendor(null)}>
         <DialogContent className="max-w-5xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Mail className="w-5 h-5" /> Email PO to Vendor
             </DialogTitle>
             <DialogDescription>
-              Send PO #{h.emailPOVendor?.doc.documentNumber} to {h.emailPOVendor?.vendor.name}. The PO PDF link will be included.
+              Send PO #{hook.emailPOVendor?.doc.documentNumber} to {hook.emailPOVendor?.vendor.name}. The PO PDF link will be included.
             </DialogDescription>
           </DialogHeader>
           <EmailComposer
-            contacts={h.poVendorContacts.length > 0 ? h.poVendorContacts.map((c: any) => ({
+            contacts={hook.poVendorContacts.length > 0 ? hook.poVendorContacts.map((c) => ({
               id: String(c.id),
               firstName: c.firstName || "",
               lastName: c.lastName || "",
@@ -755,55 +758,55 @@ export default function PurchaseOrdersSection({ projectId, data, isLocked }: Pur
               receiveOrderEmails: c.receiveOrderEmails,
             } as EmailContact)) : undefined}
             defaults={{
-              to: h.emailPOVendor?.vendor.email || "",
-              toName: h.emailPOVendor?.vendor.contactPerson || h.emailPOVendor?.vendor.name || "",
-              subject: `${(h.order as any)?.isFirm ? "FIRM - " : ""}Purchase Order #${h.emailPOVendor?.doc.documentNumber} - ${(h.order as any)?.orderNumber || ""}`,
+              to: hook.emailPOVendor?.vendor.email || "",
+              toName: hook.emailPOVendor?.vendor.contactPerson || hook.emailPOVendor?.vendor.name || "",
+              subject: `${hook.order?.isFirm ? "FIRM - " : ""}Purchase Order #${hook.emailPOVendor?.doc.documentNumber} - ${hook.order?.orderNumber || ""}`,
               body: (() => {
-                const ihd = h.emailPOVendor?.doc?.metadata?.supplierIHD || (h.order as any)?.supplierInHandsDate;
-                return `Hi ${h.emailPOVendor?.vendor.contactPerson || h.emailPOVendor?.vendor.name || "there"},\n\nPlease find the attached purchase order for your review and confirmation.\n\nOrder #: ${(h.order as any)?.orderNumber || ""}\nPO #: ${h.emailPOVendor?.doc.documentNumber || ""}\n${ihd ? `In-Hands Date: ${new Date(ihd).toLocaleDateString()}` : ""}\n\nPlease confirm receipt and acknowledge this order.\n\nThank you.`;
+                const ihd = (hook.emailPOVendor?.doc?.metadata as Record<string, unknown> | undefined)?.supplierIHD || hook.order?.supplierInHandsDate;
+                return `Hi ${hook.emailPOVendor?.vendor.contactPerson || hook.emailPOVendor?.vendor.name || "there"},\n\nPlease find the attached purchase order for your review and confirmation.\n\nOrder #: ${hook.order?.orderNumber || ""}\nPO #: ${hook.emailPOVendor?.doc.documentNumber || ""}\n${ihd ? `In-Hands Date: ${new Date(ihd as string).toLocaleDateString()}` : ""}\n\nPlease confirm receipt and acknowledge this order.\n\nThank you.`;
               })(),
             }}
             templateType="purchase_order"
             templateMergeData={poMergeData}
             showAdvancedFields
             showAttachments
-            contextProjectId={String(h.order?.id || "")}
+            contextProjectId={String(hook.order?.id || "")}
             footerHint="The PO PDF and artwork files will be automatically attached. You can also attach additional files above."
             onSend={(formData) => {
-              if (!h.emailPOVendor) return;
-              h.sendPOEmailMutation.mutate({ doc: h.emailPOVendor.doc, formData });
+              if (!hook.emailPOVendor) return;
+              hook.sendPOEmailMutation.mutate({ doc: hook.emailPOVendor.doc, formData });
             }}
-            isSending={h.sendPOEmailMutation.isPending}
+            isSending={hook.sendPOEmailMutation.isPending}
             sendLabel="Send PO"
-            onCancel={() => h.setEmailPOVendor(null)}
-            resetTrigger={h.emailPOVendor}
+            onCancel={() => hook.setEmailPOVendor(null)}
+            resetTrigger={hook.emailPOVendor}
           />
         </DialogContent>
       </Dialog>
 
       {/* Upload Vendor Proof */}
       <FilePickerDialog
-        open={!!h.uploadProofArt}
-        onClose={() => h.setUploadProofArt(null)}
-        onSelect={h.handleProofUploaded}
+        open={!!hook.uploadProofArt}
+        onClose={() => hook.setUploadProofArt(null)}
+        onSelect={hook.handleProofUploaded}
         multiple={false}
-        contextProjectId={h.projectId}
+        contextProjectId={hook.projectId}
         title="Upload Vendor Proof"
       />
 
       {/* Send Batch Proofs to Client Dialog */}
-      <Dialog open={h.sendProofArts.length > 0} onOpenChange={(open) => !open && h.setSendProofArts([])}>
+      <Dialog open={hook.sendProofArts.length > 0} onOpenChange={(open) => !open && hook.setSendProofArts([])}>
         <DialogContent className="max-w-5xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Send className="w-5 h-5" /> Send Proofs to Client
             </DialogTitle>
             <DialogDescription>
-              Send {h.sendProofArts.length} artwork proof{h.sendProofArts.length > 1 ? "s" : ""} to your client for approval. One email will be sent with all approval links.
+              Send {hook.sendProofArts.length} artwork proof{hook.sendProofArts.length > 1 ? "s" : ""} to your client for approval. One email will be sent with all approval links.
             </DialogDescription>
           </DialogHeader>
           <EmailComposer
-            contacts={h.data.contacts?.length > 0 ? h.data.contacts.map((c: any) => ({
+            contacts={hook.data.contacts?.length > 0 ? hook.data.contacts.map((c) => ({
               id: String(c.id),
               firstName: c.firstName || "",
               lastName: c.lastName || "",
@@ -813,14 +816,14 @@ export default function PurchaseOrdersSection({ projectId, data, isLocked }: Pur
               receiveOrderEmails: c.receiveOrderEmails,
             } as EmailContact)) : undefined}
             defaults={{
-              to: h.data.primaryContact?.email || "",
-              toName: h.data.primaryContact ? `${h.data.primaryContact.firstName} ${h.data.primaryContact.lastName}` : h.data.companyName || "",
-              cc: (h.data as any)?.assignedUser?.email || "",
-              subject: `Artwork Proofs for Review - ${(h.order as any)?.orderNumber || ""}`,
+              to: hook.data.primaryContact?.email || "",
+              toName: hook.data.primaryContact ? `${hook.data.primaryContact.firstName} ${hook.data.primaryContact.lastName}` : hook.data.companyName || "",
+              cc: (hook.data as unknown as { assignedUser?: { email?: string } })?.assignedUser?.email || "",
+              subject: `Artwork Proofs for Review - ${hook.order?.orderNumber || ""}`,
               body: (() => {
-                const pc = h.data.primaryContact;
-                const cn = h.data.companyName || "";
-                const artItems = h.sendProofArts.map((a: any) => `<li>${a.productName} (${a.location || a.artworkType || "Artwork"})</li>`).join("");
+                const pc = hook.data.primaryContact;
+                const cn = hook.data.companyName || "";
+                const artItems = hook.sendProofArts.map((a) => `<li>${a.productName} (${a.location || a.artworkType || "Artwork"})</li>`).join("");
                 return `<p>Hi ${pc?.firstName || "there"},</p><p>We've received artwork proofs for your order. Please review each proof and let us know if you'd like to approve or request changes.</p><p>Proofs included:</p><ul>${artItems}</ul><p>Review and approve here: <span data-merge-tag="artworkApprovalLink">{{artworkApprovalLink}}</span></p><p>Best regards,<br>${cn}</p>`;
               })(),
             }}
@@ -829,12 +832,12 @@ export default function PurchaseOrdersSection({ projectId, data, isLocked }: Pur
             showAdvancedFields
             beforeBody={
               <div className="space-y-2 max-h-[200px] overflow-y-auto">
-                {h.sendProofArts.map((art: any) => {
+                {hook.sendProofArts.map((art) => {
                   const vName = (() => {
-                    const item = h.orderItems.find((i: any) => i.id === art.orderItemId);
+                    const item = hook.orderItems.find((i) => i.id === art.orderItemId);
                     if (!item?.supplierId) return null;
-                    const s = h.suppliers.find((v: any) => v.id === item.supplierId);
-                    return s?.name || s?.companyName || null;
+                    const s = hook.suppliers.find((v) => v.id === item.supplierId);
+                    return s?.name || null;
                   })();
                   return (
                     <div key={art.id} className="flex items-center gap-3 p-2 bg-gray-50 rounded-lg border">
@@ -852,8 +855,8 @@ export default function PurchaseOrdersSection({ projectId, data, isLocked }: Pur
                           {vName && " · "}{art.location || art.artworkType || "Artwork"} · {art.proofFileName || "proof"}
                         </p>
                       </div>
-                      <Badge className={`text-[10px] ${h.PROOF_STATUSES[art.status]?.color || ""}`}>
-                        {h.PROOF_STATUSES[art.status]?.label || art.status}
+                      <Badge className={`text-[10px] ${hook.PROOF_STATUSES[art.status]?.color || ""}`}>
+                        {hook.PROOF_STATUSES[art.status]?.label || art.status}
                       </Badge>
                     </div>
                   );
@@ -862,42 +865,42 @@ export default function PurchaseOrdersSection({ projectId, data, isLocked }: Pur
             }
             footerHint="Proof files will be attached to the email."
             onSend={(formData) => {
-              h.sendBatchProofMutation.mutate({ artworks: h.sendProofArts, formData });
+              hook.sendBatchProofMutation.mutate({ artworks: hook.sendProofArts, formData });
             }}
-            isSending={h.sendBatchProofMutation.isPending}
-            sendLabel={`Send ${h.sendProofArts.length} Proof${h.sendProofArts.length > 1 ? "s" : ""}`}
-            onCancel={() => h.setSendProofArts([])}
-            resetTrigger={h.sendProofArts.length > 0 ? h.sendProofArts : null}
+            isSending={hook.sendBatchProofMutation.isPending}
+            sendLabel={`Send ${hook.sendProofArts.length} Proof${hook.sendProofArts.length > 1 ? "s" : ""}`}
+            onCancel={() => hook.setSendProofArts([])}
+            resetTrigger={hook.sendProofArts.length > 0 ? hook.sendProofArts : null}
           />
         </DialogContent>
       </Dialog>
 
       {/* PO Preview Dialog */}
-      <Dialog open={!!h.previewPO} onOpenChange={(open) => !open && h.setPreviewPO(null)}>
+      <Dialog open={!!hook.previewPO} onOpenChange={(open) => !open && hook.setPreviewPO(null)}>
         <DialogContent className="max-w-5xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <FileText className="w-5 h-5" /> Purchase Order Preview
             </DialogTitle>
           </DialogHeader>
-          {h.previewPO && (
+          {hook.previewPO && (
             <div className="space-y-4">
               <div className="border rounded-lg p-4 bg-gray-50">
                 <div className="flex justify-between">
                   <div>
                     <h3 className="font-bold text-lg">PURCHASE ORDER</h3>
-                    <p className="text-sm text-gray-600">Order: {(h.order as any)?.orderNumber || h.projectId}</p>
+                    <p className="text-sm text-gray-600">Order: {hook.order?.orderNumber || hook.projectId}</p>
                     <p className="text-sm text-gray-600">Date: {new Date().toLocaleDateString()}</p>
                   </div>
                   <div className="text-right">
-                    <p className="font-semibold">{h.previewPO.vendor.name}</p>
+                    <p className="font-semibold">{hook.previewPO.vendor.name}</p>
                     {(() => {
-                      const addr = h.getVendorDefaultAddress(h.previewPO.vendor.id);
+                      const addr = hook.getVendorDefaultAddress(hook.previewPO.vendor.id);
                       if (!addr) return null;
                       const line = [addr.street, addr.city, addr.state, addr.zipCode].filter(Boolean).join(", ");
                       return line ? <p className="text-sm text-gray-600">{line}</p> : null;
                     })()}
-                    {h.previewPO.vendor.email && <p className="text-sm text-gray-600">{h.previewPO.vendor.email}</p>}
+                    {hook.previewPO.vendor.email && <p className="text-sm text-gray-600">{hook.previewPO.vendor.email}</p>}
                   </div>
                 </div>
               </div>
@@ -912,10 +915,10 @@ export default function PurchaseOrdersSection({ projectId, data, isLocked }: Pur
                     </tr>
                   </thead>
                   <tbody>
-                    {h.previewPO.items.map((item: any) => {
+                    {hook.previewPO.items.map((item) => {
                       const qty = item.quantity || 0;
                       const cost = parseFloat(item.cost || item.unitPrice || "0");
-                      const itemArts = h.allArtworkItems[item.id] || [];
+                      const itemArts = hook.allArtworkItems[item.id] || [];
                       return (
                         <tr key={item.id} className="border-b">
                           <td className="p-3">
@@ -923,7 +926,7 @@ export default function PurchaseOrdersSection({ projectId, data, isLocked }: Pur
                             <p className="text-xs text-gray-500">{item.productSku}</p>
                             {itemArts.length > 0 && (
                               <div className="mt-2 space-y-1">
-                                {itemArts.map((art: any) => (
+                                {itemArts.map((art) => (
                                   <div key={art.id} className="flex items-center gap-2 text-[10px] text-gray-500 bg-gray-50 rounded px-2 py-1">
                                     {art.filePath && (() => {
                                       const ext = art.filePath.split("?")[0].split(".").pop()?.toLowerCase();
@@ -947,33 +950,33 @@ export default function PurchaseOrdersSection({ projectId, data, isLocked }: Pur
                       );
                     })}
                   </tbody>
-                  <tfoot className="bg-gray-50"><tr><td colSpan={2} className="p-3 font-bold">TOTAL</td><td></td><td className="p-3 text-right font-bold text-blue-700">${h.previewPO.totalCost.toFixed(2)}</td></tr></tfoot>
+                  <tfoot className="bg-gray-50"><tr><td colSpan={2} className="p-3 font-bold">TOTAL</td><td></td><td className="p-3 text-right font-bold text-blue-700">${hook.previewPO.totalCost.toFixed(2)}</td></tr></tfoot>
                 </table>
               </div>
             </div>
           )}
           <DialogFooter>
-            <Button variant="outline" onClick={() => h.setPreviewPO(null)}>Close</Button>
-            <Button variant="outline" onClick={() => { h.previewPO && h.copyPOToClipboard(h.previewPO); }}><Copy className="w-4 h-4 mr-2" /> Copy</Button>
+            <Button variant="outline" onClick={() => hook.setPreviewPO(null)}>Close</Button>
+            <Button variant="outline" onClick={() => { hook.previewPO && hook.copyPOToClipboard(hook.previewPO); }}><Copy className="w-4 h-4 mr-2" /> Copy</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
       {/* Notify Vendor Email Dialog (general email, no PO stage change) */}
-      <Dialog open={!!h.notifyVendor} onOpenChange={(open) => !open && h.setNotifyVendor(null)}>
+      <Dialog open={!!hook.notifyVendor} onOpenChange={(open) => !open && hook.setNotifyVendor(null)}>
         <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Send className="w-5 h-5" /> Email Vendor — {h.notifyVendor?.vendor?.name}
+              <Send className="w-5 h-5" /> Email Vendor — {hook.notifyVendor?.vendor?.name}
             </DialogTitle>
           </DialogHeader>
-          {h.notifyVendor && (
+          {hook.notifyVendor && (
             <EmailComposer
               defaults={{
-                to: h.notifyVendor.vendor.email || "",
-                toName: h.notifyVendor.vendor.name || "",
-                subject: h.notifyVendor.subject || "",
-                body: h.notifyVendor.body || "",
+                to: hook.notifyVendor.vendor.email || "",
+                toName: hook.notifyVendor.vendor.name || "",
+                subject: hook.notifyVendor.subject || "",
+                body: hook.notifyVendor.body || "",
               }}
               autoFillSender
               onSend={async (formData) => {
@@ -986,12 +989,12 @@ export default function PurchaseOrdersSection({ projectId, data, isLocked }: Pur
                   body: formData.body,
                   cc: formData.cc || undefined,
                   bcc: formData.bcc || undefined,
-                  metadata: { type: "vendor_notification", vendorId: h.notifyVendor?.vendor?.id },
+                  metadata: { type: "vendor_notification", vendorId: hook.notifyVendor?.vendor?.id },
                 });
                 toast({ title: "Email sent to vendor" });
-                h.setNotifyVendor(null);
+                hook.setNotifyVendor(null);
               }}
-              onCancel={() => h.setNotifyVendor(null)}
+              onCancel={() => hook.setNotifyVendor(null)}
               sendLabel="Send Email"
             />
           )}
@@ -999,21 +1002,21 @@ export default function PurchaseOrdersSection({ projectId, data, isLocked }: Pur
       </Dialog>
 
       {/* Document Editor */}
-      {h.previewDocument && (
-        <DocumentEditor document={h.previewDocument} order={h.order} orderItems={h.orderItems}
-          companyName={(h.data as any).companyName || ""} primaryContact={(h.data as any).primaryContact}
-          getEditedItem={h.getEditedItem} onClose={() => h.setPreviewDocument(null)}
-          allArtworkItems={h.allArtworkItems} />
+      {hook.previewDocument && (
+        <DocumentEditor document={hook.previewDocument} order={hook.order} orderItems={hook.orderItems}
+          companyName={hook.data.companyName || ""} primaryContact={hook.data.primaryContact}
+          getEditedItem={hook.getEditedItem} onClose={() => hook.setPreviewDocument(null)}
+          allArtworkItems={hook.allArtworkItems} />
       )}
 
       {/* File Preview */}
-      {h.previewFile && (
+      {hook.previewFile && (
         <FilePreviewModal open={true}
           file={{
-            fileName: h.previewFile.name, originalName: h.previewFile.name, filePath: h.previewFile.url,
-            mimeType: h.previewFile.url.match(/\.(png|jpg|jpeg|gif|webp|svg)$/i) ? "image/png" : "application/pdf"
+            fileName: hook.previewFile.name, originalName: hook.previewFile.name, filePath: hook.previewFile.url,
+            mimeType: hook.previewFile.url.match(/\.(png|jpg|jpeg|gif|webp|svg)$/i) ? "image/png" : "application/pdf"
           }}
-          onClose={() => h.setPreviewFile(null)} />
+          onClose={() => hook.setPreviewFile(null)} />
       )}
     </div>
   );

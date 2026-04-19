@@ -18,7 +18,7 @@ import {
   useProjectVendorInvoices,
   useProjectServiceCharges,
 } from "./queries";
-import type { TeamMember, ProjectData } from "@/types/project-types";
+import type { TeamMember, ProjectData, OrderVendor } from "@/types/project-types";
 import type { Order } from "@shared/schema";
 
 // Which sections trigger which lazy resources.
@@ -78,7 +78,7 @@ export function useProjectData(
     enabled && !!order && SECTIONS.INVOICE.includes(section),
   );
   const { data: suppliers = [] } = useSuppliers();
-  const { data: allProducts = [] } = useProducts<any[]>();
+  const { data: allProducts = [] } = useProducts();
   const { data: activities = [] } = useProjectActivities(
     id,
     enabled && !!order && SECTIONS.ACTIVITIES.includes(section),
@@ -120,24 +120,24 @@ export function useProjectData(
 
   // Derived
   const companyName = order?.companyId
-    ? companies.find((c: any) => c.id === order.companyId)?.name || "Unknown Company"
+    ? companies.find((c) => c.id === order.companyId)?.name || "Unknown Company"
     : "Individual Client";
 
-  const primaryContact = contacts.find((c: any) => c.isPrimary) || contacts[0];
+  const primaryContact = contacts.find((c) => c.isPrimary) || contacts[0];
 
   const companyData = order?.companyId
-    ? companies.find((c: any) => c.id === order.companyId)
+    ? companies.find((c) => c.id === order.companyId)
     : null;
 
-  const assignedUser = teamMembers.find((u: any) => u.id === (order as any)?.assignedUserId);
-  const csrUser = teamMembers.find((u: any) => u.id === (order as any)?.csrUserId);
+  const assignedUser = teamMembers.find((u) => u.id === (order as Order & { assignedUserId?: string })?.assignedUserId);
+  const csrUser = teamMembers.find((u) => u.id === (order as Order & { csrUserId?: string })?.csrUserId);
 
   const orderVendors = useMemo(() => {
-    const vendorsMap = new Map<string, any>();
+    const vendorsMap = new Map<string, OrderVendor>();
 
-    orderItems.forEach((item: any) => {
+    orderItems.forEach((item) => {
       if (item.supplierId && !vendorsMap.has(item.supplierId)) {
-        const supplierFromArray = suppliers.find((s: any) => s.id === item.supplierId);
+        const supplierFromArray = suppliers.find((s) => s.id === item.supplierId);
         vendorsMap.set(item.supplierId, {
           id: item.supplierId,
           vendorKey: item.supplierId,
@@ -153,7 +153,7 @@ export function useProjectData(
       if (item.decoratorType === "third_party" && item.decoratorId && item.decoratorId !== item.supplierId) {
         const decoratorKey = `decorator-${item.decoratorId}`;
         if (!vendorsMap.has(decoratorKey)) {
-          const decoratorFromArray = suppliers.find((s: any) => s.id === item.decoratorId);
+          const decoratorFromArray = suppliers.find((s) => s.id === item.decoratorId);
           vendorsMap.set(decoratorKey, {
             id: item.decoratorId,
             vendorKey: decoratorKey,
@@ -168,7 +168,7 @@ export function useProjectData(
       }
     });
 
-    orderItems.forEach((item: any) => {
+    orderItems.forEach((item) => {
       const product = {
         id: item.id,
         productName: item.productName,
@@ -179,13 +179,13 @@ export function useProjectData(
       };
 
       if (item.supplierId && vendorsMap.has(item.supplierId)) {
-        vendorsMap.get(item.supplierId).products.push(product);
+        vendorsMap.get(item.supplierId)!.products.push(product);
       }
 
       if (item.decoratorType === "third_party" && item.decoratorId) {
         const decoratorKey = `decorator-${item.decoratorId}`;
         if (vendorsMap.has(decoratorKey)) {
-          vendorsMap.get(decoratorKey).products.push(product);
+          vendorsMap.get(decoratorKey)!.products.push(product);
         }
       }
     });
@@ -193,7 +193,7 @@ export function useProjectData(
     return Array.from(vendorsMap.values());
   }, [orderItems, suppliers]);
 
-  const isRushOrder = !!(order as any)?.isRush;
+  const isRushOrder = !!(order as Order & { isRush?: boolean })?.isRush;
   const businessStage = order ? determineBusinessStage(order) : undefined;
 
   return {
@@ -204,7 +204,7 @@ export function useProjectData(
     // looser CRM shape.
     companies: companies as ProjectData["companies"],
     contacts: contacts as ProjectData["contacts"],
-    invoice,
+    invoice: invoice ?? null,
     invoiceLoading,
     teamMembers,
     orderItems,

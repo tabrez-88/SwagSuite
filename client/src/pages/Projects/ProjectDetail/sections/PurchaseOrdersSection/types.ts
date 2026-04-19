@@ -1,5 +1,6 @@
-import type { ProjectData } from "@/types/project-types";
+import type { ProjectData, OrderVendor } from "@/types/project-types";
 import type { OrderItemLine } from "@shared/schema";
+import type { EnrichedOrderItem } from "@/types/project-types";
 
 export interface PurchaseOrdersSectionProps {
   projectId: string;
@@ -8,8 +9,8 @@ export interface PurchaseOrdersSectionProps {
 }
 
 export interface VendorPO {
-  vendor: any;
-  items: any[];
+  vendor: OrderVendor;
+  items: EnrichedOrderItem[];
   lines: Record<string, OrderItemLine[]>;
   totalQty: number;
   totalCost: number;

@@ -12,9 +12,11 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useImprintOptions } from "@/services/imprint-options";
 import { useToast } from "@/hooks/use-toast";
-import { createSupplierMatrix, deleteMatrix, createMatrixEntry, deleteMatrixEntry, updateMatrixEntry, applyMatrix } from "@/services/decorator-matrix/requests";
 import { useLocation } from "@/lib/wouter-compat";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useCreateSupplierMatrix, useDeleteMatrix, useCreateMatrixEntry, useDeleteMatrixEntry, useUpdateMatrixEntry, useApplyMatrix } from "@/services/decorator-matrix/mutations";
+import { matrixKeys } from "@/services/decorator-matrix/keys";
+import { projectKeys } from "@/services/projects/keys";
 import { Grid3X3, Loader2, Plus, Settings, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 
@@ -36,7 +38,7 @@ export default function DecoratorMatrixDialog({ open, supplierId, supplierName, 
   const [, navigate] = useLocation();
 
   const { data: matrices = [], isLoading } = useQuery<any[]>({
-    queryKey: [`/api/suppliers/${supplierId}/matrices`],
+    queryKey: matrixKeys.bySupplier(supplierId),
     enabled: open && !!supplierId,
   });
 
@@ -60,68 +62,54 @@ export default function DecoratorMatrixDialog({ open, supplierId, supplierName, 
     }
   }, [matrices, selectedMatrixId]);
 
-  // Mutations
-  const createMatrixMutation = useMutation({
-    mutationFn: (data: any) => createSupplierMatrix(supplierId, data),
-    onSuccess: (newMatrix) => {
-      queryClient.invalidateQueries({ queryKey: [`/api/suppliers/${supplierId}/matrices`] });
-      setSelectedMatrixId(newMatrix.id);
-      setShowAddMatrix(false);
-      setNewMatrixName("");
-      setNewMatrixMethod("");
-      setNewMatrixType("run_charge_table");
-      toast({ title: "Matrix created" });
-    },
-  });
+  // Mutations from service layer
+  const createMatrixMutationRaw = useCreateSupplierMatrix(supplierId);
+  const deleteMatrixMutationRaw = useDeleteMatrix(supplierId);
+  const addEntryMutation = useCreateMatrixEntry();
+  const deleteEntryMutation = useDeleteMatrixEntry();
+  const updateEntryMutation = useUpdateMatrixEntry();
+  const applyToArtworkMutationRaw = useApplyMatrix();
 
-  const deleteMatrixMutation = useMutation({
-    mutationFn: (matrixId: string) => deleteMatrix(matrixId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/suppliers/${supplierId}/matrices`] });
-      setSelectedMatrixId(null);
-      toast({ title: "Matrix deleted" });
-    },
-  });
+  // Wrap with UI side-effects
+  const createMatrixMutation = {
+    ...createMatrixMutationRaw,
+    mutate: (data: any) => createMatrixMutationRaw.mutate(data, {
+      onSuccess: (newMatrix: any) => {
+        setSelectedMatrixId(newMatrix.id);
+        setShowAddMatrix(false);
+        setNewMatrixName("");
+        setNewMatrixMethod("");
+        setNewMatrixType("run_charge_table");
+      },
+    }),
+  };
 
-  const addEntryMutation = useMutation({
-    mutationFn: ({ matrixId, entry }: { matrixId: string; entry: any }) => createMatrixEntry(matrixId, entry),
-    onSuccess: () => {
-      if (selectedMatrixId) queryClient.invalidateQueries({ queryKey: [`/api/matrices/${selectedMatrixId}`] });
-      toast({ title: "Entry added" });
-    },
-  });
+  const deleteMatrixMutation = {
+    ...deleteMatrixMutationRaw,
+    mutate: (matrixId: string) => deleteMatrixMutationRaw.mutate(matrixId, {
+      onSuccess: () => {
+        setSelectedMatrixId(null);
+        toast({ title: "Matrix deleted" });
+      },
+    }),
+  };
 
-  const deleteEntryMutation = useMutation({
-    mutationFn: ({ matrixId, entryId }: { matrixId: string; entryId: string }) => deleteMatrixEntry(matrixId, entryId),
-    onSuccess: () => {
-      if (selectedMatrixId) queryClient.invalidateQueries({ queryKey: [`/api/matrices/${selectedMatrixId}`] });
-    },
-  });
-
-  const updateEntryMutation = useMutation({
-    mutationFn: ({ matrixId, entryId, updates }: { matrixId: string; entryId: string; updates: any }) => updateMatrixEntry(matrixId, entryId, updates),
-    onSuccess: () => {
-      if (selectedMatrixId) queryClient.invalidateQueries({ queryKey: [`/api/matrices/${selectedMatrixId}`] });
-    },
-  });
-
-  const applyToArtworkMutation = useMutation({
-    mutationFn: ({ artworkId, supplierId, quantity }: { artworkId: string; supplierId: string; quantity: number }) => applyMatrix({ artworkId, supplierId, quantity }),
-    onSuccess: (data) => {
-      if (projectId) {
-        queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/items-with-details`] });
-      }
-      if (data.applied) {
-        toast({ title: "Matrix applied", description: `${data.charges.length} charge(s) from "${data.matrixName}"` });
-        onClose();
-      } else {
-        toast({ title: "Could not apply", description: data.message, variant: "destructive" });
-      }
-    },
-    onError: () => {
-      toast({ title: "Failed to apply matrix", variant: "destructive" });
-    },
-  });
+  const applyToArtworkMutation = {
+    ...applyToArtworkMutationRaw,
+    mutate: (data: { artworkId: string; supplierId: string; quantity: number }) => applyToArtworkMutationRaw.mutate(data, {
+      onSuccess: (result: any) => {
+        if (projectId) {
+          queryClient.invalidateQueries({ queryKey: projectKeys.itemsWithDetails(projectId) });
+        }
+        if (result.applied) {
+          toast({ title: "Matrix applied", description: `${result.charges.length} charge(s) from "${result.matrixName}"` });
+          onClose();
+        } else {
+          toast({ title: "Could not apply", description: result.message, variant: "destructive" });
+        }
+      },
+    }),
+  };
 
   const [newEntry, setNewEntry] = useState({ minQuantity: 1, maxQuantity: "", setupCost: "0", runCost: "0", additionalColorCost: "0", colorCount: 1 });
   const [newSimpleEntry, setNewSimpleEntry] = useState({ rowLabel: "", unitCost: "0", minQuantity: 1, maxQuantity: "" });

@@ -7,6 +7,27 @@ export interface SalesOrderSectionProps {
   lockStatus?: SectionLockStatus;
 }
 
+/** Artwork enriched with product context for SO artwork display */
+export interface SOArtwork {
+  id: string;
+  name: string | null;
+  status: string;
+  filePath: string | null;
+  fileUrl: string | null;
+  fileName: string | null;
+  location: string | null;
+  artworkType: string | null;
+  proofRequired: boolean | null;
+  proofFilePath: string | null;
+  proofFileName: string | null;
+  productName: string;
+  productSku: string;
+  supplierName: string;
+  decoratorType: string;
+  decoratorName: string | null;
+  [key: string]: unknown;
+}
+
 export const salesOrderStatuses = [
   { value: "new", label: "New", color: "bg-blue-100 text-blue-800" },
   { value: "pending_client_approval", label: "Pending Client Approval", color: "bg-yellow-100 text-yellow-800" },

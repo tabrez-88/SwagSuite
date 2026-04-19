@@ -263,8 +263,8 @@ export function EmailTemplatesTab() {
                 </div>
                 <div className="flex items-end gap-4">
                   {!isNew && selectedId && !editForm.isDefault && (
-                    <Button variant="outline" size="sm" onClick={() => handleSetDefault(selectedId)}>
-                      <Star className="w-3.5 h-3.5 mr-1.5" /> Set as Default
+                    <Button variant="outline" size="sm" onClick={() => handleSetDefault(selectedId)} disabled={setDefaultMutation.isPending}>
+                      <Star className="w-3.5 h-3.5 mr-1.5" /> {setDefaultMutation.isPending ? "Setting..." : "Set as Default"}
                     </Button>
                   )}
                   {editForm.isDefault && (
@@ -378,8 +378,9 @@ export function EmailTemplatesTab() {
             <AlertDialogAction
               onClick={handleDelete}
               className="bg-red-600 hover:bg-red-700"
+              disabled={deleteMutation.isPending}
             >
-              Delete
+              {deleteMutation.isPending ? "Deleting..." : "Delete"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

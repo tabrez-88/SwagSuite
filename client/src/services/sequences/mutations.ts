@@ -27,3 +27,19 @@ export function useDeleteSequence() {
   const invalidate = useInvalidate();
   return useMutation({ mutationFn: requests.deleteSequence, onSuccess: invalidate });
 }
+
+export function useReplaceSequence() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: Record<string, unknown> }) => requests.replaceSequence(id, data),
+    onSuccess: invalidate,
+  });
+}
+
+export function useCreateSequenceStep(sequenceId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: Record<string, unknown>) => requests.createSequenceStep(sequenceId, data),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/sequences", sequenceId, "steps"] }),
+  });
+}

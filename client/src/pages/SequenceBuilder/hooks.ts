@@ -1,9 +1,9 @@
 import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useSequences, useSequenceEnrollments, sequenceKeys } from "@/services/sequences";
-import { createSequence, replaceSequence, deleteSequence, createSequenceStep } from "@/services/sequences/requests";
+import { useCreateSequence, useReplaceSequence, useDeleteSequence, useCreateSequenceStep } from "@/services/sequences/mutations";
 import { sequenceFormSchema, stepFormSchema, type SequenceFormData, type StepFormData } from "@/schemas/sequence.schemas";
 import { useToast } from "@/hooks/use-toast";
 import type { Sequence, SequenceStep } from "@shared/schema";
@@ -15,7 +15,6 @@ export function useSequenceBuilder() {
   const [editingStep, setEditingStep] = useState<SequenceStep | null>(null);
   const [isDeleteSequenceDialogOpen, setIsDeleteSequenceDialogOpen] = useState(false);
   const { toast } = useToast();
-  const queryClient = useQueryClient();
 
   // Fetch sequences
   const { data: sequences, isLoading: sequencesLoading } = useSequences() as unknown as {
@@ -39,45 +38,10 @@ export function useSequenceBuilder() {
     enabled: !!selectedSequence?.id,
   });
 
-  const createSequenceMutation = useMutation({
-    mutationFn: (data: SequenceFormData) => createSequence(data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: sequenceKeys.all });
-      setShowCreateDialog(false);
-      toast({ title: "Success", description: "Sequence created successfully" });
-    },
-  });
-
-  const updateSequenceMutation = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: Partial<Sequence> }) =>
-      replaceSequence(id, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: sequenceKeys.all });
-      toast({ title: "Success", description: "Sequence updated successfully" });
-    },
-  });
-
-  const deleteSequenceMutation = useMutation({
-    mutationFn: (id: string) => deleteSequence(id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: sequenceKeys.all });
-      setSelectedSequence(null);
-      toast({ title: "Success", description: "Sequence deleted successfully" });
-    },
-  });
-
-  const createStepMutation = useMutation({
-    mutationFn: (data: StepFormData) =>
-      createSequenceStep(selectedSequence?.id!, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: ["/api/sequences", selectedSequence?.id, "steps"],
-      });
-      setShowStepDialog(false);
-      setEditingStep(null);
-      toast({ title: "Success", description: "Step created successfully" });
-    },
-  });
+  const createSequenceMutation = useCreateSequence();
+  const updateSequenceMutation = useReplaceSequence();
+  const deleteSequenceMutation = useDeleteSequence();
+  const createStepMutation = useCreateSequenceStep(selectedSequence?.id!);
 
   // Forms
   const sequenceForm = useForm<SequenceFormData>({
@@ -104,11 +68,22 @@ export function useSequenceBuilder() {
   });
 
   const onCreateSequence = (data: SequenceFormData) => {
-    createSequenceMutation.mutate(data);
+    createSequenceMutation.mutate(data, {
+      onSuccess: () => {
+        setShowCreateDialog(false);
+        toast({ title: "Success", description: "Sequence created successfully" });
+      },
+    });
   };
 
   const onCreateStep = (data: StepFormData) => {
-    createStepMutation.mutate(data);
+    createStepMutation.mutate(data, {
+      onSuccess: () => {
+        setShowStepDialog(false);
+        setEditingStep(null);
+        toast({ title: "Success", description: "Step created successfully" });
+      },
+    });
   };
 
   const toggleSequenceStatus = (sequence: Sequence) => {
@@ -116,6 +91,8 @@ export function useSequenceBuilder() {
     updateSequenceMutation.mutate({
       id: sequence.id,
       data: { status: newStatus },
+    }, {
+      onSuccess: () => toast({ title: "Success", description: "Sequence updated successfully" }),
     });
   };
 
@@ -175,7 +152,12 @@ export function useSequenceBuilder() {
 
   const confirmDeleteSequence = () => {
     if (selectedSequence) {
-      deleteSequenceMutation.mutate(selectedSequence.id);
+      deleteSequenceMutation.mutate(selectedSequence.id, {
+        onSuccess: () => {
+          setSelectedSequence(null);
+          toast({ title: "Success", description: "Sequence deleted successfully" });
+        },
+      });
       setIsDeleteSequenceDialogOpen(false);
     }
   };

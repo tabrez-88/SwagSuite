@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
+import { isUnauthorizedError } from "@/lib/authUtils";
 import { projectKeys } from "./keys";
 import * as requests from "./requests";
 
@@ -147,5 +148,101 @@ export function useUpdateVendorInvoice(projectId: string | number) {
       requests.updateVendorInvoice(projectId, id, data),
     onSuccess: () => { invalidate(); toast({ title: "Vendor bill updated" }); },
     onError: () => toast({ title: "Failed to update bill", variant: "destructive" }),
+  });
+}
+
+export function useCreateProject() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  return useMutation({
+    mutationFn: (payload: Record<string, any>) => requests.createProject(payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: projectKeys.all });
+      queryClient.invalidateQueries({ queryKey: ["/api/dashboard/recent-orders"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
+      toast({ title: "Project created" });
+    },
+    onError: (error: Error) => {
+      if (isUnauthorizedError(error)) {
+        toast({ title: "Session expired", variant: "destructive" });
+        setTimeout(() => { window.location.href = "/api/login"; }, 500);
+        return;
+      }
+      toast({ title: "Failed to create project", variant: "destructive" });
+    },
+  });
+}
+
+export function useUploadProjectFiles(projectId: string | number) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (formData: FormData) => requests.uploadProjectFiles(projectId, formData),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: projectKeys.files(projectId) }),
+  });
+}
+
+export function useLinkLibraryFiles(projectId: string | number) {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  return useMutation({
+    mutationFn: (data: { mediaLibraryIds: string[]; fileType: string }) =>
+      requests.linkLibraryFiles(projectId, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: projectKeys.files(projectId) });
+      toast({ title: "Files added", description: "Files from library have been linked to this order." });
+    },
+    onError: (error: Error) => toast({ title: "Failed to add files", description: error.message, variant: "destructive" }),
+  });
+}
+
+export function useDeleteProjectFile(projectId: string | number) {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  return useMutation({
+    mutationFn: (fileId: string) => requests.deleteProjectFile(projectId, fileId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: projectKeys.files(projectId) });
+      toast({ title: "File deleted", description: "File has been deleted successfully" });
+    },
+    onError: (error: Error) => toast({ title: "Delete failed", description: error.message, variant: "destructive" }),
+  });
+}
+
+export function useUnlockSection(projectId: string | number) {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  return useMutation({
+    mutationFn: async (sectionKey: string) => {
+      const order = await requests.fetchProject(projectId);
+      const currentStageData = order.stageData || {};
+      const updatedStageData = {
+        ...currentStageData,
+        unlocks: {
+          ...(currentStageData.unlocks || {}),
+          [sectionKey]: { unlockedAt: new Date().toISOString() },
+        },
+      };
+      await requests.updateProject(projectId, { stageData: updatedStageData });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: projectKeys.detail(projectId) });
+      toast({ title: "Section unlocked", description: "This action has been logged." });
+    },
+    onError: () => toast({ title: "Failed to unlock section", variant: "destructive" }),
+  });
+}
+
+export function useUpdateProjectStage() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  return useMutation({
+    mutationFn: ({ projectId, updates }: { projectId: string; updates: Record<string, any> }) =>
+      requests.updateProject(projectId, updates),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: projectKeys.all });
+      queryClient.invalidateQueries({ queryKey: ["/api/dashboard/recent-orders"] });
+      toast({ title: "Stage updated successfully" });
+    },
+    onError: () => toast({ title: "Failed to update stage", variant: "destructive" }),
   });
 }

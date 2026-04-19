@@ -109,6 +109,23 @@ export function useUpdateContact(companyId?: string) {
 }
 
 /**
+ * Create a simple contact (inline creation from wizards/modals).
+ */
+export function useCreateSimpleContact() {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: requests.createSimpleContact,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: contactKeys.all });
+      toast({ title: "Contact created" });
+    },
+    onError: () => toast({ title: "Failed to create contact", variant: "destructive" }),
+  });
+}
+
+/**
  * Delete contact — used from both CRM contacts page and ContactsManager.
  * When companyId is provided, also invalidates company-scoped queries.
  * When supplierId is provided, also invalidates supplier queries.

@@ -200,11 +200,11 @@ function OptionsList({ type, title }: { type: ImprintOptionType; title: string }
           Loading…
         </div>
       ) : options.length === 0 ? (
-        <div className="text-center py-6 text-muted-foreground text-sm border rounded-md">
+        <div className="text-center py-6 text-muted-foreground text-sm border rounded-lg">
           No options yet.
         </div>
       ) : (
-        <div className="border rounded-md">
+        <div className="border rounded-lg">
           <Table>
             <TableHeader>
               <TableRow>
@@ -231,6 +231,7 @@ function OptionsList({ type, title }: { type: ImprintOptionType; title: string }
                     <Switch
                       checked={opt.isActive}
                       onCheckedChange={() => toggleActive(opt)}
+                      disabled={updateMutation.isPending}
                     />
                   </TableCell>
                   <TableCell className="text-right">
@@ -305,8 +306,9 @@ function OptionsList({ type, title }: { type: ImprintOptionType; title: string }
             <AlertDialogAction
               className="bg-red-600 hover:bg-red-700"
               onClick={handleDelete}
+              disabled={deleteMutation.isPending}
             >
-              Delete
+              {deleteMutation.isPending ? "Deleting..." : "Delete"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -374,12 +376,12 @@ function SuggestionsList() {
           Loading…
         </div>
       ) : suggestions.length === 0 ? (
-        <div className="text-center py-12 text-muted-foreground text-sm border rounded-md flex flex-col items-center gap-2">
+        <div className="text-center py-12 text-muted-foreground text-sm border rounded-lg flex flex-col items-center gap-2">
           <Inbox className="w-6 h-6" />
           No {filter === "all" ? "" : filter} suggestions.
         </div>
       ) : (
-        <div className="border rounded-md">
+        <div className="border rounded-lg">
           <Table>
             <TableHeader>
               <TableRow>

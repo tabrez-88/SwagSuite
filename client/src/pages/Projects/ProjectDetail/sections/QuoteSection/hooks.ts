@@ -8,6 +8,8 @@ import { projectKeys } from "@/services/projects/keys";
 import { useUpdateProjectStatus } from "@/services/projects/mutations";
 import { useBranding } from "@/services/settings";
 import { quoteStatuses } from "./types";
+import type { EnrichedOrderItem } from "@/types/project-types";
+import type { GeneratedDocument } from "@shared/schema";
 import type { QuoteSectionProps } from "./types";
 
 export function useQuoteSection({ projectId, data, lockStatus }: QuoteSectionProps) {
@@ -15,7 +17,7 @@ export function useQuoteSection({ projectId, data, lockStatus }: QuoteSectionPro
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [showConversionDialog, setShowConversionDialog] = useState(false);
-  const [previewDocument, setPreviewDocument] = useState<any>(null);
+  const [previewDocument, setPreviewDocument] = useState<GeneratedDocument | null>(null);
   const [showLivePreview, setShowLivePreview] = useState(false);
   const [showSendDialog, setShowSendDialog] = useState(false);
 
@@ -31,8 +33,8 @@ export function useQuoteSection({ projectId, data, lockStatus }: QuoteSectionPro
   } = useDocumentGeneration(projectId);
 
   const enrichedItems = useMemo(() => {
-    return orderItems.map((item: any) => {
-      const product = allProducts.find((p: any) => p.id === item.productId);
+    return orderItems.map((item) => {
+      const product = allProducts.find((p) => p.id === item.productId);
       return {
         ...item,
         imageUrl: item.productImageUrl || product?.imageUrl || null,
@@ -50,8 +52,8 @@ export function useQuoteSection({ projectId, data, lockStatus }: QuoteSectionPro
     return buildItemsHash(orderItems, "quote", order);
   }, [orderItems, order]);
 
-  const isQuoteStale = (doc: any) => {
-    const storedHash = doc.metadata?.itemsHash;
+  const isQuoteStale = (doc: GeneratedDocument) => {
+    const storedHash = (doc.metadata as Record<string, unknown>)?.itemsHash;
     if (!storedHash) return false;
     return storedHash !== currentQuoteHash;
   };
@@ -79,7 +81,7 @@ export function useQuoteSection({ projectId, data, lockStatus }: QuoteSectionPro
       await generateDocument({
         pdfDocument: buildQuoteDoc(),
         documentType: "quote",
-        documentNumber: (order as any)?.orderNumber || "DRAFT",
+        documentNumber: order?.orderNumber || "DRAFT",
         itemsHash: currentQuoteHash,
       });
       toast({ title: "Quote PDF generated successfully" });
@@ -96,8 +98,8 @@ export function useQuoteSection({ projectId, data, lockStatus }: QuoteSectionPro
     await handleGenerateQuote();
   };
 
-  const handleGetApprovalLink = async (doc: any) => {
-    const existingApproval = quoteApprovals.find((a: any) => a.status === "pending");
+  const handleGetApprovalLink = async (doc: GeneratedDocument) => {
+    const existingApproval = quoteApprovals.find((a) => a.status === "pending");
     if (existingApproval) {
       const approvalUrl = `${window.location.origin}/client-approval/${existingApproval.approvalToken}`;
       window.open(approvalUrl, "_blank", "noopener,noreferrer");
@@ -108,8 +110,8 @@ export function useQuoteSection({ projectId, data, lockStatus }: QuoteSectionPro
         clientEmail: primaryContact?.email || "",
         clientName: primaryContact ? `${primaryContact.firstName} ${primaryContact.lastName}` : companyName,
         documentId: doc.id,
-        pdfPath: doc.fileUrl,
-        quoteTotal: (order as any)?.total,
+        pdfPath: doc.fileUrl ?? undefined,
+        quoteTotal: order?.total ?? undefined,
       });
       const approvalUrl = `${window.location.origin}/client-approval/${result.approvalToken}`;
       window.open(approvalUrl, "_blank", "noopener,noreferrer");
@@ -118,12 +120,12 @@ export function useQuoteSection({ projectId, data, lockStatus }: QuoteSectionPro
     }
   };
 
-  const currentStatus = (order as any)?.quoteStatus || "draft";
+  const currentStatus = order?.quoteStatus || "draft";
   const statusInfo = quoteStatuses.find((s) => s.value === currentStatus) || quoteStatuses[0];
   const isQuotePhase = currentStatus === "draft" || currentStatus === "sent";
 
   const totalItems = orderItems.length;
-  const totalQty = orderItems.reduce((sum: number, item: any) => sum + (item.quantity || 0), 0);
+  const totalQty = orderItems.reduce((sum: number, item) => sum + (item.quantity || 0), 0);
   const subtotal = Number(order?.subtotal || 0);
   const tax = Number(order?.tax || 0);
   const shipping = Number(order?.shipping || 0);
@@ -138,11 +140,11 @@ export function useQuoteSection({ projectId, data, lockStatus }: QuoteSectionPro
     queryClient.invalidateQueries({ queryKey: projectKeys.items(projectId) });
   };
 
-  const contactsList = (contacts || []).map((c: any) => ({
+  const contactsList = (contacts || []).map((c) => ({
     id: String(c.id),
     firstName: c.firstName || "",
     lastName: c.lastName || "",
-    email: c.email,
+    email: c.email ?? null,
     isPrimary: c.isPrimary,
     title: c.title,
     receiveOrderEmails: c.receiveOrderEmails,

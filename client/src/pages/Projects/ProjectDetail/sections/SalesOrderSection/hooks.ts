@@ -8,14 +8,16 @@ import { useDocumentGeneration, buildItemsHash } from "@/hooks/useDocumentGenera
 import { buildSalesOrderPdf } from "@/components/documents/pdf/builders";
 import { getEditedItem } from "@/lib/projectDetailUtils";
 import { useUpdateProjectStatus, useDuplicateProject } from "@/services/projects/mutations";
-import type { SalesOrderSectionProps } from "./types";
+import type { EnrichedOrderItem } from "@/types/project-types";
+import type { GeneratedDocument } from "@shared/schema";
+import type { SalesOrderSectionProps, SOArtwork } from "./types";
 import { salesOrderStatuses, proofStatuses } from "./types";
 
 export function useSalesOrderSection({ projectId, data, lockStatus }: SalesOrderSectionProps) {
   const { order, orderItems, companyName, primaryContact, contacts, allArtworkItems } = data;
   const [, setLocation] = useLocation();
   const [isInfoCollapsed, setIsInfoCollapsed] = useState(false);
-  const [previewDocument, setPreviewDocument] = useState<any>(null);
+  const [previewDocument, setPreviewDocument] = useState<GeneratedDocument | null>(null);
   const [showSendDialog, setShowSendDialog] = useState(false);
   const [showLivePreview, setShowLivePreview] = useState(false);
   const { toast } = useToast();
@@ -41,11 +43,11 @@ export function useSalesOrderSection({ projectId, data, lockStatus }: SalesOrder
   const _duplicateProject = useDuplicateProject(projectId);
   const duplicateOrderMutation = useMemo(() => ({
     ..._duplicateProject,
-    mutate: (vars: any, opts?: any) =>
-      _duplicateProject.mutate(vars, {
+    mutate: (vars: unknown, opts?: { onSuccess?: (...args: unknown[]) => void }) =>
+      _duplicateProject.mutate(vars as Parameters<typeof _duplicateProject.mutate>[0], {
         ...opts,
-        onSuccess: (data: any, ...rest: any[]) => {
-          const newOrder = data.order || data;
+        onSuccess: (data: unknown, ...rest: unknown[]) => {
+          const newOrder = (data as { order?: { id: string } }).order || (data as { id: string });
           setLocation(`/projects/${newOrder.id}`);
           opts?.onSuccess?.(data, ...rest);
         },
@@ -57,8 +59,8 @@ export function useSalesOrderSection({ projectId, data, lockStatus }: SalesOrder
     return buildItemsHash(orderItems, "sales_order", order);
   }, [orderItems, order]);
 
-  const isSOStale = (doc: any) => {
-    const storedHash = doc.metadata?.itemsHash;
+  const isSOStale = (doc: GeneratedDocument) => {
+    const storedHash = (doc.metadata as Record<string, unknown>)?.itemsHash;
     if (!storedHash) return false;
     return storedHash !== currentSOHash;
   };
@@ -84,7 +86,7 @@ export function useSalesOrderSection({ projectId, data, lockStatus }: SalesOrder
       await generateDocument({
         pdfDocument: buildSODoc(),
         documentType: "sales_order",
-        documentNumber: (order as any)?.orderNumber || "DRAFT",
+        documentNumber: order?.orderNumber || "DRAFT",
         itemsHash: currentSOHash,
       });
       toast({ title: "Sales Order PDF generated successfully" });
@@ -101,8 +103,8 @@ export function useSalesOrderSection({ projectId, data, lockStatus }: SalesOrder
     await handleGenerateSO();
   };
 
-  const handleGetApprovalLink = async (doc: any) => {
-    const existingApproval = quoteApprovals.find((a: any) => a.status === "pending");
+  const handleGetApprovalLink = async (doc: GeneratedDocument) => {
+    const existingApproval = quoteApprovals.find((a) => a.status === "pending");
     if (existingApproval) {
       const approvalUrl = `${window.location.origin}/client-approval/${existingApproval.approvalToken}`;
       window.open(approvalUrl, "_blank", "noopener,noreferrer");
@@ -113,8 +115,8 @@ export function useSalesOrderSection({ projectId, data, lockStatus }: SalesOrder
         clientEmail: primaryContact?.email || "",
         clientName: primaryContact ? `${primaryContact.firstName} ${primaryContact.lastName}` : companyName,
         documentId: doc.id,
-        pdfPath: doc.fileUrl,
-        quoteTotal: (order as any)?.total,
+        pdfPath: doc.fileUrl ?? undefined,
+        quoteTotal: order?.total ?? undefined,
       });
       const approvalUrl = `${window.location.origin}/client-approval/${result.approvalToken}`;
       window.open(approvalUrl, "_blank", "noopener,noreferrer");
@@ -135,7 +137,7 @@ export function useSalesOrderSection({ projectId, data, lockStatus }: SalesOrder
     });
   };
 
-  const currentStatus = (order as any)?.salesOrderStatus || "new";
+  const currentStatus = order?.salesOrderStatus || "new";
   const statusInfo = salesOrderStatuses.find((s) => s.value === currentStatus) || salesOrderStatuses[0];
 
   const isLocked = lockStatus?.isLocked ?? false;
@@ -145,14 +147,14 @@ export function useSalesOrderSection({ projectId, data, lockStatus }: SalesOrder
   // Artwork sub-component state
   const [previewFile, setPreviewFile] = useState<{ url: string; name: string } | null>(null);
 
-  const artworks: any[] = useMemo(() => {
-    const result: any[] = [];
+  const artworks = useMemo(() => {
+    const result: SOArtwork[] = [];
     if (allArtworkItems && typeof allArtworkItems === "object") {
-      Object.entries(allArtworkItems).forEach(([itemId, arts]: [string, any[]]) => {
-        const item = orderItems.find((i: any) => i.id === itemId);
-        const supplier = item?.supplierId ? data.suppliers?.find((s: any) => s.id === item.supplierId) : null;
-        const decorator = item?.decoratorId ? data.suppliers?.find((s: any) => s.id === item.decoratorId) : null;
-        arts.forEach((art: any) => {
+      Object.entries(allArtworkItems).forEach(([itemId, arts]) => {
+        const item = orderItems.find((i) => i.id === itemId);
+        const supplier = item?.supplierId ? data.suppliers?.find((s) => s.id === item.supplierId) : null;
+        const decorator = item?.decoratorId ? data.suppliers?.find((s) => s.id === item.decoratorId) : null;
+        (arts as unknown as SOArtwork[]).forEach((art) => {
           result.push({
             ...art,
             productName: item?.productName || "Unknown Product",
@@ -169,7 +171,7 @@ export function useSalesOrderSection({ projectId, data, lockStatus }: SalesOrder
 
   const artworkStatusCounts = useMemo(() => {
     return artworks.reduce((acc: Record<string, number>, art) => {
-      const s = art.status || "pending";
+      const s = String(art.status || "pending");
       acc[s] = (acc[s] || 0) + 1;
       return acc;
     }, {});
@@ -178,15 +180,15 @@ export function useSalesOrderSection({ projectId, data, lockStatus }: SalesOrder
   // Use server-calculated order.total (includes charges + decoration + tax + shipping)
   // instead of naive sum(unitPrice × qty) which would miss everything except product lines.
   const soTotal = useMemo(() => {
-    return parseFloat((order as any)?.total || "0");
+    return parseFloat(order?.total || "0");
   }, [order]);
 
   const contactsList = useMemo(() => {
-    return (contacts || []).map((c: any) => ({
+    return (contacts || []).map((c) => ({
       id: String(c.id),
       firstName: c.firstName || "",
       lastName: c.lastName || "",
-      email: c.email,
+      email: c.email ?? null,
       isPrimary: c.isPrimary,
       title: c.title,
       receiveOrderEmails: c.receiveOrderEmails,

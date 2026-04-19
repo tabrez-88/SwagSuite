@@ -20,6 +20,7 @@ import {
 import * as orderItemRequests from "@/services/project-items/requests";
 import { projectKeys } from "@/services/projects/keys";
 import type { OrderItemLine, OrderAdditionalCharge } from "@shared/schema";
+import type { EnrichedOrderItem } from "@/types/project-types";
 import { useMarginSettings, marginColorClass, marginBgClass, isBelowMinimum, calcMarginPercent, applyMargin } from "@/hooks/useMarginSettings";
 import {
   getItemPricing,
@@ -32,7 +33,7 @@ import type { ProductsSectionProps } from "./types";
 
 export function useProductsSection({ projectId, data, isLocked }: ProductsSectionProps) {
   const marginSettings = useMarginSettings();
-  const { data: taxCodes } = useQuery<any[]>({
+  const { data: taxCodes } = useQuery<Array<{ id: string; rate: string }>>({
     queryKey: ["/api/tax-codes"],
     queryFn: getQueryFn({ on401: "throw" }),
   });
@@ -51,7 +52,7 @@ export function useProductsSection({ projectId, data, isLocked }: ProductsSectio
 
   // UI state
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
-  const [deletingProduct, setDeletingProduct] = useState<any>(null);
+  const [deletingProduct, setDeletingProduct] = useState<EnrichedOrderItem | null>(null);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 
   // Inline line editing state
@@ -59,8 +60,8 @@ export function useProductsSection({ projectId, data, isLocked }: ProductsSectio
   const [editLineData, setEditLineData] = useState<Partial<OrderItemLine>>({});
 
   // Edit item dialog state
-  const [editingItem, setEditingItem] = useState<any>(null);
-  const [editItemData, setEditItemData] = useState<any>({});
+  const [editingItem, setEditingItem] = useState<EnrichedOrderItem | null>(null);
+  const [editItemData, setEditItemData] = useState<Record<string, string>>({});
 
   // Add charge dialog state
   const [addChargeForItem, setAddChargeForItem] = useState<string | null>(null);
@@ -117,16 +118,16 @@ export function useProductsSection({ projectId, data, isLocked }: ProductsSectio
 
   // ── Helpers ──
 
-  const getItemSupplier = (item: any) => {
-    const currentProduct = allProducts.find((p: any) => p.id === item.productId);
+  const getItemSupplier = (item: EnrichedOrderItem) => {
+    const currentProduct = allProducts.find((p) => p.id === item.productId);
     const currentSupplierId = currentProduct?.supplierId || item.supplierId;
     if (item.supplierName) return { name: item.supplierName };
-    if (currentSupplierId) return suppliers.find((s: any) => s.id === currentSupplierId) || null;
+    if (currentSupplierId) return suppliers.find((s) => s.id === currentSupplierId) || null;
     return null;
   };
 
-  const getProductImage = (item: any) => {
-    const currentProduct = allProducts.find((p: any) => p.id === item.productId);
+  const getProductImage = (item: EnrichedOrderItem) => {
+    const currentProduct = allProducts.find((p) => p.id === item.productId);
     return currentProduct?.imageUrl || null;
   };
 
@@ -151,7 +152,7 @@ export function useProductsSection({ projectId, data, isLocked }: ProductsSectio
   };
 
   /** Get full pricing breakdown for an item using shared pricing utility */
-  const getItemTotals = (item: any): ItemPricingBreakdown & { taxRate: number; taxAmount: number; grandTotalWithTax: number } => {
+  const getItemTotals = (item: EnrichedOrderItem): ItemPricingBreakdown & { taxRate: number; taxAmount: number; grandTotalWithTax: number } => {
     const lines = (allItemLines[item.id] || []).map((l: OrderItemLine): PricingLine => ({
       quantity: l.quantity || 0,
       cost: parseFloat(l.cost || "0"),
@@ -165,7 +166,7 @@ export function useProductsSection({ projectId, data, isLocked }: ProductsSectio
     // Tax: resolve from item's taxCodeId, falling back to order-level defaultTaxCodeId
     const effectiveTaxCodeId = item.taxCodeId || (order as any)?.defaultTaxCodeId;
     const itemTaxCode = effectiveTaxCodeId
-      ? (taxCodes || []).find((tc: any) => tc.id === effectiveTaxCodeId)
+      ? (taxCodes || []).find((tc) => tc.id === effectiveTaxCodeId)
       : null;
     const taxRate = itemTaxCode ? parseFloat(itemTaxCode.rate || "0") : 0;
     const taxAmount = pricing.itemSellGrandTotal * (taxRate / 100);
@@ -176,7 +177,7 @@ export function useProductsSection({ projectId, data, isLocked }: ProductsSectio
 
   // ── Order-level totals ──
   const orderTotals = orderItems.reduce(
-    (acc, item: any) => {
+    (acc, item) => {
       const p = getItemTotals(item);
       return {
         orderProductSell: acc.orderProductSell + p.productSellTotal,
@@ -203,10 +204,10 @@ export function useProductsSection({ projectId, data, isLocked }: ProductsSectio
     : 0;
 
   // Edit item dialog lines (local copy for editing)
-  const [editDialogLines, setEditDialogLines] = useState<any[]>([]);
+  const [editDialogLines, setEditDialogLines] = useState<Array<{ id: string; isExisting: boolean; color: string; size: string; quantity: number; cost: number; unitPrice: number }>>([]);
 
   // Start editing an item - load its lines into the dialog
-  const startEditItem = (item: any) => {
+  const startEditItem = (item: EnrichedOrderItem) => {
     setEditingItem(item);
     const itemLines: OrderItemLine[] = allItemLines[item.id] || [];
     setEditItemData({
@@ -255,11 +256,11 @@ export function useProductsSection({ projectId, data, isLocked }: ProductsSectio
     }]);
   };
 
-  const updateEditDialogLine = (id: string, field: string, value: any) => {
+  const updateEditDialogLine = (id: string, field: string, value: unknown) => {
     setEditDialogLines(prev => prev.map(l => l.id === id ? { ...l, [field]: value } : l));
   };
 
-  const updateEditDialogLineMulti = (id: string, updates: Record<string, any>) => {
+  const updateEditDialogLineMulti = (id: string, updates: Record<string, unknown>) => {
     setEditDialogLines(prev => prev.map(l => l.id === id ? { ...l, ...updates } : l));
   };
 
@@ -395,16 +396,16 @@ export function useProductsSection({ projectId, data, isLocked }: ProductsSectio
   };
 
   // Handle artwork file picker selection
-  const handleArtworkFilePicked = (files: any[]) => {
+  const handleArtworkFilePicked = (files: Array<{ cloudinaryUrl: string; originalName?: string; fileName?: string }>) => {
     const file = files[0];
     if (file && pickingArtworkForItem) {
-      const item = orderItems.find((i: any) => i.id === pickingArtworkForItem);
+      const item = orderItems.find((i) => i.id === pickingArtworkForItem);
       setArtPickedFile({
         orderItemId: pickingArtworkForItem,
         filePath: file.cloudinaryUrl,
-        fileName: file.originalName || file.fileName,
+        fileName: file.originalName || file.fileName || "",
       });
-      setArtUploadName(file.originalName || file.fileName);
+      setArtUploadName(file.originalName || file.fileName || "");
       if (item?.imprintMethod) setArtUploadMethod(item.imprintMethod);
       if (item?.imprintLocation) setArtUploadLocation(item.imprintLocation);
     }
@@ -423,7 +424,7 @@ export function useProductsSection({ projectId, data, isLocked }: ProductsSectio
       color: artUploadColor || undefined,
       size: artUploadSize || undefined,
     }, {
-      onSuccess: (newArtwork: any) => {
+      onSuccess: (newArtwork: { id: string }) => {
         const method = artUploadMethod || "";
         resetArtForm();
         // CommonSKU: auto-create default Imprint Cost (run) + Setup Cost (fixed) charges
@@ -473,7 +474,7 @@ export function useProductsSection({ projectId, data, isLocked }: ProductsSectio
 
   const handleEditDialogCostChange = (lineId: string, e: React.ChangeEvent<HTMLInputElement>) => {
     const newCost = parseFloat(e.target.value) || 0;
-    const line = editDialogLines.find((l: any) => l.id === lineId);
+    const line = editDialogLines.find((l) => l.id === lineId);
     if (line && newCost > 0 && line.unitPrice > 0) {
       const currentMargin = calcMarginPercent(line.cost, line.unitPrice);
       if (currentMargin > 0 && currentMargin < 100) {
@@ -486,7 +487,7 @@ export function useProductsSection({ projectId, data, isLocked }: ProductsSectio
   };
 
   const handleEditDialogMarginChange = (lineId: string, e: React.ChangeEvent<HTMLInputElement>) => {
-    const line = editDialogLines.find((l: any) => l.id === lineId);
+    const line = editDialogLines.find((l) => l.id === lineId);
     if (!line) return;
     const targetMargin = parseFloat(e.target.value) || 0;
     const result = applyMargin(line.cost, line.unitPrice, targetMargin);

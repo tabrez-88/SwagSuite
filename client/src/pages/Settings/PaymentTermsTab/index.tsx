@@ -153,7 +153,7 @@ export function PaymentTermsTab() {
             Payment Terms
           </CardTitle>
           <Button size="sm" onClick={openCreate}>
-            <Plus className="w-4 h-4 mr-1" />
+            <Plus className="w-4 h-4 mr-1.5" />
             Add Payment Term
           </Button>
         </CardHeader>
@@ -170,7 +170,7 @@ export function PaymentTermsTab() {
               No payment terms yet. Click "Add Payment Term" to create your first one.
             </div>
           ) : (
-            <div className="border rounded-md">
+            <div className="border rounded-lg">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -202,7 +202,7 @@ export function PaymentTermsTab() {
                               onClick={() => handleSetDefault(term)}
                               disabled={setDefaultMutation.isPending}
                             >
-                              <Star className="w-3.5 h-3.5 mr-1" />
+                              <Star className="w-3.5 h-3.5 mr-1.5" />
                               Set Default
                             </Button>
                           )}
@@ -278,6 +278,7 @@ export function PaymentTermsTab() {
             <AlertDialogAction
               className="bg-red-600 hover:bg-red-700"
               onClick={() => deleteId && deleteMutation.mutate(deleteId)}
+              disabled={deleteMutation.isPending}
             >
               {deleteMutation.isPending ? "Deleting..." : "Delete"}
             </AlertDialogAction>

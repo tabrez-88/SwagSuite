@@ -3,13 +3,20 @@ import type {
   OrderItem,
   OrderItemLine,
   OrderAdditionalCharge,
+  OrderServiceCharge,
   OrderShipment,
   CustomerPortalToken,
   ArtworkItem,
+  ArtworkApproval,
   ArtworkCharge,
   ArtworkItemFile,
+  Invoice,
+  Product,
+  QuoteApproval,
+  VendorInvoice,
 } from "@shared/schema";
 import type { DeterminedStage } from "@/constants/businessStages";
+import type { Vendor } from "@/services/suppliers/types";
 
 export interface TeamMember {
   id: string;
@@ -134,24 +141,17 @@ export interface ProjectData {
   orderLoading: boolean;
   companies: ProjectCompany[];
   contacts: ProjectContact[];
-  /** Invoice endpoint returns null when no invoice exists — keep loose for now. */
-  invoice: any;
+  invoice: Invoice | null;
   invoiceLoading: boolean;
   teamMembers: TeamMember[];
-  /** EnrichedOrderItem documents the server-joined shape; we keep `any[]` at
-   *  the ProjectData boundary so consumers can destructure SanMar/SAGE-specific
-   *  fields without gymnastics. Prefer `EnrichedOrderItem` for new code. */
-  orderItems: any[];
+  orderItems: EnrichedOrderItem[];
   allArtworkItems: Record<string, ArtworkItem[]>;
-  /** Supplier rows; the shared-schema `Supplier` and the Vendor service type differ subtly — keep loose. */
-  suppliers: any[];
-  /** Products list can include SanMar/SAGE enrichments — loose by design. */
-  allProducts: any[];
+  suppliers: Vendor[];
+  allProducts: Product[];
   activities: ProjectActivity[];
   clientCommunications: Communication[];
   vendorCommunications: Communication[];
-  /** Artwork approvals list (joined across artwork_items + orders). */
-  approvals: any[];
+  approvals: ArtworkApproval[];
   allItemLines: Record<string, OrderItemLine[]>;
   allItemCharges: Record<string, OrderAdditionalCharge[]>;
   allArtworkCharges: Record<string, ArtworkCharge[]>;
@@ -159,9 +159,9 @@ export interface ProjectData {
   shipments: OrderShipment[];
   shipmentsLoading: boolean;
   portalTokens: CustomerPortalToken[];
-  quoteApprovals: any[];
-  vendorInvoices: any[];
-  serviceCharges: any[];
+  quoteApprovals: QuoteApproval[];
+  vendorInvoices: VendorInvoice[];
+  serviceCharges: OrderServiceCharge[];
   companyName: string;
   primaryContact: ProjectContact | undefined;
   companyData: ProjectCompany | null;

@@ -1,4 +1,5 @@
 import { apiRequest } from "@/lib/queryClient";
+import type { Invoice } from "@shared/schema";
 
 export async function updateProject(projectId: string | number, updates: Record<string, any>) {
   await apiRequest("PATCH", `/api/projects/${projectId}`, updates);
@@ -23,7 +24,7 @@ export async function postProductComment(
 export interface CalculateTaxResponse {
   taxAmount?: string | number;
   taxRate?: string | number;
-  [key: string]: any;
+  taxDetails?: Record<string, unknown>;
 }
 
 export async function calculateTax(projectId: string | number): Promise<CalculateTaxResponse> {
@@ -127,7 +128,7 @@ export async function deleteByEndpoint(url: string) {
   await apiRequest("DELETE", url);
 }
 
-export async function fetchProjectInvoice<T = any>(projectId: string | number): Promise<T | null> {
+export async function fetchProjectInvoice(projectId: string | number): Promise<Invoice | null> {
   const res = await apiRequest("GET", `/api/projects/${projectId}/invoice`);
   return res.json();
 }

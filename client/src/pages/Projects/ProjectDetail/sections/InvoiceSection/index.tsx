@@ -41,15 +41,15 @@ import type { InvoiceSectionProps } from "./types";
 
 export default function InvoiceSection(props: InvoiceSectionProps) {
   const { projectId, lockStatus } = props;
-  const h = useInvoiceSection(props);
+  const hook = useInvoiceSection(props);
 
-  if (!h.order) return null;
+  if (!hook.order) return null;
 
   return (
     <div className="space-y-6">
       {lockStatus && <LockBanner lockStatus={lockStatus} sectionName="Invoice" sectionKey="invoice" projectId={projectId} />}
 
-      <ProjectInfoBar companyName={h.companyName} primaryContact={h.primaryContact} />
+      <ProjectInfoBar companyName={hook.companyName} primaryContact={hook.primaryContact} />
 
       <div className="flex items-center justify-between">
         <div>
@@ -61,25 +61,25 @@ export default function InvoiceSection(props: InvoiceSectionProps) {
             Customer invoices and payment tracking
           </p>
         </div>
-        {!h.invoice && (
+        {!hook.invoice && (
           <Button
-            onClick={() => h.createInvoiceMutation.mutate()}
-            disabled={h.createInvoiceMutation.isPending}
+            onClick={() => hook.createInvoiceMutation.mutate()}
+            disabled={hook.createInvoiceMutation.isPending}
           >
-            <Plus className="w-4 h-4 mr-2" />
-            {h.createInvoiceMutation.isPending ? "Creating..." : "Create Invoice"}
+            {hook.createInvoiceMutation.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Plus className="w-4 h-4 mr-2" />}
+            {hook.createInvoiceMutation.isPending ? "Creating..." : "Create Invoice"}
           </Button>
         )}
       </div>
 
-      {h.invoiceLoading ? (
+      {hook.invoiceLoading ? (
         <Card>
           <CardContent className="p-8 text-center">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
             <p className="text-gray-500">Loading invoice...</p>
           </CardContent>
         </Card>
-      ) : h.invoice ? (
+      ) : hook.invoice ? (
         <div className="space-y-4">
           {/* Invoice Overview */}
           <Card>
@@ -87,10 +87,10 @@ export default function InvoiceSection(props: InvoiceSectionProps) {
               <div className="flex items-center justify-between">
                 <CardTitle className="text-sm flex items-center gap-2">
                   <FileText className="w-4 h-4" />
-                  Invoice #{h.invoice.invoiceNumber}
+                  Invoice #{hook.invoice.invoiceNumber}
                 </CardTitle>
-                <Badge className={invoiceStatusColors[h.invoice.status] || ""}>
-                  {h.invoice.status?.toUpperCase()}
+                <Badge className={invoiceStatusColors[hook.invoice.status ?? ""] || ""}>
+                  {hook.invoice.status?.toUpperCase()}
                 </Badge>
               </div>
             </CardHeader>
@@ -98,43 +98,43 @@ export default function InvoiceSection(props: InvoiceSectionProps) {
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div>
                   <p className="text-xs text-gray-500">Subtotal</p>
-                  <p className="font-medium">${Number(h.invoice.subtotal || 0).toLocaleString()}</p>
+                  <p className="font-medium">${Number(hook.invoice.subtotal || 0).toLocaleString()}</p>
                 </div>
                 <div>
                   <p className="text-xs text-gray-500">Tax</p>
-                  <p className="font-medium">${Number(h.invoice.taxAmount || 0).toLocaleString()}</p>
+                  <p className="font-medium">${Number(hook.invoice.taxAmount || 0).toLocaleString()}</p>
                 </div>
                 <div>
                   <p className="text-xs text-gray-500">Total</p>
-                  <p className="font-bold text-lg">${Number(h.invoice.totalAmount || 0).toLocaleString()}</p>
+                  <p className="font-bold text-lg">${Number(hook.invoice.totalAmount || 0).toLocaleString()}</p>
                 </div>
                 <div>
                   <p className="text-xs text-gray-500 flex items-center gap-1">
                     <CalendarIcon className="w-3 h-3" />
                     Due Date
                   </p>
-                  {h.invoice.status === "paid" ? (
+                  {hook.invoice.status === "paid" ? (
                     <p className="font-medium">
-                      {h.invoice.dueDate ? format(new Date(h.invoice.dueDate), "MMM d, yyyy") : "Not set"}
+                      {hook.invoice.dueDate ? format(new Date(hook.invoice.dueDate), "MMM d, yyyy") : "Not set"}
                     </p>
                   ) : (
                     <Input
                       type="date"
                       className="h-8 text-sm w-[150px]"
-                      value={h.invoice.dueDate ? format(new Date(h.invoice.dueDate), "yyyy-MM-dd") : ""}
-                      onChange={(e) => h.handleDueDateChange(e.target.value)}
+                      value={hook.invoice.dueDate ? format(new Date(hook.invoice.dueDate), "yyyy-MM-dd") : ""}
+                      onChange={(e) => hook.handleDueDateChange(e.target.value)}
                     />
                   )}
                 </div>
               </div>
 
-              {h.agingInfo && (
-                <div className={`flex items-center gap-2 px-3 py-2 rounded-md border ${h.agingInfo.colorClass}`}>
+              {hook.agingInfo && (
+                <div className={`flex items-center gap-2 px-3 py-2 rounded-md border ${hook.agingInfo.colorClass}`}>
                   <Clock className="w-4 h-4 flex-shrink-0" />
                   <span className="text-sm font-medium">
-                    {h.agingInfo.daysOverdue} days overdue
+                    {hook.agingInfo.daysOverdue} days overdue
                   </span>
-                  <span className="text-xs opacity-75">({h.agingInfo.category})</span>
+                  <span className="text-xs opacity-75">({hook.agingInfo.category})</span>
                 </div>
               )}
 
@@ -147,15 +147,15 @@ export default function InvoiceSection(props: InvoiceSectionProps) {
               </div>
 
               {/* Sent timestamp */}
-              {(h.invoice as any).sentAt && (
+              {(hook.invoice as Record<string, string | boolean | null>).sentAt && (
                 <p className="text-xs text-gray-400">
-                  Sent on {format(new Date((h.invoice as any).sentAt), "MMM d, yyyy 'at' h:mm a")}
+                  Sent on {format(new Date((hook.invoice as Record<string, string | boolean | null>).sentAt as string), "MMM d, yyyy 'at' h:mm a")}
                 </p>
               )}
 
-              {h.invoice.createdAt && (
+              {hook.invoice.createdAt && (
                 <p className="text-xs text-gray-400">
-                  Created {format(new Date(h.invoice.createdAt), "MMM d, yyyy 'at' h:mm a")}
+                  Created {format(new Date(hook.invoice.createdAt), "MMM d, yyyy 'at' h:mm a")}
                 </p>
               )}
             </CardContent>
@@ -168,12 +168,12 @@ export default function InvoiceSection(props: InvoiceSectionProps) {
             </CardHeader>
             <CardContent>
               <Textarea
-                value={h.invoiceNotes}
-                onChange={(e) => h.handleNotesChange(e.target.value)}
-                onBlur={h.handleNotesBlur}
+                value={hook.invoiceNotes}
+                onChange={(e) => hook.handleNotesChange(e.target.value)}
+                onBlur={hook.handleNotesBlur}
                 placeholder="Add notes to this invoice (visible on PDF)..."
                 className="min-h-[80px] resize-none text-sm"
-                disabled={h.invoice.status === "paid"}
+                disabled={hook.invoice.status === "paid"}
               />
             </CardContent>
           </Card>
@@ -188,30 +188,30 @@ export default function InvoiceSection(props: InvoiceSectionProps) {
             </CardHeader>
             <CardContent className="space-y-3">
               {/* Local PDF documents */}
-              {h.invoiceDocuments.map((doc: any) => (
+              {hook.invoiceDocuments.map((doc) => (
                 <GeneratedDocumentCard
                   key={doc.id}
                   document={doc}
-                  isStale={doc.id === h.latestInvoiceDoc?.id && !!h.isDocStale}
-                  onPreview={() => h.setPreviewDoc(doc)}
-                  onDelete={() => h.handleDeleteDocument(doc.id)}
-                  onRegenerate={h.handleGeneratePdf}
-                  isDeleting={h.isDeleting}
-                  isRegenerating={h.isGenerating}
+                  isStale={doc.id === hook.latestInvoiceDoc?.id && !!hook.isDocStale}
+                  onPreview={() => hook.setPreviewDoc(doc)}
+                  onDelete={() => hook.handleDeleteDocument(doc.id)}
+                  onRegenerate={hook.handleGeneratePdf}
+                  isDeleting={hook.isDeleting}
+                  isRegenerating={hook.isGenerating}
                 />
               ))}
 
               {/* Generate PDF button */}
-              {!h.hasLocalPdf && (
+              {!hook.hasLocalPdf && (
                 <div className="text-center py-4">
                   <p className="text-sm text-gray-500 mb-3">
                     Generate a professional invoice PDF for your client.
                   </p>
                   <Button
-                    onClick={h.handleGeneratePdf}
-                    disabled={h.isGenerating || h.orderItems.length === 0}
+                    onClick={hook.handleGeneratePdf}
+                    disabled={hook.isGenerating || hook.orderItems.length === 0}
                   >
-                    {h.isGenerating ? (
+                    {hook.isGenerating ? (
                       <>
                         <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                         Generating PDF...
@@ -227,33 +227,33 @@ export default function InvoiceSection(props: InvoiceSectionProps) {
               )}
 
               {/* Regenerate button when doc exists but is stale */}
-              {h.hasLocalPdf && h.isDocStale && (
+              {hook.hasLocalPdf && hook.isDocStale && (
                 <div className="text-center">
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={h.handleGeneratePdf}
-                    disabled={h.isGenerating}
+                    onClick={hook.handleGeneratePdf}
+                    disabled={hook.isGenerating}
                   >
-                    <RefreshCw className={`w-4 h-4 mr-1 ${h.isGenerating ? "animate-spin" : ""}`} />
-                    {h.isGenerating ? "Regenerating..." : "Regenerate PDF"}
+                    <RefreshCw className={`w-4 h-4 mr-1 ${hook.isGenerating ? "animate-spin" : ""}`} />
+                    {hook.isGenerating ? "Regenerating..." : "Regenerate PDF"}
                   </Button>
                 </div>
               )}
 
               {/* Stripe PDF section */}
-              {h.hasStripePdf && (
+              {hook.hasStripePdf && (
                 <div className="border-t pt-3 mt-3">
                   <p className="text-xs text-gray-500 mb-2">Stripe Invoice PDF</p>
                   <div className="flex items-center gap-2">
                     <Button variant="ghost" size="sm" asChild>
-                      <a href={h.invoice.stripeInvoicePdfUrl} target="_blank" rel="noopener noreferrer">
+                      <a href={hook.invoice.stripeInvoicePdfUrl ?? undefined} target="_blank" rel="noopener noreferrer">
                         <Download className="w-4 h-4 mr-1" />
                         Stripe Invoice PDF
                       </a>
                     </Button>
                     <Button variant="ghost" size="sm" asChild>
-                      <a href={h.invoice.stripeInvoiceUrl} target="_blank" rel="noopener noreferrer">
+                      <a href={hook.invoice.stripeInvoiceUrl ?? undefined} target="_blank" rel="noopener noreferrer">
                         <ExternalLink className="w-4 h-4 mr-1" />
                         View in Stripe
                       </a>
@@ -263,15 +263,15 @@ export default function InvoiceSection(props: InvoiceSectionProps) {
               )}
 
               {/* Stripe invoice — auto-created with invoice, fallback button if missing */}
-              {!h.hasStripeInvoice && (
+              {!hook.hasStripeInvoice && (
                 <div className="border-t pt-3 mt-3">
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={h.handleStripePayment}
-                    disabled={h.stripePaymentMutation.isPending || h.orderItems.length === 0}
+                    onClick={hook.handleStripePayment}
+                    disabled={hook.stripePaymentMutation.isPending || hook.orderItems.length === 0}
                   >
-                    {h.stripePaymentMutation.isPending ? (
+                    {hook.stripePaymentMutation.isPending ? (
                       <Loader2 className="w-4 h-4 mr-1 animate-spin" />
                     ) : (
                       <CreditCard className="w-4 h-4 mr-1" />
@@ -283,11 +283,11 @@ export default function InvoiceSection(props: InvoiceSectionProps) {
               )}
 
               {/* Send Invoice button */}
-              {h.sendableDocument && h.invoice.status !== "paid" && (
+              {hook.sendableDocument && hook.invoice.status !== "paid" && (
                 <div className="border-t pt-3 mt-3">
                   <Button
                     size="sm"
-                    onClick={() => h.setShowSendDialog(true)}
+                    onClick={() => hook.setShowSendDialog(true)}
                   >
                     <Send className="w-4 h-4 mr-1" />
                     Send Invoice
@@ -305,50 +305,50 @@ export default function InvoiceSection(props: InvoiceSectionProps) {
                   <CreditCard className="w-4 h-4" />
                   Payment
                 </CardTitle>
-                {h.invoice.status === "paid" && (
+                {hook.invoice.status === "paid" && (
                   <Badge className="bg-green-100 text-green-800">PAID</Badge>
                 )}
               </div>
             </CardHeader>
             <CardContent>
-              {h.invoice.status === "paid" ? (
+              {hook.invoice.status === "paid" ? (
                 <div className="space-y-2">
                   <div className="flex items-center gap-2 text-green-600">
                     <CheckCircle className="w-5 h-5" />
                     <span className="font-medium">Payment received</span>
                   </div>
-                  {h.invoice.paymentMethod && (
+                  {hook.invoice.paymentMethod && (
                     <p className="text-sm text-gray-500">
-                      Method: {h.invoice.paymentMethod}
-                      {h.invoice.paymentReference && ` (Ref: ${h.invoice.paymentReference})`}
+                      Method: {hook.invoice.paymentMethod}
+                      {hook.invoice.paymentReference && ` (Ref: ${hook.invoice.paymentReference})`}
                     </p>
                   )}
-                  {h.invoice.paidAt && (
+                  {hook.invoice.paidAt && (
                     <p className="text-xs text-gray-400">
-                      Paid on {format(new Date(h.invoice.paidAt), "MMM d, yyyy 'at' h:mm a")}
+                      Paid on {format(new Date(hook.invoice.paidAt), "MMM d, yyyy 'at' h:mm a")}
                     </p>
                   )}
                 </div>
               ) : (
                 <div className="space-y-4">
                   <p className="text-sm text-gray-500">
-                    Payment pending — ${Number(h.invoice.totalAmount || 0).toLocaleString()} due
-                    {h.invoice.dueDate && ` by ${format(new Date(h.invoice.dueDate), "MMM d, yyyy")}`}
+                    Payment pending — ${Number(hook.invoice.totalAmount || 0).toLocaleString()} due
+                    {hook.invoice.dueDate && ` by ${format(new Date(hook.invoice.dueDate), "MMM d, yyyy")}`}
                   </p>
 
                   {/* Stripe payment link (auto-created with invoice) */}
-                  {h.invoice.stripeInvoiceUrl && (
+                  {hook.invoice.stripeInvoiceUrl && (
                     <div className="flex items-center gap-2">
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={h.handleCopyPaymentLink}
+                        onClick={hook.handleCopyPaymentLink}
                       >
                         <ExternalLink className="w-4 h-4 mr-1" />
                         Copy Payment Link
                       </Button>
                       <Button variant="ghost" size="sm" asChild>
-                        <a href={h.invoice.stripeInvoiceUrl} target="_blank" rel="noopener noreferrer">
+                        <a href={hook.invoice.stripeInvoiceUrl ?? undefined} target="_blank" rel="noopener noreferrer">
                           Open in Stripe
                         </a>
                       </Button>
@@ -358,7 +358,7 @@ export default function InvoiceSection(props: InvoiceSectionProps) {
                   {/* Manual payment */}
                   <Button
                     size="sm"
-                    onClick={h.handleOpenPaymentDialog}
+                    onClick={hook.handleOpenPaymentDialog}
                   >
                     <Banknote className="w-4 h-4 mr-1" />
                     Record Manual Payment
@@ -369,7 +369,7 @@ export default function InvoiceSection(props: InvoiceSectionProps) {
           </Card>
 
           {/* Reminder info */}
-          {(h.invoice as any).reminderEnabled && (
+          {(hook.invoice as Record<string, string | boolean | null>).reminderEnabled && (
             <Card>
               <CardHeader className="py-3">
                 <CardTitle className="text-sm flex items-center gap-2">
@@ -378,12 +378,12 @@ export default function InvoiceSection(props: InvoiceSectionProps) {
                 </CardTitle>
               </CardHeader>
               <CardContent className="text-sm text-gray-600 space-y-1">
-                <p>Reminders: Every {(h.invoice as any).reminderFrequencyDays} days</p>
-                {(h.invoice as any).nextReminderDate && (
-                  <p>Next reminder: {format(new Date((h.invoice as any).nextReminderDate), "MMM d, yyyy")}</p>
+                <p>Reminders: Every {(hook.invoice as Record<string, string | boolean | null>).reminderFrequencyDays} days</p>
+                {(hook.invoice as Record<string, string | boolean | null>).nextReminderDate && (
+                  <p>Next reminder: {format(new Date((hook.invoice as Record<string, string | boolean | null>).nextReminderDate as string), "MMM d, yyyy")}</p>
                 )}
-                {(h.invoice as any).lastReminderSentAt && (
-                  <p className="text-xs text-gray-400">Last sent: {format(new Date((h.invoice as any).lastReminderSentAt), "MMM d, yyyy 'at' h:mm a")}</p>
+                {(hook.invoice as Record<string, string | boolean | null>).lastReminderSentAt && (
+                  <p className="text-xs text-gray-400">Last sent: {format(new Date((hook.invoice as Record<string, string | boolean | null>).lastReminderSentAt as string), "MMM d, yyyy 'at' h:mm a")}</p>
                 )}
               </CardContent>
             </Card>
@@ -398,61 +398,61 @@ export default function InvoiceSection(props: InvoiceSectionProps) {
               Create an invoice to start tracking payments for this project
             </p>
             <Button
-              onClick={() => h.createInvoiceMutation.mutate()}
-              disabled={h.createInvoiceMutation.isPending}
+              onClick={() => hook.createInvoiceMutation.mutate()}
+              disabled={hook.createInvoiceMutation.isPending}
             >
-              <Plus className="w-4 h-4 mr-2" />
-              Create Invoice
+              {hook.createInvoiceMutation.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Plus className="w-4 h-4 mr-2" />}
+              {hook.createInvoiceMutation.isPending ? "Creating..." : "Create Invoice"}
             </Button>
           </CardContent>
         </Card>
       )}
 
       {/* Live PDF preview (uses react-pdf PDFViewer — same renderer as save) */}
-      {h.invoice && (
+      {hook.invoice && (
         <PdfPreviewDialog
-          open={h.showLivePreview}
-          onOpenChange={h.setShowLivePreview}
-          title={`Invoice Preview — ${h.invoice.invoiceNumber || ""}`}
-          document={h.showLivePreview ? h.buildInvoiceDoc() : null}
+          open={hook.showLivePreview}
+          onOpenChange={hook.setShowLivePreview}
+          title={`Invoice Preview — ${hook.invoice.invoiceNumber || ""}`}
+          document={hook.showLivePreview ? hook.buildInvoiceDoc() : null}
         />
       )}
 
       {/* Document Preview */}
-      {h.previewDoc && (
+      {hook.previewDoc && (
         <DocumentEditor
-          document={h.previewDoc}
-          order={h.order}
-          orderItems={h.orderItems}
-          companyName={h.companyName}
-          primaryContact={h.primaryContact}
-          getEditedItem={h.getEditedItem}
-          onClose={() => h.setPreviewDoc(null)}
+          document={hook.previewDoc}
+          order={hook.order}
+          orderItems={hook.orderItems}
+          companyName={hook.companyName}
+          primaryContact={hook.primaryContact}
+          getEditedItem={hook.getEditedItem}
+          onClose={() => hook.setPreviewDoc(null)}
         />
       )}
 
       {/* Send Invoice Dialog */}
-      {h.showSendDialog && h.invoice && h.sendableDocument && (
+      {hook.showSendDialog && hook.invoice && hook.sendableDocument && (
         <SendInvoiceDialog
-          open={h.showSendDialog}
-          onOpenChange={h.setShowSendDialog}
+          open={hook.showSendDialog}
+          onOpenChange={hook.setShowSendDialog}
           projectId={projectId}
-          recipientEmail={h.primaryContact?.email || ""}
-          recipientName={h.primaryContact ? `${h.primaryContact.firstName} ${h.primaryContact.lastName}` : h.companyName}
-          companyName={h.companyName}
-          orderNumber={(h.order as any)?.orderNumber || ""}
-          invoiceNumber={h.invoice.invoiceNumber}
-          invoiceDocument={h.sendableDocument}
-          totalAmount={Number(h.invoice.totalAmount || 0)}
-          dueDate={h.invoice.dueDate}
-          contacts={h.formattedContacts}
-          stripeInvoiceUrl={h.invoice.stripeInvoiceUrl}
+          recipientEmail={hook.primaryContact?.email || ""}
+          recipientName={hook.primaryContact ? `${hook.primaryContact.firstName} ${hook.primaryContact.lastName}` : hook.companyName}
+          companyName={hook.companyName}
+          orderNumber={hook.order?.orderNumber || ""}
+          invoiceNumber={hook.invoice.invoiceNumber}
+          invoiceDocument={hook.sendableDocument}
+          totalAmount={Number(hook.invoice.totalAmount || 0)}
+          dueDate={(hook.invoice.dueDate as unknown as string) ?? undefined}
+          contacts={hook.formattedContacts}
+          stripeInvoiceUrl={hook.invoice.stripeInvoiceUrl ?? undefined}
           assignedUserEmail={props.data?.assignedUser?.email}
         />
       )}
 
       {/* Manual Payment Dialog */}
-      <Dialog open={h.showPaymentDialog} onOpenChange={h.setShowPaymentDialog}>
+      <Dialog open={hook.showPaymentDialog} onOpenChange={hook.setShowPaymentDialog}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -460,14 +460,14 @@ export default function InvoiceSection(props: InvoiceSectionProps) {
               Record Manual Payment
             </DialogTitle>
             <DialogDescription>
-              Record an offline payment for Invoice #{h.invoice?.invoiceNumber}.
+              Record an offline payment for Invoice #{hook.invoice?.invoiceNumber}.
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4 py-2">
             <div>
               <label className="text-xs font-medium text-gray-500 block mb-1">Payment Method</label>
-              <Select value={h.paymentMethod} onValueChange={h.setPaymentMethod}>
+              <Select value={hook.paymentMethod} onValueChange={hook.setPaymentMethod}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -485,8 +485,8 @@ export default function InvoiceSection(props: InvoiceSectionProps) {
             <div>
               <label className="text-xs font-medium text-gray-500 block mb-1">Reference # (optional)</label>
               <Input
-                value={h.paymentReference}
-                onChange={(e) => h.setPaymentReference(e.target.value)}
+                value={hook.paymentReference}
+                onChange={(e) => hook.setPaymentReference(e.target.value)}
                 placeholder="Check #, Wire ref, etc."
               />
             </div>
@@ -495,21 +495,20 @@ export default function InvoiceSection(props: InvoiceSectionProps) {
               <Input
                 type="number"
                 step="0.01"
-                value={h.paymentAmount}
-                onChange={(e) => h.setPaymentAmount(e.target.value)}
-                placeholder={String(h.invoice?.totalAmount || "0")}
+                value={hook.paymentAmount}
+                onChange={(e) => hook.setPaymentAmount(e.target.value)}
+                placeholder={String(hook.invoice?.totalAmount || "0")}
               />
             </div>
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => h.setShowPaymentDialog(false)}>Cancel</Button>
+            <Button variant="outline" onClick={() => hook.setShowPaymentDialog(false)}>Cancel</Button>
             <Button
-              onClick={h.handleRecordPayment}
-              disabled={h.manualPaymentMutation.isPending}
-              className="gap-1"
+              onClick={hook.handleRecordPayment}
+              disabled={hook.manualPaymentMutation.isPending}
             >
-              {h.manualPaymentMutation.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
+              {hook.manualPaymentMutation.isPending && <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />}
               Record Payment
             </Button>
           </DialogFooter>

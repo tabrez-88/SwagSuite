@@ -63,9 +63,11 @@ export default function FeedbackSection(props: FeedbackSectionProps) {
         </CardHeader>
         <CardContent>
           {portalTokens.length === 0 ? (
-            <p className="text-sm text-gray-500 text-center py-4">
-              No portal links generated yet. Create one to share with your client.
-            </p>
+            <div className="text-center py-12">
+              <Link2 className="w-12 h-12 mx-auto text-gray-300 mb-4" />
+              <h3 className="text-lg font-medium text-gray-900 mb-2">No portal links yet</h3>
+              <p className="text-sm text-gray-500">Create one to share with your client.</p>
+            </div>
           ) : (
             <div className="space-y-2">
               {portalTokens.map((token: any) => {
@@ -104,9 +106,11 @@ export default function FeedbackSection(props: FeedbackSectionProps) {
         </CardHeader>
         <CardContent>
           {approvals.length === 0 ? (
-            <p className="text-sm text-gray-500 text-center py-4">
-              No artwork approval requests sent yet
-            </p>
+            <div className="text-center py-12">
+              <CheckCircle className="w-12 h-12 mx-auto text-gray-300 mb-4" />
+              <h3 className="text-lg font-medium text-gray-900 mb-2">No artwork approval requests sent yet</h3>
+              <p className="text-sm text-gray-500">Send proofs to clients from the Purchase Orders section</p>
+            </div>
           ) : (
             <div className="space-y-2">
               {approvals.map((approval: any) => (

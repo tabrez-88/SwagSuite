@@ -157,9 +157,9 @@ export default function QuoteSection(props: QuoteSectionProps) {
           <div className="flex items-center gap-2">
             <Switch
               id="auto-approve-so"
-              checked={(order as any)?.stageData?.quoteAutoApproveSo !== false}
+              checked={(order?.stageData as Record<string, unknown>)?.quoteAutoApproveSo !== false}
               onCheckedChange={(checked) => {
-                const currentStageData = (order as any)?.stageData || {};
+                const currentStageData = order?.stageData || {};
                 updateField({
                   stageData: { ...currentStageData, quoteAutoApproveSo: checked },
                 });
@@ -192,8 +192,8 @@ export default function QuoteSection(props: QuoteSectionProps) {
               Quote Details
             </CardTitle>
             {!isLocked && (
-              <Button variant="outline" size="sm" className="gap-1.5 h-8" onClick={() => setShowEditDialog(true)}>
-                <Pencil className="w-3.5 h-3.5" />
+              <Button variant="outline" size="sm" className="h-8" onClick={() => setShowEditDialog(true)}>
+                <Pencil className="w-3.5 h-3.5 mr-1.5" />
                 Edit
               </Button>
             )}
@@ -204,47 +204,47 @@ export default function QuoteSection(props: QuoteSectionProps) {
             <div className="flex justify-between items-center">
               <span className="text-sm text-muted-foreground">Quote Date</span>
               <span className="text-sm font-medium">
-                {(order as any)?.createdAt
-                  ? format(new Date((order as any).createdAt), "MMM d, yyyy")
+                {order?.createdAt
+                  ? format(new Date(order!.createdAt), "MMM d, yyyy")
                   : "—"}
               </span>
             </div>
             <div className="flex justify-between items-center">
               <span className="text-sm text-muted-foreground">In-Hands Date</span>
               <span className="text-sm font-medium">
-                {(order as any)?.inHandsDate ? format(new Date((order as any).inHandsDate), "MMM d, yyyy") : "—"}
+                {order?.inHandsDate ? format(new Date(order!.inHandsDate), "MMM d, yyyy") : "—"}
               </span>
             </div>
             <div className="flex justify-between items-center">
               <span className="text-sm text-muted-foreground">Supplier In-Hands</span>
               <span className="text-sm font-medium">
-                {(order as any)?.supplierInHandsDate ? format(new Date((order as any).supplierInHandsDate), "MMM d, yyyy") : "—"}
+                {order?.supplierInHandsDate ? format(new Date(order!.supplierInHandsDate), "MMM d, yyyy") : "—"}
               </span>
             </div>
             <div className="flex justify-between items-center">
               <span className="text-sm text-muted-foreground">Customer PO</span>
-              <span className="text-sm font-medium">{(order as any)?.customerPo || "—"}</span>
+              <span className="text-sm font-medium">{order?.customerPo || "—"}</span>
             </div>
             <div className="flex justify-between items-center">
               <span className="text-sm text-muted-foreground">Payment Terms</span>
-              <span className="text-sm font-medium">{(order as any)?.paymentTerms || "—"}</span>
+              <span className="text-sm font-medium">{order?.paymentTerms || "—"}</span>
             </div>
             <div className="flex justify-between items-center">
               <span className="text-sm text-muted-foreground">Currency</span>
-              <span className="text-sm font-medium">{(order as any)?.currency || "USD"}</span>
+              <span className="text-sm font-medium">{order?.currency || "USD"}</span>
             </div>
             <div className="flex justify-between items-center">
               <span className="text-sm text-muted-foreground">Tax Code</span>
               <span className="text-sm font-medium">
-                {taxCodes?.find((tc: any) => String(tc.id) === (order as any)?.defaultTaxCodeId)?.label || "None"}
+                {taxCodes?.find((tc) => String(tc.id) === order?.defaultTaxCodeId)?.label || "None"}
               </span>
             </div>
             <div className="flex justify-between items-center">
               <span className="text-sm text-muted-foreground">Tax</span>
               <div className="flex items-center gap-2">
                 {(() => {
-                  const taxAmount = Number((order as any)?.tax || 0);
-                  const activeTaxCode = taxCodes?.find((tc: any) => String(tc.id) === (order as any)?.defaultTaxCodeId);
+                  const taxAmount = Number(order?.tax || 0);
+                  const activeTaxCode = taxCodes?.find((tc) => String(tc.id) === order?.defaultTaxCodeId);
                   return (
                     <>
                       <span className={`text-sm font-medium ${taxAmount > 0 ? "text-amber-700" : ""}`}>
@@ -267,14 +267,14 @@ export default function QuoteSection(props: QuoteSectionProps) {
                   <Button
                     variant="outline"
                     size="sm"
-                    className="h-7 text-xs gap-1"
+                    className="h-7 text-xs"
                     onClick={() => calculateTaxMutation.mutate()}
                     disabled={calculateTaxMutation.isPending}
                   >
                     {calculateTaxMutation.isPending ? (
-                      <Loader2 className="h-3 w-3 animate-spin" />
+                      <Loader2 className="h-3 w-3 mr-1.5 animate-spin" />
                     ) : (
-                      <Calculator className="h-3 w-3" />
+                      <Calculator className="h-3 w-3 mr-1.5" />
                     )}
                     Calculate Tax
                   </Button>
@@ -286,15 +286,15 @@ export default function QuoteSection(props: QuoteSectionProps) {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
             <div className="col-span-2">
               <p className="text-xs font-medium text-gray-500 mb-1">Introduction</p>
-              <p className="text-sm text-gray-700 whitespace-pre-wrap">{(order as any)?.quoteIntroduction || <span className="text-gray-400 italic">No introduction</span>}</p>
+              <p className="text-sm text-gray-700 whitespace-pre-wrap">{order?.quoteIntroduction || <span className="text-gray-400 italic">No introduction</span>}</p>
             </div>
             <div>
               <p className="text-xs font-medium text-gray-500 mb-1">Supplier Notes</p>
-              <p className="text-sm text-gray-700 whitespace-pre-wrap">{(order as any)?.supplierNotes || <span className="text-gray-400 italic">No supplier notes</span>}</p>
+              <p className="text-sm text-gray-700 whitespace-pre-wrap">{order?.supplierNotes || <span className="text-gray-400 italic">No supplier notes</span>}</p>
             </div>
             <div>
               <p className="text-xs font-medium text-gray-500 mb-1">Additional Information</p>
-              <p className="text-sm text-gray-700 whitespace-pre-wrap">{(order as any)?.additionalInformation || <span className="text-gray-400 italic">No additional info</span>}</p>
+              <p className="text-sm text-gray-700 whitespace-pre-wrap">{order?.additionalInformation || <span className="text-gray-400 italic">No additional info</span>}</p>
             </div>
           </div>
         </CardContent>
@@ -315,7 +315,7 @@ export default function QuoteSection(props: QuoteSectionProps) {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <EditableAddress
           title="Billing Address"
-          addressJson={(order as any)?.billingAddress}
+          addressJson={order?.billingAddress}
           field="billingAddress"
           onSave={updateField}
           isLocked={isLocked}
@@ -326,7 +326,7 @@ export default function QuoteSection(props: QuoteSectionProps) {
         />
         <EditableAddress
           title="Shipping Address"
-          addressJson={(order as any)?.shippingAddress}
+          addressJson={order?.shippingAddress}
           field="shippingAddress"
           onSave={updateField}
           isLocked={isLocked}
@@ -334,7 +334,7 @@ export default function QuoteSection(props: QuoteSectionProps) {
           icon={<MapPin className="w-4 h-4" />}
           companyId={order?.companyId}
           primaryContact={primaryContact}
-          billingAddressJson={(order as any)?.billingAddress}
+          billingAddressJson={order?.billingAddress}
         />
       </div>
 
@@ -363,14 +363,14 @@ export default function QuoteSection(props: QuoteSectionProps) {
       <Card>
         <CardHeader className="py-3">
           <div className="flex items-center justify-between">
-            <CardTitle className="text-xl flex items-center gap-2">
+            <CardTitle className="text-sm flex items-center gap-2">
               <FileText className="w-4 h-4" />
               Quote Document
             </CardTitle>
             <div className="flex items-center gap-2">
               {quoteDocuments.length > 0 && !isLocked && (
-                <Button size="sm" className="gap-1" onClick={() => setShowSendDialog(true)}>
-                  <Send className="w-4 h-4" />
+                <Button size="sm" onClick={() => setShowSendDialog(true)}>
+                  <Send className="w-4 h-4 mr-1.5" />
                   Send to Client
                 </Button>
               )}
@@ -379,12 +379,11 @@ export default function QuoteSection(props: QuoteSectionProps) {
                   size="sm"
                   onClick={handleGenerateQuote}
                   disabled={isGenerating || isLocked}
-                  className="gap-1.5"
                 >
                   {isGenerating ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />
                   ) : (
-                    <FileText className="w-4 h-4" />
+                    <FileText className="w-4 h-4 mr-1.5" />
                   )}
                   Generate Quote PDF
                 </Button>
@@ -394,16 +393,16 @@ export default function QuoteSection(props: QuoteSectionProps) {
         </CardHeader>
         <CardContent>
           {quoteDocuments.length === 0 ? (
-            <div className="text-center py-4">
-              <FileText className="w-8 h-8 mx-auto text-gray-300 mb-2" />
-              <p className="text-sm text-gray-500">No quote document generated yet</p>
+            <div className="text-center py-12">
+              <FileText className="w-12 h-12 mx-auto text-gray-300 mb-4" />
+              <h3 className="text-lg font-medium text-gray-900 mb-2">No quote document generated yet</h3>
               {orderItems.length > 0 && (
-                <p className="text-xs text-gray-400 mt-1">Click "Generate Quote PDF" to create a professional quote</p>
+                <p className="text-sm text-gray-500">Click "Generate Quote PDF" to create a professional quote</p>
               )}
             </div>
           ) : (
             <div className="space-y-2">
-              {quoteDocuments.map((doc: any) => (
+              {quoteDocuments.map((doc) => (
                 <GeneratedDocumentCard
                   key={doc.id}
                   document={doc}
@@ -461,25 +460,25 @@ export default function QuoteSection(props: QuoteSectionProps) {
       {/* Quote Approval Status */}
       <Card>
         <CardHeader className="py-3">
-          <CardTitle className="text-xl flex items-center gap-2">
+          <CardTitle className="text-sm flex items-center gap-2">
             <CheckCircle className="w-4 h-4" />
             Approval Status
           </CardTitle>
         </CardHeader>
         <CardContent>
           {quoteApprovals.length === 0 ? (
-            <div className="text-center py-6">
-              <Clock className="w-8 h-8 mx-auto text-gray-300 mb-2" />
-              <p className="text-sm text-gray-500">No approval requests sent yet</p>
+            <div className="text-center py-12">
+              <Clock className="w-12 h-12 mx-auto text-gray-300 mb-4" />
+              <h3 className="text-lg font-medium text-gray-900 mb-2">No approval requests sent yet</h3>
               {isQuotePhase && primaryContact && (
-                <p className="text-xs text-gray-400 mt-1">
+                <p className="text-sm text-gray-500">
                   Send this quote to {primaryContact.firstName} {primaryContact.lastName} for approval
                 </p>
               )}
             </div>
           ) : (
             <div className="space-y-3">
-              {quoteApprovals.map((approval: any) => (
+              {quoteApprovals.map((approval) => (
                 <div key={approval.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                   <div>
                     <p className="text-sm font-medium">{approval.clientName || approval.clientEmail}</p>
@@ -524,7 +523,7 @@ export default function QuoteSection(props: QuoteSectionProps) {
       <PdfPreviewDialog
         open={showLivePreview}
         onOpenChange={setShowLivePreview}
-        title={`Quote Preview — ${(order as any)?.orderNumber || ""}`}
+        title={`Quote Preview — ${order?.orderNumber || ""}`}
         document={showLivePreview ? buildQuoteDoc() : null}
       />
 
@@ -550,7 +549,7 @@ export default function QuoteSection(props: QuoteSectionProps) {
           recipientEmail={primaryContact?.email || ""}
           recipientName={primaryContact ? `${primaryContact.firstName} ${primaryContact.lastName}` : companyName}
           companyName={companyName}
-          orderNumber={(order as any)?.orderNumber || ""}
+          orderNumber={order?.orderNumber || ""}
           quoteDocument={quoteDocuments[0]}
           primaryContact={primaryContact}
           quoteTotal={Number(order.total || 0)}
@@ -587,13 +586,15 @@ function QuoteEditDialog({
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic form dialog with many order fields
   order: any;
-  updateField: (fields: Record<string, any>, options?: any) => void;
+  updateField: (fields: Record<string, unknown>, options?: { onSuccess?: () => void; onError?: (error: Error) => void }) => void;
   isFieldPending: boolean;
-  paymentTermsOptions: any[];
-  taxCodes: any[];
+  paymentTermsOptions: Array<{ name: string }>;
+  taxCodes: Array<{ id: string | number; label: string; rate?: string | number; isExempt?: boolean }>;
 }) {
   const { toast } = useToast();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic form state
   const [form, setForm] = useState<Record<string, any>>({});
 
   // Populate form when dialog opens
@@ -669,7 +670,7 @@ function QuoteEditDialog({
               <Select value={form.paymentTerms || ""} onValueChange={(val) => setForm({ ...form, paymentTerms: val })}>
                 <SelectTrigger className="mt-1"><SelectValue placeholder="Select terms" /></SelectTrigger>
                 <SelectContent>
-                  {paymentTermsOptions.map((t: any) => (
+                  {paymentTermsOptions.map((t) => (
                     <SelectItem key={t.name} value={t.name}>{t.name}</SelectItem>
                   ))}
                 </SelectContent>
@@ -690,7 +691,7 @@ function QuoteEditDialog({
                 <SelectTrigger className="mt-1"><SelectValue placeholder="Select tax code" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">None</SelectItem>
-                  {taxCodes.map((tc: any) => (
+                  {taxCodes.map((tc) => (
                     <SelectItem key={tc.id} value={String(tc.id)}>
                       {tc.label} {tc.rate ? `(${tc.rate}%)` : ""}
                     </SelectItem>

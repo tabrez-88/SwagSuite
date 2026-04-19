@@ -47,7 +47,7 @@ function AttachmentChips({ attachments, onPreview }: {
   if (!attachments?.length) return null;
   return (
     <div className="mt-2 flex flex-wrap gap-2">
-      {attachments.map((att: any, idx: number) => (
+      {attachments.map((att: { mediaLibraryId?: string; fileName: string; cloudinaryUrl: string; mimeType?: string }, idx: number) => (
         <div
           key={att.mediaLibraryId || idx}
           role="button"
@@ -60,7 +60,7 @@ function AttachmentChips({ attachments, onPreview }: {
           })}
           className="flex items-center gap-2 p-1.5 bg-white border rounded-lg hover:bg-gray-50 max-w-[200px] cursor-pointer"
         >
-          {isImageFile(att.mimeType) ? (
+          {isImageFile(att.mimeType ?? null) ? (
             <img
               src={getCloudinaryThumbnail(att.cloudinaryUrl, 40, 40)}
               className="w-8 h-8 rounded object-cover flex-shrink-0"
@@ -94,7 +94,7 @@ function getActivityBg(activityType: string) {
 }
 
 export default function ActivitiesSection({ projectId, data }: ActivitiesSectionProps) {
-  const h = useActivitiesSection(projectId, data);
+  const hook = useActivitiesSection(projectId, data);
 
   return (
     <div className="space-y-6">
@@ -109,23 +109,23 @@ export default function ActivitiesSection({ projectId, data }: ActivitiesSection
         <CardContent className="space-y-4">
           <div className="relative">
             <Textarea
-              ref={h.textareaRef}
+              ref={hook.textareaRef}
               placeholder="Add internal note... Use @ to mention team members"
-              value={h.internalNote}
-              onChange={(e) => h.handleMentionInput(e.target.value)}
+              value={hook.internalNote}
+              onChange={(e) => hook.handleMentionInput(e.target.value)}
               className="min-h-[120px]"
               data-testid="textarea-internal-note"
             />
 
             {/* Mention Suggestions */}
-            {h.showMentionSuggestions && h.filteredTeamMembers.length > 0 && (
+            {hook.showMentionSuggestions && hook.filteredTeamMembers.length > 0 && (
               <div className="absolute top-full left-0 right-0 bg-white border border-gray-200 rounded-md shadow-lg z-10 max-h-40 overflow-y-auto">
-                {h.filteredTeamMembers
+                {hook.filteredTeamMembers
                   .slice(0, 5)
                   .map((member: TeamMember) => (
                     <button
                       key={member.id}
-                      onClick={() => h.handleMentionSelect(member)}
+                      onClick={() => hook.handleMentionSelect(member)}
                       className="w-full text-left px-3 py-2 hover:bg-gray-50 flex items-center gap-2"
                       data-testid={`mention-${member.id}`}
                     >
@@ -148,9 +148,9 @@ export default function ActivitiesSection({ projectId, data }: ActivitiesSection
           </div>
 
           {/* Pending Attachments */}
-          {h.pendingAttachments.length > 0 && (
+          {hook.pendingAttachments.length > 0 && (
             <div className="flex flex-wrap gap-2 p-2 bg-gray-50 rounded-lg border">
-              {h.pendingAttachments.map((file) => (
+              {hook.pendingAttachments.map((file) => (
                 <div key={file.id} className="relative group">
                   <div className="w-16 h-16 rounded border bg-white flex items-center justify-center overflow-hidden">
                     {isImageFile(file.mimeType) ? (
@@ -164,7 +164,7 @@ export default function ActivitiesSection({ projectId, data }: ActivitiesSection
                     )}
                   </div>
                   <button
-                    onClick={() => h.removeAttachment(file.id)}
+                    onClick={() => hook.removeAttachment(file.id)}
                     className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
                   >
                     <X className="w-3 h-3" />
@@ -180,14 +180,14 @@ export default function ActivitiesSection({ projectId, data }: ActivitiesSection
           <div className="flex gap-2">
             <Button
               variant="outline"
-              onClick={() => h.setShowFilePicker(true)}
+              onClick={() => hook.setShowFilePicker(true)}
             >
               <Paperclip className="w-4 h-4 mr-2" />
               Attach Files
             </Button>
             <Button
-              onClick={h.handleSendInternalNote}
-              disabled={(!h.internalNote.trim() && h.pendingAttachments.length === 0) || h.createActivityMutation.isPending}
+              onClick={hook.handleSendInternalNote}
+              disabled={(!hook.internalNote.trim() && hook.pendingAttachments.length === 0) || hook.createActivityMutation.isPending}
               className="flex-1"
               data-testid="button-send-internal-note"
             >
@@ -197,11 +197,11 @@ export default function ActivitiesSection({ projectId, data }: ActivitiesSection
           </div>
 
           <FilePickerDialog
-            open={h.showFilePicker}
-            onClose={() => h.setShowFilePicker(false)}
+            open={hook.showFilePicker}
+            onClose={() => hook.setShowFilePicker(false)}
             onSelect={(files) => {
-              h.setPendingAttachments((prev) => [...prev, ...files]);
-              h.setShowFilePicker(false);
+              hook.setPendingAttachments((prev) => [...prev, ...files]);
+              hook.setShowFilePicker(false);
             }}
             multiple={true}
             contextProjectId={projectId}
@@ -215,13 +215,13 @@ export default function ActivitiesSection({ projectId, data }: ActivitiesSection
               Recent Internal Notes
             </h4>
             <div className="space-y-2">
-              {h.activities.length === 0 ? (
+              {hook.activities.length === 0 ? (
                 <div className="p-3 bg-gray-50 rounded-lg text-center text-sm text-gray-500">
                   No internal notes yet. Add a note above to start tracking
                   this project.
                 </div>
               ) : (
-                h.activities
+                hook.activities
                   .filter(
                     (activity: ProjectActivity) =>
                       activity.activityType === "comment",
@@ -232,7 +232,7 @@ export default function ActivitiesSection({ projectId, data }: ActivitiesSection
                       ? `${activity.user.firstName} ${activity.user.lastName}`
                       : "Unknown User";
 
-                    const attachments = (activity.metadata as any)?.attachments || [];
+                    const attachments = ((activity.metadata as Record<string, unknown>)?.attachments as any[]) || [];
                     return (
                       <div
                         key={activity.id}
@@ -250,7 +250,7 @@ export default function ActivitiesSection({ projectId, data }: ActivitiesSection
                         <p className="text-sm text-gray-700">
                           {activity.content}
                         </p>
-                        <AttachmentChips attachments={attachments} onPreview={h.setPreviewFile} />
+                        <AttachmentChips attachments={attachments} onPreview={hook.setPreviewFile} />
                       </div>
                     );
                   })
@@ -272,7 +272,7 @@ export default function ActivitiesSection({ projectId, data }: ActivitiesSection
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {h.activities.length === 0 ? (
+          {hook.activities.length === 0 ? (
             <div className="p-8 text-center text-sm text-gray-500">
               <Activity className="w-10 h-10 mx-auto mb-3 text-gray-300" />
               <p className="font-medium">No activity yet</p>
@@ -285,7 +285,7 @@ export default function ActivitiesSection({ projectId, data }: ActivitiesSection
               {/* Timeline line */}
               <div className="absolute left-[17px] top-2 bottom-2 w-0.5 bg-gray-200" />
               <div className="space-y-4">
-                {h.activities.map((activity: ProjectActivity) => {
+                {hook.activities.map((activity: ProjectActivity) => {
                   const userName = activity.user
                     ? `${activity.user.firstName} ${activity.user.lastName}`
                     : activity.isSystemGenerated
@@ -327,8 +327,8 @@ export default function ActivitiesSection({ projectId, data }: ActivitiesSection
                         </p>
                         {/* Inline attachments */}
                         <AttachmentChips
-                          attachments={(activity.metadata as any)?.attachments || []}
-                          onPreview={h.setPreviewFile}
+                          attachments={((activity.metadata as Record<string, unknown>)?.attachments as any[]) || []}
+                          onPreview={hook.setPreviewFile}
                         />
                       </div>
                     </div>
@@ -341,9 +341,9 @@ export default function ActivitiesSection({ projectId, data }: ActivitiesSection
       </Card>
 
       <FilePreviewModal
-        open={!!h.previewFile}
-        onClose={() => h.setPreviewFile(null)}
-        file={h.previewFile}
+        open={!!hook.previewFile}
+        onClose={() => hook.setPreviewFile(null)}
+        file={hook.previewFile}
       />
     </div>
   );

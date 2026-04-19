@@ -1,13 +1,13 @@
 import { useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
-import { uploadProjectFiles, linkLibraryFiles, deleteProjectFile } from "@/services/projects/requests";
+import { useUploadProjectFiles, useLinkLibraryFiles, useDeleteProjectFile } from "@/services/projects/mutations";
+import { projectKeys } from "@/services/projects/keys";
 import type { OrderFile } from "./types";
 import { FILE_TYPE_OPTIONS } from "./types";
 
 export function useFilesTab(projectId: string) {
     const { toast } = useToast();
-    const queryClient = useQueryClient();
 
     const [showUploadModal, setShowUploadModal] = useState(false);
     const [showLibraryPicker, setShowLibraryPicker] = useState(false);
@@ -20,7 +20,7 @@ export function useFilesTab(projectId: string) {
 
     // Fetch files
     const { data: files = [], isLoading } = useQuery<OrderFile[]>({
-        queryKey: [`/api/projects/${projectId}/files`],
+        queryKey: projectKeys.files(projectId),
     });
 
     // Get products that don't have pending/approved customer proofs
@@ -35,111 +35,59 @@ export function useFilesTab(projectId: string) {
             .map(f => f.orderItemId)
     );
 
-    // Upload mutation
-    const uploadMutation = useMutation({
-        mutationFn: async (data: {
-            uploads: { file: File; productId?: string }[];
-            notes: string;
-        }) => {
+    // Service mutations
+    const rawUploadMutation = useUploadProjectFiles(projectId);
+    const linkFromLibraryRaw = useLinkLibraryFiles(projectId);
+    const deleteMutation = useDeleteProjectFile(projectId);
+
+    // Upload wrapper — builds FormData then delegates to service mutation
+    const uploadMutation = {
+        ...rawUploadMutation,
+        mutate: (data: { uploads: { file: File; productId?: string }[]; notes: string }) => {
             const formData = new FormData();
-
-            // Add all files
-            data.uploads.forEach((upload) => {
-                formData.append("files", upload.file);
-            });
-
+            data.uploads.forEach((upload) => formData.append("files", upload.file));
             formData.append("fileType", selectedFileType);
-
-            // Add product assignments
             if (selectedFileType === "customer_proof") {
                 data.uploads.forEach((upload, index) => {
-                    if (upload.productId) {
-                        formData.append(`productIds[${index}]`, upload.productId);
-                    }
+                    if (upload.productId) formData.append(`productIds[${index}]`, upload.productId);
                 });
-                // Auto-generate approval links for customer proofs
                 formData.append("autoGenerateApproval", "true");
             }
+            if (data.notes) formData.append("notes", data.notes);
 
-            if (data.notes) {
-                formData.append("notes", data.notes);
-            }
-
-            return uploadProjectFiles(projectId, formData);
-        },
-        onSuccess: (data) => {
-            queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/files`] });
-
-            // Show approval links if generated
-            if (selectedFileType === "customer_proof" && data.approvalLinks && data.approvalLinks.length > 0) {
-                const links = data.approvalLinks.map((link: any) =>
-                    `${link.productName}: ${window.location.origin}/approval/${link.token}`
-                ).join('\n');
-
-                navigator.clipboard.writeText(links).then(() => {
-                    toast({
-                        title: "Files uploaded & approval links generated! ✅",
-                        description: `${data.approvalLinks.length} approval link(s) copied to clipboard`,
-                    });
-                });
-            } else {
-                toast({
-                    title: "Files uploaded successfully",
-                    description: selectedFileType === "customer_proof"
-                        ? "Refresh page to see approval status"
-                        : "Files have been uploaded successfully and are now stored in the system.",
-                });
-            }
-        },
-        onError: (error: Error) => {
-            toast({
-                title: "Upload failed",
-                description: error.message,
-                variant: "destructive",
+            rawUploadMutation.mutate(formData, {
+                onSuccess: (result: any) => {
+                    if (selectedFileType === "customer_proof" && result.approvalLinks?.length > 0) {
+                        const links = result.approvalLinks.map((link: any) =>
+                            `${link.productName}: ${window.location.origin}/approval/${link.token}`
+                        ).join('\n');
+                        navigator.clipboard.writeText(links).then(() => {
+                            toast({
+                                title: "Files uploaded & approval links generated!",
+                                description: `${result.approvalLinks.length} approval link(s) copied to clipboard`,
+                            });
+                        });
+                    } else {
+                        toast({
+                            title: "Files uploaded successfully",
+                            description: selectedFileType === "customer_proof"
+                                ? "Refresh page to see approval status"
+                                : "Files have been uploaded successfully and are now stored in the system.",
+                        });
+                    }
+                },
+                onError: (error: Error) => toast({ title: "Upload failed", description: error.message, variant: "destructive" }),
             });
         },
-    });
+    };
 
-    // Link from media library mutation
-    const linkFromLibraryMutation = useMutation({
-        mutationFn: (mediaLibraryIds: string[]) => linkLibraryFiles(projectId, {
-            mediaLibraryIds,
-            fileType: selectedFileType,
-        }),
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/files`] });
-            toast({
-                title: "Files added",
-                description: "Files from library have been linked to this order.",
-            });
+    // Link from library wrapper — adds fileType from local state
+    const linkFromLibraryMutation = {
+        ...linkFromLibraryRaw,
+        mutate: (mediaLibraryIds: string[]) => {
+            linkFromLibraryRaw.mutate({ mediaLibraryIds, fileType: selectedFileType });
         },
-        onError: (error: Error) => {
-            toast({
-                title: "Failed to add files",
-                description: error.message,
-                variant: "destructive",
-            });
-        },
-    });
-
-    // Delete mutation
-    const deleteMutation = useMutation({
-        mutationFn: (fileId: string) => deleteProjectFile(projectId, fileId),
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/files`] });
-            toast({
-                title: "File deleted",
-                description: "File has been deleted successfully",
-            });
-        },
-        onError: (error: Error) => {
-            toast({
-                title: "Delete failed",
-                description: error.message,
-                variant: "destructive",
-            });
-        },
-    });
+    };
 
     const handleUploadFiles = (uploads: { file: File; productId?: string }[], notes: string) => {
         uploadMutation.mutate({ uploads, notes });

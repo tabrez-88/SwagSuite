@@ -4,10 +4,19 @@ import type {
   OrderAdditionalCharge,
   OrderShipment,
   CustomerPortalToken,
+  ArtworkItem,
+  ArtworkCharge,
+  ArtworkItemFile,
+  ArtworkApproval,
+  Invoice,
+  QuoteApproval,
+  VendorInvoice,
+  OrderServiceCharge,
+  GeneratedDocument,
 } from "@shared/schema";
 import { projectKeys } from "./keys";
 import type { Project } from "./types";
-import type { ProjectActivity, Communication } from "@/types/project-types";
+import type { ProjectActivity, Communication, EnrichedOrderItem } from "@/types/project-types";
 import * as requests from "./requests";
 
 // ---- Project-level ----
@@ -26,12 +35,12 @@ export function useProject<T = Project>(projectId: string | number) {
 // ---- Items / lines / charges / artwork batch ----
 
 export interface ItemsWithDetailsResponse {
-  items: any[];
+  items: EnrichedOrderItem[];
   lines: Record<string, OrderItemLine[]>;
   charges: Record<string, OrderAdditionalCharge[]>;
-  artworks: Record<string, any[]>;
-  artworkCharges: Record<string, any[]>;
-  artworkFiles: Record<string, any[]>;
+  artworks: Record<string, ArtworkItem[]>;
+  artworkCharges: Record<string, ArtworkCharge[]>;
+  artworkFiles: Record<string, ArtworkItemFile[]>;
 }
 
 export function useProjectItemsWithDetails(
@@ -46,12 +55,12 @@ export function useProjectItemsWithDetails(
 
 // ---- Section-specific resources ----
 
-export function useProjectInvoice<T = any>(projectId: string | number, enabled = true) {
-  return useQuery<T | null>({
+export function useProjectInvoice(projectId: string | number, enabled = true) {
+  return useQuery<Invoice | null>({
     queryKey: projectKeys.invoice(projectId),
     queryFn: async () => {
       try {
-        return await requests.fetchProjectInvoice<T>(projectId);
+        return await requests.fetchProjectInvoice(projectId);
       } catch {
         return null;
       }
@@ -80,8 +89,8 @@ export function useProjectCommunications(
   });
 }
 
-export function useProjectApprovals<T = any[]>(projectId: string | number, enabled = true) {
-  return useQuery<T>({
+export function useProjectApprovals(projectId: string | number, enabled = true) {
+  return useQuery<ArtworkApproval[]>({
     queryKey: [`/api/projects/${projectId}/approvals`] as const,
     enabled: !!projectId && enabled,
   });
@@ -101,33 +110,33 @@ export function useProjectPortalTokens(projectId: string | number, enabled = tru
   });
 }
 
-export function useProjectQuoteApprovals<T = any[]>(
+export function useProjectQuoteApprovals(
   projectId: string | number,
   enabled = true,
 ) {
-  return useQuery<T>({
+  return useQuery<QuoteApproval[]>({
     queryKey: projectKeys.approvals(projectId),
     enabled: !!projectId && enabled,
     retry: false,
   });
 }
 
-export function useProjectVendorInvoices<T = any[]>(
+export function useProjectVendorInvoices(
   projectId: string | number,
   enabled = true,
 ) {
-  return useQuery<T>({
+  return useQuery<VendorInvoice[]>({
     queryKey: projectKeys.vendorInvoices(projectId),
     enabled: !!projectId && enabled,
     retry: false,
   });
 }
 
-export function useProjectServiceCharges<T = any[]>(
+export function useProjectServiceCharges(
   projectId: string | number,
   enabled = true,
 ) {
-  return useQuery<T>({
+  return useQuery<OrderServiceCharge[]>({
     queryKey: projectKeys.serviceCharges(projectId),
     enabled: !!projectId && enabled,
   });
@@ -137,17 +146,17 @@ export function useProjectProductComments(
   projectId: string | number,
   enabled = true,
 ) {
-  return useQuery<Record<string, any[]>>({
+  return useQuery<Record<string, ProjectActivity[]>>({
     queryKey: projectKeys.productComments(projectId),
     enabled: !!projectId && enabled,
   });
 }
 
-export function useProjectDocuments<T = any[]>(
+export function useProjectDocuments(
   projectId: string | number,
   enabled = true,
 ) {
-  return useQuery<T>({
+  return useQuery<GeneratedDocument[]>({
     queryKey: projectKeys.documents(projectId),
     enabled: !!projectId && enabled,
   });

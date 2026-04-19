@@ -1,11 +1,11 @@
 import { useState, useRef, useEffect } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   useMediaLibraryQuery,
   useUploadMediaFiles,
   useDeleteMediaItem,
   useRenameMediaItem,
-  deleteMediaItem,
+  useBulkDeleteMediaItems,
   mediaLibraryKeys,
 } from "@/services/media-library";
 import type { MediaLibraryItem } from "@/lib/media-library";
@@ -113,16 +113,7 @@ export function useMediaLibraryPage() {
     setSelectMode(false);
   };
 
-  const bulkDeleteMutation = useMutation({
-    mutationFn: async (ids: string[]) => {
-      const results = await Promise.allSettled(ids.map((id) => deleteMediaItem(id)));
-      const failed = results.filter((r) => r.status === "rejected").length;
-      if (failed > 0) throw new Error(`${failed} file(s) failed to delete`);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: mediaLibraryKeys.all });
-    },
-  });
+  const bulkDeleteMutation = useBulkDeleteMediaItems();
 
   const handleBulkDelete = async () => {
     const ids = Array.from(selectedIds);

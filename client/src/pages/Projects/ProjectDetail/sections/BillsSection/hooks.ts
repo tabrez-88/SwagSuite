@@ -20,16 +20,17 @@ export function useBillsSection({ projectId, data }: BillsSectionProps) {
 
   const [showCreate, setShowCreate] = useState(false);
   const [showEdit, setShowEdit] = useState(false);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- vendor invoice shape varies
   const [editingBill, setEditingBill] = useState<any>(null);
   const [billForm, setBillForm] = useState<BillFormData>({ ...emptyForm });
   const [editForm, setEditForm] = useState<BillFormData>({ ...emptyForm });
 
   // Fetch PO documents for linking
   const { data: allDocuments = [] } = useProjectDocuments(projectId);
-  const poDocuments = allDocuments.filter((d: any) => d.documentType === "purchase_order");
+  const poDocuments = allDocuments.filter((d) => d.documentType === "purchase_order");
 
   // Group vendor invoices by supplier
-  const invoicesByVendor = vendorInvoices.reduce((acc: Record<string, any[]>, inv: any) => {
+  const invoicesByVendor = vendorInvoices.reduce((acc: Record<string, typeof vendorInvoices>, inv) => {
     const key = inv.supplierId || "unknown";
     if (!acc[key]) acc[key] = [];
     acc[key].push(inv);
@@ -41,7 +42,7 @@ export function useBillsSection({ projectId, data }: BillsSectionProps) {
 
   const openCreateForVendor = (supplierId?: string) => {
     const vendorDoc = supplierId
-      ? poDocuments.find((d: any) => d.vendorId === supplierId)
+      ? poDocuments.find((d) => d.vendorId === supplierId)
       : undefined;
     setBillForm({
       supplierId: supplierId || "",
@@ -55,6 +56,7 @@ export function useBillsSection({ projectId, data }: BillsSectionProps) {
     setShowCreate(true);
   };
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- vendor invoice shape varies
   const openEditBill = (bill: any) => {
     setEditingBill(bill);
     setEditForm({
@@ -70,7 +72,7 @@ export function useBillsSection({ projectId, data }: BillsSectionProps) {
   };
 
   const handleVendorChange = (val: string) => {
-    const vendorDoc = poDocuments.find((d: any) => d.vendorId === val);
+    const vendorDoc = poDocuments.find((d) => d.vendorId === val);
     setBillForm(f => ({ ...f, supplierId: val, documentId: vendorDoc?.id || "" }));
   };
 
@@ -124,11 +126,11 @@ export function useBillsSection({ projectId, data }: BillsSectionProps) {
   };
 
   // Summary calculations
-  const totalAmount = vendorInvoices.reduce((s: number, v: any) => s + Number(v.amount || 0), 0);
-  const paidCount = vendorInvoices.filter((v: any) => v.status === "paid").length;
+  const totalAmount = vendorInvoices.reduce((s: number, v) => s + Number(v.amount || 0), 0);
+  const paidCount = vendorInvoices.filter((v) => v.status === "paid").length;
 
   const filteredPoDocuments = poDocuments.filter(
-    (d: any) => !billForm.supplierId || d.vendorId === billForm.supplierId
+    (d) => !billForm.supplierId || d.vendorId === billForm.supplierId
   );
 
   const canSubmit = !createBillMutation.isPending && !!billForm.invoiceNumber.trim() && !!billForm.amount;

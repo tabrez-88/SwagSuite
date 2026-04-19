@@ -78,3 +78,29 @@ export function useUpdateProfileImage() {
     },
   });
 }
+
+// ── Two-Factor Authentication ──
+
+export function useSetup2FA() {
+  return useMutation({ mutationFn: requests.setup2FA });
+}
+
+export function useVerifySetup2FA() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (code: string) => requests.verifySetup2FA(code),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: userKeys.twoFaStatus }),
+  });
+}
+
+export function useDisable2FA() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (password: string) => requests.disable2FA(password),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: userKeys.twoFaStatus }),
+  });
+}
+
+export function useRegenerateBackupCodes() {
+  return useMutation({ mutationFn: (password: string) => requests.generateBackupCodes(password) });
+}

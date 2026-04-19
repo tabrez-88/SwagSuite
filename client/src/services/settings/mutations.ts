@@ -1,4 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useToast } from "@/hooks/use-toast";
 import { settingsKeys } from "./keys";
 import * as requests from "./requests";
 
@@ -43,5 +44,31 @@ export function useUpdateFeatureToggles() {
   return useMutation({
     mutationFn: requests.updateFeatureToggles,
     onSuccess: () => queryClient.invalidateQueries({ queryKey: settingsKeys.admin }),
+  });
+}
+
+export function useSaveNotificationPrefs() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  return useMutation({
+    mutationFn: requests.updateNotificationPrefs,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: settingsKeys.notificationPrefs });
+      toast({ title: "Saved", description: "Notification preferences updated." });
+    },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
+  });
+}
+
+export function useSaveEmailCredentials() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  return useMutation({
+    mutationFn: requests.saveUserEmailSettings,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: settingsKeys.emailCredentials });
+      toast({ title: "Saved", description: "Mail credentials saved successfully." });
+    },
+    onError: () => toast({ variant: "destructive", title: "Error", description: "Failed to save mail credentials." }),
   });
 }

@@ -84,3 +84,4 @@ export const insertGeneratedDocumentSchema = createInsertSchema(generatedDocumen
 // Types
 export type GeneratedDocument = typeof generatedDocuments.$inferSelect;
 export type InsertGeneratedDocument = z.infer<typeof insertGeneratedDocumentSchema>;
+export type QuoteApproval = typeof quoteApprovals.$inferSelect;

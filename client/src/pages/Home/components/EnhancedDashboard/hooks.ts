@@ -16,10 +16,10 @@ export function useEnhancedDashboard() {
   const [activeTab, setActiveTab] = useState<string>("overview");
   const { toast } = useToast();
 
-  const { data: metrics } = useEnhancedStats<DashboardMetrics>(dateRange);
-  const { data: leaderboard } = useTeamLeaderboard<TeamLeaderboard[]>(dateRange);
-  const { data: automationTasks } = useAutomationTasks<AIAutomationTask[]>();
-  const { data: newsAlerts } = useNewsAlerts<NewsAlert[]>();
+  const { data: metrics } = useEnhancedStats(dateRange);
+  const { data: leaderboard } = useTeamLeaderboard(dateRange);
+  const { data: automationTasks } = useAutomationTasks();
+  const { data: newsAlerts } = useNewsAlerts();
   const { data: arAging } = useArAging<ArAgingReport>();
 
   const getMetricByRange = (range: string) => {

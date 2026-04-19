@@ -1,12 +1,12 @@
 import { useState, useEffect } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "@/lib/wouter-compat";
 import { useToast } from "@/hooks/use-toast";
-import { updateProject, createProject } from "@/services/projects/requests";
-import { isUnauthorizedError } from "@/lib/authUtils";
 import type { Company } from "@shared/schema";
 import { useCompanyAddresses } from "@/services/company-addresses";
 import { usePaymentTerms, useDefaultPaymentTermName } from "@/services/payment-terms";
+import { useUpdateProject, useCreateProject } from "@/services/projects/mutations";
+import { projectKeys } from "@/services/projects/keys";
 import type { ProjectModalProps, ProjectFormData } from "./types";
 
 // Normalize various country name/code formats to standard 2-letter codes
@@ -68,7 +68,6 @@ export function useProjectModal({ open, onOpenChange, order, initialCompanyId, b
   const [showMoreSections, setShowMoreSections] = useState(false);
 
   const { toast } = useToast();
-  const queryClient = useQueryClient();
   const defaultPaymentTerm = useDefaultPaymentTermName();
   const { data: paymentTermsList = [] } = usePaymentTerms();
 
@@ -259,46 +258,9 @@ export function useProjectModal({ open, onOpenChange, order, initialCompanyId, b
     }
   }, [formData.companyId, companyAddresses]);
 
-  const updateProjectMutation = useMutation({
-    mutationFn: async (data: any) => {
-      const payload: any = { ...data };
-      if (payload.inHandsDate) payload.inHandsDate = new Date(payload.inHandsDate);
-      else if (payload.inHandsDate === "") payload.inHandsDate = null;
-      if (payload.eventDate) payload.eventDate = new Date(payload.eventDate);
-      else if (payload.eventDate === "") payload.eventDate = null;
-      if (payload.supplierInHandsDate) payload.supplierInHandsDate = new Date(payload.supplierInHandsDate);
-      else if (payload.supplierInHandsDate === "") payload.supplierInHandsDate = null;
-      payload.isFirm = payload.isFirm || false;
-      await updateProject(order?.id!, payload);
-    },
-    onSuccess: () => {
-      toast({ title: "Project updated" });
-      queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
-      queryClient.invalidateQueries({ queryKey: [`/api/projects/${order?.id}`] });
-      onOpenChange(false);
-    },
-    onError: () => {
-      toast({ title: "Failed to update project", variant: "destructive" });
-    },
-  });
+  const updateProjectMutation = useUpdateProject(order?.id!);
 
-  const createProjectMutation = useMutation({
-    mutationFn: (data: any) => createProject(data),
-    onSuccess: (newProject) => {
-      toast({ title: "Project created" });
-      queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
-      onOpenChange(false);
-      if (newProject.id) setLocation(`/projects/${newProject.id}`);
-    },
-    onError: (error: Error) => {
-      if (isUnauthorizedError(error)) {
-        toast({ title: "Session expired", variant: "destructive" });
-        setTimeout(() => { window.location.href = "/api/login"; }, 500);
-        return;
-      }
-      toast({ title: "Failed to create project", variant: "destructive" });
-    },
-  });
+  const createProjectMutation = useCreateProject();
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -333,10 +295,30 @@ export function useProjectModal({ open, onOpenChange, order, initialCompanyId, b
     }
     const addressFields = ["billingContact", "billingEmail", "billingStreet", "billingStreet2", "billingCity", "billingState", "billingZipCode", "billingCountry", "billingPhone", "shippingContact", "shippingEmail", "shippingStreet", "shippingStreet2", "shippingCity", "shippingState", "shippingZipCode", "shippingCountry", "shippingPhone"];
     addressFields.forEach((f) => delete payload[f]);
+    // Normalize dates
+    if (payload.inHandsDate) payload.inHandsDate = new Date(payload.inHandsDate);
+    else if (payload.inHandsDate === "") payload.inHandsDate = null;
+    if (payload.eventDate) payload.eventDate = new Date(payload.eventDate);
+    else if (payload.eventDate === "") payload.eventDate = null;
+    if (payload.supplierInHandsDate) payload.supplierInHandsDate = new Date(payload.supplierInHandsDate);
+    else if (payload.supplierInHandsDate === "") payload.supplierInHandsDate = null;
+    payload.isFirm = payload.isFirm || false;
+
     if (order) {
-      updateProjectMutation.mutate(payload);
+      updateProjectMutation.mutate(payload, {
+        onSuccess: () => {
+          toast({ title: "Project updated" });
+          onOpenChange(false);
+        },
+        onError: () => toast({ title: "Failed to update project", variant: "destructive" }),
+      });
     } else {
-      createProjectMutation.mutate(payload);
+      createProjectMutation.mutate(payload, {
+        onSuccess: (newProject: any) => {
+          onOpenChange(false);
+          if (newProject.id) setLocation(`/projects/${newProject.id}`);
+        },
+      });
     }
   };
 

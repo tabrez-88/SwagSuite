@@ -2,7 +2,6 @@ import GeneratedDocumentCard from "@/components/documents/GeneratedDocumentCard"
 import { PdfPreviewDialog } from "@/components/documents/pdf/PdfPreviewDialog";
 import { DocumentEditor } from "@/components/feature/DocumentEditor";
 import ProjectInfoBar from "@/components/layout/ProjectInfoBar";
-import { FilePreviewModal } from "@/components/modals/FilePreviewModal";
 import SendSODialog from "@/components/modals/SendSODialog";
 import ProductsSection from "@/components/sections/ProductsSection";
 import EditableAddress from "@/components/shared/EditableAddress";
@@ -35,7 +34,6 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { getCloudinaryThumbnail } from "@/lib/media-library";
 import { usePaymentTerms } from "@/services/payment-terms";
 import { useCalculateTax } from "@/services/projects/mutations";
 import { useTaxCodes } from "@/services/tax-codes";
@@ -47,11 +45,9 @@ import {
   ClipboardList,
   Copy,
   CreditCard,
-  Eye,
   FileText,
   Loader2,
   MapPin,
-  Palette,
   Pencil,
   Send
 } from "lucide-react";
@@ -131,9 +127,8 @@ export default function SalesOrderSection(props: SalesOrderSectionProps) {
             size="sm"
             onClick={hook.handleDuplicate}
             disabled={hook.isDuplicating}
-            className="gap-1.5"
           >
-            {hook.isDuplicating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Copy className="w-4 h-4" />}
+            {hook.isDuplicating ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <Copy className="w-4 h-4 mr-1.5" />}
             Duplicate Order
           </Button>
           <Button
@@ -168,8 +163,8 @@ export default function SalesOrderSection(props: SalesOrderSectionProps) {
                   Order Details
                 </CardTitle>
                 {!hook.isLocked && (
-                  <Button variant="outline" size="sm" className="gap-1.5 h-8" onClick={() => setShowEditDialog(true)}>
-                    <Pencil className="w-3.5 h-3.5" />
+                  <Button variant="outline" size="sm" className="h-8" onClick={() => setShowEditDialog(true)}>
+                    <Pencil className="w-3.5 h-3.5 mr-1.5" />
                     Edit
                   </Button>
                 )}
@@ -186,32 +181,32 @@ export default function SalesOrderSection(props: SalesOrderSectionProps) {
               <div className="grid grid-cols-2 md:grid-cols-3 gap-x-8 gap-y-3">
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-muted-foreground">Payment Terms</span>
-                  <span className="text-sm font-medium">{(hook.order as any)?.paymentTerms || "—"}</span>
+                  <span className="text-sm font-medium">{hook.order?.paymentTerms || "—"}</span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-muted-foreground">Customer PO</span>
-                  <span className="text-sm font-medium">{(hook.order as any)?.customerPo || "—"}</span>
+                  <span className="text-sm font-medium">{hook.order?.customerPo || "—"}</span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-muted-foreground">Default Margin</span>
-                  <span className="text-sm font-medium">{(hook.order as any)?.margin ? `${(hook.order as any).margin}%` : "—"}</span>
+                  <span className="text-sm font-medium">{hook.order?.margin ? `${hook.order!.margin}%` : "—"}</span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-muted-foreground">Discount</span>
-                  <span className="text-sm font-medium">{(hook.order as any)?.orderDiscount ? `${(hook.order as any).orderDiscount}%` : "—"}</span>
+                  <span className="text-sm font-medium">{hook.order?.orderDiscount ? `${hook.order!.orderDiscount}%` : "—"}</span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-muted-foreground">Tax Code</span>
                   <span className="text-sm font-medium">
-                    {taxCodes?.find((tc: any) => String(tc.id) === (hook.order as any)?.defaultTaxCodeId)?.label || "None"}
+                    {taxCodes?.find((tc) => String(tc.id) === hook.order?.defaultTaxCodeId)?.label || "None"}
                   </span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-muted-foreground">Tax</span>
                   <div className="flex items-center gap-2">
                     {(() => {
-                      const taxAmount = Number((hook.order as any)?.tax || 0);
-                      const activeTaxCode = taxCodes?.find((tc: any) => String(tc.id) === (hook.order as any)?.defaultTaxCodeId);
+                      const taxAmount = Number(hook.order?.tax || 0);
+                      const activeTaxCode = taxCodes?.find((tc) => String(tc.id) === hook.order?.defaultTaxCodeId);
                       return (
                         <>
                           <span className={`text-sm font-medium ${taxAmount > 0 ? "text-amber-700" : ""}`}>
@@ -234,14 +229,14 @@ export default function SalesOrderSection(props: SalesOrderSectionProps) {
                       <Button
                         variant="outline"
                         size="sm"
-                        className="h-7 text-xs gap-1"
+                        className="h-7 text-xs"
                         onClick={() => calculateTaxMutation.mutate()}
                         disabled={calculateTaxMutation.isPending}
                       >
                         {calculateTaxMutation.isPending ? (
-                          <Loader2 className="h-3 w-3 animate-spin" />
+                          <Loader2 className="h-3 w-3 mr-1.5 animate-spin" />
                         ) : (
-                          <Calculator className="h-3 w-3" />
+                          <Calculator className="h-3 w-3 mr-1.5" />
                         )}
                         Calculate Tax
                       </Button>
@@ -263,17 +258,17 @@ export default function SalesOrderSection(props: SalesOrderSectionProps) {
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-muted-foreground">Supplier In-Hands</span>
                   <span className="text-sm font-medium">
-                    {(hook.order as any)?.supplierInHandsDate ? format(new Date((hook.order as any).supplierInHandsDate), "MMM d, yyyy") : "—"}
+                    {hook.order?.supplierInHandsDate ? format(new Date(hook.order!.supplierInHandsDate), "MMM d, yyyy") : "—"}
                   </span>
                 </div>
               </div>
 
               {/* Firm / Rush badges */}
               <div className="flex items-center gap-3">
-                {(hook.order as any)?.isFirm && (
+                {hook.order?.isFirm && (
                   <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">Firm Order</Badge>
                 )}
-                {(hook.order as any)?.isRush && (
+                {hook.order?.isRush && (
                   <Badge variant="destructive" className="text-xs">Rush Order</Badge>
                 )}
               </div>
@@ -282,32 +277,23 @@ export default function SalesOrderSection(props: SalesOrderSectionProps) {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
                 <div>
                   <p className="text-xs font-medium text-gray-500 mb-1">Supplier Notes</p>
-                  <p className="text-sm text-gray-700 whitespace-pre-wrap">{(hook.order as any)?.supplierNotes || <span className="text-gray-400 italic">No supplier notes</span>}</p>
+                  <p className="text-sm text-gray-700 whitespace-pre-wrap">{hook.order?.supplierNotes || <span className="text-gray-400 italic">No supplier notes</span>}</p>
                 </div>
                 <div>
                   <p className="text-xs font-medium text-gray-500 mb-1">Additional Information</p>
-                  <p className="text-sm text-gray-700 whitespace-pre-wrap">{(hook.order as any)?.additionalInformation || <span className="text-gray-400 italic">No additional info</span>}</p>
+                  <p className="text-sm text-gray-700 whitespace-pre-wrap">{hook.order?.additionalInformation || <span className="text-gray-400 italic">No additional info</span>}</p>
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          {/* SO Details Edit Dialog */}
-          <SOEditDialog
-            open={showEditDialog}
-            onOpenChange={setShowEditDialog}
-            order={hook.order}
-            updateField={hook.updateField}
-            isFieldPending={hook.isFieldPending}
-            paymentTermsOptions={paymentTermsOptions}
-            taxCodes={taxCodes || []}
-          />
+
 
           {/* Addresses */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <EditableAddress
               title="Billing Address"
-              addressJson={(hook.order as any)?.billingAddress}
+              addressJson={hook.order?.billingAddress}
               field="billingAddress"
               onSave={hook.updateField}
               isLocked={hook.isLocked}
@@ -318,7 +304,7 @@ export default function SalesOrderSection(props: SalesOrderSectionProps) {
             />
             <EditableAddress
               title="Shipping Address"
-              addressJson={(hook.order as any)?.shippingAddress}
+              addressJson={hook.order?.shippingAddress}
               field="shippingAddress"
               onSave={hook.updateField}
               isLocked={hook.isLocked}
@@ -326,7 +312,7 @@ export default function SalesOrderSection(props: SalesOrderSectionProps) {
               icon={<MapPin className="w-4 h-4" />}
               companyId={hook.order?.companyId}
               primaryContact={hook.primaryContact}
-              billingAddressJson={(hook.order as any)?.billingAddress}
+              billingAddressJson={hook.order?.billingAddress}
             />
           </div>
         </>
@@ -337,7 +323,7 @@ export default function SalesOrderSection(props: SalesOrderSectionProps) {
       <Card>
         <CardHeader className="py-3">
           <div className="flex items-center justify-between">
-            <CardTitle className="text-xl flex items-center gap-2">
+            <CardTitle className="text-sm flex items-center gap-2">
               <FileText className="w-4 h-4" />
               Sales Order Document
             </CardTitle>
@@ -348,9 +334,8 @@ export default function SalesOrderSection(props: SalesOrderSectionProps) {
                   variant="default"
                   onClick={() => hook.setShowSendDialog(true)}
                   disabled={hook.isLocked}
-                  className="gap-1.5"
                 >
-                  <Send className="w-4 h-4" />
+                  <Send className="w-4 h-4 mr-1.5" />
                   Send to Client
                 </Button>
               )}
@@ -359,12 +344,11 @@ export default function SalesOrderSection(props: SalesOrderSectionProps) {
                   size="sm"
                   onClick={hook.handleGenerateSO}
                   disabled={hook.isGenerating || hook.isLocked}
-                  className="gap-1.5"
                 >
                   {hook.isGenerating ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />
                   ) : (
-                    <FileText className="w-4 h-4" />
+                    <FileText className="w-4 h-4 mr-1.5" />
                   )}
                   Generate Sales Order PDF
                 </Button>
@@ -374,16 +358,16 @@ export default function SalesOrderSection(props: SalesOrderSectionProps) {
         </CardHeader>
         <CardContent>
           {hook.soDocuments.length === 0 ? (
-            <div className="text-center py-4">
-              <FileText className="w-8 h-8 mx-auto text-gray-300 mb-2" />
-              <p className="text-sm text-gray-500">No sales order document generated yet</p>
+            <div className="text-center py-12">
+              <FileText className="w-12 h-12 mx-auto text-gray-300 mb-4" />
+              <h3 className="text-lg font-medium text-gray-900 mb-2">No sales order document generated yet</h3>
               {hook.orderItems.length > 0 && (
-                <p className="text-xs text-gray-400 mt-1">Click "Generate Sales Order PDF" to create a professional document</p>
+                <p className="text-sm text-gray-500">Click "Generate Sales Order PDF" to create a professional document</p>
               )}
             </div>
           ) : (
             <div className="space-y-2">
-              {hook.soDocuments.map((doc: any) => (
+              {hook.soDocuments.map((doc) => (
                 <GeneratedDocumentCard
                   key={doc.id}
                   document={doc}
@@ -401,11 +385,24 @@ export default function SalesOrderSection(props: SalesOrderSectionProps) {
         </CardContent>
       </Card>
 
+      
+
+      {/* SO Details Edit Dialog */}
+      <SOEditDialog
+        open={showEditDialog}
+        onOpenChange={setShowEditDialog}
+        order={hook.order}
+        updateField={hook.updateField}
+        isFieldPending={hook.isFieldPending}
+        paymentTermsOptions={paymentTermsOptions}
+        taxCodes={taxCodes || []}
+      />
+
       {/* Live PDF preview (uses react-pdf PDFViewer — same renderer as save) */}
       <PdfPreviewDialog
         open={hook.showLivePreview}
         onOpenChange={hook.setShowLivePreview}
-        title={`Sales Order Preview — ${(hook.order as any)?.orderNumber || ""}`}
+        title={`Sales Order Preview — ${hook.order?.orderNumber || ""}`}
         document={hook.showLivePreview ? hook.buildSODoc() : null}
       />
 
@@ -432,7 +429,7 @@ export default function SalesOrderSection(props: SalesOrderSectionProps) {
           recipientEmail={hook.primaryContact?.email || ""}
           recipientName={hook.primaryContact ? `${hook.primaryContact.firstName} ${hook.primaryContact.lastName}` : hook.companyName}
           companyName={hook.companyName}
-          orderNumber={(hook.order as any)?.orderNumber || ""}
+          orderNumber={hook.order?.orderNumber || ""}
           soDocument={hook.soDocuments[0]}
           soTotal={hook.soTotal}
           quoteApprovals={hook.quoteApprovals}
@@ -467,177 +464,6 @@ export default function SalesOrderSection(props: SalesOrderSectionProps) {
   );
 }
 
-// ── Artwork Sub-component (view-only, proofing is in PO section) ─────────────
-function SalesOrderArtwork({ hook }: { hook: ReturnType<typeof useSalesOrderSection> }) {
-  const { artworks, artworkStatusCounts, previewFile, setPreviewFile, proofStatuses } = hook;
-
-  if (artworks.length === 0) {
-    return (
-      <Card>
-        <CardContent className="p-12 text-center">
-          <Palette className="w-12 h-12 mx-auto text-gray-300 mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 mb-2">No artwork files</h3>
-          <p className="text-gray-500">Add artwork to products in the Products tab</p>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  return (
-    <div className="space-y-4">
-      {/* Status Summary Bar */}
-      {Object.keys(artworkStatusCounts).length > 0 && (
-        <div className="flex flex-wrap gap-2">
-          {Object.entries(artworkStatusCounts).map(([status, count]) => {
-            const info = proofStatuses[status] || proofStatuses.pending;
-            return (
-              <Badge key={status} variant="outline" className={`text-xs ${info.color}`}>
-                {info.label}: {count}
-              </Badge>
-            );
-          })}
-        </div>
-      )}
-
-      <p className="text-xs text-gray-500">Proofing workflow is managed in the Purchase Orders section after PO generation.</p>
-
-      {/* Artwork Cards */}
-      <div className="space-y-3">
-        {artworks.map((art: any) => {
-          const statusInfo = proofStatuses[art.status] || proofStatuses.pending;
-          return (
-            <Card key={art.id} className="overflow-hidden">
-              <div className="p-4">
-                <div className="flex gap-4">
-                  {/* Artwork Thumbnail */}
-                  <div
-                    className="w-20 h-20 flex-shrink-0 bg-gray-50 rounded-lg overflow-hidden flex items-center justify-center cursor-pointer border"
-                    onClick={() => {
-                      const url = art.fileUrl || art.filePath;
-                      if (url) setPreviewFile({ url, name: art.fileName || art.name || "Artwork" });
-                    }}
-                  >
-                    {art.fileUrl || art.filePath ? (
-                      (() => {
-                        const url = art.fileUrl || art.filePath;
-                        const ext = url.split("?")[0].split(".").pop()?.toLowerCase();
-                        const isDesignFile = ["ai", "eps", "psd"].includes(ext || "");
-                        const imgSrc = isDesignFile && url.includes("cloudinary.com")
-                          ? getCloudinaryThumbnail(url, 160, 160)
-                          : url;
-                        return (
-                          <img
-                            src={imgSrc}
-                            alt={art.name || "Artwork"}
-                            className="w-full h-full object-contain p-1"
-                            onError={(e) => {
-                              const target = e.target as HTMLImageElement;
-                              target.style.display = "none";
-                              target.parentElement?.insertAdjacentHTML(
-                                "afterbegin",
-                                `<div class="w-full h-full flex items-center justify-center"><span class="text-[10px] text-gray-400 uppercase font-medium">.${ext || "file"}</span></div>`
-                              );
-                            }}
-                          />
-                        );
-                      })()
-                    ) : (
-                      <Palette className="w-8 h-8 text-gray-300" />
-                    )}
-                  </div>
-
-                  {/* Info */}
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium">{art.name || art.fileName || "Artwork"}</p>
-                    <p className="text-xs text-gray-500">{art.productName} {art.productSku ? `(${art.productSku})` : ""}</p>
-                    <div className="flex items-center gap-2 mt-1">
-                      {art.location && <span className="text-xs text-gray-400">{art.location}</span>}
-                      {art.artworkType && <span className="text-xs text-gray-400">· {art.artworkType}</span>}
-                    </div>
-                    <div className="flex items-center gap-2 mt-1.5">
-                      <Badge variant="outline" className={`text-xs ${statusInfo.color}`}>
-                        {statusInfo.label}
-                      </Badge>
-                      <span className="text-xs text-gray-400">
-                        {art.decoratorType === "third_party" && art.decoratorName
-                          ? `Decorator: ${art.decoratorName}`
-                          : `Vendor: ${art.supplierName}`}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* View buttons */}
-                  <div className="flex flex-col gap-1">
-                    {(art.fileUrl || art.filePath) && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-8 gap-1 text-xs"
-                        onClick={() => setPreviewFile({ url: art.fileUrl || art.filePath, name: art.name || "Artwork" })}
-                      >
-                        <Eye className="w-3.5 h-3.5" />
-                        View
-                      </Button>
-                    )}
-                    {art.proofFilePath && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-8 gap-1 text-xs text-blue-600"
-                        onClick={() => setPreviewFile({ url: art.proofFilePath, name: art.proofFileName || "Vendor Proof" })}
-                      >
-                        <Eye className="w-3.5 h-3.5" />
-                        Proof
-                      </Button>
-                    )}
-                  </div>
-                </div>
-
-                {/* Proof File Preview (if exists) */}
-                {art.proofFilePath && (
-                  <div className="mt-3 flex items-center gap-3 p-2 bg-blue-50 rounded-lg border border-blue-100">
-                    <div
-                      className="w-12 h-12 flex-shrink-0 bg-white rounded border overflow-hidden flex items-center justify-center cursor-pointer"
-                      onClick={() => setPreviewFile({ url: art.proofFilePath, name: art.proofFileName || "Vendor Proof" })}
-                    >
-                      {(() => {
-                        const pExt = art.proofFilePath.split("?")[0].split(".").pop()?.toLowerCase();
-                        const pIsDesign = ["ai", "eps", "psd"].includes(pExt || "");
-                        const pSrc = pIsDesign && art.proofFilePath.includes("cloudinary.com")
-                          ? getCloudinaryThumbnail(art.proofFilePath, 96, 96)
-                          : art.proofFilePath;
-                        return <img src={pSrc} alt="Proof" className="w-full h-full object-contain p-0.5" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />;
-                      })()}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-medium text-blue-800">Vendor Proof</p>
-                      <p className="text-xs text-blue-600 truncate">{art.proofFileName || "proof-file"}</p>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </Card>
-          );
-        })}
-      </div>
-
-      {/* File Preview Modal */}
-      {previewFile && (
-        <FilePreviewModal
-          open={true}
-          file={{
-            fileName: previewFile.name,
-            originalName: previewFile.name,
-            filePath: previewFile.url,
-            mimeType: previewFile.url.match(/\.(png|jpg|jpeg|gif|webp|svg)$/i) ? "image/png" : "application/pdf",
-          }}
-          onClose={() => setPreviewFile(null)}
-        />
-      )}
-    </div>
-  );
-}
-
 // ── SO Details Edit Dialog ────────────────────────────────────────
 function SOEditDialog({
   open,
@@ -650,13 +476,15 @@ function SOEditDialog({
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic form dialog with many order fields
   order: any;
-  updateField: (fields: Record<string, any>, options?: any) => void;
+  updateField: (fields: Record<string, unknown>, options?: { onSuccess?: () => void; onError?: (error: Error) => void }) => void;
   isFieldPending: boolean;
-  paymentTermsOptions: any[];
-  taxCodes: any[];
+  paymentTermsOptions: Array<{ name: string }>;
+  taxCodes: Array<{ id: string | number; label: string; rate?: string | number; isExempt?: boolean }>;
 }) {
   const { toast } = useToast();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic form state
   const [form, setForm] = useState<Record<string, any>>({});
 
   // Populate form when dialog opens
@@ -718,7 +546,7 @@ function SOEditDialog({
               <Select value={form.paymentTerms || ""} onValueChange={(val) => setForm({ ...form, paymentTerms: val })}>
                 <SelectTrigger className="mt-1"><SelectValue placeholder="Select terms" /></SelectTrigger>
                 <SelectContent>
-                  {paymentTermsOptions.map((t: any) => (
+                  {paymentTermsOptions.map((t) => (
                     <SelectItem key={t.name} value={t.name}>{t.name}</SelectItem>
                   ))}
                 </SelectContent>
@@ -759,7 +587,7 @@ function SOEditDialog({
                 <SelectTrigger className="mt-1"><SelectValue placeholder="Select tax code" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">None</SelectItem>
-                  {taxCodes.map((tc: any) => (
+                  {taxCodes.map((tc) => (
                     <SelectItem key={tc.id} value={String(tc.id)}>
                       {tc.label} {tc.rate ? `(${tc.rate}%)` : ""}
                     </SelectItem>

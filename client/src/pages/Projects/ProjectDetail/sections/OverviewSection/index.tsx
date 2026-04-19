@@ -249,7 +249,7 @@ export default function OverviewSection(props: OverviewSectionProps) {
                     <div className="flex justify-between items-center">
                       <span className="text-sm text-muted-foreground">Customer PO</span>
                       <EditableText
-                        value={(order as any)?.customerPo || ""}
+                        value={order?.customerPo || ""}
                         field="customerPo"
                         onSave={updateField}
                         placeholder="Add PO #"
@@ -345,15 +345,15 @@ export default function OverviewSection(props: OverviewSectionProps) {
                     <span className="text-gray-500">Subtotal</span>
                     <span>${Number(order.subtotal || 0).toFixed(2)}</span>
                   </div>
-                  {Number((order as any)?.shipping || 0) > 0 && (
+                  {Number(order?.shipping || 0) > 0 && (
                     <div className="flex justify-between text-sm">
                       <span className="text-gray-500">Shipping</span>
-                      <span>${Number((order as any).shipping || 0).toFixed(2)}</span>
+                      <span>${Number(order.shipping || 0).toFixed(2)}</span>
                     </div>
                   )}
                   {(() => {
                     const taxAmount = Number(order.tax || 0);
-                    const activeTaxCode = taxCodes?.find((tc: any) => String(tc.id) === (order as any)?.defaultTaxCodeId);
+                    const activeTaxCode = taxCodes?.find((tc) => String(tc.id) === order?.defaultTaxCodeId);
                     return (
                       <div className={`flex justify-between text-sm items-center ${taxAmount > 0 ? "bg-amber-50 -mx-6 px-6 py-1.5 rounded" : ""}`}>
                         <span className="text-gray-500 flex items-center gap-1.5">
@@ -376,8 +376,8 @@ export default function OverviewSection(props: OverviewSectionProps) {
                   </div>
                   <div className="flex justify-between text-sm" title={`Min: ${marginSettings.minimumMargin}% | Target: ${marginSettings.defaultMargin}%`}>
                     <span className="text-gray-500">Margin</span>
-                    <span className={`font-medium ${marginColorClass(Number((order as any)?.margin || 0), marginSettings)}`}>
-                      {Number((order as any)?.margin || 0).toFixed(1)}%
+                    <span className={`font-medium ${marginColorClass(Number(order?.margin || 0), marginSettings)}`}>
+                      {Number(order?.margin || 0).toFixed(1)}%
                     </span>
                   </div>
                 </CardContent>
@@ -395,7 +395,7 @@ export default function OverviewSection(props: OverviewSectionProps) {
                   <div>
                     <p className="text-xs font-medium text-gray-500 mb-1">General Notes</p>
                     <EditableTextarea
-                      value={(order as any)?.notes || ""}
+                      value={order?.notes || ""}
                       field="notes"
                       onSave={updateField}
                       placeholder="Add general notes..."
@@ -407,7 +407,7 @@ export default function OverviewSection(props: OverviewSectionProps) {
                   <div>
                     <p className="text-xs font-medium text-gray-500 mb-1">Customer Notes</p>
                     <EditableTextarea
-                      value={(order as any)?.customerNotes || ""}
+                      value={order?.customerNotes || ""}
                       field="customerNotes"
                       onSave={updateField}
                       placeholder="Add customer-visible notes..."
@@ -419,7 +419,7 @@ export default function OverviewSection(props: OverviewSectionProps) {
                   <div>
                     <p className="text-xs font-medium text-gray-500 mb-1">Internal Notes</p>
                     <EditableTextarea
-                      value={(order as any)?.internalNotes || ""}
+                      value={order?.internalNotes || ""}
                       field="internalNotes"
                       onSave={updateField}
                       placeholder="Add internal notes..."

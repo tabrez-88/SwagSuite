@@ -172,7 +172,7 @@ function EditProductPageBody({
         <CardContent className="px-5 gap-2 flex flex-col">
           <div className="flex gap-4">
             {imageUrl ? (
-              <img src={imageUrl} alt={editProductPage.item.productName} className="w-20 h-20 object-contain rounded-lg border bg-white" />
+              <img src={imageUrl} alt={editProductPage.item.productName ?? undefined} className="w-20 h-20 object-contain rounded-lg border bg-white" />
             ) : (
               <div className="w-20 h-20 bg-gray-100 rounded-lg border flex items-center justify-center">
                 <Package className="w-8 h-8 text-gray-400" />
@@ -1321,7 +1321,7 @@ function EditProductPageBody({
       <PricingTiersDialog
         open={showPricingTiers}
         onClose={() => setShowPricingTiers(false)}
-        productName={editProductPage.item?.productName}
+        productName={editProductPage.item?.productName ?? undefined}
         pricingTiers={editProductPage.productCatalog.pricingTiers}
         defaultMargin={parseFloat(String(editProductPage.marginSettings?.defaultMargin || "40"))}
         totalQuantity={editProductPage.lineTotals.qty}

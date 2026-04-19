@@ -124,3 +124,4 @@ export type InsertArtworkFile = z.infer<typeof insertArtworkFileSchema>;
 export type ArtworkCharge = typeof artworkCharges.$inferSelect;
 export type InsertArtworkCharge = z.infer<typeof insertArtworkChargeSchema>;
 export type ArtworkItemFile = typeof artworkItemFiles.$inferSelect;
+export type ArtworkApproval = typeof artworkApprovals.$inferSelect;

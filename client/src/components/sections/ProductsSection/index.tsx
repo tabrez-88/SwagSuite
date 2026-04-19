@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -47,37 +47,37 @@ export default function ProductsSection({ projectId, data, isLocked }: ProductsS
   const productSection = useProductsSection({ projectId, data, isLocked });
 
   return (
-    <div className="space-y-4 bg-white p-6 rounded-lg shadow">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <h2 className="text-xl font-semibold flex items-center gap-2">
-            <Package className="w-5 h-5" />
-            Products
-          </h2>
-          <Badge variant="secondary" className="text-xs">
-            {productSection.orderItems.length} {productSection.orderItems.length === 1 ? "item" : "items"}
-          </Badge>
+    <>
+    <Card>
+      <CardHeader className="py-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <Package className="w-4 h-4" />
+              Products
+            </CardTitle>
+            <Badge variant="secondary" className="text-xs">
+              {productSection.orderItems.length} {productSection.orderItems.length === 1 ? "item" : "items"}
+            </Badge>
+          </div>
+          <Button size="sm" onClick={() => productSection.setLocation(productSection.addProductPath)} disabled={productSection.isLocked}>
+            <Plus className="w-4 h-4" />
+            Add Product
+          </Button>
         </div>
-        <Button size="sm" onClick={() => productSection.setLocation(productSection.addProductPath)} disabled={productSection.isLocked}>
-          <Plus className="w-4 h-4" />
-          Add Product
-        </Button>
-      </div>
-
+      </CardHeader>
+      <CardContent>
       {/* Empty State */}
       {productSection.orderItems.length === 0 ? (
-        <Card>
-          <CardContent className="text-center py-12 text-gray-500">
-            <Package className="w-16 h-16 mx-auto mb-4 text-gray-400" />
-            <p className="text-lg font-medium mb-2">No products in this order yet</p>
-            <p className="text-sm mb-4">Click "Add Product" to add items from your catalog</p>
-            <Button variant="outline" onClick={() => productSection.setLocation(productSection.addProductPath)} disabled={productSection.isLocked}>
-              <Plus className="w-4 h-4 mr-2" />
-              Add Your First Product
-            </Button>
-          </CardContent>
-        </Card>
+        <div className="py-12 text-center">
+          <Package className="w-12 h-12 mx-auto text-gray-300 mb-4" />
+          <h3 className="text-lg font-medium text-gray-900 mb-2">No products in this order yet</h3>
+          <p className="text-sm text-gray-500 mb-4">Click "Add Product" to add items from your catalog</p>
+          <Button variant="outline" onClick={() => productSection.setLocation(productSection.addProductPath)} disabled={productSection.isLocked}>
+            <Plus className="w-4 h-4 mr-2" />
+            Add Your First Product
+          </Button>
+        </div>
       ) : (
         <div className="space-y-3">
           {productSection.orderItems.map((item: any) => (
@@ -133,6 +133,8 @@ export default function ProductsSection({ projectId, data, isLocked }: ProductsS
           </Card>
         </div>
       )}
+      </CardContent>
+    </Card>
 
       {/* ADD CHARGE DIALOG */}
       <Dialog open={!!productSection.addChargeForItem} onOpenChange={(open) => !open && productSection.setAddChargeForItem(null)}>
@@ -278,7 +280,7 @@ export default function ProductsSection({ projectId, data, isLocked }: ProductsS
                 {(() => {
                   const img = productSection.getProductImage(productSection.editingItem);
                   return img ? (
-                    <img src={img} alt={productSection.editingItem.productName} className="w-16 h-16 object-contain rounded border bg-white" />
+                    <img src={img} alt={productSection.editingItem.productName ?? undefined} className="w-16 h-16 object-contain rounded border bg-white" />
                   ) : (
                     <div className="w-16 h-16 bg-gray-200 rounded border flex items-center justify-center">
                       <Package className="w-6 h-6 text-gray-400" />
@@ -634,6 +636,6 @@ export default function ProductsSection({ projectId, data, isLocked }: ProductsS
           onClose={() => productSection.setPreviewFile(null)}
         />
       )}
-    </div>
+    </>
   );
 }

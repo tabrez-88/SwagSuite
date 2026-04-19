@@ -21,3 +21,15 @@ export function useRenameMediaItem() {
   const invalidate = useInvalidate();
   return useMutation({ mutationFn: requests.renameMediaItem, onSuccess: invalidate });
 }
+
+export function useBulkDeleteMediaItems() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: async (ids: string[]) => {
+      const results = await Promise.allSettled(ids.map((id) => requests.deleteMediaItem(id)));
+      const failed = results.filter((r) => r.status === "rejected").length;
+      if (failed > 0) throw new Error(`${failed} file(s) failed to delete`);
+    },
+    onSuccess: invalidate,
+  });
+}

@@ -1,13 +1,11 @@
 import { useState, useEffect } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "@/lib/wouter-compat";
-import { useToast } from "@/hooks/use-toast";
-import { createProject } from "@/services/projects/requests";
-import { createSimpleContact } from "@/services/contacts/requests";
-import { isUnauthorizedError } from "@/lib/authUtils";
 import type { Company } from "@shared/schema";
 import { useCompanyAddresses } from "@/services/company-addresses";
 import { usePaymentTerms, useDefaultPaymentTermName } from "@/services/payment-terms";
+import { useCreateProject } from "@/services/projects/mutations";
+import { useCreateSimpleContact } from "@/services/contacts/mutations";
 import type { NewProjectWizardProps, StartingStage } from "./types";
 
 function normalizeCountryCode(country: string): string {
@@ -25,8 +23,6 @@ function normalizeCountryCode(country: string): string {
 
 export function useNewProjectWizard({ open, onOpenChange, initialCompanyId }: NewProjectWizardProps) {
   const [, setLocation] = useLocation();
-  const queryClient = useQueryClient();
-  const { toast } = useToast();
   const defaultPaymentTerm = useDefaultPaymentTermName();
   const { data: paymentTermsList = [] } = usePaymentTerms();
 
@@ -176,45 +172,9 @@ export function useNewProjectWizard({ open, onOpenChange, initialCompanyId }: Ne
 
   const companyContacts = contacts.filter((c: any) => c.companyId === companyId);
 
-  const createMutation = useMutation({
-    mutationFn: (payload: any) => createProject(payload),
-    onSuccess: (newOrder) => {
-      toast({ title: "Project created", description: `Project #${newOrder.orderNumber} has been created.` });
-      queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/dashboard/recent-orders"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
-      onOpenChange(false);
-      if (newOrder.id) {
-        setLocation(`/projects/${newOrder.id}`);
-      }
-    },
-    onError: (error: Error) => {
-      if (isUnauthorizedError(error)) {
-        toast({ title: "Session expired", description: "Please log in again.", variant: "destructive" });
-        setTimeout(() => { window.location.href = "/api/login"; }, 500);
-        return;
-      }
-      toast({ title: "Failed to create project", variant: "destructive" });
-    },
-  });
+  const createMutation = useCreateProject();
 
-  const createContactMutation = useMutation({
-    mutationFn: (payload: any) => createSimpleContact(payload),
-    onSuccess: (newContact) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/contacts"] });
-      setContactId(newContact.id);
-      setShowNewContactForm(false);
-      setNewContactFirstName("");
-      setNewContactLastName("");
-      setNewContactEmail("");
-      setNewContactPhone("");
-      setNewContactTitle("");
-      toast({ title: "Contact created", description: `${newContact.firstName} ${newContact.lastName} has been added.` });
-    },
-    onError: () => {
-      toast({ title: "Failed to create contact", variant: "destructive" });
-    },
-  });
+  const createContactMutation = useCreateSimpleContact();
 
   const handleSubmit = () => {
     const payload: any = {
@@ -267,7 +227,12 @@ export function useNewProjectWizard({ open, onOpenChange, initialCompanyId }: Ne
         });
       }
     }
-    createMutation.mutate(payload);
+    createMutation.mutate(payload, {
+      onSuccess: (newOrder: any) => {
+        onOpenChange(false);
+        if (newOrder.id) setLocation(`/projects/${newOrder.id}`);
+      },
+    });
   };
 
   const handleCreateContact = () => {
@@ -278,6 +243,16 @@ export function useNewProjectWizard({ open, onOpenChange, initialCompanyId }: Ne
       email: newContactEmail || undefined,
       phone: newContactPhone || undefined,
       title: newContactTitle || undefined,
+    }, {
+      onSuccess: (newContact: any) => {
+        setContactId(newContact.id);
+        setShowNewContactForm(false);
+        setNewContactFirstName("");
+        setNewContactLastName("");
+        setNewContactEmail("");
+        setNewContactPhone("");
+        setNewContactTitle("");
+      },
     });
   };
 

@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Lock, Unlock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -12,8 +11,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { fetchProject, updateProject } from "@/services/projects/requests";
-import { useToast } from "@/hooks/use-toast";
+import { useUnlockSection } from "@/services/projects/mutations";
 import type { SectionLockStatus } from "@/hooks/useLockStatus";
 
 type SectionKey = "quote" | "salesOrder" | "invoice";
@@ -32,44 +30,7 @@ export default function LockBanner({
   projectId,
 }: LockBannerProps) {
   const [showConfirm, setShowConfirm] = useState(false);
-  const queryClient = useQueryClient();
-  const { toast } = useToast();
-
-  const unlockMutation = useMutation({
-    mutationFn: async () => {
-      // Fetch current order to get existing stageData
-      const order = await fetchProject(projectId);
-      const currentStageData = order.stageData || {};
-
-      const updatedStageData = {
-        ...currentStageData,
-        unlocks: {
-          ...(currentStageData.unlocks || {}),
-          [sectionKey]: {
-            unlockedAt: new Date().toISOString(),
-          },
-        },
-      };
-
-      await updateProject(projectId, { stageData: updatedStageData });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: [`/api/projects/${projectId}`],
-      });
-      toast({
-        title: `${sectionName} Unlocked`,
-        description: `${sectionName} is now editable. This action has been logged.`,
-      });
-    },
-    onError: () => {
-      toast({
-        title: "Error",
-        description: "Failed to unlock section. Please try again.",
-        variant: "destructive",
-      });
-    },
-  });
+  const unlockMutation = useUnlockSection(projectId);
 
   if (!lockStatus.isLocked) return null;
 
@@ -107,7 +68,7 @@ export default function LockBanner({
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
-              onClick={() => unlockMutation.mutate()}
+              onClick={() => unlockMutation.mutate(sectionKey)}
               disabled={unlockMutation.isPending}
             >
               {unlockMutation.isPending ? "Unlocking..." : "Unlock"}

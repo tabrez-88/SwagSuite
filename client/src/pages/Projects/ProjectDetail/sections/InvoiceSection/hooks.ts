@@ -36,7 +36,7 @@ export function useInvoiceSection({ projectId, data }: InvoiceSectionProps) {
 
   // Initialize notes from invoice data
   if (invoice && !notesInitialized) {
-    setInvoiceNotes((invoice as any).notes || "");
+    setInvoiceNotes(invoice.notes || "");
     setNotesInitialized(true);
   }
 
@@ -133,7 +133,7 @@ export function useInvoiceSection({ projectId, data }: InvoiceSectionProps) {
   };
 
   const handleNotesBlur = () => {
-    if (invoiceNotes !== ((invoice as any).notes || "")) {
+    if (invoice && invoiceNotes !== (invoice.notes || "")) {
       updateNotesMutation.mutate(invoiceNotes);
     }
   };
@@ -148,7 +148,7 @@ export function useInvoiceSection({ projectId, data }: InvoiceSectionProps) {
   const handleStripePayment = () => {
     if (!invoice) return;
     stripePaymentMutation.mutate(invoice.id, {
-      onSuccess: (data: any) => {
+      onSuccess: (data: { paymentLink?: string }) => {
         if (data.paymentLink) {
           navigator.clipboard.writeText(data.paymentLink);
           toast({ title: "Payment link copied to clipboard", description: "Invoice PDF is now available from Stripe." });
@@ -191,11 +191,11 @@ export function useInvoiceSection({ projectId, data }: InvoiceSectionProps) {
   };
 
   // Formatted contacts for SendInvoiceDialog
-  const formattedContacts = (contacts || []).map((c: any) => ({
+  const formattedContacts = (contacts || []).map((c) => ({
     id: String(c.id),
     firstName: c.firstName || "",
     lastName: c.lastName || "",
-    email: c.email,
+    email: c.email ?? null,
     isPrimary: c.isPrimary,
     title: c.title,
     receiveOrderEmails: c.receiveOrderEmails,

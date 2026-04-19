@@ -1,8 +1,5 @@
 import { useRef, useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useToast } from "@/hooks/use-toast";
-import { updateProject } from "@/services/projects/requests";
-import { projectKeys } from "@/services/projects/keys";
+import { useUpdateProjectStage } from "@/services/projects/mutations";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { UserAvatar } from "@/components/shared/UserAvatar";
@@ -29,26 +26,11 @@ interface KanbanBoardProps {
 }
 
 export function KanbanBoard({ data, onViewOrder, onViewProject }: KanbanBoardProps) {
-  const queryClient = useQueryClient();
-  const { toast } = useToast();
   const [draggedOrder, setDraggedOrder] = useState<OrderWithRelations | null>(null);
   const [dragOverColumn, setDragOverColumn] = useState<string | null>(null);
   const dragCounterRef = useRef<Record<string, number>>({});
 
-  const updateStageMutation = useMutation({
-    mutationFn: async ({ projectId, targetStage }: { projectId: string; targetStage: BusinessStage }) => {
-      const payload = getStageTransitionPayload(targetStage);
-      await updateProject(projectId, payload);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: projectKeys.all });
-      queryClient.invalidateQueries({ queryKey: ["/api/dashboard/recent-orders"] });
-      toast({ title: "Stage updated successfully" });
-    },
-    onError: () => {
-      toast({ title: "Failed to update stage", variant: "destructive" });
-    },
-  });
+  const updateStageMutation = useUpdateProjectStage();
 
   const getOrdersByStage = (stageId: BusinessStage) =>
     data.filter((o) => {
@@ -107,9 +89,10 @@ export function KanbanBoard({ data, onViewOrder, onViewProject }: KanbanBoardPro
     dragCounterRef.current = {};
 
     if (draggedOrder && getOrderStageId(draggedOrder) !== columnId) {
+      const updates = getStageTransitionPayload(columnId as BusinessStage);
       updateStageMutation.mutate({
         projectId: draggedOrder.id,
-        targetStage: columnId as BusinessStage,
+        updates,
       });
     }
     setDraggedOrder(null);

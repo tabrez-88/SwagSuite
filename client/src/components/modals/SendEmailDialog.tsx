@@ -4,9 +4,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { useMutation } from "@tanstack/react-query";
-import { sendGenericEmail } from "@/services/communications/requests";
-import { useToast } from "@/hooks/use-toast";
+import { useSendGenericEmail } from "@/services/communications/mutations";
 import EmailComposer from "@/components/email/EmailComposer";
 import type { EmailFormData } from "@/components/email/types";
 
@@ -38,35 +36,26 @@ export default function SendEmailDialog({
   companyName = "",
   defaultSubject = "",
 }: SendEmailDialogProps) {
-  const { toast } = useToast();
+  const sendEmailMutation = useSendGenericEmail();
 
-  const sendEmailMutation = useMutation({
-    mutationFn: async (data: EmailFormData & { adHocEmails: string[] }) => {
-      const userAttachments = data.attachments?.length
-        ? data.attachments.map((att) => ({ fileUrl: att.cloudinaryUrl, fileName: att.fileName }))
-        : undefined;
+  const handleSend = (data: EmailFormData & { adHocEmails: string[] }) => {
+    const userAttachments = data.attachments?.length
+      ? data.attachments.map((att) => ({ fileUrl: att.cloudinaryUrl, fileName: att.fileName }))
+      : undefined;
 
-      return sendGenericEmail({
-        fromEmail: data.from,
-        fromName: data.fromName,
-        recipientEmail: data.to,
-        recipientName: data.toName,
-        subject: data.subject,
-        body: data.body,
-        cc: data.cc || undefined,
-        bcc: data.bcc || undefined,
-        companyName: companyName || undefined,
-        additionalAttachments: userAttachments,
-      });
-    },
-    onSuccess: () => {
-      toast({ title: "Email sent", description: "Email has been sent successfully." });
-      onOpenChange(false);
-    },
-    onError: (error: Error) => {
-      toast({ title: "Failed to send email", description: error.message, variant: "destructive" });
-    },
-  });
+    sendEmailMutation.mutate({
+      fromEmail: data.from,
+      fromName: data.fromName,
+      recipientEmail: data.to,
+      recipientName: data.toName,
+      subject: data.subject,
+      body: data.body,
+      cc: data.cc || undefined,
+      bcc: data.bcc || undefined,
+      companyName: companyName || undefined,
+      additionalAttachments: userAttachments,
+    }, { onSuccess: () => onOpenChange(false) });
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -86,7 +75,7 @@ export default function SendEmailDialog({
           showPreview
           showAttachments
           autoFillSender
-          onSend={(data) => sendEmailMutation.mutate(data)}
+          onSend={handleSend}
           isSending={sendEmailMutation.isPending}
           onCancel={() => onOpenChange(false)}
           resetTrigger={open}
