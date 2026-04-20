@@ -22,51 +22,90 @@ export const MATRIX_TYPES = [
 ] as const;
 export type MatrixType = (typeof MATRIX_TYPES)[number];
 
-// Decorator pricing matrices — per-vendor lookup tables for decoration costs
+// Charge type: run vs fixed
+export const CHARGE_TYPES = ["run", "fixed"] as const;
+export type ChargeType = (typeof CHARGE_TYPES)[number];
+
+// Display type: table, per_item, list
+export const DISPLAY_TYPES = ["table", "per_item", "list"] as const;
+export type DisplayType = (typeof DISPLAY_TYPES)[number];
+
+// ── Decorator Matrices ──
+// One per decoration/charge within a decorator (vendor).
 export const decoratorMatrices = pgTable("decorator_matrices", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   supplierId: varchar("supplier_id").notNull().references(() => suppliers.id, { onDelete: 'cascade' }),
-  name: varchar("name", { length: 255 }).notNull(), // e.g., "Standard Screen Print Pricing"
-  decorationMethod: varchar("decoration_method", { length: 100 }).notNull(), // embroidery, screen-print, etc.
-  matrixType: varchar("matrix_type", { length: 50 }).notNull().default("run_charge_table"),
-  description: text("description"), // internal description
-  rowBasis: varchar("row_basis", { length: 100 }), // what rows represent: "colors", "stitches", etc.
-  increment: varchar("increment", { length: 100 }), // fixed_charge_list: increment value (e.g., "1")
-  units: varchar("units", { length: 100 }), // fixed_charge_list: unit label (e.g., "colors", "stitches")
+  name: varchar("name", { length: 255 }).notNull(),
+  chargeType: varchar("charge_type", { length: 20 }).notNull().default("run"), // "run" | "fixed"
+  displayType: varchar("display_type", { length: 20 }).notNull().default("table"), // "table" | "per_item" | "list"
+  description: text("description"),
+  rowBasis: varchar("row_basis", { length: 100 }), // what rows represent: "Colors", "Logo", etc.
+  increment: varchar("increment", { length: 100 }), // for fixed_charge_list
+  units: varchar("units", { length: 100 }), // for fixed_charge_list: "Colors", "Stitches"
   isDefault: boolean("is_default").default(false),
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
-// Matrix entries — flexible rows that adapt to matrixType
-export const decoratorMatrixEntries = pgTable("decorator_matrix_entries", {
+// ── Breakdowns (quantity columns for table types) ──
+export const decoratorMatrixBreakdowns = pgTable("decorator_matrix_breakdowns", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   matrixId: varchar("matrix_id").notNull().references(() => decoratorMatrices.id, { onDelete: 'cascade' }),
-  rowLabel: varchar("row_label", { length: 255 }), // row identifier (item name, variable label, charge desc)
   minQuantity: integer("min_quantity").notNull().default(0),
-  maxQuantity: integer("max_quantity"), // null = unlimited
-  colorCount: integer("color_count").default(1), // number of colors
-  setupCost: decimal("setup_cost", { precision: 10, scale: 2 }).notNull().default("0"),
-  runCost: decimal("run_cost", { precision: 10, scale: 2 }).notNull().default("0"), // per unit
-  unitCost: decimal("unit_cost", { precision: 10, scale: 2 }).default("0"), // single cost for non-table types
-  additionalColorCost: decimal("additional_color_cost", { precision: 10, scale: 2 }).default("0"),
-  perUnit: varchar("per_unit", { length: 100 }), // increment label for fixed_charge_list (e.g. "per color")
-  notes: varchar("notes", { length: 255 }),
-  createdAt: timestamp("created_at").defaultNow(),
+  maxQuantity: integer("max_quantity"), // null = "+"
+  sortOrder: integer("sort_order").notNull().default(0),
 });
 
-// Insert schemas
+// ── Rows (row labels) ──
+export const decoratorMatrixRows = pgTable("decorator_matrix_rows", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  matrixId: varchar("matrix_id").notNull().references(() => decoratorMatrices.id, { onDelete: 'cascade' }),
+  rowLabel: varchar("row_label", { length: 255 }).notNull().default(""),
+  unitCost: decimal("unit_cost", { precision: 10, scale: 4 }), // for per_item / list types
+  perUnit: varchar("per_unit", { length: 100 }), // for list type: "per Colors"
+  sortOrder: integer("sort_order").notNull().default(0),
+});
+
+// ── Cells (intersection values for table types) ──
+export const decoratorMatrixCells = pgTable("decorator_matrix_cells", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  matrixId: varchar("matrix_id").notNull().references(() => decoratorMatrices.id, { onDelete: 'cascade' }),
+  rowId: varchar("row_id").notNull().references(() => decoratorMatrixRows.id, { onDelete: 'cascade' }),
+  breakdownId: varchar("breakdown_id").notNull().references(() => decoratorMatrixBreakdowns.id, { onDelete: 'cascade' }),
+  price: decimal("price", { precision: 10, scale: 4 }).notNull().default("0"),
+});
+
+// ── Insert Schemas ──
 export const insertDecoratorMatrixSchema = createInsertSchema(decoratorMatrices).omit({
   id: true, createdAt: true, updatedAt: true,
 });
 
-export const insertDecoratorMatrixEntrySchema = createInsertSchema(decoratorMatrixEntries).omit({
-  id: true, createdAt: true,
+export const insertDecoratorMatrixBreakdownSchema = createInsertSchema(decoratorMatrixBreakdowns).omit({
+  id: true,
 });
 
-// Types
+export const insertDecoratorMatrixRowSchema = createInsertSchema(decoratorMatrixRows).omit({
+  id: true,
+});
+
+export const insertDecoratorMatrixCellSchema = createInsertSchema(decoratorMatrixCells).omit({
+  id: true,
+});
+
+// ── Types ──
 export type DecoratorMatrix = typeof decoratorMatrices.$inferSelect;
 export type InsertDecoratorMatrix = z.infer<typeof insertDecoratorMatrixSchema>;
-export type DecoratorMatrixEntry = typeof decoratorMatrixEntries.$inferSelect;
-export type InsertDecoratorMatrixEntry = z.infer<typeof insertDecoratorMatrixEntrySchema>;
+export type DecoratorMatrixBreakdown = typeof decoratorMatrixBreakdowns.$inferSelect;
+export type InsertDecoratorMatrixBreakdown = z.infer<typeof insertDecoratorMatrixBreakdownSchema>;
+export type DecoratorMatrixRow = typeof decoratorMatrixRows.$inferSelect;
+export type InsertDecoratorMatrixRow = z.infer<typeof insertDecoratorMatrixRowSchema>;
+export type DecoratorMatrixCell = typeof decoratorMatrixCells.$inferSelect;
+export type InsertDecoratorMatrixCell = z.infer<typeof insertDecoratorMatrixCellSchema>;
+
+// Convenience type: full matrix with all nested data
+export interface DecoratorMatrixFull extends DecoratorMatrix {
+  breakdowns: DecoratorMatrixBreakdown[];
+  rows: DecoratorMatrixRow[];
+  cells: DecoratorMatrixCell[];
+}

@@ -1060,9 +1060,10 @@ export class ProjectController {
       }
 
       // Batch queries
+      const { asc } = await import("drizzle-orm");
       const [allLines, allCharges, allArtworks] = await Promise.all([
-        db.select().from(orderItemLines).where(inArray(orderItemLines.orderItemId, itemIds)),
-        db.select().from(orderAdditionalCharges).where(inArray(orderAdditionalCharges.orderItemId, itemIds)),
+        db.select().from(orderItemLines).where(inArray(orderItemLines.orderItemId, itemIds)).orderBy(asc(orderItemLines.sortOrder), asc(orderItemLines.createdAt)),
+        db.select().from(orderAdditionalCharges).where(inArray(orderAdditionalCharges.orderItemId, itemIds)).orderBy(asc(orderAdditionalCharges.sortOrder), asc(orderAdditionalCharges.createdAt)),
         db.select().from(artworkItems).where(inArray(artworkItems.orderItemId, itemIds)),
       ]);
 
@@ -1070,7 +1071,7 @@ export class ProjectController {
       const artworkIds = allArtworks.map(a => a.id);
       const [allArtworkCharges, allArtItemFiles] = artworkIds.length > 0
         ? await Promise.all([
-            db.select().from(artworkCharges).where(inArray(artworkCharges.artworkItemId, artworkIds)),
+            db.select().from(artworkCharges).where(inArray(artworkCharges.artworkItemId, artworkIds)).orderBy(asc(artworkCharges.sortOrder), asc(artworkCharges.createdAt)),
             db.select().from(artworkItemFiles).where(inArray(artworkItemFiles.artworkItemId, artworkIds)),
           ])
         : [[], []];
@@ -1169,6 +1170,12 @@ export class ProjectController {
             });
           }
         }
+      }
+
+      // Auto-assign sortOrder: place at end
+      if (dataToInsert.sortOrder == null) {
+        const existingItems = await projectRepository.getOrderItems(req.params.projectId);
+        dataToInsert.sortOrder = existingItems.length;
       }
 
       const validatedData = insertOrderItemSchema.parse(dataToInsert);
@@ -1852,8 +1859,10 @@ export class ProjectController {
         return res.status(404).json({ message: "Item not found in this project" });
       }
 
-      // 2. Create new item (copy all fields except id/createdAt)
+      // 2. Create new item (copy all fields except id/createdAt), place at end
       const { id: _id, createdAt: _ca, ...itemData } = sourceItem;
+      const allItems = await projectRepository.getOrderItems(projectId);
+      itemData.sortOrder = allItems.length;
       const [newItem] = await db.insert(orderItems).values(itemData).returning();
 
       // 3. Copy lines
@@ -1890,6 +1899,118 @@ export class ProjectController {
     } catch (error) {
       console.error("Error duplicating order item:", error);
       res.status(500).json({ message: "Failed to duplicate order item" });
+    }
+  }
+
+  // ── Reorder Items ──
+  static async reorderItems(req: Request, res: Response) {
+    try {
+      const { projectId } = req.params;
+      const { itemIds } = req.body;
+
+      if (!Array.isArray(itemIds) || itemIds.length === 0) {
+        return res.status(400).json({ message: "itemIds array is required" });
+      }
+
+      // Lock check
+      const parentOrder = await projectRepository.getOrder(projectId);
+      if (parentOrder && isSectionLocked(parentOrder, 'salesOrder')) {
+        return res.status(403).json({ message: "Sales Order is locked. Unlock it first to make changes." });
+      }
+
+      const { db } = await import("../db");
+      const { orderItems } = await import("@shared/schema");
+      const { eq } = await import("drizzle-orm");
+
+      // Set sort_order = index for each item
+      for (let i = 0; i < itemIds.length; i++) {
+        await db.update(orderItems)
+          .set({ sortOrder: i })
+          .where(eq(orderItems.id, itemIds[i]));
+      }
+
+      res.json({ message: "Items reordered" });
+    } catch (error) {
+      console.error("Error reordering items:", error);
+      res.status(500).json({ message: "Failed to reorder items" });
+    }
+  }
+
+  // ── Reorder Lines ──
+  static async reorderLines(req: Request, res: Response) {
+    try {
+      const { lineIds } = req.body;
+
+      if (!Array.isArray(lineIds) || lineIds.length === 0) {
+        return res.status(400).json({ message: "lineIds array is required" });
+      }
+
+      const { db } = await import("../db");
+      const { orderItemLines } = await import("@shared/schema");
+      const { eq } = await import("drizzle-orm");
+
+      for (let i = 0; i < lineIds.length; i++) {
+        await db.update(orderItemLines)
+          .set({ sortOrder: i })
+          .where(eq(orderItemLines.id, lineIds[i]));
+      }
+
+      res.json({ message: "Lines reordered" });
+    } catch (error) {
+      console.error("Error reordering lines:", error);
+      res.status(500).json({ message: "Failed to reorder lines" });
+    }
+  }
+
+  // ── Reorder Charges ──
+  static async reorderCharges(req: Request, res: Response) {
+    try {
+      const { chargeIds } = req.body;
+
+      if (!Array.isArray(chargeIds) || chargeIds.length === 0) {
+        return res.status(400).json({ message: "chargeIds array is required" });
+      }
+
+      const { db } = await import("../db");
+      const { orderAdditionalCharges } = await import("@shared/schema");
+      const { eq } = await import("drizzle-orm");
+
+      for (let i = 0; i < chargeIds.length; i++) {
+        await db.update(orderAdditionalCharges)
+          .set({ sortOrder: i })
+          .where(eq(orderAdditionalCharges.id, chargeIds[i]));
+      }
+
+      res.json({ message: "Charges reordered" });
+    } catch (error) {
+      console.error("Error reordering charges:", error);
+      res.status(500).json({ message: "Failed to reorder charges" });
+    }
+  }
+
+  // ── Reorder Artwork Charges ──
+  static async reorderArtworkCharges(req: Request, res: Response) {
+    try {
+      const { chargeIds } = req.body;
+
+      if (!Array.isArray(chargeIds) || chargeIds.length === 0) {
+        return res.status(400).json({ message: "chargeIds array is required" });
+      }
+
+      const { db } = await import("../db");
+      const { artworkCharges } = await import("@shared/schema");
+      const { eq } = await import("drizzle-orm");
+
+      for (let i = 0; i < chargeIds.length; i++) {
+        await db.update(artworkCharges)
+          .set({ sortOrder: i })
+          .where(eq(artworkCharges.id, chargeIds[i]));
+      }
+
+      res.json({ message: "Artwork charges reordered" });
+    } catch (error) {
+      console.error("Error reordering artwork charges:", error);
+      res.status(500).json({ message: "Failed to reorder artwork charges" });
     }
   }
 }

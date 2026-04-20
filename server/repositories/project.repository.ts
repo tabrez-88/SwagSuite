@@ -1,4 +1,4 @@
-import { eq, desc, sql } from "drizzle-orm";
+import { eq, desc, asc, sql } from "drizzle-orm";
 import { db } from "../db";
 import {
   orders,
@@ -195,6 +195,7 @@ export class ProjectRepository {
         leg2ShippingAccountType: orderItems.leg2ShippingAccountType,
         leg2ShippingQuote: orderItems.leg2ShippingQuote,
         taxCodeId: orderItems.taxCodeId,
+        sortOrder: orderItems.sortOrder,
         createdAt: orderItems.createdAt,
         // Join product info
         productName: products.name,
@@ -213,7 +214,8 @@ export class ProjectRepository {
       .from(orderItems)
       .leftJoin(products, eq(orderItems.productId, products.id))
       .leftJoin(suppliers, eq(orderItems.supplierId, suppliers.id))
-      .where(eq(orderItems.orderId, orderId));
+      .where(eq(orderItems.orderId, orderId))
+      .orderBy(asc(orderItems.sortOrder), asc(orderItems.createdAt));
 
     return items as any;
   }
@@ -242,7 +244,7 @@ export class ProjectRepository {
       .select()
       .from(orderItemLines)
       .where(eq(orderItemLines.orderItemId, orderItemId))
-      .orderBy(desc(orderItemLines.createdAt));
+      .orderBy(asc(orderItemLines.sortOrder), asc(orderItemLines.createdAt));
   }
 
   async getOrderItemLine(id: string): Promise<OrderItemLine | undefined> {

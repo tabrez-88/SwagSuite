@@ -17,3 +17,11 @@ export function useMatricesBySupplier(supplierId: string | undefined) {
     enabled: !!supplierId,
   });
 }
+
+export function useMatrixLookup(supplierId: string | undefined) {
+  return useQuery<any>({
+    queryKey: matrixKeys.lookup(supplierId ?? ""),
+    queryFn: () => requests.lookupMatrices(supplierId!),
+    enabled: !!supplierId,
+  });
+}

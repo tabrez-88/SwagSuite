@@ -18,7 +18,6 @@ import {
   useAddArtworkFile,
   useAddCharge,
   useAddLine,
-  useApplyMatrixPricing,
   useCopyArtwork,
   useCreateArtwork,
   useCreateArtworkCharge,
@@ -26,6 +25,9 @@ import {
   useDeleteArtworkCharge,
   useDeleteCharge,
   useDeleteLine,
+  useReorderArtworkCharges,
+  useReorderCharges,
+  useReorderLines,
   useRemoveArtworkFile,
   useToggleChargeDisplay,
   useUpdateArtwork,
@@ -138,7 +140,9 @@ export function useEditProductPage(projectId: string, itemId: string, data: Proj
   const addArtworkFileMutation = useAddArtworkFile(projectId);
   const removeArtworkFileMutation = useRemoveArtworkFile(projectId);
   const copyArtworkMutation = useCopyArtwork(projectId);
-  const applyMatrixMutation = useApplyMatrixPricing(projectId);
+  const reorderLinesMutation = useReorderLines(projectId);
+  const reorderChargesMutation = useReorderCharges(projectId);
+  const reorderArtworkChargesMutation = useReorderArtworkCharges(projectId);
 
   // ── Line editing helpers ──
   const updateLine = useCallback((id: string, field: string, value: any) => {
@@ -166,6 +170,15 @@ export function useEditProductPage(projectId: string, itemId: string, data: Proj
   const removeLine = (id: string) => {
     setEditableLines(prev => prev.filter(l => l.id !== id));
   };
+
+  const reorderLine = useCallback((sourceIndex: number, destIndex: number) => {
+    setEditableLines(prev => {
+      const next = [...prev];
+      const [moved] = next.splice(sourceIndex, 1);
+      next.splice(destIndex, 0, moved);
+      return next;
+    });
+  }, []);
 
   // Apply supplier tier cost to all lines + recalculate price
   const applyTierToLines = useCallback((cost: number, price: number) => {
@@ -597,7 +610,8 @@ export function useEditProductPage(projectId: string, itemId: string, data: Proj
       }
 
       // Update or create lines
-      for (const line of editableLines) {
+      for (let i = 0; i < editableLines.length; i++) {
+        const line = editableLines[i];
         const m = line.unitPrice > 0 ? ((line.unitPrice - line.cost) / line.unitPrice * 100) : 0;
         const lineData = {
           color: line.color,
@@ -607,6 +621,7 @@ export function useEditProductPage(projectId: string, itemId: string, data: Proj
           unitPrice: line.unitPrice.toFixed(2),
           totalPrice: (line.quantity * line.unitPrice).toFixed(2),
           margin: m.toFixed(2),
+          sortOrder: i,
         };
 
         if (line.isExisting && existingIds.has(line.id)) {
@@ -675,6 +690,7 @@ export function useEditProductPage(projectId: string, itemId: string, data: Proj
     chargeSubtotal: chargeSub,
     addLine,
     removeLine,
+    reorderLine,
     updateLine,
     applyTierToLines,
     savePricingTiers,
@@ -692,6 +708,9 @@ export function useEditProductPage(projectId: string, itemId: string, data: Proj
     updateChargeMutation,
     deleteChargeMutation,
     toggleChargeDisplayMutation,
+    reorderChargesMutation,
+    reorderArtworkChargesMutation,
+    reorderLinesMutation,
     // Inline charge editing
     handleChargeCostChange,
     handleChargeMarginChange,
@@ -740,7 +759,6 @@ export function useEditProductPage(projectId: string, itemId: string, data: Proj
     createArtworkChargeMutation,
     updateArtworkChargeMutation,
     deleteArtworkChargeMutation,
-    applyMatrixMutation,
     // Artwork files & copy
     addArtworkFileMutation,
     removeArtworkFileMutation,

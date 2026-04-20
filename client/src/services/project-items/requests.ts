@@ -14,6 +14,14 @@ export async function duplicateProjectItem(projectId: string | number, itemId: s
   return res.json();
 }
 
+export async function reorderProjectItems(projectId: string | number, itemIds: string[]) {
+  await apiRequest("PATCH", `/api/projects/${projectId}/items/reorder`, { itemIds });
+}
+
+export async function reorderLines(itemId: string | number, lineIds: string[]) {
+  await apiRequest("PATCH", `/api/project-items/${itemId}/lines/reorder`, { lineIds });
+}
+
 // Line items
 export async function addLine(itemId: string | number, line: Record<string, any>) {
   await apiRequest("POST", `/api/project-items/${itemId}/lines`, { ...line, orderItemId: itemId });
@@ -106,4 +114,12 @@ export async function deleteArtworkCharge(artworkId: string | number, chargeId: 
 export async function updateArtwork(itemId: string | number, artworkId: string | number, updates: Record<string, any>) {
   const res = await apiRequest("PUT", `/api/project-items/${itemId}/artworks/${artworkId}`, updates);
   return res.json();
+}
+
+export async function reorderCharges(itemId: string | number, chargeIds: string[]) {
+  await apiRequest("PATCH", `/api/project-items/${itemId}/charges/reorder`, { chargeIds });
+}
+
+export async function reorderArtworkCharges(artworkId: string | number, chargeIds: string[]) {
+  await apiRequest("PATCH", `/api/artworks/${artworkId}/charges/reorder`, { chargeIds });
 }

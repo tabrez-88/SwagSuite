@@ -1,8 +1,7 @@
 import type { Request, Response } from "express";
 
 export class DecoratorMatrixController {
-  // ── Matrices CRUD ──
-
+  // ── List matrices for a supplier ──
   static async listBySupplier(req: Request, res: Response) {
     try {
       const { db } = await import("../db");
@@ -10,7 +9,7 @@ export class DecoratorMatrixController {
       const { eq } = await import("drizzle-orm");
       const matrices = await db.select().from(decoratorMatrices)
         .where(eq(decoratorMatrices.supplierId, req.params.supplierId))
-        .orderBy(decoratorMatrices.decorationMethod);
+        .orderBy(decoratorMatrices.name);
       res.json(matrices);
     } catch (error) {
       console.error("Error listing decorator matrices:", error);
@@ -18,39 +17,89 @@ export class DecoratorMatrixController {
     }
   }
 
+  // ── Get matrix with all nested data (breakdowns, rows, cells) ──
   static async getMatrix(req: Request, res: Response) {
     try {
       const { db } = await import("../db");
-      const { decoratorMatrices, decoratorMatrixEntries } = await import("@shared/schema");
+      const { decoratorMatrices, decoratorMatrixBreakdowns, decoratorMatrixRows, decoratorMatrixCells } = await import("@shared/schema");
       const { eq } = await import("drizzle-orm");
-      const [matrix] = await db.select().from(decoratorMatrices).where(eq(decoratorMatrices.id, req.params.matrixId));
+
+      const [matrix] = await db.select().from(decoratorMatrices)
+        .where(eq(decoratorMatrices.id, req.params.matrixId));
       if (!matrix) return res.status(404).json({ message: "Matrix not found" });
-      const entries = await db.select().from(decoratorMatrixEntries)
-        .where(eq(decoratorMatrixEntries.matrixId, req.params.matrixId))
-        .orderBy(decoratorMatrixEntries.minQuantity);
-      res.json({ ...matrix, entries });
+
+      const [breakdowns, rows, cells] = await Promise.all([
+        db.select().from(decoratorMatrixBreakdowns)
+          .where(eq(decoratorMatrixBreakdowns.matrixId, matrix.id))
+          .orderBy(decoratorMatrixBreakdowns.sortOrder),
+        db.select().from(decoratorMatrixRows)
+          .where(eq(decoratorMatrixRows.matrixId, matrix.id))
+          .orderBy(decoratorMatrixRows.sortOrder),
+        db.select().from(decoratorMatrixCells)
+          .where(eq(decoratorMatrixCells.matrixId, matrix.id)),
+      ]);
+
+      res.json({ ...matrix, breakdowns, rows, cells });
     } catch (error) {
       console.error("Error getting decorator matrix:", error);
       res.status(500).json({ message: "Failed to get matrix" });
     }
   }
 
+  // ── Create matrix with default rows/breakdowns based on type ──
   static async createMatrix(req: Request, res: Response) {
     try {
       const { db } = await import("../db");
-      const { insertDecoratorMatrixSchema, decoratorMatrices } = await import("@shared/schema");
-      const validated = insertDecoratorMatrixSchema.parse({
-        ...req.body,
+      const { decoratorMatrices, decoratorMatrixBreakdowns, decoratorMatrixRows } = await import("@shared/schema");
+
+      const { chargeType = "run", displayType = "table", ...rest } = req.body;
+
+      const [matrix] = await db.insert(decoratorMatrices).values({
+        ...rest,
         supplierId: req.params.supplierId,
-      });
-      const [matrix] = await db.insert(decoratorMatrices).values(validated).returning();
-      res.status(201).json(matrix);
+        chargeType,
+        displayType,
+      }).returning();
+
+      // Create default rows and breakdowns based on display type
+      if (displayType === "table") {
+        // Create 3 default breakdowns (qty columns)
+        await db.insert(decoratorMatrixBreakdowns).values([
+          { matrixId: matrix.id, minQuantity: 12, maxQuantity: 24, sortOrder: 0 },
+          { matrixId: matrix.id, minQuantity: 25, maxQuantity: 72, sortOrder: 1 },
+          { matrixId: matrix.id, minQuantity: 73, maxQuantity: null, sortOrder: 2 },
+        ]);
+        // Create 3 default rows
+        await db.insert(decoratorMatrixRows).values([
+          { matrixId: matrix.id, rowLabel: "1", sortOrder: 0 },
+          { matrixId: matrix.id, rowLabel: "2", sortOrder: 1 },
+          { matrixId: matrix.id, rowLabel: "3", sortOrder: 2 },
+        ]);
+        // Cells get created when user saves grid
+      } else if (displayType === "per_item" || displayType === "list") {
+        // Create 1 default row
+        await db.insert(decoratorMatrixRows).values([
+          { matrixId: matrix.id, rowLabel: "New charge", unitCost: "0.0000", sortOrder: 0 },
+        ]);
+      }
+
+      // Return full matrix
+      const { decoratorMatrixCells } = await import("@shared/schema");
+      const { eq } = await import("drizzle-orm");
+      const [breakdowns, rows, cells] = await Promise.all([
+        db.select().from(decoratorMatrixBreakdowns).where(eq(decoratorMatrixBreakdowns.matrixId, matrix.id)).orderBy(decoratorMatrixBreakdowns.sortOrder),
+        db.select().from(decoratorMatrixRows).where(eq(decoratorMatrixRows.matrixId, matrix.id)).orderBy(decoratorMatrixRows.sortOrder),
+        db.select().from(decoratorMatrixCells).where(eq(decoratorMatrixCells.matrixId, matrix.id)),
+      ]);
+
+      res.status(201).json({ ...matrix, breakdowns, rows, cells });
     } catch (error) {
       console.error("Error creating decorator matrix:", error);
       res.status(500).json({ message: "Failed to create matrix" });
     }
   }
 
+  // ── Update matrix metadata ──
   static async updateMatrix(req: Request, res: Response) {
     try {
       const { db } = await import("../db");
@@ -68,6 +117,7 @@ export class DecoratorMatrixController {
     }
   }
 
+  // ── Delete matrix (cascades to breakdowns, rows, cells) ──
   static async deleteMatrix(req: Request, res: Response) {
     try {
       const { db } = await import("../db");
@@ -81,357 +131,23 @@ export class DecoratorMatrixController {
     }
   }
 
-  // ── Matrix Entries CRUD ──
-
-  static async listEntries(req: Request, res: Response) {
-    try {
-      const { db } = await import("../db");
-      const { decoratorMatrixEntries } = await import("@shared/schema");
-      const { eq } = await import("drizzle-orm");
-      const entries = await db.select().from(decoratorMatrixEntries)
-        .where(eq(decoratorMatrixEntries.matrixId, req.params.matrixId))
-        .orderBy(decoratorMatrixEntries.minQuantity);
-      res.json(entries);
-    } catch (error) {
-      console.error("Error listing matrix entries:", error);
-      res.status(500).json({ message: "Failed to list entries" });
-    }
-  }
-
-  static async createEntry(req: Request, res: Response) {
-    try {
-      const { db } = await import("../db");
-      const { insertDecoratorMatrixEntrySchema, decoratorMatrixEntries } = await import("@shared/schema");
-      const validated = insertDecoratorMatrixEntrySchema.parse({
-        ...req.body,
-        matrixId: req.params.matrixId,
-      });
-      const [entry] = await db.insert(decoratorMatrixEntries).values(validated).returning();
-      res.status(201).json(entry);
-    } catch (error) {
-      console.error("Error creating matrix entry:", error);
-      res.status(500).json({ message: "Failed to create entry" });
-    }
-  }
-
-  static async updateEntry(req: Request, res: Response) {
-    try {
-      const { db } = await import("../db");
-      const { decoratorMatrixEntries } = await import("@shared/schema");
-      const { eq, and } = await import("drizzle-orm");
-      const [updated] = await db.update(decoratorMatrixEntries)
-        .set(req.body)
-        .where(and(
-          eq(decoratorMatrixEntries.id, req.params.entryId),
-          eq(decoratorMatrixEntries.matrixId, req.params.matrixId),
-        ))
-        .returning();
-      if (!updated) return res.status(404).json({ message: "Entry not found" });
-      res.json(updated);
-    } catch (error) {
-      console.error("Error updating matrix entry:", error);
-      res.status(500).json({ message: "Failed to update entry" });
-    }
-  }
-
-  static async deleteEntry(req: Request, res: Response) {
-    try {
-      const { db } = await import("../db");
-      const { decoratorMatrixEntries } = await import("@shared/schema");
-      const { eq, and } = await import("drizzle-orm");
-      await db.delete(decoratorMatrixEntries).where(and(
-        eq(decoratorMatrixEntries.id, req.params.entryId),
-        eq(decoratorMatrixEntries.matrixId, req.params.matrixId),
-      ));
-      res.status(204).send();
-    } catch (error) {
-      console.error("Error deleting matrix entry:", error);
-      res.status(500).json({ message: "Failed to delete entry" });
-    }
-  }
-
-  // ── Lookup: auto-populate costs from matrix ──
-
-  static async lookup(req: Request, res: Response) {
-    try {
-      const { db } = await import("../db");
-      const { decoratorMatrices, decoratorMatrixEntries } = await import("@shared/schema");
-      const { eq, and, lte, gte, or, isNull } = await import("drizzle-orm");
-
-      const { supplierId, method, quantity } = req.query;
-      if (!supplierId || !method || !quantity) {
-        return res.status(400).json({ message: "supplierId, method, and quantity are required" });
-      }
-
-      const qty = parseInt(quantity as string) || 0;
-
-      // Find matching matrix for this supplier + method
-      const matrices = await db.select().from(decoratorMatrices)
-        .where(and(
-          eq(decoratorMatrices.supplierId, supplierId as string),
-          eq(decoratorMatrices.decorationMethod, method as string),
-        ));
-
-      if (matrices.length === 0) {
-        return res.json({ found: false, runCost: null, setupCost: null });
-      }
-
-      // Use default matrix if available, otherwise first
-      const matrix = matrices.find(m => m.isDefault) || matrices[0];
-      const matrixType = matrix.matrixType || "run_charge_table";
-
-      // Fetch entries
-      const entries = await db.select().from(decoratorMatrixEntries)
-        .where(eq(decoratorMatrixEntries.matrixId, matrix.id))
-        .orderBy(decoratorMatrixEntries.minQuantity);
-
-      // For non-table types, return all entries for client-side handling
-      if (matrixType !== "run_charge_table") {
-        return res.json({
-          found: true,
-          matrixName: matrix.name,
-          matrixType,
-          entries: entries.map(e => ({
-            rowLabel: e.rowLabel,
-            unitCost: e.unitCost,
-            setupCost: e.setupCost,
-            runCost: e.runCost,
-            perUnit: e.perUnit,
-            notes: e.notes,
-          })),
-        });
-      }
-
-      // run_charge_table: match by quantity range (existing behavior)
-      const match = entries.find(e =>
-        qty >= e.minQuantity && (e.maxQuantity === null || qty <= e.maxQuantity)
-      );
-
-      if (!match) {
-        return res.json({ found: false, runCost: null, setupCost: null, matrixName: matrix.name, matrixType });
-      }
-
-      res.json({
-        found: true,
-        matrixName: matrix.name,
-        matrixType,
-        runCost: match.runCost,
-        setupCost: match.setupCost,
-        additionalColorCost: match.additionalColorCost,
-        colorCount: match.colorCount,
-        minQuantity: match.minQuantity,
-        maxQuantity: match.maxQuantity,
-      });
-    } catch (error) {
-      console.error("Error looking up decorator matrix:", error);
-      res.status(500).json({ message: "Failed to lookup matrix" });
-    }
-  }
-
-  // ── Apply: look up matrix and create all charges on an artwork in one shot ──
-
-  static async applyToArtwork(req: Request, res: Response) {
-    try {
-      const { db } = await import("../db");
-      const { decoratorMatrices, decoratorMatrixEntries, artworkCharges, artworkItems } = await import("@shared/schema");
-      const { eq, and, like } = await import("drizzle-orm");
-
-      const { artworkId, supplierId, quantity } = req.body;
-      if (!artworkId || !supplierId) {
-        return res.status(400).json({ message: "artworkId and supplierId are required" });
-      }
-
-      // Get artwork to determine imprint method and number of colors
-      const [artwork] = await db.select().from(artworkItems).where(eq(artworkItems.id, artworkId));
-      if (!artwork) return res.status(404).json({ message: "Artwork not found" });
-
-      const method = artwork.artworkType;
-      if (!method) return res.status(400).json({ message: "Artwork has no imprint method set" });
-
-      const qty = parseInt(quantity) || 1;
-      const artworkColorCount = (artwork as any).numberOfColors || 1;
-
-      // Find matching matrix
-      const matrices = await db.select().from(decoratorMatrices)
-        .where(and(
-          eq(decoratorMatrices.supplierId, supplierId),
-          eq(decoratorMatrices.decorationMethod, method),
-        ));
-
-      if (matrices.length === 0) {
-        return res.json({ applied: false, message: "No matrix found for this decorator + method", charges: [] });
-      }
-
-      const matrix = matrices.find(m => m.isDefault) || matrices[0];
-      const matrixType = matrix.matrixType || "run_charge_table";
-
-      // Fetch entries
-      const entries = await db.select().from(decoratorMatrixEntries)
-        .where(eq(decoratorMatrixEntries.matrixId, matrix.id))
-        .orderBy(decoratorMatrixEntries.minQuantity);
-
-      if (entries.length === 0) {
-        return res.json({ applied: false, message: "Matrix has no pricing entries", charges: [] });
-      }
-
-      // Build charges to create based on matrix type
-      const chargesToCreate: Array<{
-        artworkItemId: string;
-        chargeName: string;
-        chargeCategory: string;
-        netCost: string;
-        margin: string;
-        retailPrice: string;
-        quantity: number;
-        displayMode: string;
-      }> = [];
-
-      if (matrixType === "run_charge_table") {
-        // Find entry matching quantity range
-        const match = entries.find(e =>
-          qty >= e.minQuantity && (e.maxQuantity === null || qty <= e.maxQuantity)
-        );
-        if (match) {
-          const runCost = parseFloat(match.runCost || "0");
-          const setupCost = parseFloat(match.setupCost || "0");
-          if (runCost > 0) {
-            chargesToCreate.push({
-              artworkItemId: artworkId,
-              chargeName: `${method} imprint`,
-              chargeCategory: "run",
-              netCost: runCost.toFixed(2),
-              margin: "0",
-              retailPrice: runCost.toFixed(2),
-              quantity: 1,
-              displayMode: "display_to_client",
-            });
-          }
-          if (setupCost > 0) {
-            chargesToCreate.push({
-              artworkItemId: artworkId,
-              chargeName: `${method} setup`,
-              chargeCategory: "fixed",
-              netCost: setupCost.toFixed(2),
-              margin: "0",
-              retailPrice: setupCost.toFixed(2),
-              quantity: 1,
-              displayMode: "display_to_client",
-            });
-          }
-          // Additional color cost — based on artwork's numberOfColors vs matrix base colorCount
-          const addlCost = parseFloat(match.additionalColorCost || "0");
-          const matrixBaseColors = match.colorCount || 1;
-          const extraColors = Math.max(0, artworkColorCount - matrixBaseColors);
-          if (addlCost > 0 && extraColors > 0) {
-            const totalAddlCost = addlCost * extraColors;
-            chargesToCreate.push({
-              artworkItemId: artworkId,
-              chargeName: `${method} additional color (×${extraColors})`,
-              chargeCategory: "run",
-              netCost: totalAddlCost.toFixed(2),
-              margin: "0",
-              retailPrice: totalAddlCost.toFixed(2),
-              quantity: 1,
-              displayMode: "display_to_client",
-            });
-          }
-        }
-      } else if (matrixType === "run_charge_per_item") {
-        // Each entry becomes a run charge
-        for (const e of entries) {
-          const cost = parseFloat(e.unitCost || "0");
-          if (cost > 0) {
-            chargesToCreate.push({
-              artworkItemId: artworkId,
-              chargeName: e.rowLabel || `${method} charge`,
-              chargeCategory: "run",
-              netCost: cost.toFixed(2),
-              margin: "0",
-              retailPrice: cost.toFixed(2),
-              quantity: 1,
-              displayMode: "display_to_client",
-            });
-          }
-        }
-      } else if (matrixType === "fixed_charge_table") {
-        // Match by quantity, create fixed charge
-        const match = entries.find(e =>
-          qty >= e.minQuantity && (e.maxQuantity === null || qty <= e.maxQuantity)
-        );
-        if (match) {
-          const cost = parseFloat(match.unitCost || "0");
-          if (cost > 0) {
-            chargesToCreate.push({
-              artworkItemId: artworkId,
-              chargeName: match.rowLabel || `${method} fixed`,
-              chargeCategory: "fixed",
-              netCost: cost.toFixed(2),
-              margin: "0",
-              retailPrice: cost.toFixed(2),
-              quantity: 1,
-              displayMode: "display_to_client",
-            });
-          }
-        }
-      } else if (matrixType === "fixed_charge_list") {
-        // Each entry becomes a fixed charge
-        for (const e of entries) {
-          const cost = parseFloat(e.unitCost || "0");
-          if (cost > 0) {
-            chargesToCreate.push({
-              artworkItemId: artworkId,
-              chargeName: e.rowLabel || `${method} charge`,
-              chargeCategory: "fixed",
-              netCost: cost.toFixed(2),
-              margin: "0",
-              retailPrice: cost.toFixed(2),
-              quantity: 1,
-              displayMode: "display_to_client",
-            });
-          }
-        }
-      }
-
-      if (chargesToCreate.length === 0) {
-        return res.json({ applied: false, message: "No applicable charges found in matrix", charges: [] });
-      }
-
-      // Delete existing charges on this artwork that were from a matrix (re-apply clean)
-      await db.delete(artworkCharges).where(eq(artworkCharges.artworkItemId, artworkId));
-
-      // Insert all new charges
-      const created = await db.insert(artworkCharges).values(chargesToCreate).returning();
-
-      res.json({
-        applied: true,
-        matrixName: matrix.name,
-        matrixType,
-        charges: created,
-      });
-    } catch (error) {
-      console.error("Error applying decorator matrix:", error);
-      res.status(500).json({ message: "Failed to apply matrix" });
-    }
-  }
-
-  // ── Copy: duplicate matrix + all entries ──
-
+  // ── Copy matrix + breakdowns + rows + cells ──
   static async copyMatrix(req: Request, res: Response) {
     try {
       const { db } = await import("../db");
-      const { decoratorMatrices, decoratorMatrixEntries } = await import("@shared/schema");
+      const { decoratorMatrices, decoratorMatrixBreakdowns, decoratorMatrixRows, decoratorMatrixCells } = await import("@shared/schema");
       const { eq } = await import("drizzle-orm");
 
       const [original] = await db.select().from(decoratorMatrices)
         .where(eq(decoratorMatrices.id, req.params.matrixId));
       if (!original) return res.status(404).json({ message: "Matrix not found" });
 
-      // Create copy
+      // Copy matrix
       const [copy] = await db.insert(decoratorMatrices).values({
         supplierId: original.supplierId,
         name: `${original.name} (Copy)`,
-        decorationMethod: original.decorationMethod,
-        matrixType: original.matrixType,
+        chargeType: original.chargeType,
+        displayType: original.displayType,
         description: original.description,
         rowBasis: original.rowBasis,
         increment: original.increment,
@@ -440,32 +156,289 @@ export class DecoratorMatrixController {
         notes: original.notes,
       }).returning();
 
-      // Copy entries
-      const entries = await db.select().from(decoratorMatrixEntries)
-        .where(eq(decoratorMatrixEntries.matrixId, original.id));
+      // Copy breakdowns
+      const origBreakdowns = await db.select().from(decoratorMatrixBreakdowns)
+        .where(eq(decoratorMatrixBreakdowns.matrixId, original.id));
+      const breakdownIdMap: Record<string, string> = {};
 
-      if (entries.length > 0) {
-        await db.insert(decoratorMatrixEntries).values(
-          entries.map(e => ({
+      if (origBreakdowns.length > 0) {
+        const newBreakdowns = await db.insert(decoratorMatrixBreakdowns).values(
+          origBreakdowns.map(b => ({
             matrixId: copy.id,
-            rowLabel: e.rowLabel,
-            minQuantity: e.minQuantity,
-            maxQuantity: e.maxQuantity,
-            colorCount: e.colorCount,
-            setupCost: e.setupCost,
-            runCost: e.runCost,
-            unitCost: e.unitCost,
-            additionalColorCost: e.additionalColorCost,
-            perUnit: e.perUnit,
-            notes: e.notes,
+            minQuantity: b.minQuantity,
+            maxQuantity: b.maxQuantity,
+            sortOrder: b.sortOrder,
+          }))
+        ).returning();
+        origBreakdowns.forEach((b, i) => { breakdownIdMap[b.id] = newBreakdowns[i].id; });
+      }
+
+      // Copy rows
+      const origRows = await db.select().from(decoratorMatrixRows)
+        .where(eq(decoratorMatrixRows.matrixId, original.id));
+      const rowIdMap: Record<string, string> = {};
+
+      if (origRows.length > 0) {
+        const newRows = await db.insert(decoratorMatrixRows).values(
+          origRows.map(r => ({
+            matrixId: copy.id,
+            rowLabel: r.rowLabel,
+            unitCost: r.unitCost,
+            perUnit: r.perUnit,
+            sortOrder: r.sortOrder,
+          }))
+        ).returning();
+        origRows.forEach((r, i) => { rowIdMap[r.id] = newRows[i].id; });
+      }
+
+      // Copy cells
+      const origCells = await db.select().from(decoratorMatrixCells)
+        .where(eq(decoratorMatrixCells.matrixId, original.id));
+
+      if (origCells.length > 0) {
+        await db.insert(decoratorMatrixCells).values(
+          origCells.map(c => ({
+            matrixId: copy.id,
+            rowId: rowIdMap[c.rowId],
+            breakdownId: breakdownIdMap[c.breakdownId],
+            price: c.price,
           }))
         );
       }
 
-      res.status(201).json(copy);
+      // Return full copied matrix
+      const [breakdowns, rows, cells] = await Promise.all([
+        db.select().from(decoratorMatrixBreakdowns).where(eq(decoratorMatrixBreakdowns.matrixId, copy.id)).orderBy(decoratorMatrixBreakdowns.sortOrder),
+        db.select().from(decoratorMatrixRows).where(eq(decoratorMatrixRows.matrixId, copy.id)).orderBy(decoratorMatrixRows.sortOrder),
+        db.select().from(decoratorMatrixCells).where(eq(decoratorMatrixCells.matrixId, copy.id)),
+      ]);
+
+      res.status(201).json({ ...copy, breakdowns, rows, cells });
     } catch (error) {
       console.error("Error copying decorator matrix:", error);
       res.status(500).json({ message: "Failed to copy matrix" });
+    }
+  }
+
+  // ── Add breakdown (qty column) ──
+  static async addBreakdown(req: Request, res: Response) {
+    try {
+      const { db } = await import("../db");
+      const { decoratorMatrixBreakdowns } = await import("@shared/schema");
+      const { eq } = await import("drizzle-orm");
+      const { sql } = await import("drizzle-orm");
+
+      // Get current max sortOrder
+      const existing = await db.select().from(decoratorMatrixBreakdowns)
+        .where(eq(decoratorMatrixBreakdowns.matrixId, req.params.matrixId))
+        .orderBy(decoratorMatrixBreakdowns.sortOrder);
+      const nextSort = existing.length > 0 ? existing[existing.length - 1].sortOrder + 1 : 0;
+
+      const [breakdown] = await db.insert(decoratorMatrixBreakdowns).values({
+        matrixId: req.params.matrixId,
+        minQuantity: req.body.minQuantity ?? 0,
+        maxQuantity: req.body.maxQuantity ?? null,
+        sortOrder: nextSort,
+      }).returning();
+
+      res.status(201).json(breakdown);
+    } catch (error) {
+      console.error("Error adding breakdown:", error);
+      res.status(500).json({ message: "Failed to add breakdown" });
+    }
+  }
+
+  // ── Remove breakdown ──
+  static async removeBreakdown(req: Request, res: Response) {
+    try {
+      const { db } = await import("../db");
+      const { decoratorMatrixBreakdowns } = await import("@shared/schema");
+      const { eq } = await import("drizzle-orm");
+      await db.delete(decoratorMatrixBreakdowns)
+        .where(eq(decoratorMatrixBreakdowns.id, req.params.breakdownId));
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error removing breakdown:", error);
+      res.status(500).json({ message: "Failed to remove breakdown" });
+    }
+  }
+
+  // ── Update breakdown ──
+  static async updateBreakdown(req: Request, res: Response) {
+    try {
+      const { db } = await import("../db");
+      const { decoratorMatrixBreakdowns } = await import("@shared/schema");
+      const { eq } = await import("drizzle-orm");
+      const [updated] = await db.update(decoratorMatrixBreakdowns)
+        .set(req.body)
+        .where(eq(decoratorMatrixBreakdowns.id, req.params.breakdownId))
+        .returning();
+      if (!updated) return res.status(404).json({ message: "Breakdown not found" });
+      res.json(updated);
+    } catch (error) {
+      console.error("Error updating breakdown:", error);
+      res.status(500).json({ message: "Failed to update breakdown" });
+    }
+  }
+
+  // ── Add row ──
+  static async addRow(req: Request, res: Response) {
+    try {
+      const { db } = await import("../db");
+      const { decoratorMatrixRows } = await import("@shared/schema");
+      const { eq } = await import("drizzle-orm");
+
+      const existing = await db.select().from(decoratorMatrixRows)
+        .where(eq(decoratorMatrixRows.matrixId, req.params.matrixId))
+        .orderBy(decoratorMatrixRows.sortOrder);
+      const nextSort = existing.length > 0 ? existing[existing.length - 1].sortOrder + 1 : 0;
+
+      const [row] = await db.insert(decoratorMatrixRows).values({
+        matrixId: req.params.matrixId,
+        rowLabel: req.body.rowLabel ?? `${nextSort + 1}`,
+        unitCost: req.body.unitCost ?? null,
+        perUnit: req.body.perUnit ?? null,
+        sortOrder: nextSort,
+      }).returning();
+
+      res.status(201).json(row);
+    } catch (error) {
+      console.error("Error adding row:", error);
+      res.status(500).json({ message: "Failed to add row" });
+    }
+  }
+
+  // ── Remove row ──
+  static async removeRow(req: Request, res: Response) {
+    try {
+      const { db } = await import("../db");
+      const { decoratorMatrixRows } = await import("@shared/schema");
+      const { eq } = await import("drizzle-orm");
+      await db.delete(decoratorMatrixRows)
+        .where(eq(decoratorMatrixRows.id, req.params.rowId));
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error removing row:", error);
+      res.status(500).json({ message: "Failed to remove row" });
+    }
+  }
+
+  // ── Update row ──
+  static async updateRow(req: Request, res: Response) {
+    try {
+      const { db } = await import("../db");
+      const { decoratorMatrixRows } = await import("@shared/schema");
+      const { eq } = await import("drizzle-orm");
+      const [updated] = await db.update(decoratorMatrixRows)
+        .set(req.body)
+        .where(eq(decoratorMatrixRows.id, req.params.rowId))
+        .returning();
+      if (!updated) return res.status(404).json({ message: "Row not found" });
+      res.json(updated);
+    } catch (error) {
+      console.error("Error updating row:", error);
+      res.status(500).json({ message: "Failed to update row" });
+    }
+  }
+
+  // ── Update single cell ──
+  static async updateCell(req: Request, res: Response) {
+    try {
+      const { db } = await import("../db");
+      const { decoratorMatrixCells } = await import("@shared/schema");
+      const { eq } = await import("drizzle-orm");
+      const [updated] = await db.update(decoratorMatrixCells)
+        .set({ price: req.body.price })
+        .where(eq(decoratorMatrixCells.id, req.params.cellId))
+        .returning();
+      if (!updated) return res.status(404).json({ message: "Cell not found" });
+      res.json(updated);
+    } catch (error) {
+      console.error("Error updating cell:", error);
+      res.status(500).json({ message: "Failed to update cell" });
+    }
+  }
+
+  // ── Batch save entire grid (all cells at once) ──
+  static async saveGrid(req: Request, res: Response) {
+    try {
+      const { db } = await import("../db");
+      const { decoratorMatrixCells } = await import("@shared/schema");
+      const { eq } = await import("drizzle-orm");
+
+      const matrixId = req.params.matrixId;
+      const { cells } = req.body; // Array of { rowId, breakdownId, price }
+
+      if (!Array.isArray(cells)) {
+        return res.status(400).json({ message: "cells must be an array" });
+      }
+
+      // Delete existing cells for this matrix
+      await db.delete(decoratorMatrixCells)
+        .where(eq(decoratorMatrixCells.matrixId, matrixId));
+
+      // Insert all new cells
+      if (cells.length > 0) {
+        await db.insert(decoratorMatrixCells).values(
+          cells.map((c: any) => ({
+            matrixId,
+            rowId: c.rowId,
+            breakdownId: c.breakdownId,
+            price: c.price || "0",
+          }))
+        );
+      }
+
+      // Return updated cells
+      const updatedCells = await db.select().from(decoratorMatrixCells)
+        .where(eq(decoratorMatrixCells.matrixId, matrixId));
+
+      res.json(updatedCells);
+    } catch (error) {
+      console.error("Error saving grid:", error);
+      res.status(500).json({ message: "Failed to save grid" });
+    }
+  }
+
+  // ── Lookup: find matrix pricing for order-side picker ──
+  static async lookup(req: Request, res: Response) {
+    try {
+      const { db } = await import("../db");
+      const { decoratorMatrices, decoratorMatrixBreakdowns, decoratorMatrixRows, decoratorMatrixCells } = await import("@shared/schema");
+      const { eq } = await import("drizzle-orm");
+
+      const { supplierId } = req.query;
+      if (!supplierId) {
+        return res.status(400).json({ message: "supplierId is required" });
+      }
+
+      // Find matrices for this supplier
+      const matrices = await db.select().from(decoratorMatrices)
+        .where(eq(decoratorMatrices.supplierId, supplierId as string));
+
+      if (matrices.length === 0) {
+        return res.json({ found: false, matrices: [] });
+      }
+
+      // For each matrix, fetch full data
+      const fullMatrices = await Promise.all(matrices.map(async (matrix) => {
+        const [breakdowns, rows, cells] = await Promise.all([
+          db.select().from(decoratorMatrixBreakdowns)
+            .where(eq(decoratorMatrixBreakdowns.matrixId, matrix.id))
+            .orderBy(decoratorMatrixBreakdowns.sortOrder),
+          db.select().from(decoratorMatrixRows)
+            .where(eq(decoratorMatrixRows.matrixId, matrix.id))
+            .orderBy(decoratorMatrixRows.sortOrder),
+          db.select().from(decoratorMatrixCells)
+            .where(eq(decoratorMatrixCells.matrixId, matrix.id)),
+        ]);
+        return { ...matrix, breakdowns, rows, cells };
+      }));
+
+      res.json({ found: true, matrices: fullMatrices });
+    } catch (error) {
+      console.error("Error looking up decorator matrix:", error);
+      res.status(500).json({ message: "Failed to lookup matrix" });
     }
   }
 }

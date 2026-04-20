@@ -20,6 +20,7 @@ router.get("/api/projects/:projectId/items-with-details", isAuthenticated, Proje
 // ── Project Items ──
 router.get("/api/projects/:projectId/items", isAuthenticated, ProjectController.listItems);
 router.post("/api/projects/:projectId/items", isAuthenticated, ProjectController.createItem);
+router.patch("/api/projects/:projectId/items/reorder", isAuthenticated, ProjectController.reorderItems);
 router.patch("/api/projects/:projectId/items/:itemId", isAuthenticated, ProjectController.updateItem);
 router.delete("/api/projects/:projectId/items/:itemId", isAuthenticated, ProjectController.deleteItem);
 router.post("/api/projects/:projectId/items/:itemId/duplicate", isAuthenticated, ProjectController.duplicateItem);
@@ -41,18 +42,21 @@ router.post("/api/project-items/:itemId/artworks/copy-from/:sourceArtworkId", is
 // ── Artwork Charges ──
 router.get("/api/artworks/:artworkId/charges", isAuthenticated, ProjectController.listArtworkCharges);
 router.post("/api/artworks/:artworkId/charges", isAuthenticated, ProjectController.createArtworkCharge);
+router.patch("/api/artworks/:artworkId/charges/reorder", isAuthenticated, ProjectController.reorderArtworkCharges);
 router.patch("/api/artworks/:artworkId/charges/:chargeId", isAuthenticated, ProjectController.updateArtworkCharge);
 router.delete("/api/artworks/:artworkId/charges/:chargeId", isAuthenticated, ProjectController.deleteArtworkCharge);
 
 // ── Item Lines ──
 router.get("/api/project-items/:itemId/lines", isAuthenticated, ProjectController.listLines);
 router.post("/api/project-items/:itemId/lines", isAuthenticated, ProjectController.createLine);
+router.patch("/api/project-items/:itemId/lines/reorder", isAuthenticated, ProjectController.reorderLines);
 router.patch("/api/project-items/:itemId/lines/:lineId", isAuthenticated, ProjectController.updateLine);
 router.delete("/api/project-items/:itemId/lines/:lineId", isAuthenticated, ProjectController.deleteLine);
 
 // ── Additional Charges ──
 router.get("/api/project-items/:itemId/charges", isAuthenticated, ProjectController.listCharges);
 router.post("/api/project-items/:itemId/charges", isAuthenticated, ProjectController.createCharge);
+router.patch("/api/project-items/:itemId/charges/reorder", isAuthenticated, ProjectController.reorderCharges);
 router.patch("/api/project-items/:itemId/charges/:chargeId", isAuthenticated, ProjectController.updateCharge);
 router.delete("/api/project-items/:itemId/charges/:chargeId", isAuthenticated, ProjectController.deleteCharge);
 

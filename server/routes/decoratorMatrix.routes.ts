@@ -5,18 +5,15 @@ import { DecoratorMatrixController } from "../controllers/decoratorMatrix.contro
 
 const router = Router();
 
-// Reads (lookup + view) allowed for any authenticated user.
-// Writes (create/update/delete/apply/copy) are admin-only.
+// Reads allowed for any authenticated user.
+// Writes (create/update/delete/copy) are admin-only.
 
 // ── Matrices per supplier ──
 router.get("/api/suppliers/:supplierId/matrices", isAuthenticated, DecoratorMatrixController.listBySupplier);
 router.post("/api/suppliers/:supplierId/matrices", isAuthenticated, isAdmin, DecoratorMatrixController.createMatrix);
 
-// ── Lookup (auto-populate) — must be before :matrixId wildcard ──
+// ── Lookup (order-side picker) — must be before :matrixId wildcard ──
 router.get("/api/matrices/lookup", isAuthenticated, DecoratorMatrixController.lookup);
-
-// ── Apply matrix to artwork (creates all charges) ──
-router.post("/api/matrices/apply", isAuthenticated, DecoratorMatrixController.applyToArtwork);
 
 // ── Matrix CRUD ──
 router.get("/api/matrices/:matrixId", isAuthenticated, DecoratorMatrixController.getMatrix);
@@ -24,10 +21,20 @@ router.patch("/api/matrices/:matrixId", isAuthenticated, isAdmin, DecoratorMatri
 router.delete("/api/matrices/:matrixId", isAuthenticated, isAdmin, DecoratorMatrixController.deleteMatrix);
 router.post("/api/matrices/:matrixId/copy", isAuthenticated, isAdmin, DecoratorMatrixController.copyMatrix);
 
-// ── Matrix Entries ──
-router.get("/api/matrices/:matrixId/entries", isAuthenticated, DecoratorMatrixController.listEntries);
-router.post("/api/matrices/:matrixId/entries", isAuthenticated, isAdmin, DecoratorMatrixController.createEntry);
-router.patch("/api/matrices/:matrixId/entries/:entryId", isAuthenticated, isAdmin, DecoratorMatrixController.updateEntry);
-router.delete("/api/matrices/:matrixId/entries/:entryId", isAuthenticated, isAdmin, DecoratorMatrixController.deleteEntry);
+// ── Grid batch save ──
+router.put("/api/matrices/:matrixId/grid", isAuthenticated, isAdmin, DecoratorMatrixController.saveGrid);
+
+// ── Breakdowns (qty columns) ──
+router.post("/api/matrices/:matrixId/breakdowns", isAuthenticated, isAdmin, DecoratorMatrixController.addBreakdown);
+router.patch("/api/matrices/:matrixId/breakdowns/:breakdownId", isAuthenticated, isAdmin, DecoratorMatrixController.updateBreakdown);
+router.delete("/api/matrices/:matrixId/breakdowns/:breakdownId", isAuthenticated, isAdmin, DecoratorMatrixController.removeBreakdown);
+
+// ── Rows ──
+router.post("/api/matrices/:matrixId/rows", isAuthenticated, isAdmin, DecoratorMatrixController.addRow);
+router.patch("/api/matrices/:matrixId/rows/:rowId", isAuthenticated, isAdmin, DecoratorMatrixController.updateRow);
+router.delete("/api/matrices/:matrixId/rows/:rowId", isAuthenticated, isAdmin, DecoratorMatrixController.removeRow);
+
+// ── Cells ──
+router.patch("/api/matrices/:matrixId/cells/:cellId", isAuthenticated, isAdmin, DecoratorMatrixController.updateCell);
 
 export default router;

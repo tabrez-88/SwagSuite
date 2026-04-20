@@ -6,6 +6,8 @@ import { getQueryFn } from "@/lib/queryClient";
 import {
   useDeleteProjectItem,
   useDuplicateProjectItem,
+  useReorderProjectItems,
+  useReorderLines,
   useUpdateProjectItem,
   useUpdateLine,
   useDeleteLine,
@@ -115,6 +117,15 @@ export function useProductsSection({ projectId, data, isLocked }: ProductsSectio
   const createArtworkMutation = useCreateArtwork(projectId);
   const deleteArtworkMutation = useDeleteArtwork(projectId);
   const createArtworkChargeMutation = useCreateArtworkCharge(projectId);
+  const reorderItemsMutation = useReorderProjectItems(projectId);
+  const reorderLinesMutation = useReorderLines(projectId);
+
+  // Sort items by sortOrder
+  const sortedOrderItems = [...orderItems].sort((a, b) => {
+    const sa = (a as any).sortOrder ?? 0;
+    const sb = (b as any).sortOrder ?? 0;
+    return sa - sb;
+  });
 
   // ── Helpers ──
 
@@ -268,6 +279,15 @@ export function useProductsSection({ projectId, data, isLocked }: ProductsSectio
     setEditDialogLines(prev => prev.filter(l => l.id !== id));
   };
 
+  const reorderEditDialogLines = (sourceIndex: number, destIndex: number) => {
+    setEditDialogLines(prev => {
+      const next = [...prev];
+      const [moved] = next.splice(sourceIndex, 1);
+      next.splice(destIndex, 0, moved);
+      return next;
+    });
+  };
+
   // Computed totals for the edit dialog
   const editDialogTotals = editDialogLines.reduce(
     (acc, l) => ({
@@ -327,8 +347,10 @@ export function useProductsSection({ projectId, data, isLocked }: ProductsSectio
       }
     }
 
-    // Update or create lines
-    for (const line of editDialogLines) {
+    // Update or create lines (with sortOrder)
+    const createdLineIds: string[] = [];
+    for (let i = 0; i < editDialogLines.length; i++) {
+      const line = editDialogLines[i];
       const m = line.unitPrice > 0 ? ((line.unitPrice - line.cost) / line.unitPrice * 100) : 0;
       const lineData = {
         color: line.color,
@@ -338,6 +360,7 @@ export function useProductsSection({ projectId, data, isLocked }: ProductsSectio
         unitPrice: line.unitPrice.toFixed(2),
         totalPrice: (line.quantity * line.unitPrice).toFixed(2),
         margin: m.toFixed(2),
+        sortOrder: i,
       };
 
       if (line.isExisting && existingIds.has(line.id)) {
@@ -501,7 +524,7 @@ export function useProductsSection({ projectId, data, isLocked }: ProductsSectio
     addProductPath,
     setLocation,
     // Data
-    orderItems,
+    orderItems: sortedOrderItems,
     allProducts,
     allArtworkItems,
     allArtworkCharges,
@@ -519,6 +542,8 @@ export function useProductsSection({ projectId, data, isLocked }: ProductsSectio
     setIsDeleteDialogOpen,
     deleteOrderItemMutation,
     duplicateOrderItemMutation,
+    reorderItemsMutation,
+    reorderLinesMutation,
     // Edit line inline
     editingLine,
     setEditingLine,
@@ -541,6 +566,7 @@ export function useProductsSection({ projectId, data, isLocked }: ProductsSectio
     addEditDialogLine,
     updateEditDialogLine,
     removeEditDialogLine,
+    reorderEditDialogLines,
     handleEditDialogCostChange,
     handleEditDialogMarginChange,
     // Charges

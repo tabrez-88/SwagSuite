@@ -1,0 +1,1 @@
+ALTER TABLE "decorator_matrices" DROP COLUMN "decoration_method";

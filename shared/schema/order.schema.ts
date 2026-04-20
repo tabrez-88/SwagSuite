@@ -134,6 +134,7 @@ export const orderItems = pgTable("order_items", {
   leg2ShippingAccountType: varchar("leg2_shipping_account_type"),
   leg2ShippingQuote: decimal("leg2_shipping_quote", { precision: 10, scale: 2 }),
   taxCodeId: varchar("tax_code_id"), // Per-item tax code override
+  sortOrder: integer("sort_order").default(0),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -149,6 +150,7 @@ export const orderItemLines = pgTable("order_item_lines", {
   totalPrice: decimal("total_price", { precision: 12, scale: 2 }),
   margin: decimal("margin", { precision: 5, scale: 2 }),
   notes: text("notes"),
+  sortOrder: integer("sort_order").default(0),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -169,6 +171,7 @@ export const orderAdditionalCharges = pgTable("order_additional_charges", {
   displayToClient: boolean("display_to_client").default(true),
   displayToVendor: boolean("display_to_vendor").default(true), // Show on vendor PO PDF (CommonSKU pattern)
   includeInUnitPrice: boolean("include_in_unit_price").default(false), // Run: "Include in price", Fixed: "Subtract from margin"
+  sortOrder: integer("sort_order").default(0),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

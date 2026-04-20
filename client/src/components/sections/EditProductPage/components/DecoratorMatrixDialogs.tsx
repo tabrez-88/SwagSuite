@@ -6,8 +6,8 @@ interface MatrixPickerTarget {
   chargeId: string;
   chargeName: string;
   chargeType: "run" | "fixed";
-  artworkMethod?: string;
   currentMargin?: number;
+  numberOfColors?: number;
 }
 
 interface DecoratorMatrixDialogsProps {
@@ -29,7 +29,6 @@ export function DecoratorMatrixDialogs({
   setMatrixPickerTarget,
   vendorId,
   vendorName,
-  artworks,
   quantity,
   projectId,
 }: DecoratorMatrixDialogsProps) {
@@ -42,10 +41,6 @@ export function DecoratorMatrixDialogs({
         onClose={() => setShowMatrixDialog(false)}
         supplierId={vendorId}
         supplierName={vendorName}
-        artworkId={artworks.length === 1 ? artworks[0]?.id : undefined}
-        artworkMethod={artworks.length === 1 ? (artworks[0]?.artworkType ?? undefined) : undefined}
-        quantity={quantity || 1}
-        projectId={projectId}
         readOnly
       />
 
@@ -60,9 +55,9 @@ export function DecoratorMatrixDialogs({
           chargeId={matrixPickerTarget.chargeId}
           chargeName={matrixPickerTarget.chargeName}
           currentMargin={matrixPickerTarget.currentMargin}
+          numberOfColors={matrixPickerTarget.numberOfColors}
           quantity={quantity || 1}
           projectId={projectId}
-          artworkMethod={matrixPickerTarget.artworkMethod}
         />
       )}
     </>

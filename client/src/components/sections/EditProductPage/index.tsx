@@ -38,10 +38,13 @@ import {
   Plus,
   Repeat,
   Ruler,
+  GripVertical,
   Save,
   Trash2
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { DragDropContext, Droppable, Draggable, type DropResult, type DraggableProvided, type DraggableStateSnapshot } from "react-beautiful-dnd";
 import { ColorSizePopover } from "@/components/shared/ColorSizePopover";
 import { useEditProductPage } from "./hooks";
 import { AddEditChargeDialog } from "./components/AddEditChargeDialog";
@@ -53,6 +56,23 @@ import { FilePreviewDialog } from "./components/FilePreviewDialog";
 import { MarginWarningDialog } from "./components/MarginWarningDialog";
 import { PricingTiersDialog } from "./components/PricingTiersDialog";
 import { SizesColorsDialog } from "./components/SizesColorsDialog";
+
+/** Portal dragged row to document.body so Radix Dialog transform doesn't offset it */
+function PortalAwareDrag({ provided, snapshot, children }: {
+  provided: DraggableProvided;
+  snapshot: DraggableStateSnapshot;
+  children: React.ReactNode;
+}) {
+  const el = (
+    <tr ref={provided.innerRef} {...provided.draggableProps}
+      className={snapshot.isDragging ? "bg-white shadow-lg border rounded opacity-90" : "border-b last:border-0"}
+      style={provided.draggableProps.style}
+    >
+      {children}
+    </tr>
+  );
+  return snapshot.isDragging ? createPortal(el, document.body) : el;
+}
 
 interface EditProductPageProps {
   projectId: string;
@@ -72,8 +92,8 @@ export default function EditProductPage({ projectId, itemId, data, open, onClose
     chargeId: string;
     chargeName: string;
     chargeType: "run" | "fixed";
-    artworkMethod?: string;
     currentMargin?: number;
+    numberOfColors?: number;
   } | null>(null);
 
   const { data: taxCodes } = useQuery<any[]>({
@@ -138,8 +158,8 @@ function EditProductPageBody({
     chargeId: string;
     chargeName: string;
     chargeType: "run" | "fixed";
-    artworkMethod?: string;
     currentMargin?: number;
+    numberOfColors?: number;
   } | null;
   setMatrixPickerTarget: (v: any) => void;
 }) {
@@ -272,10 +292,28 @@ function EditProductPageBody({
             </div>
           </div>
 
+          <DragDropContext onDragEnd={(result: DropResult) => {
+            if (!result.destination) return;
+            const { source, destination } = result;
+            if (source.index === destination.index) return;
+            if (source.droppableId === "pricing-lines") {
+              editProductPage.reorderLine(source.index, destination.index);
+            } else if (source.droppableId === "pricing-charges") {
+              const sorted = [...editProductPage.charges].sort((a: any, b: any) => (a.sortOrder || 0) - (b.sortOrder || 0));
+              const reordered = [...sorted];
+              const [moved] = reordered.splice(source.index, 1);
+              reordered.splice(destination.index, 0, moved);
+              editProductPage.reorderChargesMutation.mutate({
+                itemId: itemId,
+                chargeIds: reordered.map((c: any) => c.id),
+              });
+            }
+          }}>
           <div className="border rounded-lg overflow-hidden">
             <table className="w-full text-sm">
               <thead className="bg-gray-50 border-b">
                 <tr>
+                  <th className="w-8"></th>
                   <th className="text-left p-3 w-20 font-bold">Color/Size</th>
                   <th className="text-center p-3 font-bold w-20">SKU</th>
                   <th className="text-center p-3 font-bold w-20">QTY</th>
@@ -302,8 +340,10 @@ function EditProductPageBody({
                   <th className="w-10"></th>
                 </tr>
               </thead>
-              <tbody>
-                {editProductPage.editableLines.map((line: any) => {
+              <Droppable droppableId="pricing-lines">
+                {(provided) => (
+              <tbody ref={provided.innerRef} {...provided.droppableProps}>
+                {editProductPage.editableLines.map((line: any, lineIdx: number) => {
                   const lineTotal = (line.quantity || 0) * (line.unitPrice || 0);
                   const lineMargin = line.unitPrice > 0
                     ? ((line.unitPrice - line.cost) / line.unitPrice * 100) : 0;
@@ -313,7 +353,14 @@ function EditProductPageBody({
                   const colorSizeLabel = [line.color, line.size].filter(Boolean).join(" / ") || "—";
 
                   return (
-                    <tr key={line.id} className="border-b last:border-0">
+                    <Draggable key={line.id} draggableId={`line-${line.id}`} index={lineIdx}>
+                      {(dragProvided, dragSnapshot) => (
+                    <PortalAwareDrag provided={dragProvided} snapshot={dragSnapshot}>
+                      <td className="p-1 w-8">
+                        <div {...dragProvided.dragHandleProps} className="flex items-center justify-center cursor-grab">
+                          <GripVertical className="w-4 h-4 text-gray-300" />
+                        </div>
+                      </td>
                       {/* Color/Size — popover or plain inputs */}
                       <td className="p-2">
                         {(hasColors || hasSizes) ? (
@@ -417,12 +464,21 @@ function EditProductPageBody({
                           </button>
                         </td>
                       )}
-                    </tr>
+                    </PortalAwareDrag>
+                    )}
+                    </Draggable>
                   );
                 })}
+                {provided.placeholder}
+              </tbody>
+                )}
+              </Droppable>
 
+              <Droppable droppableId="pricing-charges">
+                {(chargeDropProvided) => (
+              <tbody ref={chargeDropProvided.innerRef} {...chargeDropProvided.droppableProps}>
                 {/* ── Charge rows (CommonSKU-style: inline in same table) ── */}
-                {editProductPage.charges.map((charge: any) => {
+                {[...editProductPage.charges].sort((a: any, b: any) => (a.sortOrder || 0) - (b.sortOrder || 0)).map((charge: any, chargeIdx: number) => {
                   const cNetCost = parseFloat(charge.netCost || "0");
                   const cRetail = parseFloat(charge.retailPrice || charge.amount || "0");
                   const cMargin = parseFloat(charge.margin || "0");
@@ -434,7 +490,14 @@ function EditProductPageBody({
                       : "subtract_from_margin";
 
                   return (
-                    <tr key={`charge-${charge.id}`} className="border-b last:border-0 bg-gray-50/50">
+                    <Draggable key={`charge-${charge.id}`} draggableId={`charge-${charge.id}`} index={chargeIdx}>
+                      {(chargeDragProvided, chargeDragSnapshot) => (
+                    <PortalAwareDrag provided={chargeDragProvided} snapshot={chargeDragSnapshot}>
+                      <td className="p-1 w-8">
+                        <div {...chargeDragProvided.dragHandleProps} className="flex items-center justify-center cursor-grab">
+                          <GripVertical className="w-4 h-4 text-gray-300" />
+                        </div>
+                      </td>
                       {/* Name + badge */}
                       <td colSpan={2} className="p-2">
                         <div className="flex items-center juststa gap-1.5">
@@ -528,10 +591,15 @@ function EditProductPageBody({
                           <Trash2 className="w-3 h-3" />
                         </button>
                       </td>
-                    </tr>
+                    </PortalAwareDrag>
+                    )}
+                    </Draggable>
                   );
                 })}
+                {chargeDropProvided.placeholder}
               </tbody>
+                )}
+              </Droppable>
               {/* <tfoot className="bg-gray-50 border-t">
                 <tr>
                   <td className="p-3 text-sm font-semibold">Totals</td>
@@ -550,6 +618,7 @@ function EditProductPageBody({
               </tfoot> */}
             </table>
           </div>
+          </DragDropContext>
 
           {/* Action links below table (CommonSKU style) */}
           <div className="flex items-center gap-4 mt-3">
@@ -601,7 +670,7 @@ function EditProductPageBody({
                     </SelectContent>
                   </Select>
 
-                  <div className="flex items-center gap-2 mt-1">
+                  {/* <div className="flex items-center gap-2 mt-1">
                     <p className="text-[10px] text-gray-400 flex-1">
                       {editProductPage.editItemData.decoratorType === "third_party"
                         ? "Blank goods ship to separate decorator for imprinting"
@@ -615,7 +684,7 @@ function EditProductPageBody({
                         <Grid3X3 className="w-3 h-3" /> Matrix
                       </Button>
                     )}
-                  </div>
+                  </div> */}
                 </div>
                 {editProductPage.editItemData.decoratorType === "third_party" && (
                   <div>
@@ -748,10 +817,22 @@ function EditProductPageBody({
                     </div>
 
                     {/* CommonSKU-style inline charge rows */}
+                    <DragDropContext onDragEnd={(result: DropResult) => {
+                      if (!result.destination || result.source.index === result.destination.index) return;
+                      const sorted = [...artCharges].sort((a: any, b: any) => (a.sortOrder || 0) - (b.sortOrder || 0));
+                      const reordered = [...sorted];
+                      const [moved] = reordered.splice(result.source.index, 1);
+                      reordered.splice(result.destination.index, 0, moved);
+                      editProductPage.reorderArtworkChargesMutation.mutate({
+                        artworkId: art.id,
+                        chargeIds: reordered.map((c: any) => c.id),
+                      });
+                    }}>
                     <div className="border-t">
                       <table className="w-full text-sm">
                         <thead className="bg-gray-50 border-b">
                           <tr>
+                            <th className="w-8"></th>
                             <th className="text-left p-3 w-20 font-bold text-sm">Charge</th>
                             <th className="text-center p-3 font-bold text-sm w-20">Qty</th>
                             <th className="text-right p-3 font-bold text-sm w-28">Cost</th>
@@ -762,8 +843,10 @@ function EditProductPageBody({
                             <th className="w-10"></th>
                           </tr>
                         </thead>
-                        <tbody>
-                          {artCharges.map((charge: any) => {
+                        <Droppable droppableId={`artwork-charges-${art.id}`}>
+                          {(artChargeDropProvided) => (
+                        <tbody ref={artChargeDropProvided.innerRef} {...artChargeDropProvided.droppableProps}>
+                          {[...artCharges].sort((a: any, b: any) => (a.sortOrder || 0) - (b.sortOrder || 0)).map((charge: any, artChargeIdx: number) => {
                             const isRun = charge.chargeCategory === "run";
                             const cNetCost = parseFloat(charge.netCost || "0");
                             const cMargin = parseFloat(charge.margin || "0");
@@ -771,7 +854,14 @@ function EditProductPageBody({
                             const cQty = isRun ? (editProductPage.lineTotals.qty || 1) : (charge.quantity || 1);
                             const cTotal = cRetail * cQty;
                             return (
-                              <tr key={`${charge.id}-${charge.updatedAt || ''}`} className="border-b last:border-0 bg-gray-50/30 hover:bg-gray-50/50">
+                              <Draggable key={`artcharge-${charge.id}`} draggableId={`artcharge-${charge.id}`} index={artChargeIdx}>
+                                {(artChargeDragProvided, artChargeDragSnapshot) => (
+                              <PortalAwareDrag provided={artChargeDragProvided} snapshot={artChargeDragSnapshot}>
+                                <td className="p-1 w-8">
+                                  <div {...artChargeDragProvided.dragHandleProps} className="flex items-center justify-center cursor-grab">
+                                    <GripVertical className="w-4 h-4 text-gray-300" />
+                                  </div>
+                                </td>
                                 {/* Name + matrix + badge */}
                                 <td className="p-2">
                                   <div className="flex items-center gap-1.5">
@@ -797,8 +887,8 @@ function EditProductPageBody({
                                           chargeId: charge.id,
                                           chargeName: charge.chargeName || (isRun ? "Imprint Cost" : "Setup Cost"),
                                           chargeType: isRun ? "run" : "fixed",
-                                          artworkMethod: art.artworkType,
                                           currentMargin: cMargin,
+                                          numberOfColors: art.numberOfColors || 1,
                                         })}
                                       >
                                         <Grid3X3 className="w-3 h-3" />
@@ -924,10 +1014,15 @@ function EditProductPageBody({
                                     <Trash2 className="w-3 h-3" />
                                   </button>
                                 </td>
-                              </tr>
+                              </PortalAwareDrag>
+                                )}
+                              </Draggable>
                             );
                           })}
+                          {artChargeDropProvided.placeholder}
                         </tbody>
+                          )}
+                        </Droppable>
                       </table>
 
                       {/* Quick add links — CommonSKU style */}
@@ -978,6 +1073,7 @@ function EditProductPageBody({
                         </Button>
                       </div>
                     </div>
+                    </DragDropContext>
                   </div>
                 );
               })}

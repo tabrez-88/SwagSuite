@@ -12,7 +12,7 @@ import { products } from './product.schema';
 import { orders, orderItems, orderItemLines, orderAdditionalCharges, orderServiceCharges } from './order.schema';
 import { orderFiles } from './orderFile.schema';
 import { artworkItems, artworkFiles, artworkCharges, artworkItemFiles } from './artwork.schema';
-import { decoratorMatrices, decoratorMatrixEntries } from './decoratorMatrix.schema';
+import { decoratorMatrices, decoratorMatrixBreakdowns, decoratorMatrixRows, decoratorMatrixCells } from './decoratorMatrix.schema';
 import { artworkColumns, artworkCards } from './artworkKanban.schema';
 import { generatedDocuments } from './document.schema';
 import { invoices } from './invoice.schema';
@@ -187,13 +187,38 @@ export const decoratorMatricesRelations = relations(decoratorMatrices, ({ one, m
     fields: [decoratorMatrices.supplierId],
     references: [suppliers.id],
   }),
-  entries: many(decoratorMatrixEntries),
+  breakdowns: many(decoratorMatrixBreakdowns),
+  rows: many(decoratorMatrixRows),
+  cells: many(decoratorMatrixCells),
 }));
 
-export const decoratorMatrixEntriesRelations = relations(decoratorMatrixEntries, ({ one }) => ({
+export const decoratorMatrixBreakdownsRelations = relations(decoratorMatrixBreakdowns, ({ one }) => ({
   matrix: one(decoratorMatrices, {
-    fields: [decoratorMatrixEntries.matrixId],
+    fields: [decoratorMatrixBreakdowns.matrixId],
     references: [decoratorMatrices.id],
+  }),
+}));
+
+export const decoratorMatrixRowsRelations = relations(decoratorMatrixRows, ({ one, many }) => ({
+  matrix: one(decoratorMatrices, {
+    fields: [decoratorMatrixRows.matrixId],
+    references: [decoratorMatrices.id],
+  }),
+  cells: many(decoratorMatrixCells),
+}));
+
+export const decoratorMatrixCellsRelations = relations(decoratorMatrixCells, ({ one }) => ({
+  matrix: one(decoratorMatrices, {
+    fields: [decoratorMatrixCells.matrixId],
+    references: [decoratorMatrices.id],
+  }),
+  row: one(decoratorMatrixRows, {
+    fields: [decoratorMatrixCells.rowId],
+    references: [decoratorMatrixRows.id],
+  }),
+  breakdown: one(decoratorMatrixBreakdowns, {
+    fields: [decoratorMatrixCells.breakdownId],
+    references: [decoratorMatrixBreakdowns.id],
   }),
 }));
 

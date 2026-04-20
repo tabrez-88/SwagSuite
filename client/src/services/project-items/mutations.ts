@@ -29,6 +29,64 @@ export function useDuplicateProjectItem(projectId: string | number) {
   });
 }
 
+export function useReorderProjectItems(projectId: string | number) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const invalidate = useInvalidateProjectItems(projectId);
+  return useMutation({
+    mutationFn: (itemIds: string[]) =>
+      requests.reorderProjectItems(projectId, itemIds),
+    onMutate: async (itemIds) => {
+      const key = projectKeys.itemsWithDetails(projectId);
+      await queryClient.cancelQueries({ queryKey: key });
+      const prev = queryClient.getQueryData(key);
+      queryClient.setQueryData(key, (old: any) => {
+        if (!old?.items) return old;
+        const sorted = itemIds.map((id, i) => {
+          const item = old.items.find((it: any) => it.id === id);
+          return item ? { ...item, sortOrder: i } : null;
+        }).filter(Boolean);
+        return { ...old, items: sorted };
+      });
+      return { prev };
+    },
+    onError: (_err, _vars, ctx) => {
+      if (ctx?.prev) queryClient.setQueryData(projectKeys.itemsWithDetails(projectId), ctx.prev);
+      toast({ title: "Failed to reorder items", variant: "destructive" });
+    },
+    onSettled: () => invalidate(),
+  });
+}
+
+export function useReorderLines(projectId: string | number) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const invalidate = useInvalidateProjectItems(projectId);
+  return useMutation({
+    mutationFn: ({ itemId, lineIds }: { itemId: string | number; lineIds: string[] }) =>
+      requests.reorderLines(itemId, lineIds),
+    onMutate: async ({ itemId, lineIds }) => {
+      const key = projectKeys.itemsWithDetails(projectId);
+      await queryClient.cancelQueries({ queryKey: key });
+      const prev = queryClient.getQueryData(key);
+      queryClient.setQueryData(key, (old: any) => {
+        if (!old?.lines?.[itemId]) return old;
+        const reordered = lineIds.map((id, i) => {
+          const l = old.lines[itemId].find((ln: any) => ln.id === id);
+          return l ? { ...l, sortOrder: i } : null;
+        }).filter(Boolean);
+        return { ...old, lines: { ...old.lines, [itemId]: reordered } };
+      });
+      return { prev };
+    },
+    onError: (_err, _vars, ctx) => {
+      if (ctx?.prev) queryClient.setQueryData(projectKeys.itemsWithDetails(projectId), ctx.prev);
+      toast({ title: "Failed to reorder lines", variant: "destructive" });
+    },
+    onSettled: () => invalidate(),
+  });
+}
+
 export function useDeleteProjectItem(projectId: string | number) {
   const { toast } = useToast();
   const invalidate = useInvalidateProjectItems(projectId);
@@ -261,24 +319,6 @@ export function useDeleteArtworkCharge(projectId: string | number) {
   });
 }
 
-export function useApplyMatrixPricing(projectId: string | number) {
-  const { toast } = useToast();
-  const invalidate = useInvalidateProjectItems(projectId);
-  return useMutation({
-    mutationFn: async ({ artworkId, supplierId, quantity }: { artworkId: string; supplierId: string; quantity: number }) => {
-      const { apiRequest } = await import("@/lib/queryClient");
-      const res = await apiRequest("POST", "/api/matrices/apply", { artworkId, supplierId, quantity });
-      return res.json();
-    },
-    onSuccess: (data) => {
-      invalidate();
-      if (data.applied) {
-        toast({ title: `Matrix pricing applied`, description: `${data.charges.length} charge(s) from "${data.matrixName}"` });
-      }
-    },
-    onError: () => toast({ title: "Failed to apply matrix pricing", variant: "destructive" }),
-  });
-}
 
 export function useUpdateItemShipping(projectId: string | number) {
   const queryClient = useQueryClient();
@@ -291,6 +331,64 @@ export function useUpdateItemShipping(projectId: string | number) {
       queryClient.invalidateQueries({ queryKey: projectKeys.detail(projectId) });
     },
     onError: () => toast({ title: "Failed to update shipping details", variant: "destructive" }),
+  });
+}
+
+export function useReorderCharges(projectId: string | number) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const invalidate = useInvalidateProjectItems(projectId);
+  return useMutation({
+    mutationFn: ({ itemId, chargeIds }: { itemId: string | number; chargeIds: string[] }) =>
+      requests.reorderCharges(itemId, chargeIds),
+    onMutate: async ({ itemId, chargeIds }) => {
+      const key = projectKeys.itemsWithDetails(projectId);
+      await queryClient.cancelQueries({ queryKey: key });
+      const prev = queryClient.getQueryData(key);
+      queryClient.setQueryData(key, (old: any) => {
+        if (!old?.charges?.[itemId]) return old;
+        const reordered = chargeIds.map((id, i) => {
+          const c = old.charges[itemId].find((ch: any) => ch.id === id);
+          return c ? { ...c, sortOrder: i } : null;
+        }).filter(Boolean);
+        return { ...old, charges: { ...old.charges, [itemId]: reordered } };
+      });
+      return { prev };
+    },
+    onError: (_err, _vars, ctx) => {
+      if (ctx?.prev) queryClient.setQueryData(projectKeys.itemsWithDetails(projectId), ctx.prev);
+      toast({ title: "Failed to reorder charges", variant: "destructive" });
+    },
+    onSettled: () => invalidate(),
+  });
+}
+
+export function useReorderArtworkCharges(projectId: string | number) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const invalidate = useInvalidateProjectItems(projectId);
+  return useMutation({
+    mutationFn: ({ artworkId, chargeIds }: { artworkId: string | number; chargeIds: string[] }) =>
+      requests.reorderArtworkCharges(artworkId, chargeIds),
+    onMutate: async ({ artworkId, chargeIds }) => {
+      const key = projectKeys.itemsWithDetails(projectId);
+      await queryClient.cancelQueries({ queryKey: key });
+      const prev = queryClient.getQueryData(key);
+      queryClient.setQueryData(key, (old: any) => {
+        if (!old?.artworkCharges?.[artworkId]) return old;
+        const reordered = chargeIds.map((id, i) => {
+          const c = old.artworkCharges[artworkId].find((ch: any) => ch.id === id);
+          return c ? { ...c, sortOrder: i } : null;
+        }).filter(Boolean);
+        return { ...old, artworkCharges: { ...old.artworkCharges, [artworkId]: reordered } };
+      });
+      return { prev };
+    },
+    onError: (_err, _vars, ctx) => {
+      if (ctx?.prev) queryClient.setQueryData(projectKeys.itemsWithDetails(projectId), ctx.prev);
+      toast({ title: "Failed to reorder charges", variant: "destructive" });
+    },
+    onSettled: () => invalidate(),
   });
 }
 

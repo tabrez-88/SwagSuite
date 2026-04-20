@@ -1,3 +1,5 @@
+import { DragDropContext, Droppable, Draggable, type DropResult, type DraggableProvided, type DraggableStateSnapshot } from "react-beautiful-dnd";
+import { createPortal } from "react-dom";
 import FilePickerDialog from "@/components/modals/FilePickerDialog";
 import {
   AlertDialog,
@@ -28,6 +30,7 @@ import { isBelowMinimum } from "@/hooks/useMarginSettings";
 import {
   AlertTriangle,
   Edit2,
+  GripVertical,
   Loader2,
   Package,
   Palette,
@@ -43,8 +46,37 @@ import type { ProductsSectionProps } from "./types";
 import { Separator } from "@/components/ui/separator";
 import { FilePreviewModal } from "@/components/modals/FilePreviewModal.tsx";
 
+/** Portal dragged row to document.body so Radix Dialog transform doesn't offset it */
+function PortalAwareDrag({ provided, snapshot, children }: {
+  provided: DraggableProvided;
+  snapshot: DraggableStateSnapshot;
+  children: React.ReactNode;
+}) {
+  const el = (
+    <tr ref={provided.innerRef} {...provided.draggableProps}
+      className={snapshot.isDragging ? "bg-white shadow-lg border rounded opacity-90" : "border-b last:border-0"}
+      style={provided.draggableProps.style}
+    >
+      {children}
+    </tr>
+  );
+  return snapshot.isDragging ? createPortal(el, document.body) : el;
+}
+
 export default function ProductsSection({ projectId, data, isLocked }: ProductsSectionProps) {
   const productSection = useProductsSection({ projectId, data, isLocked });
+
+  const handleDragEnd = (result: DropResult) => {
+    if (!result.destination) return;
+    if (result.destination.index === result.source.index) return;
+
+    const items = [...productSection.orderItems];
+    const [moved] = items.splice(result.source.index, 1);
+    items.splice(result.destination.index, 0, moved);
+
+    // Optimistic: mutate sends new order to backend
+    productSection.reorderItemsMutation.mutate(items.map((i: any) => i.id));
+  };
 
   return (
     <>
@@ -80,9 +112,40 @@ export default function ProductsSection({ projectId, data, isLocked }: ProductsS
         </div>
       ) : (
         <div className="space-y-3">
-          {productSection.orderItems.map((item: any) => (
-            <OrderItemCard key={item.id} item={item} productSection={productSection} />
-          ))}
+          <DragDropContext onDragEnd={handleDragEnd}>
+            <Droppable droppableId="order-items">
+              {(provided) => (
+                <div ref={provided.innerRef} {...provided.droppableProps} className="space-y-3">
+                  {productSection.orderItems.map((item: any, index: number) => (
+                    <Draggable key={item.id} draggableId={item.id} index={index} isDragDisabled={isLocked}>
+                      {(dragProvided, snapshot) => (
+                        <div
+                          ref={dragProvided.innerRef}
+                          {...dragProvided.draggableProps}
+                          className={snapshot.isDragging ? "opacity-90 shadow-lg rounded-lg" : ""}
+                        >
+                          <div className="flex items-start gap-1">
+                            {!isLocked && (
+                              <div
+                                {...dragProvided.dragHandleProps}
+                                className="mt-3 p-1 cursor-grab active:cursor-grabbing text-gray-400 hover:text-gray-600"
+                              >
+                                <GripVertical className="w-4 h-4" />
+                              </div>
+                            )}
+                            <div className="flex-1">
+                              <OrderItemCard item={item} productSection={productSection} />
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </Draggable>
+                  ))}
+                  {provided.placeholder}
+                </div>
+              )}
+            </Droppable>
+          </DragDropContext>
           <Separator className="my-4" />
           {/* ORDER TOTALS */}
           <Card className="bg-gray-200 rounded-none">
@@ -336,6 +399,7 @@ export default function ProductsSection({ projectId, data, isLocked }: ProductsS
                   <table className="w-full text-sm">
                     <thead className="bg-gray-50 border-b">
                       <tr>
+                        <th className="w-8"></th>
                         <th className="text-left p-3 font-medium">Color</th>
                         <th className="text-left p-3 font-medium">Size</th>
                         <th className="text-right p-3 font-medium w-20">Qty</th>
@@ -346,94 +410,111 @@ export default function ProductsSection({ projectId, data, isLocked }: ProductsS
                         <th className="w-10"></th>
                       </tr>
                     </thead>
-                    <tbody>
-                      {productSection.editDialogLines.map((line: any) => {
-                        const lineTotal = (line.quantity || 0) * (line.unitPrice || 0);
-                        const lineMargin = line.unitPrice > 0
-                          ? ((line.unitPrice - line.cost) / line.unitPrice * 100) : 0;
-                        return (
-                          <tr key={line.id} className="border-b last:border-0">
-                            <td className="p-2">
-                              <Input
-                                className="h-8 text-xs"
-                                value={line.color}
-                                onChange={(e) => productSection.updateEditDialogLine(line.id, "color", e.target.value)}
-                                placeholder="Color"
-                              />
-                            </td>
-                            <td className="p-2">
-                              <Input
-                                className="h-8 text-xs"
-                                value={line.size}
-                                onChange={(e) => productSection.updateEditDialogLine(line.id, "size", e.target.value)}
-                                placeholder="Size"
-                              />
-                            </td>
-                            <td className="p-2">
-                              <Input
-                                className="h-8 text-xs text-right"
-                                type="number"
-                                min={0}
-                                value={line.quantity}
-                                onChange={(e) => productSection.updateEditDialogLine(line.id, "quantity", parseInt(e.target.value) || 0)}
-                              />
-                            </td>
-                            <td className="p-2">
-                              <Input
-                                className="h-8 text-xs text-right"
-                                type="number"
-                                step="0.01"
-                                min={0}
-                                value={line.cost}
-                                onChange={(e) => productSection.handleEditDialogCostChange(line.id, e)}
-                              />
-                            </td>
-                            <td className="p-2">
-                              <Input
-                                className="h-8 text-xs text-right"
-                                type="number"
-                                step="0.01"
-                                min={0}
-                                value={line.unitPrice}
-                                onChange={(e) => productSection.updateEditDialogLine(line.id, "unitPrice", parseFloat(e.target.value) || 0)}
-                              />
-                            </td>
-                            <td className="p-2">
-                              <div className="relative">
-                                <Input
-                                  className="h-8 text-xs text-right pr-5"
-                                  type="number"
-                                  step="0.1"
-                                  min={0}
-                                  max={99.9}
-                                  value={parseFloat(lineMargin.toFixed(1))}
-                                  onChange={(e) => productSection.handleEditDialogMarginChange(line.id, e)}
-                                />
-                                <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-400">%</span>
-                              </div>
-                            </td>
-                            <td className="p-2 text-right">
-                              <span className="text-xs font-medium">${lineTotal.toFixed(2)}</span>
-                            </td>
-                            <td className="p-2">
-                              {productSection.editDialogLines.length > 1 && (
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="h-7 w-7 p-0"
-                                  onClick={() => productSection.removeEditDialogLine(line.id)}
-                                >
-                                  <Trash2 className="w-3 h-3 text-red-500" />
-                                </Button>
-                              )}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
+                    <DragDropContext onDragEnd={(result: DropResult) => {
+                      if (!result.destination || result.destination.index === result.source.index) return;
+                      productSection.reorderEditDialogLines(result.source.index, result.destination.index);
+                    }}>
+                      <Droppable droppableId="edit-dialog-lines" direction="vertical">
+                        {(droppableProvided) => (
+                          <tbody ref={droppableProvided.innerRef} {...droppableProvided.droppableProps}>
+                            {productSection.editDialogLines.map((line: any, lineIndex: number) => {
+                              const lineTotal = (line.quantity || 0) * (line.unitPrice || 0);
+                              const lineMargin = line.unitPrice > 0
+                                ? ((line.unitPrice - line.cost) / line.unitPrice * 100) : 0;
+                              return (
+                                <Draggable key={line.id} draggableId={line.id} index={lineIndex}>
+                                  {(dragProv, snap) => (
+                                    <PortalAwareDrag provided={dragProv} snapshot={snap}>
+                                      <td className="p-1" {...dragProv.dragHandleProps}>
+                                        <GripVertical className="w-3.5 h-3.5 text-gray-400 cursor-grab active:cursor-grabbing" />
+                                      </td>
+                                      <td className="p-2">
+                                        <Input
+                                          className="h-8 text-xs"
+                                          value={line.color}
+                                          onChange={(e) => productSection.updateEditDialogLine(line.id, "color", e.target.value)}
+                                          placeholder="Color"
+                                        />
+                                      </td>
+                                      <td className="p-2">
+                                        <Input
+                                          className="h-8 text-xs"
+                                          value={line.size}
+                                          onChange={(e) => productSection.updateEditDialogLine(line.id, "size", e.target.value)}
+                                          placeholder="Size"
+                                        />
+                                      </td>
+                                      <td className="p-2">
+                                        <Input
+                                          className="h-8 text-xs text-right"
+                                          type="number"
+                                          min={0}
+                                          value={line.quantity}
+                                          onChange={(e) => productSection.updateEditDialogLine(line.id, "quantity", parseInt(e.target.value) || 0)}
+                                        />
+                                      </td>
+                                      <td className="p-2">
+                                        <Input
+                                          className="h-8 text-xs text-right"
+                                          type="number"
+                                          step="0.01"
+                                          min={0}
+                                          value={line.cost}
+                                          onChange={(e) => productSection.handleEditDialogCostChange(line.id, e)}
+                                        />
+                                      </td>
+                                      <td className="p-2">
+                                        <Input
+                                          className="h-8 text-xs text-right"
+                                          type="number"
+                                          step="0.01"
+                                          min={0}
+                                          value={line.unitPrice}
+                                          onChange={(e) => productSection.updateEditDialogLine(line.id, "unitPrice", parseFloat(e.target.value) || 0)}
+                                        />
+                                      </td>
+                                      <td className="p-2">
+                                        <div className="relative">
+                                          <Input
+                                            className="h-8 text-xs text-right pr-5"
+                                            type="number"
+                                            step="0.1"
+                                            min={0}
+                                            max={99.9}
+                                            value={parseFloat(lineMargin.toFixed(1))}
+                                            onChange={(e) => productSection.handleEditDialogMarginChange(line.id, e)}
+                                          />
+                                          <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-400">%</span>
+                                        </div>
+                                      </td>
+                                      <td className="p-2 text-right">
+                                        <span className="text-xs font-medium">${lineTotal.toFixed(2)}</span>
+                                      </td>
+                                      <td className="p-2">
+                                        {productSection.editDialogLines.length > 1 && (
+                                          <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            className="h-7 w-7 p-0"
+                                            onClick={() => productSection.removeEditDialogLine(line.id)}
+                                          >
+                                            <Trash2 className="w-3 h-3 text-red-500" />
+                                          </Button>
+                                        )}
+                                      </td>
+                                    </PortalAwareDrag>
+                                  )}
+                                </Draggable>
+                              );
+                            })}
+                            {droppableProvided.placeholder}
+                          </tbody>
+                        )}
+                      </Droppable>
+                    </DragDropContext>
                     <tfoot className="bg-gray-50 border-t">
                       <tr>
-                        <td colSpan={2} className="p-3 text-sm font-semibold">Totals</td>
+                        <td colSpan={3} className="p-3 text-sm font-semibold">Totals</td>
                         <td className="p-3 text-right text-sm font-semibold">{productSection.editDialogTotals.qty}</td>
                         <td className="p-3 text-right text-sm text-gray-500">${productSection.editDialogTotals.cost.toFixed(2)}</td>
                         <td className="p-3"></td>

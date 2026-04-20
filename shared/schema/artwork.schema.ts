@@ -51,6 +51,7 @@ export const artworkCharges = pgTable("artwork_charges", {
   // 'include_in_price' — baked into unit price, hidden
   // 'display_to_client' — shown as separate line item
   // 'subtract_from_margin' — absorbed, hidden from client
+  sortOrder: integer("sort_order").default(0),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

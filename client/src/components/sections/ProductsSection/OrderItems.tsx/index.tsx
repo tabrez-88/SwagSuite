@@ -1,3 +1,5 @@
+import MatrixChargePicker from "@/components/modals/MatrixChargePicker";
+import EditProductPage from "@/components/sections/EditProductPage";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -11,15 +13,14 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { isBelowMinimum } from "@/hooks/useMarginSettings";
-import { calcMarginPercent } from "@/lib/pricing";
 import { getCloudinaryThumbnail } from "@/lib/media-library";
+import { calcMarginPercent } from "@/lib/pricing";
+import { formatLabel } from "@/lib/utils";
 import type { OrderAdditionalCharge, OrderItemLine } from "@shared/schema";
 import {
   AlertTriangle,
   ChevronDown,
   ChevronRight,
-  Copy,
   DollarSign,
   Edit2,
   Eye,
@@ -30,15 +31,11 @@ import {
   Lock,
   Package,
   Palette,
-  Percent,
   Ruler,
-  Trash2,
+  Trash2
 } from "lucide-react";
 import { useState } from "react";
-import MatrixChargePicker from "@/components/modals/MatrixChargePicker";
-import EditProductPage from "@/components/sections/EditProductPage";
 import type { useProductsSection } from "../hooks";
-import { formatLabel } from "@/lib/utils";
 
 interface OrderItemCardProps {
   item: any;
@@ -53,7 +50,6 @@ export default function OrderItemCard({ item, productSection }: OrderItemCardPro
     chargeId: string;
     chargeName: string;
     chargeType: "run" | "fixed";
-    artworkMethod?: string;
     currentMargin?: number;
   } | null>(null);
   const isExpanded = productSection.expandedItems.has(item.id);
@@ -443,7 +439,6 @@ export default function OrderItemCard({ item, productSection }: OrderItemCardPro
                                       chargeId: c.id,
                                       chargeName: c.chargeName || (isRun ? "Imprint Cost" : "Setup Cost"),
                                       chargeType: isRun ? "run" : "fixed",
-                                      artworkMethod: art.artworkType,
                                       currentMargin: parseFloat(c.margin || "0"),
                                     })}
                                   >
@@ -602,7 +597,7 @@ export default function OrderItemCard({ item, productSection }: OrderItemCardPro
             currentMargin={matrixPickerTarget.currentMargin}
             quantity={totals.totalQty || 1}
             projectId={productSection.projectId}
-            artworkMethod={matrixPickerTarget.artworkMethod}
+
           />
         );
       })()}
