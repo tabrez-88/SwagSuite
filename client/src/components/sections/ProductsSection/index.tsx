@@ -37,6 +37,7 @@ import {
   Plus,
   Save,
   Trash2,
+  Truck,
   TrendingUp,
   X,
 } from "lucide-react";
@@ -168,6 +169,19 @@ export default function ProductsSection({ projectId, data, isLocked }: ProductsS
                     <div>
                       <span className="uppercase">Charges</span>
                       <p className="font-semibold">${productSection.orderTotals.totalCharges.toFixed(2)}</p>
+                    </div>
+                  )}
+                  {productSection.shippingTotals.revenue > 0 && (
+                    <div title={`Cost: $${productSection.shippingTotals.cost.toFixed(2)} → Revenue: $${productSection.shippingTotals.revenue.toFixed(2)}`}>
+                      <span className="uppercase flex items-center gap-1"><Truck className="w-3 h-3" />Shipping</span>
+                      <p className="font-semibold">
+                        ${productSection.shippingTotals.revenue.toFixed(2)}
+                        {productSection.shippingTotals.revenue > productSection.shippingTotals.cost && (
+                          <span className="text-green-600 text-[10px] ml-1">
+                            +{((productSection.shippingTotals.revenue - productSection.shippingTotals.cost) / productSection.shippingTotals.revenue * 100).toFixed(0)}%
+                          </span>
+                        )}
+                      </p>
                     </div>
                   )}
                   <div title={`Min: ${productSection.marginSettings.minimumMargin}% | Target: ${productSection.marginSettings.defaultMargin}%`}>

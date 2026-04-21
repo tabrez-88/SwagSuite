@@ -54,8 +54,8 @@ export default function SendQuoteDialog({
     recipientName,
     recipientFirstName: recipientName.split(" ")[0] || "there",
     orderNumber,
-    approvalLink: approvalUrl,
-  }), [companyName, senderName, recipientName, orderNumber, approvalUrl]);
+    // approvalLink omitted — server-side will handle it (renders as button, not plain URL)
+  }), [companyName, senderName, recipientName, orderNumber]);
 
   const { data: defaultTemplate, isLoading: loadingTemplate } = useDefaultEmailTemplate("quote");
 

@@ -63,13 +63,15 @@ async function autoAppendCriticalLinks(
   html: string,
   ctx: MergeContext,
   values: Record<string, string>,
+  rawHtml: string,
 ): Promise<string> {
   let appended = html;
 
   switch (ctx.type) {
     case "invoice": {
       // If stripePaymentLink pill wasn't in the template but we have the URL
-      if (!hasMergeTag(html, "stripePaymentLink") && values.stripePaymentLink) {
+      // Check rawHtml (before merge resolution) to avoid duplicate appends
+      if (!hasMergeTag(rawHtml, "stripePaymentLink") && values.stripePaymentLink) {
         // Extract href from the CTA button HTML
         const hrefMatch = values.stripePaymentLink.match(/href="([^"]+)"/);
         if (hrefMatch) {
@@ -80,7 +82,7 @@ async function autoAppendCriticalLinks(
     }
 
     case "quote": {
-      if (!hasMergeTag(html, "approvalLink") && values.approvalLink) {
+      if (!hasMergeTag(rawHtml, "approvalLink") && values.approvalLink) {
         const hrefMatch = values.approvalLink.match(/href="([^"]+)"/);
         if (hrefMatch) {
           appended += ctaBlock(hrefMatch[1], "Review & Approve Quote");
@@ -90,7 +92,7 @@ async function autoAppendCriticalLinks(
     }
 
     case "sales_order": {
-      if (!hasMergeTag(html, "approvalLink") && values.approvalLink) {
+      if (!hasMergeTag(rawHtml, "approvalLink") && values.approvalLink) {
         const hrefMatch = values.approvalLink.match(/href="([^"]+)"/);
         if (hrefMatch) {
           appended += ctaBlock(hrefMatch[1], "Review & Approve Sales Order");
@@ -100,7 +102,7 @@ async function autoAppendCriticalLinks(
     }
 
     case "presentation": {
-      if (!hasMergeTag(html, "presentationLink") && values.presentationLink) {
+      if (!hasMergeTag(rawHtml, "presentationLink") && values.presentationLink) {
         const hrefMatch = values.presentationLink.match(/href="([^"]+)"/);
         if (hrefMatch) {
           appended += ctaBlock(hrefMatch[1], "View Presentation");
@@ -144,9 +146,9 @@ export async function prepareEmailBody(
   // 1. Resolve merge tags
   let html = await resolveMergeTags(rawHtml, ctx, req);
 
-  // 2. Auto-append critical links if pills were absent
+  // 2. Auto-append critical links if pills were absent (check rawHtml BEFORE merge resolution)
   const values = await buildMergeValues(ctx, req);
-  html = await autoAppendCriticalLinks(html, ctx, values);
+  html = await autoAppendCriticalLinks(html, ctx, values, rawHtml);
 
   // 3. Sanitize
   html = sanitizeHtml(html);

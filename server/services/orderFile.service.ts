@@ -219,8 +219,30 @@ export class OrderFileService {
           }
         } catch {}
 
+        // Auto-CC sales rep + production rep on proof emails
+        // assignedUserId = sales rep, csrUserId = production rep
+        let ccEmails: string[] = [];
+        try {
+          const repUserIds = [order.assignedUserId, order.csrUserId].filter(Boolean) as string[];
+          if (repUserIds.length > 0) {
+            const { inArray } = await import("drizzle-orm");
+            const reps = await db.select({ id: users.id, email: users.email }).from(users).where(inArray(users.id, repUserIds));
+            ccEmails = reps
+              .map(r => r.email)
+              .filter((e): e is string => !!e && e !== data.clientEmail);
+          }
+          // Also CC the sender if they're not already included
+          if (userId && !repUserIds.includes(userId)) {
+            const [sender] = await db.select({ email: users.email }).from(users).where(eq(users.id, userId)).limit(1);
+            if (sender?.email && !ccEmails.includes(sender.email) && sender.email !== data.clientEmail) {
+              ccEmails.push(sender.email);
+            }
+          }
+        } catch {}
+
         await emailService.sendEmail({
           to: data.clientEmail,
+          cc: ccEmails.length > 0 ? ccEmails.join(', ') : undefined,
           subject: `Artwork Proof for Review - Order #${order.orderNumber}`,
           html: `
             <!DOCTYPE html>

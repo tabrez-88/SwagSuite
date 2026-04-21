@@ -39,6 +39,11 @@ export function useProductsSection({ projectId, data, isLocked }: ProductsSectio
     queryKey: ["/api/tax-codes"],
     queryFn: getQueryFn({ on401: "throw" }),
   });
+  // Fetch order-level service charges (for shipping margin display)
+  const { data: serviceCharges = [] } = useQuery<any[]>({
+    queryKey: projectKeys.serviceCharges(projectId),
+    queryFn: getQueryFn({ on401: "throw" }),
+  });
   const [currentLocation] = useLocation();
   const isQuoteContext = currentLocation.includes("/quote");
   const addProductPath = isQuoteContext
@@ -210,6 +215,13 @@ export function useProductsSection({ projectId, data, isLocked }: ProductsSectio
     },
   );
   const orderSellGrandTotal = orderTotals.orderProductSell + orderTotals.orderChargeSell + orderTotals.orderDecoSell;
+
+  // Shipping freight from service charges (auto-created by shipping account type sync)
+  const freightCharges = serviceCharges.filter((c: any) => c.chargeType === "freight" && c.notes?.startsWith("auto:shipping:"));
+  const shippingTotals = {
+    cost: freightCharges.reduce((sum: number, c: any) => sum + (c.quantity || 1) * parseFloat(c.unitCost || "0"), 0),
+    revenue: freightCharges.reduce((sum: number, c: any) => sum + (c.quantity || 1) * parseFloat(c.unitPrice || "0"), 0),
+  };
   const margin = orderSellGrandTotal > 0
     ? ((orderSellGrandTotal - orderTotals.orderCostTotal) / orderSellGrandTotal) * 100
     : 0;
@@ -615,6 +627,7 @@ export function useProductsSection({ projectId, data, isLocked }: ProductsSectio
     marginColor,
     marginBg,
     orderTotals,
+    shippingTotals,
     margin,
     projectId,
     data,

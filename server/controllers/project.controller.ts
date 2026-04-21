@@ -377,6 +377,83 @@ async function recalculateItemFromLines(orderItemId: string) {
   }
 }
 
+// ── Helper: sync shipping service charge from per-item shippingAccountType + shippingQuote ──
+// When account type = "supplier" and shippingQuote is set, upsert a freight service charge.
+// When account type = "client", remove auto-created freight charge (or hide it).
+// When account type = "ours" or "other", remove auto-created freight charge (manual management).
+async function syncShippingServiceCharge(orderId: string, itemId: string, item: any) {
+  const { db } = await import("../db");
+  const { orderServiceCharges, orderItems, products } = await import("@shared/schema");
+  const { eq, and } = await import("drizzle-orm");
+
+  // Build a stable notes tag so we can find auto-created charges for this item
+  const autoTag = `auto:shipping:${itemId}`;
+
+  // Find existing auto-created freight charge for this item
+  const existing = await db.select().from(orderServiceCharges)
+    .where(and(
+      eq(orderServiceCharges.orderId, orderId),
+      eq(orderServiceCharges.notes, autoTag),
+    ));
+  const existingCharge = existing[0];
+
+  const accountType = item.shippingAccountType;
+  const quote = parseFloat(item.shippingQuote || "0");
+
+  if (accountType === "supplier" && quote > 0) {
+    // Resolve product + supplier name for description
+    const { products: productsTable, suppliers } = await import("@shared/schema");
+    const [fullItem] = await db.select().from(orderItems).where(eq(orderItems.id, itemId));
+    let productName = "Item";
+    if (fullItem?.productId) {
+      const [product] = await db.select().from(productsTable).where(eq(productsTable.id, fullItem.productId));
+      productName = product?.name || "Item";
+    }
+    let supplierName = "";
+    if (fullItem?.supplierId) {
+      const [supplier] = await db.select().from(suppliers).where(eq(suppliers.id, fullItem.supplierId));
+      supplierName = supplier?.name || "";
+    }
+    const description = supplierName
+      ? `Shipping - ${productName} (${supplierName})`
+      : `Shipping - ${productName}`;
+
+    if (existingCharge) {
+      // Update existing auto-created charge
+      await db.update(orderServiceCharges).set({
+        unitCost: quote.toFixed(2),
+        unitPrice: existingCharge.unitPrice === existingCharge.unitCost ? quote.toFixed(2) : existingCharge.unitPrice, // keep user markup if they changed it
+        description,
+        displayToClient: true,
+        vendorId: fullItem?.supplierId || null,
+        updatedAt: new Date(),
+      }).where(eq(orderServiceCharges.id, existingCharge.id));
+    } else {
+      // Create new freight service charge
+      await db.insert(orderServiceCharges).values({
+        orderId,
+        chargeType: "freight",
+        description,
+        quantity: 1,
+        unitCost: quote.toFixed(2),
+        unitPrice: quote.toFixed(2), // default pass-through, user can markup later
+        taxable: false,
+        includeInMargin: true,
+        displayToClient: true,
+        displayToVendor: true,
+        vendorId: fullItem?.supplierId || null,
+        notes: autoTag,
+      });
+    }
+  } else {
+    // Account type is not "supplier" or quote is 0 — remove auto-created charge
+    if (existingCharge) {
+      await db.delete(orderServiceCharges)
+        .where(eq(orderServiceCharges.id, existingCharge.id));
+    }
+  }
+}
+
 // ── Helper: check service charge lock by orderId ──
 async function checkServiceChargeLock(orderId: string, res: Response): Promise<boolean> {
   const order = await projectRepository.getOrder(orderId);
@@ -1254,8 +1331,14 @@ export class ProjectController {
 
       const updatedItem = await projectRepository.updateOrderItem(req.params.itemId, body);
 
-      // Recalculate order totals if pricing fields changed
-      const pricingFields = ['quantity', 'unitPrice', 'totalPrice', 'cost', 'decorationCost', 'charges', 'taxCodeId'];
+      // ── Sync shipping service charge based on account type (CommonSKU-style) ──
+      const shippingFields = ['shippingAccountType', 'shippingQuote'];
+      if (shippingFields.some(f => req.body[f] !== undefined)) {
+        await syncShippingServiceCharge(req.params.projectId, req.params.itemId, updatedItem);
+      }
+
+      // Recalculate order totals if pricing or shipping fields changed
+      const pricingFields = ['quantity', 'unitPrice', 'totalPrice', 'cost', 'decorationCost', 'charges', 'taxCodeId', 'shippingAccountType', 'shippingQuote'];
       if (pricingFields.some(f => req.body[f] !== undefined)) {
         await recalculateOrderTotals(req.params.projectId);
       }

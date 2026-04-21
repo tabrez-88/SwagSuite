@@ -53,8 +53,8 @@ export default function SendSODialog({
     recipientName,
     recipientFirstName: recipientName.split(" ")[0] || "there",
     orderNumber,
-    approvalLink: approvalUrl,
-  }), [companyName, senderName, recipientName, orderNumber, approvalUrl]);
+    // approvalLink omitted — server-side will handle it (renders as button, not plain URL)
+  }), [companyName, senderName, recipientName, orderNumber]);
 
   const { data: defaultTemplate, isLoading: loadingTemplate } = useDefaultEmailTemplate("sales_order");
 

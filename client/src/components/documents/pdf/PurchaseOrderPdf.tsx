@@ -223,6 +223,32 @@ export function PurchaseOrderPdf({
           </View>
         )}
 
+        {/* ── Shipping instructions (account type + method) ───── */}
+        {(() => {
+          const shippingItem = vendorItems.find((i: any) => i.shippingAccountType);
+          if (!shippingItem) return null;
+          const acctType = shippingItem.shippingAccountType;
+          const method = shippingItem.shippingMethodOverride;
+          const acctLabels: Record<string, string> = {
+            supplier: "SUPPLIER ACCOUNT — Ship on your account, include freight on invoice",
+            ours: "OUR ACCOUNT — We will provide shipping labels/account number",
+            client: "CLIENT ACCOUNT — Client will arrange pickup or provide account",
+            other: "THIRD PARTY — See special instructions",
+          };
+          return (
+            <View style={{ marginBottom: 12, padding: 8, backgroundColor: "#f0f9ff", borderWidth: 1, borderColor: "#bfdbfe" }}>
+              <Text style={[{ fontSize: 8, color: colors.blue700 }, styles.bold]}>
+                SHIPPING: {acctLabels[acctType] || acctType?.toUpperCase()}
+              </Text>
+              {method && (
+                <Text style={{ fontSize: 8, color: colors.gray700, marginTop: 2 }}>
+                  Method: {method}
+                </Text>
+              )}
+            </View>
+          );
+        })()}
+
         {/* ── Items ────────────────────────────────────────────── */}
         {vendorItems.map((item: any) => {
           const cost = parseFloat(item.cost) || parseFloat(item.unitPrice) || 0;
