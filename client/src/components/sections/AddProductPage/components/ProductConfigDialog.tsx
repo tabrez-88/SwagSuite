@@ -1,5 +1,7 @@
 import FilePickerDialog from "@/components/modals/FilePickerDialog";
 import { AddEditChargeDialog } from "@/components/sections/EditProductPage/components/AddEditChargeDialog";
+import { EditArtworkDialog } from "@/components/sections/EditProductPage/components/EditArtworkDialog";
+import MatrixChargePicker from "@/components/modals/MatrixChargePicker";
 import TierPricingPanel from "@/components/sections/TierPricingPanel";
 import { ColorSizePopover } from "@/components/shared/ColorSizePopover";
 import { ImprintOptionSelect } from "@/components/shared/ImprintOptionSelect";
@@ -18,20 +20,43 @@ import { formatLabel } from "@/lib/utils";
 import type { ProjectData } from "@/types/project-types";
 import { useQuery } from "@tanstack/react-query";
 import {
+  Building2,
   ChevronDown,
   DollarSign,
   FileText,
+  Grid3X3,
+  GripVertical,
   ImageIcon,
   Image as ImageLucide,
   Loader2,
   Palette,
+  Pencil,
   Plus,
   Repeat,
   Tag,
   Trash2,
 } from "lucide-react";
 import { useState } from "react";
+import { createPortal } from "react-dom";
+import { DragDropContext, Droppable, Draggable, type DropResult, type DraggableProvided, type DraggableStateSnapshot } from "react-beautiful-dnd";
 import type { ConfigLine, LocalArtwork, LocalArtworkCharge, LocalCharge, ProductResult } from "../types";
+
+/** Portal dragged row to document.body so Radix Dialog transform doesn't offset it */
+function PortalAwareDrag({ provided, snapshot, children }: {
+  provided: DraggableProvided;
+  snapshot: DraggableStateSnapshot;
+  children: React.ReactNode;
+}) {
+  const el = (
+    <tr ref={provided.innerRef} {...provided.draggableProps}
+      className={snapshot.isDragging ? "bg-white shadow-lg border rounded opacity-90" : "border-b last:border-0"}
+      style={provided.draggableProps.style}
+    >
+      {children}
+    </tr>
+  );
+  return snapshot.isDragging ? createPortal(el, document.body) : el;
+}
 
 interface ProductConfigDialogProps {
   selectedProduct: ProductResult | null;
@@ -78,6 +103,18 @@ interface ProductConfigDialogProps {
   addLocalArtworkCharge: (artworkTempId: string, charge: Omit<LocalArtworkCharge, "tempId">) => void;
   updateLocalArtworkCharge: (artworkTempId: string, chargeTempId: string, updates: Partial<LocalArtworkCharge>) => void;
   removeLocalArtworkCharge: (artworkTempId: string, chargeTempId: string) => void;
+  updateLocalArtwork: (tempId: string, updates: Partial<LocalArtwork>) => void;
+  editingLocalArtwork: LocalArtwork | null;
+  setEditingLocalArtwork: (v: LocalArtwork | null) => void;
+  // Decorator
+  decoratorType: "supplier" | "third_party";
+  setDecoratorType: (v: "supplier" | "third_party") => void;
+  decoratorId: string;
+  setDecoratorId: (v: string) => void;
+  // Reorder
+  reorderConfigLines: (srcIdx: number, destIdx: number) => void;
+  reorderLocalCharges: (srcIdx: number, destIdx: number) => void;
+  reorderLocalArtworkCharges: (artTempId: string, srcIdx: number, destIdx: number) => void;
   // Artwork dialog
   pickingArtwork: boolean;
   setPickingArtwork: (v: boolean) => void;
@@ -146,6 +183,18 @@ export function ProductConfigDialog({
   addLocalArtworkCharge,
   updateLocalArtworkCharge,
   removeLocalArtworkCharge,
+  updateLocalArtwork,
+  editingLocalArtwork,
+  setEditingLocalArtwork,
+  // Decorator
+  decoratorType,
+  setDecoratorType,
+  decoratorId,
+  setDecoratorId,
+  // Reorder
+  reorderConfigLines,
+  reorderLocalCharges,
+  reorderLocalArtworkCharges,
   // Artwork dialog
   pickingArtwork,
   setPickingArtwork,
@@ -170,6 +219,14 @@ export function ProductConfigDialog({
 }: ProductConfigDialogProps) {
 
   const [taxCodeId, setTaxCodeId] = useState("");
+  const [matrixPickerTarget, setMatrixPickerTarget] = useState<{
+    artworkTempId: string;
+    chargeTempId: string;
+    chargeName: string;
+    chargeType: "run" | "fixed";
+    currentMargin?: number;
+    numberOfColors?: number;
+  } | null>(null);
 
   const { data: taxCodes } = useQuery<any[]>({
     queryKey: ["/api/tax-codes"],
@@ -256,6 +313,29 @@ export function ProductConfigDialog({
 
   const hasColors = (selectedProduct?.colors?.length ?? 0) > 0;
   const hasSizes = (selectedProduct?.sizes?.length ?? 0) > 0;
+
+  // Suppliers list for decorator picker
+  const suppliers = (data as any).suppliers || [];
+
+  // DnD handler for lines + charges
+  const handleLineDragEnd = (result: DropResult) => {
+    if (!result.destination) return;
+    const { source, destination } = result;
+    if (source.index === destination.index) return;
+    if (source.droppableId === "config-lines") {
+      reorderConfigLines(source.index, destination.index);
+    } else if (source.droppableId === "config-charges") {
+      reorderLocalCharges(source.index, destination.index);
+    }
+  };
+
+  // DnD handler for artwork charges
+  const handleArtChargeDragEnd = (artTempId: string) => (result: DropResult) => {
+    if (!result.destination) return;
+    const { source, destination } = result;
+    if (source.index === destination.index) return;
+    reorderLocalArtworkCharges(artTempId, source.index, destination.index);
+  };
 
   return (
     <>
@@ -352,10 +432,12 @@ export function ProductConfigDialog({
 
               {/* ── Merged Pricing Table (lines + charges) ── */}
               <div>
+                <DragDropContext onDragEnd={handleLineDragEnd}>
                 <div className="border rounded-lg overflow-hidden">
                   <table className="w-full text-sm">
                     <thead className="bg-gray-50 border-b">
                       <tr>
+                        <th className="w-8"></th>
                         <th className="text-left p-3 w-20 font-bold">Color/Size</th>
                         <th className="text-center p-3 font-bold w-20">SKU</th>
                         <th className="text-center p-3 font-bold w-20">QTY</th>
@@ -369,16 +451,25 @@ export function ProductConfigDialog({
                         <th className="w-10"></th>
                       </tr>
                     </thead>
-                    <tbody>
+                    <Droppable droppableId="config-lines">
+                      {(droppableProvided) => (
+                    <tbody ref={droppableProvided.innerRef} {...droppableProvided.droppableProps}>
                       {/* Line item rows */}
-                      {configLines.map((line) => {
+                      {configLines.map((line, lineIdx) => {
                         const lineTotal = line.quantity * line.unitPrice;
                         const lineMargin = calcMarginPercent(line.unitPrice, line.unitCost);
                         const clientPrice = (line.unitPrice || 0) + bakedInChargePerUnit;
                         const colorSizeLabel = [line.color, line.size].filter(Boolean).join(" / ") || "\u2014";
 
                         return (
-                          <tr key={line.id} className="border-b last:border-0">
+                          <Draggable key={line.id} draggableId={`line-${line.id}`} index={lineIdx}>
+                            {(dragProvided, dragSnapshot) => (
+                          <PortalAwareDrag provided={dragProvided} snapshot={dragSnapshot}>
+                            <td className="p-1 w-8">
+                              <div {...dragProvided.dragHandleProps} className="flex items-center justify-center cursor-grab">
+                                <GripVertical className="w-4 h-4 text-gray-300" />
+                              </div>
+                            </td>
                             {/* Color/Size */}
                             <td className="p-2">
                               {(hasColors || hasSizes) ? (
@@ -467,11 +558,20 @@ export function ProductConfigDialog({
                                 </button>
                               )}
                             </td>
-                          </tr>
+                          </PortalAwareDrag>
+                            )}
+                          </Draggable>
                         );
                       })}
+                      {droppableProvided.placeholder}
+                    </tbody>
+                      )}
+                    </Droppable>
 
-                      {/* ── Charge rows (merged inline) ── */}
+                    {/* ── Charge rows (merged inline) ── */}
+                    <Droppable droppableId="config-charges">
+                      {(chargeDropProvided) => (
+                    <tbody ref={chargeDropProvided.innerRef} {...chargeDropProvided.droppableProps}>
                       {localCharges.map((ch, idx) => {
                         const isRun = ch.chargeCategory === "run";
                         const cQty = isRun ? configTotalQty : ch.quantity;
@@ -481,8 +581,15 @@ export function ProductConfigDialog({
                             : "subtract_from_margin";
 
                         return (
-                          <tr key={ch.tempId} className="border-b last:border-0 bg-gray-50/50">
-                            <td colSpan={2} className="p-2">
+                          <Draggable key={ch.tempId} draggableId={`charge-${ch.tempId}`} index={idx}>
+                            {(chargeDragProvided, chargeDragSnapshot) => (
+                          <PortalAwareDrag provided={chargeDragProvided} snapshot={chargeDragSnapshot}>
+                            <td className="p-1 w-8">
+                              <div {...chargeDragProvided.dragHandleProps} className="flex items-center justify-center cursor-grab">
+                                <GripVertical className="w-4 h-4 text-gray-300" />
+                              </div>
+                            </td>
+                            <td colSpan={1} className="p-2">
                               <div className="flex items-center gap-1.5">
                                 <input
                                   className="h-8 text-xs bg-transparent border rounded px-1 flex-1 focus:outline-none focus:bg-white focus:ring-1 focus:ring-blue-300"
@@ -567,12 +674,18 @@ export function ProductConfigDialog({
                                 <Trash2 className="w-3 h-3" />
                               </button>
                             </td>
-                          </tr>
+                          </PortalAwareDrag>
+                            )}
+                          </Draggable>
                         );
                       })}
+                      {chargeDropProvided.placeholder}
                     </tbody>
+                      )}
+                    </Droppable>
                   </table>
                 </div>
+                </DragDropContext>
 
                 {/* Action links below table */}
                 <div className="flex items-center gap-4 mt-3">
@@ -593,11 +706,58 @@ export function ProductConfigDialog({
 
               {/* ── Decorations / Artwork (EditProductPage style) ── */}
               <div>
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="font-semibold text-lg flex items-center gap-1.5">
-                    <ImageLucide className="w-4 h-4 text-gray-400" />
-                    Decorations {localArtworks.length > 0 && `(${localArtworks.length})`}
-                  </h3>
+                <div className="flex items-end justify-between mb-4">
+                  <div className="flex flex-col gap-4">
+                    <h3 className="font-semibold text-lg flex items-center gap-1.5">
+                      <ImageLucide className="w-4 h-4 text-gray-400" />
+                      Decorations {localArtworks.length > 0 && `(${localArtworks.length})`}
+                    </h3>
+                    {/* Decorator Type */}
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="flex flex-col gap-2">
+                        <Label className="flex items-center gap-1.5">
+                          <Building2 className="w-3 h-3 text-gray-400" />
+                          Decorator Type
+                        </Label>
+                        <Select
+                          value={decoratorType}
+                          onValueChange={(v: "supplier" | "third_party") => {
+                            setDecoratorType(v);
+                            if (v === "supplier") setDecoratorId("");
+                          }}
+                        >
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="supplier">Supplier Decorator</SelectItem>
+                            <SelectItem value="third_party">Third-Party Decorator</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      {decoratorType === "third_party" && (
+                        <div>
+                          <Label>Third-Party Decorator</Label>
+                          <Select
+                            value={decoratorId}
+                            onValueChange={setDecoratorId}
+                          >
+                            <SelectTrigger><SelectValue placeholder="Select decorator..." /></SelectTrigger>
+                            <SelectContent>
+                              {suppliers
+                                .filter((s: any) => s.isDecorator)
+                                .map((s: any) => (
+                                  <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                                ))}
+                              {suppliers.filter((s: any) => s.isDecorator).length === 0 && (
+                                <div className="px-3 py-2 text-xs text-muted-foreground">
+                                  No vendors marked as decorator. Go to Settings → Vendors to mark vendors as decorators.
+                                </div>
+                              )}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
+                    </div>
+                  </div>
                   <Button variant="outline" size="sm" onClick={() => setPickingArtwork(true)}>
                     <Plus className="w-3 h-3 mr-1" />
                     Decoration Location
@@ -652,18 +812,26 @@ export function ProductConfigDialog({
                               </div>
                             </div>
 
-                            {/* Delete */}
-                            <button className="w-7 h-7 flex items-center justify-center rounded text-gray-300 hover:text-red-500 hover:bg-red-50"
-                              onClick={() => removeLocalArtwork(art.tempId)}>
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
+                            {/* Edit + Delete */}
+                            <div className="flex items-center gap-1">
+                              <button className="w-7 h-7 flex items-center justify-center rounded text-gray-300 hover:text-blue-500 hover:bg-blue-50"
+                                onClick={() => setEditingLocalArtwork(art)}>
+                                <Pencil className="w-3.5 h-3.5" />
+                              </button>
+                              <button className="w-7 h-7 flex items-center justify-center rounded text-gray-300 hover:text-red-500 hover:bg-red-50"
+                                onClick={() => removeLocalArtwork(art.tempId)}>
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
                           </div>
 
                           {/* Nested charges table */}
                           <div className="border-t">
+                            <DragDropContext onDragEnd={handleArtChargeDragEnd(art.tempId)}>
                             <table className="w-full text-sm">
                               <thead className="bg-gray-50 border-b">
                                 <tr>
+                                  <th className="w-8"></th>
                                   <th className="text-left p-3 w-20 font-bold text-sm">Charge</th>
                                   <th className="text-center p-3 font-bold text-sm w-20">Qty</th>
                                   <th className="text-right p-3 font-bold text-sm w-28">Cost</th>
@@ -674,14 +842,23 @@ export function ProductConfigDialog({
                                   <th className="w-10"></th>
                                 </tr>
                               </thead>
-                              <tbody>
-                                {art.charges.map((ac) => {
+                              <Droppable droppableId={`art-charges-${art.tempId}`}>
+                                {(artChargeDropProvided) => (
+                              <tbody ref={artChargeDropProvided.innerRef} {...artChargeDropProvided.droppableProps}>
+                                {art.charges.map((ac, acIdx) => {
                                   const isRun = ac.chargeCategory === "run";
                                   const acQty = isRun ? configTotalQty : ac.quantity;
                                   const acTotal = ac.retailPrice * acQty;
 
                                   return (
-                                    <tr key={ac.tempId} className="border-b last:border-0 bg-gray-50/30 hover:bg-gray-50/50">
+                                    <Draggable key={ac.tempId} draggableId={`artcharge-${ac.tempId}`} index={acIdx}>
+                                      {(artChargeDragProvided, artChargeDragSnapshot) => (
+                                    <PortalAwareDrag provided={artChargeDragProvided} snapshot={artChargeDragSnapshot}>
+                                      <td className="p-1 w-8">
+                                        <div {...artChargeDragProvided.dragHandleProps} className="flex items-center justify-center cursor-grab">
+                                          <GripVertical className="w-4 h-4 text-gray-300" />
+                                        </div>
+                                      </td>
                                       <td className="p-2">
                                         <div className="flex items-center gap-1.5">
                                           <input
@@ -689,6 +866,22 @@ export function ProductConfigDialog({
                                             value={ac.chargeName}
                                             onChange={(e) => updateLocalArtworkCharge(art.tempId, ac.tempId, { chargeName: e.target.value })}
                                           />
+                                          {decoratorType === "third_party" && decoratorId && (
+                                            <button
+                                              className="w-4 h-4 flex items-center justify-center text-blue-400 hover:text-blue-600"
+                                              title="Select pricing from decorator matrix"
+                                              onClick={() => setMatrixPickerTarget({
+                                                artworkTempId: art.tempId,
+                                                chargeTempId: ac.tempId,
+                                                chargeName: ac.chargeName || (isRun ? "Imprint Cost" : "Setup Cost"),
+                                                chargeType: isRun ? "run" : "fixed",
+                                                currentMargin: ac.margin,
+                                                numberOfColors: art.numberOfColors || 1,
+                                              })}
+                                            >
+                                              <Grid3X3 className="w-3 h-3" />
+                                            </button>
+                                          )}
                                           <Badge variant="outline" className="text-[9px] px-1 py-0 w-fit border-gray-300 text-gray-600">
                                             {isRun ? "Run" : "Fixed"}
                                           </Badge>
@@ -773,11 +966,17 @@ export function ProductConfigDialog({
                                           <Trash2 className="w-3 h-3" />
                                         </button>
                                       </td>
-                                    </tr>
+                                    </PortalAwareDrag>
+                                      )}
+                                    </Draggable>
                                   );
                                 })}
+                                {artChargeDropProvided.placeholder}
                               </tbody>
+                                )}
+                              </Droppable>
                             </table>
+                            </DragDropContext>
 
                             {/* Quick add links */}
                             <div className="flex items-center gap-4 px-3 py-1.5 text-[10px]">
@@ -1064,6 +1263,63 @@ export function ProductConfigDialog({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* EDIT ARTWORK DIALOG */}
+      <EditArtworkDialog
+        projectId={projectId}
+        artwork={editingLocalArtwork ? {
+          ...editingLocalArtwork,
+          id: editingLocalArtwork.tempId,
+        } : null}
+        onClose={() => setEditingLocalArtwork(null)}
+        onSave={(_artId: string, updates: Record<string, any>) => {
+          if (editingLocalArtwork) {
+            updateLocalArtwork(editingLocalArtwork.tempId, {
+              name: updates.name,
+              location: updates.location || "",
+              artworkType: updates.artworkType || "",
+              size: updates.size || "",
+              color: updates.color || "",
+              numberOfColors: updates.numberOfColors || 1,
+              repeatLogo: !!updates.repeatLogo,
+            });
+          }
+          setEditingLocalArtwork(null);
+        }}
+        isSaving={false}
+      />
+
+      {/* MATRIX CHARGE PICKER */}
+      {matrixPickerTarget && decoratorId && (
+        <MatrixChargePicker
+          open={true}
+          onClose={() => setMatrixPickerTarget(null)}
+          supplierId={decoratorId}
+          supplierName={suppliers.find((s: any) => s.id === decoratorId)?.name || "Decorator"}
+          chargeType={matrixPickerTarget.chargeType}
+          artworkId={matrixPickerTarget.artworkTempId}
+          chargeId={matrixPickerTarget.chargeTempId}
+          chargeName={matrixPickerTarget.chargeName}
+          currentMargin={matrixPickerTarget.currentMargin}
+          numberOfColors={matrixPickerTarget.numberOfColors}
+          quantity={configTotalQty || 1}
+          projectId={projectId}
+          onApply={(_artTempId, chargeTempId, updates) => {
+            // Find which artwork owns this charge
+            const art = localArtworks.find(a =>
+              a.charges.some(c => c.tempId === chargeTempId)
+            );
+            if (art) {
+              updateLocalArtworkCharge(art.tempId, chargeTempId, {
+                netCost: parseFloat(updates.netCost) || 0,
+                retailPrice: parseFloat(updates.retailPrice) || 0,
+                margin: parseFloat(updates.margin) || 0,
+                chargeName: updates.chargeName,
+              });
+            }
+          }}
+        />
+      )}
     </>
   );
 }

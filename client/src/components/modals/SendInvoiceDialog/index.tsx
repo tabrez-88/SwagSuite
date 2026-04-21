@@ -30,6 +30,7 @@ interface SendInvoiceDialogProps {
   companyName: string;
   orderNumber: string;
   invoiceNumber: string;
+  invoiceId: string;
   invoiceDocument: any;
   totalAmount: number;
   dueDate?: string;
@@ -40,7 +41,7 @@ interface SendInvoiceDialogProps {
 
 export default function SendInvoiceDialog({
   open, onOpenChange, projectId, recipientEmail, recipientName, companyName, orderNumber,
-  invoiceNumber, invoiceDocument, totalAmount, dueDate, contacts, stripeInvoiceUrl,
+  invoiceNumber, invoiceId, invoiceDocument, totalAmount, dueDate, contacts, stripeInvoiceUrl,
   assignedUserEmail,
 }: SendInvoiceDialogProps) {
   const { user } = useAuth();
@@ -53,7 +54,7 @@ export default function SendInvoiceDialog({
     reminderFrequency,
     setReminderFrequency,
     sendMutation,
-  } = useSendInvoice({ projectId, recipientName, invoiceNumber, invoiceDocument, onOpenChange });
+  } = useSendInvoice({ projectId, recipientName, invoiceNumber, invoiceId, invoiceDocument, onOpenChange });
 
   const dueDateFormatted = dueDate
     ? new Date(dueDate).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })
@@ -68,8 +69,8 @@ export default function SendInvoiceDialog({
     invoiceNumber,
     totalAmount: `$${totalAmount.toFixed(2)}`,
     dueDate: dueDateFormatted || "",
-    stripePaymentLink: stripeInvoiceUrl || "",
-  }), [companyName, senderName, recipientName, orderNumber, invoiceNumber, totalAmount, dueDateFormatted, stripeInvoiceUrl]);
+    // stripePaymentLink omitted, server-side will render it as a styled button
+  }), [companyName, senderName, recipientName, orderNumber, invoiceNumber, totalAmount, dueDateFormatted]);
 
   const { data: defaultTemplate, isLoading: loadingTemplate } = useDefaultEmailTemplate("invoice");
 
@@ -77,7 +78,7 @@ export default function SendInvoiceDialog({
     if (defaultTemplate) return applyTemplate(defaultTemplate, mergeData);
     return {
       subject: `Invoice #${invoiceNumber} from ${companyName}`,
-      body: `Hi ${recipientName.split(" ")[0] || "there"},\n\nPlease find attached Invoice #${invoiceNumber} for $${totalAmount.toFixed(2)}${dueDateFormatted ? ` due by ${dueDateFormatted}` : ""}.\n${stripeInvoiceUrl ? `\nPay online securely here: ${stripeInvoiceUrl}\n` : ""}\nIf you have any questions regarding this invoice, please don't hesitate to reach out.\n\nThank you for your business!\n\nBest regards,\n${companyName}`,
+      body: `<p>Hi ${recipientName.split(" ")[0] || "there"},</p><p>Please find attached Invoice #${invoiceNumber} for $${totalAmount.toFixed(2)}${dueDateFormatted ? ` due by ${dueDateFormatted}` : ""}.</p><p><span data-merge-tag="stripePaymentLink">{{stripePaymentLink}}</span></p><p>If you have any questions regarding this invoice, please don't hesitate to reach out.</p><p>Thank you for your business!</p><p>Best regards,<br>${companyName}</p>`,
     };
   }, [defaultTemplate, mergeData, invoiceNumber, companyName, recipientName, totalAmount, dueDateFormatted, stripeInvoiceUrl]);
 

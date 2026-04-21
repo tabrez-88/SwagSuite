@@ -36,6 +36,8 @@ interface MatrixChargePickerProps {
   numberOfColors?: number;
   quantity: number;
   projectId: string | number;
+  /** When provided, skips server mutation and calls this instead (for local/unsaved state) */
+  onApply?: (artworkId: string, chargeId: string, updates: { netCost: string; retailPrice: string; margin: string; chargeName: string }) => void;
 }
 
 export default function MatrixChargePicker({
@@ -51,6 +53,7 @@ export default function MatrixChargePicker({
   numberOfColors = 1,
   quantity,
   projectId,
+  onApply,
 }: MatrixChargePickerProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -191,17 +194,26 @@ export default function MatrixChargePicker({
     const retailPrice =
       margin > 0 && margin < 100 ? finalPrice / (1 - margin / 100) : finalPrice;
 
+    const updates = {
+      netCost: finalPrice.toFixed(2),
+      retailPrice: retailPrice.toFixed(2),
+      margin: margin.toFixed(2),
+      chargeName: finalLabel,
+    };
+
+    // Local mode: skip server mutation, call callback directly
+    if (onApply) {
+      onApply(artworkId, chargeId, updates);
+      toast({
+        title: "Charge updated",
+        description: `Applied $${finalPrice.toFixed(2)} from "${selectedMatrix?.name}"`,
+      });
+      onClose();
+      return;
+    }
+
     updateChargeMutation.mutate(
-      {
-        artworkId,
-        chargeId,
-        updates: {
-          netCost: finalPrice.toFixed(2),
-          retailPrice: retailPrice.toFixed(2),
-          margin: margin.toFixed(2),
-          chargeName: finalLabel,
-        },
-      },
+      { artworkId, chargeId, updates },
       {
         onSuccess: async () => {
           await queryClient.refetchQueries({

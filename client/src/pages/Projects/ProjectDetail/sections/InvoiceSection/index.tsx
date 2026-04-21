@@ -442,6 +442,7 @@ export default function InvoiceSection(props: InvoiceSectionProps) {
           companyName={hook.companyName}
           orderNumber={hook.order?.orderNumber || ""}
           invoiceNumber={hook.invoice.invoiceNumber}
+          invoiceId={String(hook.invoice.id)}
           invoiceDocument={hook.sendableDocument}
           totalAmount={Number(hook.invoice.totalAmount || 0)}
           dueDate={(hook.invoice.dueDate as unknown as string) ?? undefined}

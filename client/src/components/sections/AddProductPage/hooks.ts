@@ -188,6 +188,46 @@ export function useAddProductPage({ projectId, data }: AddProductPageProps) {
     ));
   }, []);
 
+  const updateLocalArtwork = useCallback((tempId: string, updates: Partial<LocalArtwork>) => {
+    setLocalArtworks(prev => prev.map(a => a.tempId === tempId ? { ...a, ...updates } : a));
+  }, []);
+
+  // Editing artwork dialog state
+  const [editingLocalArtwork, setEditingLocalArtwork] = useState<LocalArtwork | null>(null);
+
+  // Decorator type state
+  const [decoratorType, setDecoratorType] = useState<"supplier" | "third_party">("supplier");
+  const [decoratorId, setDecoratorId] = useState("");
+
+  // ── Reorder helpers (local array splice — no API calls) ──
+  const reorderConfigLines = useCallback((srcIdx: number, destIdx: number) => {
+    setConfigLines(prev => {
+      const arr = [...prev];
+      const [moved] = arr.splice(srcIdx, 1);
+      arr.splice(destIdx, 0, moved);
+      return arr;
+    });
+  }, []);
+
+  const reorderLocalCharges = useCallback((srcIdx: number, destIdx: number) => {
+    setLocalCharges(prev => {
+      const arr = [...prev];
+      const [moved] = arr.splice(srcIdx, 1);
+      arr.splice(destIdx, 0, moved);
+      return arr;
+    });
+  }, []);
+
+  const reorderLocalArtworkCharges = useCallback((artTempId: string, srcIdx: number, destIdx: number) => {
+    setLocalArtworks(prev => prev.map(a => {
+      if (a.tempId !== artTempId) return a;
+      const arr = [...a.charges];
+      const [moved] = arr.splice(srcIdx, 1);
+      arr.splice(destIdx, 0, moved);
+      return { ...a, charges: arr };
+    }));
+  }, []);
+
   // ── Artwork dialog handlers ──
   const handleArtworkFilePicked = useCallback((files: any[]) => {
     const file = files[0];
@@ -239,6 +279,9 @@ export function useAddProductPage({ projectId, data }: AddProductPageProps) {
     setShowAddCharge(false);
     setEditingChargeIdx(null);
     setNewCharge(EMPTY_CHARGE);
+    setDecoratorType("supplier");
+    setDecoratorId("");
+    setEditingLocalArtwork(null);
     resetArtForm();
   }, [resetArtForm]);
 
@@ -1052,6 +1095,18 @@ export function useAddProductPage({ projectId, data }: AddProductPageProps) {
     addLocalArtworkCharge,
     updateLocalArtworkCharge,
     removeLocalArtworkCharge,
+    updateLocalArtwork,
+    editingLocalArtwork,
+    setEditingLocalArtwork,
+    // Decorator
+    decoratorType,
+    setDecoratorType,
+    decoratorId,
+    setDecoratorId,
+    // Reorder
+    reorderConfigLines,
+    reorderLocalCharges,
+    reorderLocalArtworkCharges,
     // Charge dialog
     showAddCharge,
     setShowAddCharge,

@@ -654,6 +654,18 @@ export default function AddProductPage({ projectId, data }: AddProductPageProps)
         addLocalArtworkCharge={h.addLocalArtworkCharge}
         updateLocalArtworkCharge={h.updateLocalArtworkCharge}
         removeLocalArtworkCharge={h.removeLocalArtworkCharge}
+        updateLocalArtwork={h.updateLocalArtwork}
+        editingLocalArtwork={h.editingLocalArtwork}
+        setEditingLocalArtwork={h.setEditingLocalArtwork}
+        // Decorator
+        decoratorType={h.decoratorType}
+        setDecoratorType={h.setDecoratorType}
+        decoratorId={h.decoratorId}
+        setDecoratorId={h.setDecoratorId}
+        // Reorder
+        reorderConfigLines={h.reorderConfigLines}
+        reorderLocalCharges={h.reorderLocalCharges}
+        reorderLocalArtworkCharges={h.reorderLocalArtworkCharges}
         // Artwork dialog
         pickingArtwork={h.pickingArtwork}
         setPickingArtwork={h.setPickingArtwork}

@@ -9,6 +9,7 @@ interface UseSendInvoiceParams {
   projectId: string;
   recipientName: string;
   invoiceNumber: string;
+  invoiceId: string;
   invoiceDocument: any;
   onOpenChange: (open: boolean) => void;
 }
@@ -17,6 +18,7 @@ export function useSendInvoice({
   projectId,
   recipientName,
   invoiceNumber,
+  invoiceId,
   invoiceDocument,
   onOpenChange,
 }: UseSendInvoiceParams) {
@@ -39,7 +41,7 @@ export function useSendInvoice({
         recipientEmail: formData.to,
         recipientName: formData.toName || recipientName,
         subject: formData.subject,
-        body: formData.body,
+        body: formData.bodyHtml || formData.body,
         cc: formData.cc || undefined,
         bcc: formData.bcc || undefined,
         metadata: {
@@ -47,6 +49,11 @@ export function useSendInvoice({
           invoiceNumber,
           documentId: invoiceDocument.id,
           pdfPath: invoiceDocument.fileUrl,
+        },
+        mergeContext: {
+          type: "invoice",
+          orderId: projectId,
+          invoiceId,
         },
         autoAttachDocumentFile: {
           fileUrl: invoiceDocument.fileUrl,
