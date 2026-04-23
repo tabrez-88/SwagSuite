@@ -623,7 +623,7 @@ function InfoRow({
     <div className="flex items-center gap-2 text-sm">
       <span className="text-muted-foreground">{icon}</span>
       <span className="text-muted-foreground text-xs w-28">{label}</span>
-      <span className="text-xs font-medium">{value || "\u2014"}</span>
+      <span className="text-xs font-medium">{value || "-"}</span>
     </div>
   );
 }

@@ -1,13 +1,19 @@
 /**
- * Invoice PDF — react-pdf rewrite of InvoiceTemplate.tsx.
+ * Invoice PDF — CommonSKU-style flat summary table layout.
  *
- * Purple accent. Includes a "PAST DUE" badge when invoice is overdue and a
- * payment-terms summary row. Items wrap as a single block per row so a long
- * invoice paginates without splitting a row across pages.
+ * Shows: header with seller + client info, info grid (addresses + amount due +
+ * invoice details), flat item table with charge sub-rows, and footer totals.
  */
-import { Document, Page, View, Text, Image } from "@react-pdf/renderer";
+import { Document, Page, View, Text } from "@react-pdf/renderer";
+import { getImprintLocationLabel } from "@/constants/imprintOptions";
 import { styles, colors } from "./styles";
-import { fmtMoney, fmtDate, parseAddress, resolvePdfImage } from "./helpers";
+import {
+  fmtMoney,
+  fmtDate,
+  parseAddress,
+  formatCityLine,
+  formatPaymentTerms,
+} from "./helpers";
 
 export interface InvoicePdfProps {
   invoice: any;
@@ -15,7 +21,17 @@ export interface InvoicePdfProps {
   orderItems: any[];
   companyName: string;
   primaryContact: any;
+  allItemLines?: Record<string, any[]>;
+  allArtworkItems?: Record<string, any[]>;
+  allItemCharges?: Record<string, any[]>;
+  allArtworkCharges?: Record<string, any[]>;
   serviceCharges?: any[];
+  assignedUser?: {
+    firstName?: string;
+    lastName?: string;
+    email?: string;
+    profileImageUrl?: string;
+  } | null;
   sellerName?: string;
 }
 
@@ -25,260 +41,569 @@ export function InvoicePdf({
   orderItems,
   companyName,
   primaryContact,
+  allArtworkItems = {},
+  allItemCharges = {},
+  allArtworkCharges = {},
   serviceCharges = [],
   sellerName,
 }: InvoicePdfProps) {
   const billingAddr = parseAddress(order?.billingAddress);
   const shippingAddr = parseAddress(order?.shippingAddress);
 
-  const subtotal = orderItems.reduce(
+  // Items subtotal (product lines only)
+  const itemsSubtotal = orderItems.reduce(
     (sum: number, item: any) => sum + (parseFloat(item.totalPrice) || 0),
-    0
+    0,
   );
-  const shipping = parseFloat(order?.shippingCost) || parseFloat(order?.shipping) || 0;
+
+  // Additional charges per item (displayToClient only, excluding includeInUnitPrice)
+  const additionalChargesTotal = orderItems.reduce((sum: number, item: any) => {
+    const charges = (allItemCharges[item.id] || []).filter(
+      (c: any) => c.displayToClient && !c.includeInUnitPrice,
+    );
+    return (
+      sum +
+      charges.reduce((s: number, c: any) => {
+        const price = parseFloat(c.retailPrice || c.amount || "0");
+        const qty =
+          c.chargeCategory === "run" ? item.quantity || 1 : c.quantity || 1;
+        return s + price * qty;
+      }, 0)
+    );
+  }, 0);
+
+  // Artwork/decoration charges (displayToClient only)
+  const artworkChargesTotal = orderItems.reduce((sum: number, item: any) => {
+    const arts = allArtworkItems[item.id] || [];
+    return (
+      sum +
+      arts.reduce((s: number, art: any) => {
+        const charges = (allArtworkCharges[art.id] || []).filter(
+          (c: any) => c.displayMode !== "subtract_from_margin",
+        );
+        return (
+          s +
+          charges.reduce((s2: number, c: any) => {
+            const price = parseFloat(c.retailPrice || "0");
+            const qty =
+              c.chargeCategory === "run" ? item.quantity || 1 : c.quantity || 1;
+            return s2 + price * qty;
+          }, 0)
+        );
+      }, 0)
+    );
+  }, 0);
+
+  const shipping =
+    parseFloat(order?.shippingCost) || parseFloat(order?.shipping) || 0;
   const tax = parseFloat(invoice?.taxAmount) || parseFloat(order?.tax) || 0;
-  const clientServiceCharges = serviceCharges.filter((c: any) => c.displayToClient !== false);
-  const serviceChargesTotal = clientServiceCharges.reduce(
-    (sum: number, c: any) => sum + (c.quantity || 1) * parseFloat(c.unitPrice || "0"),
-    0
+  const clientServiceCharges = serviceCharges.filter(
+    (c: any) => c.displayToClient !== false,
   );
-  const grossSubtotal = subtotal + serviceChargesTotal;
-  const total = parseFloat(invoice?.totalAmount) || grossSubtotal + shipping + tax;
+  const serviceChargesTotal = clientServiceCharges.reduce(
+    (sum: number, c: any) =>
+      sum + (c.quantity || 1) * parseFloat(c.unitPrice || "0"),
+    0,
+  );
+  const subtotal =
+    itemsSubtotal +
+    additionalChargesTotal +
+    artworkChargesTotal +
+    serviceChargesTotal;
+  const total = parseFloat(invoice?.totalAmount) || subtotal + shipping + tax;
+
+  const isOverdue = invoice?.status === "overdue";
+  const isPaid = invoice?.status === "paid";
+
+  // Tax exempt check
+  const taxExempt = tax === 0;
 
   return (
     <Document title={`Invoice ${invoice?.invoiceNumber || ""}`}>
       <Page size="A4" style={styles.page} wrap>
-        {/* ── Header ───────────────────────────────────────────── */}
-        <View style={styles.header} fixed>
-          <View style={styles.headerLeft}>
-            <Text style={[styles.docTitle, { color: colors.blue600 }]}>INVOICE</Text>
-            <Text style={styles.docMeta}>Invoice #{invoice?.invoiceNumber || "N/A"}</Text>
-            <Text style={styles.docMeta}>Order #{order?.orderNumber || "N/A"}</Text>
-            <Text style={styles.docMeta}>Date: {fmtDate(invoice?.createdAt)}</Text>
-            {invoice?.dueDate && (
-              <Text style={[styles.docMeta, styles.bold]}>
-                Due Date: {fmtDate(invoice.dueDate)}
-              </Text>
-            )}
-          </View>
-          <View style={styles.headerRight}>
-            <Text style={styles.brandName}>{sellerName || "SwagSuite"}</Text>
-            <Text style={styles.brandSub}>Your Promotional Products Partner</Text>
-            {invoice?.status === "overdue" && (
-              <View style={[styles.badge, styles.badgeRed, { marginTop: 6 }]}>
+        {/* ── Header: Seller Name + Invoice Title ──────────────── */}
+        <View style={{ marginBottom: 16 }} fixed>
+          <Text
+            style={{
+              fontSize: 14,
+              fontFamily: "Helvetica-Bold",
+              color: colors.gray900,
+              marginBottom: 2,
+            }}
+          >
+            {"Liquid Screen Design"}
+          </Text>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <Text
+              style={{
+                fontSize: 20,
+                fontFamily: "Helvetica-Bold",
+                color: colors.gray800,
+              }}
+            >
+              INVOICE
+            </Text>
+            <Text style={{ fontSize: 11, color: colors.gray600 }}>
+              for {companyName || "Client"}
+              {order?.projectName ? ` — ${order.projectName}` : ""}
+            </Text>
+            {isOverdue && (
+              <View
+                style={[styles.badge, styles.badgeRed, { marginLeft: "auto" }]}
+              >
                 <Text>PAST DUE</Text>
               </View>
             )}
+            {isPaid && (
+              <View
+                style={[
+                  styles.badge,
+                  {
+                    backgroundColor: "#dcfce7",
+                    color: "#166534",
+                    marginLeft: "auto",
+                  },
+                ]}
+              >
+                <Text>PAID</Text>
+              </View>
+            )}
           </View>
+          <View
+            style={{ height: 2, backgroundColor: colors.gray800, marginTop: 6 }}
+          />
         </View>
 
-        {/* ── Bill To / Ship To ────────────────────────────────── */}
-        <View style={styles.addressGrid}>
-          <View style={styles.addressCol}>
-            <Text style={styles.addressLabel}>BILL TO</Text>
-            <Text style={[styles.addressLine, styles.bold]}>{companyName || "N/A"}</Text>
-            {primaryContact && (
-              <Text style={styles.addressLine}>
-                {primaryContact.firstName} {primaryContact.lastName}
-              </Text>
-            )}
-            {primaryContact?.email && <Text style={styles.addressLine}>{primaryContact.email}</Text>}
-            {billingAddr?.street && <Text style={styles.addressLine}>{billingAddr.street}</Text>}
-            {billingAddr?.street2 && <Text style={styles.addressLine}>{billingAddr.street2}</Text>}
-            {(billingAddr?.city || billingAddr?.state) && (
-              <Text style={styles.addressLine}>
-                {[billingAddr.city, billingAddr.state].filter(Boolean).join(", ")}{" "}
-                {billingAddr.zipCode || billingAddr.zip || ""}
-              </Text>
-            )}
-          </View>
-          <View style={styles.addressCol}>
-            <Text style={styles.addressLabel}>SHIP TO</Text>
+        {/* ── Info Grid: Addresses + Amount Due + Details ───────── */}
+        <View style={{ flexDirection: "row", marginBottom: 16, gap: 12 }}>
+          {/* Shipping Address */}
+          <View style={{ flex: 1 }}>
+            <Text style={styles.addressLabel}>SHIPPING ADDRESS</Text>
             {shippingAddr ? (
               <>
                 <Text style={[styles.addressLine, styles.bold]}>
                   {shippingAddr.name || companyName || "N/A"}
                 </Text>
+                /
                 {primaryContact && (
                   <Text style={styles.addressLine}>
-                    Attn: {primaryContact.firstName} {primaryContact.lastName}
+                    {primaryContact.firstName} {primaryContact.lastName}
                   </Text>
                 )}
-                {shippingAddr.street && <Text style={styles.addressLine}>{shippingAddr.street}</Text>}
-                {shippingAddr.street2 && <Text style={styles.addressLine}>{shippingAddr.street2}</Text>}
-                {(shippingAddr.city || shippingAddr.state) && (
-                  <Text style={styles.addressLine}>
-                    {[shippingAddr.city, shippingAddr.state].filter(Boolean).join(", ")}{" "}
-                    {shippingAddr.zipCode || shippingAddr.zip || ""}
-                  </Text>
+                {shippingAddr.street && (
+                  <Text style={styles.addressLine}>{shippingAddr.street}</Text>
                 )}
+                {shippingAddr.street2 && (
+                  <Text style={styles.addressLine}>{shippingAddr.street2}</Text>
+                )}
+                <Text style={styles.addressLine}>
+                  {formatCityLine(shippingAddr)}
+                </Text>
               </>
             ) : (
-              <Text style={[styles.addressLine, styles.muted]}>Same as billing</Text>
+              <Text style={[styles.addressLine, styles.muted]}>
+                Same as billing
+              </Text>
+            )}
+          </View>
+
+          {/* Billing Address */}
+          <View style={{ flex: 1 }}>
+            <Text style={styles.addressLabel}>BILLING ADDRESS</Text>
+            <Text style={[styles.addressLine, styles.bold]}>
+              {companyName || "N/A"}
+            </Text>
+            {primaryContact && (
+              <Text style={styles.addressLine}>
+                {primaryContact.firstName} {primaryContact.lastName}
+              </Text>
+            )}
+            {billingAddr?.street && (
+              <Text style={styles.addressLine}>{billingAddr.street}</Text>
+            )}
+            {billingAddr?.street2 && (
+              <Text style={styles.addressLine}>{billingAddr.street2}</Text>
+            )}
+            {billingAddr && (
+              <Text style={styles.addressLine}>
+                {formatCityLine(billingAddr)}
+              </Text>
+            )}
+          </View>
+
+          {/* Amount Due */}
+          <View
+            style={{
+              flex: 0.8,
+              alignItems: "center",
+              justifyContent: "center",
+              backgroundColor: colors.gray200,
+              borderRadius: 4,
+              padding: 10,
+            }}
+          >
+            <Text
+              style={{ fontSize: 8, color: colors.gray500, marginBottom: 2 }}
+            >
+              AMOUNT DUE
+            </Text>
+            <Text
+              style={{
+                fontSize: 18,
+                fontFamily: "Helvetica-Bold",
+                color: colors.gray800,
+              }}
+            >
+              {fmtMoney(total)}
+            </Text>
+          </View>
+
+          {/* Invoice Details */}
+          <View style={{ flex: 1 }}>
+            <View
+              style={{
+                flexDirection: "row",
+                justifyContent: "space-between",
+                paddingVertical: 2,
+              }}
+            >
+              <Text style={{ fontSize: 8, color: colors.gray500 }}>
+                Project #
+              </Text>
+              <Text style={{ fontSize: 8, fontFamily: "Helvetica-Bold" }}>
+                {order?.orderNumber || "N/A"}
+              </Text>
+            </View>
+            <View
+              style={{
+                flexDirection: "row",
+                justifyContent: "space-between",
+                paddingVertical: 2,
+              }}
+            >
+              <Text style={{ fontSize: 8, color: colors.gray500 }}>
+                Invoice #
+              </Text>
+              <Text style={{ fontSize: 8, fontFamily: "Helvetica-Bold" }}>
+                {invoice?.invoiceNumber || "N/A"}
+              </Text>
+            </View>
+            <View
+              style={{
+                flexDirection: "row",
+                justifyContent: "space-between",
+                paddingVertical: 2,
+              }}
+            >
+              <Text style={{ fontSize: 8, color: colors.gray500 }}>Date</Text>
+              <Text style={{ fontSize: 8 }}>{fmtDate(invoice?.createdAt)}</Text>
+            </View>
+            {invoice?.dueDate && (
+              <View
+                style={{
+                  flexDirection: "row",
+                  justifyContent: "space-between",
+                  paddingVertical: 2,
+                }}
+              >
+                <Text style={{ fontSize: 8, color: colors.gray500 }}>
+                  Due Date
+                </Text>
+                <Text
+                  style={{
+                    fontSize: 8,
+                    fontFamily: "Helvetica-Bold",
+                    color: isOverdue ? colors.red600 : colors.gray800,
+                  }}
+                >
+                  {fmtDate(invoice.dueDate)}
+                </Text>
+              </View>
+            )}
+            <View
+              style={{
+                flexDirection: "row",
+                justifyContent: "space-between",
+                paddingVertical: 2,
+              }}
+            >
+              <Text style={{ fontSize: 8, color: colors.gray500 }}>Terms</Text>
+              <Text style={{ fontSize: 8 }}>
+                {formatPaymentTerms(order?.paymentTerms) || "Net 30"}
+              </Text>
+            </View>
+            {order?.customerPo && (
+              <View
+                style={{
+                  flexDirection: "row",
+                  justifyContent: "space-between",
+                  paddingVertical: 2,
+                }}
+              >
+                <Text style={{ fontSize: 8, color: colors.gray500 }}>
+                  Customer PO
+                </Text>
+                <Text style={{ fontSize: 8, fontFamily: "Helvetica-Bold" }}>
+                  {order.customerPo}
+                </Text>
+              </View>
             )}
           </View>
         </View>
 
-        {/* ── Payment summary strip ────────────────────────────── */}
+        {/* ── Flat Summary Table ────────────────────────────────── */}
         <View
-          style={{
-            flexDirection: "row",
-            backgroundColor: colors.purple50,
-            borderColor: colors.purple200,
-            borderWidth: 1,
-            borderStyle: "solid",
-            borderRadius: 3,
-            padding: 8,
-            marginBottom: 14,
-          }}
+          style={[
+            styles.tableHead,
+            {
+              backgroundColor: colors.gray700,
+              borderRadius: 2,
+              paddingHorizontal: 6,
+            },
+          ]}
         >
-          <View style={{ flex: 1 }}>
-            <Text style={[styles.tiny, styles.muted]}>Payment Terms</Text>
-            <Text style={{ fontSize: 9 }}>
-              {order?.paymentTerms
-                ? order.paymentTerms.replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase())
-                : "Net 30"}
-            </Text>
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={[styles.tiny, styles.muted]}>Status</Text>
-            <Text
-              style={{
-                fontSize: 9,
-                color:
-                  invoice?.status === "paid"
-                    ? colors.green600
-                    : invoice?.status === "overdue"
-                      ? colors.red600
-                      : colors.amber700,
-              }}
-            >
-              {(invoice?.status || "pending")
-                .charAt(0)
-                .toUpperCase() + (invoice?.status || "pending").slice(1)}
-            </Text>
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={[styles.tiny, styles.muted]}>Amount Due</Text>
-            <Text style={[styles.bold, { fontSize: 10 }]}>{fmtMoney(total)}</Text>
-          </View>
+          <Text
+            style={[
+              styles.tableHeadCell,
+              styles.colItem,
+              { color: colors.white },
+            ]}
+          >
+            ITEM
+          </Text>
+          <Text
+            style={[
+              styles.tableHeadCell,
+              styles.colQty,
+              { color: colors.white },
+            ]}
+          >
+            QTY
+          </Text>
+          <Text
+            style={[
+              styles.tableHeadCell,
+              styles.colPrice,
+              { color: colors.white },
+            ]}
+          >
+            PRICE
+          </Text>
+          <Text
+            style={[
+              styles.tableHeadCell,
+              styles.colAmount,
+              { color: colors.white },
+            ]}
+          >
+            AMOUNT
+          </Text>
         </View>
 
-        {/* ── Items ────────────────────────────────────────────── */}
-        <View style={[styles.tableHead, { backgroundColor: colors.blue600, padding: 6 }]}>
-          <Text style={[styles.tableHeadCell, styles.colItem, { color: colors.white }]}>ITEM</Text>
-          <Text style={[styles.tableHeadCell, styles.colQty, { color: colors.white }]}>QTY</Text>
-          <Text style={[styles.tableHeadCell, styles.colPrice, { color: colors.white }]}>UNIT PRICE</Text>
-          <Text style={[styles.tableHeadCell, styles.colAmount, { color: colors.white }]}>AMOUNT</Text>
-        </View>
-        {orderItems.map((item: any, idx: number) => {
-          const product = item.product || {};
-          const imageUrl = product.imageUrl || item.imageUrl;
-          const imgSrc = resolvePdfImage(imageUrl);
+        {orderItems.map((item: any) => {
+          const unitPrice = parseFloat(item.unitPrice) || 0;
+          const quantity = item.quantity || 0;
+          const itemTotal = parseFloat(item.totalPrice) || unitPrice * quantity;
+          const itemArtworks = allArtworkItems[item.id] || [];
+          const itemCharges = (allItemCharges[item.id] || []).filter(
+            (c: any) => c.displayToClient && !c.includeInUnitPrice,
+          );
+
+          return (
+            <View key={item.id} wrap={false}>
+              {/* Product row */}
+              <View style={[styles.tableRow, { paddingHorizontal: 6 }]}>
+                <View style={[styles.colItem, { flexDirection: "column" }]}>
+                  <Text style={[styles.tableCell, styles.bold]}>
+                    {item.productName || item.name || "Product"}
+                  </Text>
+                  {item.notes && (
+                    <Text
+                      style={{
+                        fontSize: 7,
+                        color: colors.gray500,
+                        fontFamily: "Helvetica-Oblique",
+                        marginTop: 1,
+                      }}
+                    >
+                      {item.notes}
+                    </Text>
+                  )}
+                </View>
+                <Text style={[styles.tableCell, styles.colQty]}>
+                  {quantity}
+                </Text>
+                <Text style={[styles.tableCell, styles.colPrice]}>
+                  {fmtMoney(unitPrice)}
+                </Text>
+                <Text style={[styles.tableCell, styles.colAmount, styles.bold]}>
+                  {fmtMoney(itemTotal)}
+                </Text>
+              </View>
+
+              {/* Item charges as sub-rows */}
+              {itemCharges.map((charge: any) => {
+                const chargeAmt = parseFloat(
+                  charge.retailPrice || charge.amount || "0",
+                );
+                const chargeQty =
+                  charge.chargeCategory === "run"
+                    ? quantity
+                    : charge.quantity || 1;
+                return (
+                  <View
+                    key={charge.id}
+                    style={[
+                      styles.tableRow,
+                      { paddingHorizontal: 6, backgroundColor: colors.gray100 },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.tableCell,
+                        styles.colItem,
+                        styles.muted,
+                      ]}
+                    >
+                      {charge.description}
+                      {charge.chargeCategory === "run" ? " (per unit)" : ""}
+                    </Text>
+                    <Text style={[styles.tableCell, styles.colQty]}>
+                      {chargeQty}
+                    </Text>
+                    <Text style={[styles.tableCell, styles.colPrice]}>
+                      {fmtMoney(chargeAmt)}
+                    </Text>
+                    <Text style={[styles.tableCell, styles.colAmount]}>
+                      {fmtMoney(chargeAmt * chargeQty)}
+                    </Text>
+                  </View>
+                );
+              })}
+
+              {/* Artwork charges as sub-rows */}
+              {itemArtworks.map((art: any) => {
+                const artCharges = (allArtworkCharges[art.id] || []).filter(
+                  (c: any) => c.displayMode !== "subtract_from_margin",
+                );
+                const locationLabel = art.location
+                  ? getImprintLocationLabel(art.location)
+                  : "";
+                return artCharges.map((c: any) => {
+                  const price = parseFloat(c.retailPrice || "0");
+                  const qty =
+                    c.chargeCategory === "run" ? quantity : c.quantity || 1;
+                  const chargeLabel =
+                    c.chargeCategory === "run" ? "Imprint Cost" : "Setup Cost";
+                  return (
+                    <View
+                      key={c.id}
+                      style={[
+                        styles.tableRow,
+                        {
+                          paddingHorizontal: 6,
+                          backgroundColor: colors.gray100,
+                        },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.tableCell,
+                          styles.colItem,
+                          styles.muted,
+                        ]}
+                      >
+                        {chargeLabel}
+                        {locationLabel ? ` - ${locationLabel}` : ""}
+                      </Text>
+                      <Text style={[styles.tableCell, styles.colQty]}>
+                        {qty}
+                      </Text>
+                      <Text style={[styles.tableCell, styles.colPrice]}>
+                        {fmtMoney(price)}
+                      </Text>
+                      <Text style={[styles.tableCell, styles.colAmount]}>
+                        {fmtMoney(price * qty)}
+                      </Text>
+                    </View>
+                  );
+                });
+              })}
+            </View>
+          );
+        })}
+
+        {/* Service charges as rows in the same table */}
+        {clientServiceCharges.map((charge: any) => {
+          const qty = charge.quantity || 1;
+          const price = parseFloat(charge.unitPrice || "0");
           return (
             <View
-              key={idx}
-              style={[
-                styles.tableRow,
-                { padding: 6, backgroundColor: idx % 2 === 0 ? colors.white : colors.gray100 },
-              ]}
-              wrap={false}
+              key={charge.id}
+              style={[styles.tableRow, { paddingHorizontal: 6 }]}
             >
-              <View style={[styles.colItem, { flexDirection: "row", gap: 6 }]}>
-                {imgSrc && (
-                  <Image
-                    src={imgSrc}
-                    style={{ width: 32, height: 32, objectFit: "contain", borderRadius: 2 }}
-                  />
-                )}
-                <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: 9, fontFamily: "Helvetica-Bold", color: colors.gray900 }}>
-                    {product.name || item.productName || item.name || "Product"}
-                  </Text>
-                  {(product.sku || item.sku) && (
-                    <Text style={[styles.tiny, styles.muted]}>SKU: {product.sku || item.sku}</Text>
-                  )}
-                  {item.color && <Text style={[styles.tiny, styles.muted]}>Color: {item.color}</Text>}
-                  {item.size && <Text style={[styles.tiny, styles.muted]}>Size: {item.size}</Text>}
-                </View>
-              </View>
-              <Text style={[styles.tableCell, styles.colQty]}>{item.quantity}</Text>
+              <Text style={[styles.tableCell, styles.colItem, styles.bold]}>
+                {charge.description || charge.chargeType}
+              </Text>
+              <Text style={[styles.tableCell, styles.colQty]}>{qty}</Text>
               <Text style={[styles.tableCell, styles.colPrice]}>
-                {fmtMoney(parseFloat(item.unitPrice || "0"))}
+                {fmtMoney(price)}
               </Text>
               <Text style={[styles.tableCell, styles.colAmount, styles.bold]}>
-                {fmtMoney(parseFloat(item.totalPrice || "0"))}
+                {fmtMoney(qty * price)}
               </Text>
             </View>
           );
         })}
 
-        {/* ── Service charges ──────────────────────────────────── */}
-        {clientServiceCharges.length > 0 && (
-          <View style={{ marginTop: 8, marginBottom: 8 }} wrap={false}>
-            <Text style={[styles.notesLabel, { marginBottom: 4 }]}>Services & Fees</Text>
-            {clientServiceCharges.map((charge: any, idx: number) => {
-              const qty = charge.quantity || 1;
-              const price = parseFloat(charge.unitPrice || "0");
-              return (
-                <View key={idx} style={styles.tableRow}>
-                  <Text style={[styles.tableCell, styles.colItem]}>
-                    {charge.description || charge.chargeType}
-                  </Text>
-                  <Text style={[styles.tableCell, styles.colQty]}>{qty}</Text>
-                  <Text style={[styles.tableCell, styles.colPrice]}>{fmtMoney(price)}</Text>
-                  <Text style={[styles.tableCell, styles.colAmount, styles.bold]}>
-                    {fmtMoney(qty * price)}
-                  </Text>
-                </View>
-              );
-            })}
-          </View>
-        )}
-
-        {/* ── Totals ───────────────────────────────────────────── */}
+        {/* ── Footer: Totals ───────────────────────────────────── */}
         <View style={styles.totalsWrap} wrap={false}>
           <View style={styles.totalsBox}>
             <View style={styles.totalsRow}>
-              <Text>Subtotal:</Text>
-              <Text>{fmtMoney(grossSubtotal)}</Text>
+              <Text>SUBTOTAL</Text>
+              <Text>{fmtMoney(subtotal)}</Text>
+            </View>
+            <View style={styles.totalsRow}>
+              <Text>TAX{taxExempt ? " (Exempt)" : ""}</Text>
+              <Text>{fmtMoney(tax)}</Text>
             </View>
             {shipping > 0 && (
               <View style={styles.totalsRow}>
-                <Text>Shipping:</Text>
+                <Text>SHIPPING</Text>
                 <Text>{fmtMoney(shipping)}</Text>
               </View>
             )}
-            {tax > 0 && (
-              <View style={styles.totalsRow}>
-                <Text>Tax:</Text>
-                <Text>{fmtMoney(tax)}</Text>
-              </View>
-            )}
-            <View style={[styles.totalsGrandRow, { color: colors.blue600 }]}>
-              <Text>Total Due:</Text>
+            <View style={[styles.totalsGrandRow, { color: colors.gray800 }]}>
+              <Text>TOTAL</Text>
               <Text>{fmtMoney(total)}</Text>
             </View>
           </View>
         </View>
 
-        {/* ── Notes ────────────────────────────────────────────── */}
+        {/* ── Notes / Terms ────────────────────────────────────── */}
         {(invoice?.notes || order?.notes) && (
           <View style={styles.notesBlock} wrap={false}>
-            <Text style={styles.notesLabel}>NOTES</Text>
-            <Text style={styles.notesText}>{invoice?.notes || order?.notes}</Text>
+            <Text style={styles.notesLabel}>TERMS & CONDITIONS</Text>
+            <Text style={styles.notesText}>
+              {invoice?.notes || order?.notes}
+            </Text>
           </View>
         )}
 
-        {/* ── Footer ──────────────────────────────────────────── */}
+        {/* ── Footer ───────────────────────────────────────────── */}
         <View style={styles.pageFooter} fixed>
-          <Text>Thank you for your business! Please remit payment by the due date shown above.</Text>
+          <Text>
+            Thank you for your business! Please remit payment by the due date
+            shown above.
+          </Text>
           <Text style={{ marginTop: 2 }}>Generated by SwagSuite</Text>
         </View>
         <Text
           style={styles.pageNumber}
           fixed
-          render={({ pageNumber, totalPages }) => `${pageNumber} / ${totalPages}`}
+          render={({ pageNumber, totalPages }) =>
+            `${pageNumber} / ${totalPages}`
+          }
         />
       </Page>
     </Document>

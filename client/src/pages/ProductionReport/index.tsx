@@ -373,7 +373,7 @@ export default function ProductionReport() {
                         {/* Vendor + Company (stacked) */}
                         <TableCell className="py-3.5">
                           <div className="space-y-0.5 max-w-[200px]">
-                            <div className="text-sm font-medium truncate">{row.vendorName || "\u2014"}</div>
+                            <div className="text-sm font-medium truncate">{row.vendorName || "-"}</div>
                             <div className="text-xs text-muted-foreground truncate">{row.companyName || ""}</div>
                           </div>
                         </TableCell>
@@ -397,7 +397,7 @@ export default function ProductionReport() {
                               <TooltipContent>{row.csrUserName}</TooltipContent>
                             </Tooltip>
                           ) : (
-                            <span className="text-xs text-muted-foreground">{"\u2014"}</span>
+                            <span className="text-xs text-muted-foreground">{"-"}</span>
                           )}
                         </TableCell>
 
@@ -429,7 +429,7 @@ export default function ProductionReport() {
                               <TooltipContent className="max-w-[200px]">{row.nextActionNotes || "No notes"}</TooltipContent>
                             </Tooltip>
                           ) : (
-                            <span className="text-xs text-muted-foreground">{"\u2014"}</span>
+                            <span className="text-xs text-muted-foreground">{"-"}</span>
                           )}
                         </TableCell>
                         {/* Next Action Date*/}
@@ -456,7 +456,7 @@ export default function ProductionReport() {
                               <TooltipContent className="max-w-[200px]">{row.nextActionNotes || "No notes"}</TooltipContent>
                             </Tooltip>
                           ) : (
-                            <span className="text-xs text-muted-foreground">{"\u2014"}</span>
+                            <span className="text-xs text-muted-foreground">{"-"}</span>
                           )}
                         </TableCell>
 
@@ -476,7 +476,7 @@ export default function ProductionReport() {
                               )}
                             </div>
                           ) : (
-                            <span className="text-xs text-muted-foreground">{"\u2014"}</span>
+                            <span className="text-xs text-muted-foreground">{"-"}</span>
                           )}
                         </TableCell>
 
@@ -495,14 +495,14 @@ export default function ProductionReport() {
                               )}
                             </div>
                           ) : (
-                            <span className="text-xs text-muted-foreground">{"\u2014"}</span>
+                            <span className="text-xs text-muted-foreground">{"-"}</span>
                           )}
                         </TableCell>
 
                         {/* Total */}
                         <TableCell className="text-right py-3.5 pr-4">
                           <span className="text-sm font-semibold">
-                            {row.totalCost > 0 ? `$${Number(row.totalCost).toFixed(2)}` : "\u2014"}
+                            {row.totalCost > 0 ? `$${Number(row.totalCost).toFixed(2)}` : "-"}
                           </span>
                         </TableCell>
 

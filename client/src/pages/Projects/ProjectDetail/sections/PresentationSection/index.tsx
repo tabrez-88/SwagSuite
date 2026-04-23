@@ -428,10 +428,10 @@ function DetailedView({ items, hidePricing, onEdit, onPreview, onToggleVisibilit
                 <>
                   <span className="text-sm text-right">{item.quantity}</span>
                   <span className={`text-sm text-right font-medium ${marginColor(itemMargin)}`}>
-                    {hidePricing ? "\u2014" : `${itemMargin.toFixed(2)}%`}
+                    {hidePricing ? "-" : `${itemMargin.toFixed(2)}%`}
                   </span>
                   <span className="text-sm text-right font-semibold">
-                    {hidePricing ? "\u2014" : `$${price.toFixed(2)}`}
+                    {hidePricing ? "-" : `$${price.toFixed(2)}`}
                   </span>
                 </>
               ) : (
@@ -451,10 +451,10 @@ function DetailedView({ items, hidePricing, onEdit, onPreview, onToggleVisibilit
                       <span /><span />
                       <span className="text-sm text-right">{line.quantity}</span>
                       <span className={`text-sm text-right font-medium ${marginColor(lineMargin)}`}>
-                        {hidePricing ? "\u2014" : `${lineMargin.toFixed(2)}%`}
+                        {hidePricing ? "-" : `${lineMargin.toFixed(2)}%`}
                       </span>
                       <span className="text-sm text-right font-semibold">
-                        {hidePricing ? "\u2014" : `$${linePrice.toFixed(2)}`}
+                        {hidePricing ? "-" : `$${linePrice.toFixed(2)}`}
                       </span>
                     </div>
                   );

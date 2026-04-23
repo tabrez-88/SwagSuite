@@ -210,7 +210,7 @@ export class SsActivewearService {
           });
           if (!response.ok) return [];
           const products = await response.json();
-          return Array.isArray(products) ? products.slice(0, 10) : [];
+          return Array.isArray(products) ? products : [];
         } catch {
           return [];
         }
@@ -323,11 +323,8 @@ export class SsActivewearService {
       const products = await response.json();
       if (!Array.isArray(products)) return [];
 
-      // Find exact SKU match
-      const exactMatch = products.find((product: SsActivewearProduct) => 
-        product.sku?.toLowerCase() === query.toLowerCase()
-      );
-      return exactMatch ? [exactMatch] : [];
+      // Return all SKUs for this style so client can aggregate colors/sizes
+      return products;
     } catch (error) {
       console.log('SKU search error:', error);
       return [];
@@ -356,8 +353,7 @@ export class SsActivewearService {
           const products = await response.json();
           if (Array.isArray(products) && products.length > 0) {
             console.log(`Found ${products.length} products for style ${style}`);
-            // Limit results to prevent memory issues
-            return products.slice(0, 50);
+            return products;
           }
         } else {
           console.log(`Style search failed for ${style}: ${response.status}`);
@@ -488,7 +484,7 @@ export class SsActivewearService {
             const products = await response.json();
             if (Array.isArray(products) && products.length > 0) {
               console.log(`Found ${products.length} products for pattern ${pattern}`);
-              return products.slice(0, 20); // Limit results
+              return products;
             }
           } else {
             console.log(`Pattern search failed for ${pattern}: ${response.status}`);

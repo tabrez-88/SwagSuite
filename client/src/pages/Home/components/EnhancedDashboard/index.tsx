@@ -1,29 +1,28 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { PopularProducts } from "@/components/shared/PopularProducts";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Link } from "@/lib/wouter-compat";
+import type { ArAgingBucket } from "@/pages/Reports/hooks";
 import {
-  TrendingUp,
-  DollarSign,
-  Users,
-  Package,
-  Target,
-  Trophy,
   Activity,
-  Zap,
-  MessageSquare,
-  Newspaper,
+  AlertCircle,
   BarChart3,
   Database,
-  AlertCircle,
+  DollarSign,
+  MessageSquare,
+  Newspaper,
+  Package,
+  Target,
+  TrendingUp,
+  Trophy,
+  Users,
+  Zap,
 } from "lucide-react";
-import { Link } from "@/lib/wouter-compat";
-import { SlackPanel } from "../SlackPanel";
-import { PopularProducts } from "@/components/shared/PopularProducts";
 import { useEnhancedDashboard } from "./hooks";
-import type { ArAgingBucket } from "@/pages/Reports/hooks";
 
 const AR_BUCKET_ORDER: ArAgingBucket[] = ["current", "1-30", "31-60", "61-90", "90+"];
 const AR_BUCKET_LABELS: Record<ArAgingBucket, string> = {
@@ -71,16 +70,6 @@ export function EnhancedDashboard() {
           </p>
         </div>
         <div className="flex items-center gap-4">
-          <Button
-            onClick={() => seedDataMutation.mutate()}
-            disabled={seedDataMutation.isPending}
-            variant="outline"
-            size="sm"
-            className="flex items-center gap-2"
-          >
-            <Database className="h-4 w-4" />
-            {seedDataMutation.isPending ? "Adding Data..." : "Add Sample Data"}
-          </Button>
           <Select value={dateRange} onValueChange={setDateRange}>
             <SelectTrigger className="w-48">
               <SelectValue />
@@ -96,12 +85,12 @@ export function EnhancedDashboard() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="team">Team Performance</TabsTrigger>
-          <TabsTrigger value="popular">Popular Items</TabsTrigger>
+          {/* <TabsTrigger value="popular">Popular Items</TabsTrigger>
           <TabsTrigger value="automation">AI Automation</TabsTrigger>
-          <TabsTrigger value="news">News & Alerts</TabsTrigger>
+          <TabsTrigger value="news">News & Alerts</TabsTrigger> */}
         </TabsList>
 
         <TabsContent value="overview" className="space-y-6">

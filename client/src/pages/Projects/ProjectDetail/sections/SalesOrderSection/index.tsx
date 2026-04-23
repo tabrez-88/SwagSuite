@@ -53,6 +53,7 @@ import {
 } from "lucide-react";
 import React, { useState } from "react";
 import { useSalesOrderSection } from "./hooks";
+import ServiceChargesPanel from "./ServiceChargesPanel";
 import type { SalesOrderSectionProps } from "./types";
 
 export default function SalesOrderSection(props: SalesOrderSectionProps) {
@@ -319,6 +320,9 @@ export default function SalesOrderSection(props: SalesOrderSectionProps) {
       )}
 
       <ProductsSection projectId={projectId} data={hook.data} isLocked={hook.isLocked} />
+
+      <ServiceChargesPanel projectId={projectId} isLocked={hook.isLocked} />
+
       {/* Sales Order Document Section */}
       <Card>
         <CardHeader className="py-3">

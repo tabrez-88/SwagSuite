@@ -70,7 +70,7 @@ export default function GeneratedDocumentCard({
           </div>
           <div>
             <p className="font-medium text-sm">
-              {doc.documentType === "quote" ? "Quote" : doc.documentType === "sales_order" ? "Sales Order" : "Purchase Order"} #{doc.documentNumber}
+              {doc.documentType === "quote" ? "Quote" : doc.documentType === "sales_order" ? "Sales Order" : doc.documentType === "purchase_order" ? "Purchase Order" : "Invoice"} #{doc.documentNumber}
             </p>
             {doc.vendorName && (
               <p className="text-xs text-gray-500">Vendor: {doc.vendorName}</p>

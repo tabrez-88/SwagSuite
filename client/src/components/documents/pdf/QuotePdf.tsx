@@ -117,7 +117,7 @@ export function QuotePdf({
             )}
           </View>
           <View style={styles.headerRight}>
-            <Text style={styles.brandName}>{sellerName || "Liquid Screen Design"}</Text>
+            <Text style={styles.brandName}>{"Liquid Screen Design"}</Text>
           </View>
         </View>
 

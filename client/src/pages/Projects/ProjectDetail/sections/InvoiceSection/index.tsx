@@ -3,7 +3,13 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   CreditCard,
   FileText,
@@ -47,9 +53,19 @@ export default function InvoiceSection(props: InvoiceSectionProps) {
 
   return (
     <div className="space-y-6">
-      {lockStatus && <LockBanner lockStatus={lockStatus} sectionName="Invoice" sectionKey="invoice" projectId={projectId} />}
+      {lockStatus && (
+        <LockBanner
+          lockStatus={lockStatus}
+          sectionName="Invoice"
+          sectionKey="invoice"
+          projectId={projectId}
+        />
+      )}
 
-      <ProjectInfoBar companyName={hook.companyName} primaryContact={hook.primaryContact} />
+      <ProjectInfoBar
+        companyName={hook.companyName}
+        primaryContact={hook.primaryContact}
+      />
 
       <div className="flex items-center justify-between">
         <div>
@@ -66,8 +82,14 @@ export default function InvoiceSection(props: InvoiceSectionProps) {
             onClick={() => hook.createInvoiceMutation.mutate()}
             disabled={hook.createInvoiceMutation.isPending}
           >
-            {hook.createInvoiceMutation.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Plus className="w-4 h-4 mr-2" />}
-            {hook.createInvoiceMutation.isPending ? "Creating..." : "Create Invoice"}
+            {hook.createInvoiceMutation.isPending ? (
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+            ) : (
+              <Plus className="w-4 h-4 mr-2" />
+            )}
+            {hook.createInvoiceMutation.isPending
+              ? "Creating..."
+              : "Create Invoice"}
           </Button>
         )}
       </div>
@@ -89,7 +111,11 @@ export default function InvoiceSection(props: InvoiceSectionProps) {
                   <FileText className="w-4 h-4" />
                   Invoice #{hook.invoice.invoiceNumber}
                 </CardTitle>
-                <Badge className={invoiceStatusColors[hook.invoice.status ?? ""] || ""}>
+                <Badge
+                  className={
+                    invoiceStatusColors[hook.invoice.status ?? ""] || ""
+                  }
+                >
                   {hook.invoice.status?.toUpperCase()}
                 </Badge>
               </div>
@@ -98,15 +124,21 @@ export default function InvoiceSection(props: InvoiceSectionProps) {
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div>
                   <p className="text-xs text-gray-500">Subtotal</p>
-                  <p className="font-medium">${Number(hook.invoice.subtotal || 0).toLocaleString()}</p>
+                  <p className="font-medium">
+                    ${Number(hook.invoice.subtotal || 0).toLocaleString()}
+                  </p>
                 </div>
                 <div>
                   <p className="text-xs text-gray-500">Tax</p>
-                  <p className="font-medium">${Number(hook.invoice.taxAmount || 0).toLocaleString()}</p>
+                  <p className="font-medium">
+                    ${Number(hook.invoice.taxAmount || 0).toLocaleString()}
+                  </p>
                 </div>
                 <div>
                   <p className="text-xs text-gray-500">Total</p>
-                  <p className="font-bold text-lg">${Number(hook.invoice.totalAmount || 0).toLocaleString()}</p>
+                  <p className="font-bold text-lg">
+                    ${Number(hook.invoice.totalAmount || 0).toLocaleString()}
+                  </p>
                 </div>
                 <div>
                   <p className="text-xs text-gray-500 flex items-center gap-1">
@@ -115,13 +147,19 @@ export default function InvoiceSection(props: InvoiceSectionProps) {
                   </p>
                   {hook.invoice.status === "paid" ? (
                     <p className="font-medium">
-                      {hook.invoice.dueDate ? format(new Date(hook.invoice.dueDate), "MMM d, yyyy") : "Not set"}
+                      {hook.invoice.dueDate
+                        ? format(new Date(hook.invoice.dueDate), "MMM d, yyyy")
+                        : "Not set"}
                     </p>
                   ) : (
                     <Input
                       type="date"
                       className="h-8 text-sm w-[150px]"
-                      value={hook.invoice.dueDate ? format(new Date(hook.invoice.dueDate), "yyyy-MM-dd") : ""}
+                      value={
+                        hook.invoice.dueDate
+                          ? format(new Date(hook.invoice.dueDate), "yyyy-MM-dd")
+                          : ""
+                      }
                       onChange={(e) => hook.handleDueDateChange(e.target.value)}
                     />
                   )}
@@ -129,12 +167,16 @@ export default function InvoiceSection(props: InvoiceSectionProps) {
               </div>
 
               {hook.agingInfo && (
-                <div className={`flex items-center gap-2 px-3 py-2 rounded-md border ${hook.agingInfo.colorClass}`}>
+                <div
+                  className={`flex items-center gap-2 px-3 py-2 rounded-md border ${hook.agingInfo.colorClass}`}
+                >
                   <Clock className="w-4 h-4 flex-shrink-0" />
                   <span className="text-sm font-medium">
                     {hook.agingInfo.daysOverdue} days overdue
                   </span>
-                  <span className="text-xs opacity-75">({hook.agingInfo.category})</span>
+                  <span className="text-xs opacity-75">
+                    ({hook.agingInfo.category})
+                  </span>
                 </div>
               )}
 
@@ -142,20 +184,33 @@ export default function InvoiceSection(props: InvoiceSectionProps) {
               <div className="flex items-start gap-2 px-3 py-2 rounded-md border border-blue-200 bg-blue-50 text-blue-800">
                 <Info className="w-4 h-4 flex-shrink-0 mt-0.5" />
                 <p className="text-xs">
-                  A 3% credit card processing fee applies to payments made by credit/debit card.
+                  A 3% credit card processing fee applies to payments made by
+                  credit/debit card.
                 </p>
               </div>
 
               {/* Sent timestamp */}
-              {(hook.invoice as Record<string, string | boolean | null>).sentAt && (
+              {(hook.invoice as Record<string, string | boolean | null>)
+                .sentAt && (
                 <p className="text-xs text-gray-400">
-                  Sent on {format(new Date((hook.invoice as Record<string, string | boolean | null>).sentAt as string), "MMM d, yyyy 'at' h:mm a")}
+                  Sent on{" "}
+                  {format(
+                    new Date(
+                      (hook.invoice as Record<string, string | boolean | null>)
+                        .sentAt as string,
+                    ),
+                    "MMM d, yyyy 'at' h:mm a",
+                  )}
                 </p>
               )}
 
               {hook.invoice.createdAt && (
                 <p className="text-xs text-gray-400">
-                  Created {format(new Date(hook.invoice.createdAt), "MMM d, yyyy 'at' h:mm a")}
+                  Created{" "}
+                  {format(
+                    new Date(hook.invoice.createdAt),
+                    "MMM d, yyyy 'at' h:mm a",
+                  )}
                 </p>
               )}
             </CardContent>
@@ -181,10 +236,22 @@ export default function InvoiceSection(props: InvoiceSectionProps) {
           {/* Invoice Document */}
           <Card>
             <CardHeader className="py-3">
-              <CardTitle className="text-sm flex items-center gap-2">
-                <FileText className="w-4 h-4" />
-                Invoice Document
-              </CardTitle>
+              <div className="flex gap-4 items-center justify-between w-full">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <FileText className="w-4 h-4" />
+                  Invoice Document
+                </CardTitle>
+                {/* Send Invoice button */}
+                {hook.sendableDocument && hook.invoice.status !== "paid" && (
+                  <Button
+                    size="sm"
+                    onClick={() => hook.setShowSendDialog(true)}
+                  >
+                    <Send className="w-4 h-4 mr-1" />
+                    Send Invoice
+                  </Button>
+                )}
+              </div>
             </CardHeader>
             <CardContent className="space-y-3">
               {/* Local PDF documents */}
@@ -192,7 +259,9 @@ export default function InvoiceSection(props: InvoiceSectionProps) {
                 <GeneratedDocumentCard
                   key={doc.id}
                   document={doc}
-                  isStale={doc.id === hook.latestInvoiceDoc?.id && !!hook.isDocStale}
+                  isStale={
+                    doc.id === hook.latestInvoiceDoc?.id && !!hook.isDocStale
+                  }
                   onPreview={() => hook.setPreviewDoc(doc)}
                   onDelete={() => hook.handleDeleteDocument(doc.id)}
                   onRegenerate={hook.handleGeneratePdf}
@@ -235,7 +304,9 @@ export default function InvoiceSection(props: InvoiceSectionProps) {
                     onClick={hook.handleGeneratePdf}
                     disabled={hook.isGenerating}
                   >
-                    <RefreshCw className={`w-4 h-4 mr-1 ${hook.isGenerating ? "animate-spin" : ""}`} />
+                    <RefreshCw
+                      className={`w-4 h-4 mr-1 ${hook.isGenerating ? "animate-spin" : ""}`}
+                    />
                     {hook.isGenerating ? "Regenerating..." : "Regenerate PDF"}
                   </Button>
                 </div>
@@ -244,16 +315,26 @@ export default function InvoiceSection(props: InvoiceSectionProps) {
               {/* Stripe PDF section */}
               {hook.hasStripePdf && (
                 <div className="border-t pt-3 mt-3">
-                  <p className="text-xs text-gray-500 mb-2">Stripe Invoice PDF</p>
+                  <p className="text-xs text-gray-500 mb-2">
+                    Stripe Invoice PDF
+                  </p>
                   <div className="flex items-center gap-2">
                     <Button variant="ghost" size="sm" asChild>
-                      <a href={hook.invoice.stripeInvoicePdfUrl ?? undefined} target="_blank" rel="noopener noreferrer">
+                      <a
+                        href={hook.invoice.stripeInvoicePdfUrl ?? undefined}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
                         <Download className="w-4 h-4 mr-1" />
                         Stripe Invoice PDF
                       </a>
                     </Button>
                     <Button variant="ghost" size="sm" asChild>
-                      <a href={hook.invoice.stripeInvoiceUrl ?? undefined} target="_blank" rel="noopener noreferrer">
+                      <a
+                        href={hook.invoice.stripeInvoiceUrl ?? undefined}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
                         <ExternalLink className="w-4 h-4 mr-1" />
                         View in Stripe
                       </a>
@@ -269,7 +350,10 @@ export default function InvoiceSection(props: InvoiceSectionProps) {
                     variant="outline"
                     size="sm"
                     onClick={hook.handleStripePayment}
-                    disabled={hook.stripePaymentMutation.isPending || hook.orderItems.length === 0}
+                    disabled={
+                      hook.stripePaymentMutation.isPending ||
+                      hook.orderItems.length === 0
+                    }
                   >
                     {hook.stripePaymentMutation.isPending ? (
                       <Loader2 className="w-4 h-4 mr-1 animate-spin" />
@@ -278,20 +362,9 @@ export default function InvoiceSection(props: InvoiceSectionProps) {
                     )}
                     Create Stripe Invoice
                   </Button>
-                  <p className="text-xs text-gray-400 mt-1">Stripe link is auto-created for new invoices</p>
-                </div>
-              )}
-
-              {/* Send Invoice button */}
-              {hook.sendableDocument && hook.invoice.status !== "paid" && (
-                <div className="border-t pt-3 mt-3">
-                  <Button
-                    size="sm"
-                    onClick={() => hook.setShowSendDialog(true)}
-                  >
-                    <Send className="w-4 h-4 mr-1" />
-                    Send Invoice
-                  </Button>
+                  <p className="text-xs text-gray-400 mt-1">
+                    Stripe link is auto-created for new invoices
+                  </p>
                 </div>
               )}
             </CardContent>
@@ -320,20 +393,27 @@ export default function InvoiceSection(props: InvoiceSectionProps) {
                   {hook.invoice.paymentMethod && (
                     <p className="text-sm text-gray-500">
                       Method: {hook.invoice.paymentMethod}
-                      {hook.invoice.paymentReference && ` (Ref: ${hook.invoice.paymentReference})`}
+                      {hook.invoice.paymentReference &&
+                        ` (Ref: ${hook.invoice.paymentReference})`}
                     </p>
                   )}
                   {hook.invoice.paidAt && (
                     <p className="text-xs text-gray-400">
-                      Paid on {format(new Date(hook.invoice.paidAt), "MMM d, yyyy 'at' h:mm a")}
+                      Paid on{" "}
+                      {format(
+                        new Date(hook.invoice.paidAt),
+                        "MMM d, yyyy 'at' h:mm a",
+                      )}
                     </p>
                   )}
                 </div>
               ) : (
                 <div className="space-y-4">
                   <p className="text-sm text-gray-500">
-                    Payment pending — ${Number(hook.invoice.totalAmount || 0).toLocaleString()} due
-                    {hook.invoice.dueDate && ` by ${format(new Date(hook.invoice.dueDate), "MMM d, yyyy")}`}
+                    Payment pending — $
+                    {Number(hook.invoice.totalAmount || 0).toLocaleString()} due
+                    {hook.invoice.dueDate &&
+                      ` by ${format(new Date(hook.invoice.dueDate), "MMM d, yyyy")}`}
                   </p>
 
                   {/* Stripe payment link (auto-created with invoice) */}
@@ -348,7 +428,11 @@ export default function InvoiceSection(props: InvoiceSectionProps) {
                         Copy Payment Link
                       </Button>
                       <Button variant="ghost" size="sm" asChild>
-                        <a href={hook.invoice.stripeInvoiceUrl ?? undefined} target="_blank" rel="noopener noreferrer">
+                        <a
+                          href={hook.invoice.stripeInvoiceUrl ?? undefined}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
                           Open in Stripe
                         </a>
                       </Button>
@@ -356,10 +440,7 @@ export default function InvoiceSection(props: InvoiceSectionProps) {
                   )}
 
                   {/* Manual payment */}
-                  <Button
-                    size="sm"
-                    onClick={hook.handleOpenPaymentDialog}
-                  >
+                  <Button size="sm" onClick={hook.handleOpenPaymentDialog}>
                     <Banknote className="w-4 h-4 mr-1" />
                     Record Manual Payment
                   </Button>
@@ -369,7 +450,8 @@ export default function InvoiceSection(props: InvoiceSectionProps) {
           </Card>
 
           {/* Reminder info */}
-          {(hook.invoice as Record<string, string | boolean | null>).reminderEnabled && (
+          {(hook.invoice as Record<string, string | boolean | null>)
+            .reminderEnabled && (
             <Card>
               <CardHeader className="py-3">
                 <CardTitle className="text-sm flex items-center gap-2">
@@ -378,12 +460,47 @@ export default function InvoiceSection(props: InvoiceSectionProps) {
                 </CardTitle>
               </CardHeader>
               <CardContent className="text-sm text-gray-600 space-y-1">
-                <p>Reminders: Every {(hook.invoice as Record<string, string | boolean | null>).reminderFrequencyDays} days</p>
-                {(hook.invoice as Record<string, string | boolean | null>).nextReminderDate && (
-                  <p>Next reminder: {format(new Date((hook.invoice as Record<string, string | boolean | null>).nextReminderDate as string), "MMM d, yyyy")}</p>
+                <p>
+                  Reminders: Every{" "}
+                  {
+                    (hook.invoice as Record<string, string | boolean | null>)
+                      .reminderFrequencyDays
+                  }{" "}
+                  days
+                </p>
+                {(hook.invoice as Record<string, string | boolean | null>)
+                  .nextReminderDate && (
+                  <p>
+                    Next reminder:{" "}
+                    {format(
+                      new Date(
+                        (
+                          hook.invoice as Record<
+                            string,
+                            string | boolean | null
+                          >
+                        ).nextReminderDate as string,
+                      ),
+                      "MMM d, yyyy",
+                    )}
+                  </p>
                 )}
-                {(hook.invoice as Record<string, string | boolean | null>).lastReminderSentAt && (
-                  <p className="text-xs text-gray-400">Last sent: {format(new Date((hook.invoice as Record<string, string | boolean | null>).lastReminderSentAt as string), "MMM d, yyyy 'at' h:mm a")}</p>
+                {(hook.invoice as Record<string, string | boolean | null>)
+                  .lastReminderSentAt && (
+                  <p className="text-xs text-gray-400">
+                    Last sent:{" "}
+                    {format(
+                      new Date(
+                        (
+                          hook.invoice as Record<
+                            string,
+                            string | boolean | null
+                          >
+                        ).lastReminderSentAt as string,
+                      ),
+                      "MMM d, yyyy 'at' h:mm a",
+                    )}
+                  </p>
                 )}
               </CardContent>
             </Card>
@@ -393,7 +510,9 @@ export default function InvoiceSection(props: InvoiceSectionProps) {
         <Card>
           <CardContent className="p-12 text-center">
             <Receipt className="w-12 h-12 mx-auto text-gray-300 mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">No invoice yet</h3>
+            <h3 className="text-lg font-medium text-gray-900 mb-2">
+              No invoice yet
+            </h3>
             <p className="text-gray-500 mb-4">
               Create an invoice to start tracking payments for this project
             </p>
@@ -401,8 +520,14 @@ export default function InvoiceSection(props: InvoiceSectionProps) {
               onClick={() => hook.createInvoiceMutation.mutate()}
               disabled={hook.createInvoiceMutation.isPending}
             >
-              {hook.createInvoiceMutation.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Plus className="w-4 h-4 mr-2" />}
-              {hook.createInvoiceMutation.isPending ? "Creating..." : "Create Invoice"}
+              {hook.createInvoiceMutation.isPending ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <Plus className="w-4 h-4 mr-2" />
+              )}
+              {hook.createInvoiceMutation.isPending
+                ? "Creating..."
+                : "Create Invoice"}
             </Button>
           </CardContent>
         </Card>
@@ -438,7 +563,11 @@ export default function InvoiceSection(props: InvoiceSectionProps) {
           onOpenChange={hook.setShowSendDialog}
           projectId={projectId}
           recipientEmail={hook.primaryContact?.email || ""}
-          recipientName={hook.primaryContact ? `${hook.primaryContact.firstName} ${hook.primaryContact.lastName}` : hook.companyName}
+          recipientName={
+            hook.primaryContact
+              ? `${hook.primaryContact.firstName} ${hook.primaryContact.lastName}`
+              : hook.companyName
+          }
           companyName={hook.companyName}
           orderNumber={hook.order?.orderNumber || ""}
           invoiceNumber={hook.invoice.invoiceNumber}
@@ -453,7 +582,10 @@ export default function InvoiceSection(props: InvoiceSectionProps) {
       )}
 
       {/* Manual Payment Dialog */}
-      <Dialog open={hook.showPaymentDialog} onOpenChange={hook.setShowPaymentDialog}>
+      <Dialog
+        open={hook.showPaymentDialog}
+        onOpenChange={hook.setShowPaymentDialog}
+      >
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -461,14 +593,20 @@ export default function InvoiceSection(props: InvoiceSectionProps) {
               Record Manual Payment
             </DialogTitle>
             <DialogDescription>
-              Record an offline payment for Invoice #{hook.invoice?.invoiceNumber}.
+              Record an offline payment for Invoice #
+              {hook.invoice?.invoiceNumber}.
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4 py-2">
             <div>
-              <label className="text-xs font-medium text-gray-500 block mb-1">Payment Method</label>
-              <Select value={hook.paymentMethod} onValueChange={hook.setPaymentMethod}>
+              <label className="text-xs font-medium text-gray-500 block mb-1">
+                Payment Method
+              </label>
+              <Select
+                value={hook.paymentMethod}
+                onValueChange={hook.setPaymentMethod}
+              >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -476,7 +614,9 @@ export default function InvoiceSection(props: InvoiceSectionProps) {
                   <SelectItem value="check">Check</SelectItem>
                   <SelectItem value="wire">Wire Transfer</SelectItem>
                   <SelectItem value="ach">ACH</SelectItem>
-                  <SelectItem value="manual_card">Credit Card (Manual)</SelectItem>
+                  <SelectItem value="manual_card">
+                    Credit Card (Manual)
+                  </SelectItem>
                   <SelectItem value="cash">Cash</SelectItem>
                   <SelectItem value="credit">Store Credit</SelectItem>
                   <SelectItem value="other">Other</SelectItem>
@@ -484,7 +624,9 @@ export default function InvoiceSection(props: InvoiceSectionProps) {
               </Select>
             </div>
             <div>
-              <label className="text-xs font-medium text-gray-500 block mb-1">Reference # (optional)</label>
+              <label className="text-xs font-medium text-gray-500 block mb-1">
+                Reference # (optional)
+              </label>
               <Input
                 value={hook.paymentReference}
                 onChange={(e) => hook.setPaymentReference(e.target.value)}
@@ -492,7 +634,9 @@ export default function InvoiceSection(props: InvoiceSectionProps) {
               />
             </div>
             <div>
-              <label className="text-xs font-medium text-gray-500 block mb-1">Amount</label>
+              <label className="text-xs font-medium text-gray-500 block mb-1">
+                Amount
+              </label>
               <Input
                 type="number"
                 step="0.01"
@@ -504,12 +648,19 @@ export default function InvoiceSection(props: InvoiceSectionProps) {
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => hook.setShowPaymentDialog(false)}>Cancel</Button>
+            <Button
+              variant="outline"
+              onClick={() => hook.setShowPaymentDialog(false)}
+            >
+              Cancel
+            </Button>
             <Button
               onClick={hook.handleRecordPayment}
               disabled={hook.manualPaymentMutation.isPending}
             >
-              {hook.manualPaymentMutation.isPending && <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />}
+              {hook.manualPaymentMutation.isPending && (
+                <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />
+              )}
               Record Payment
             </Button>
           </DialogFooter>

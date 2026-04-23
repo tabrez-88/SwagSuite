@@ -459,7 +459,7 @@ export function ProductConfigDialog({
                         const lineTotal = line.quantity * line.unitPrice;
                         const lineMargin = calcMarginPercent(line.unitPrice, line.unitCost);
                         const clientPrice = (line.unitPrice || 0) + bakedInChargePerUnit;
-                        const colorSizeLabel = [line.color, line.size].filter(Boolean).join(" / ") || "\u2014";
+                        const colorSizeLabel = [line.color, line.size].filter(Boolean).join(" / ") || "-";
 
                         return (
                           <Draggable key={line.id} draggableId={`line-${line.id}`} index={lineIdx}>
@@ -476,7 +476,7 @@ export function ProductConfigDialog({
                                 <Popover>
                                   <PopoverTrigger asChild>
                                     <button className="h-8 w-full text-left text-xs px-2 rounded border border-gray-200 bg-white hover:bg-gray-50 truncate flex items-center justify-between gap-1">
-                                      <span className={colorSizeLabel === "\u2014" ? "text-gray-400" : ""}>{colorSizeLabel}</span>
+                                      <span className={colorSizeLabel === "-" ? "text-gray-400" : ""}>{colorSizeLabel}</span>
                                       <ChevronDown className="w-3 h-3 text-gray-400 flex-shrink-0" />
                                     </button>
                                   </PopoverTrigger>
@@ -504,7 +504,7 @@ export function ProductConfigDialog({
                             </td>
                             {/* SKU */}
                             <td className="p-2">
-                              <span className="text-xs text-center text-gray-500 block">{selectedProduct?.sku || "\u2014"}</span>
+                              <span className="text-xs text-center text-gray-500 block">{selectedProduct?.sku || "-"}</span>
                             </td>
                             {/* QTY */}
                             <td className="p-2">
@@ -1007,7 +1007,7 @@ export function ProductConfigDialog({
                     })}
                   </div>
                 ) : (
-                  <p className="text-xs text-gray-400">No decorations yet \u2014 click "+ Decoration Location" to add imprint locations (front, back, sleeve, etc.)</p>
+                  <p className="text-xs text-gray-400">No decorations yet - click "+ Decoration Location" to add imprint locations (front, back, sleeve, etc.)</p>
                 )}
               </div>
 

@@ -15,7 +15,7 @@ import { getEditedItem } from "@/lib/projectDetailUtils";
 import type { InvoiceSectionProps } from "./types";
 
 export function useInvoiceSection({ projectId, data }: InvoiceSectionProps) {
-  const { order, invoice, invoiceLoading, orderItems, companyName, primaryContact, contacts, serviceCharges } = data;
+  const { order, invoice, invoiceLoading, orderItems, companyName, primaryContact, contacts, serviceCharges, allItemLines, allArtworkItems, allItemCharges, allArtworkCharges, assignedUser } = data;
   const { toast } = useToast();
 
   // State
@@ -87,7 +87,12 @@ export function useInvoiceSection({ projectId, data }: InvoiceSectionProps) {
       orderItems,
       companyName,
       primaryContact,
+      allItemLines,
+      allArtworkItems,
+      allItemCharges,
+      allArtworkCharges,
       serviceCharges,
+      assignedUser,
       sellerName: branding?.companyName ?? undefined,
     });
 

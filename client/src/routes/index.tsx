@@ -22,6 +22,9 @@ const importers = {
   customerPortal: () => import("@/pages/CustomerPortal"),
   publicPresentation: () => import("@/pages/Projects/ProjectDetail/sections/PresentationSection/PublicPresentation"),
 
+  // Dev-only
+  devPdfPreview: () => import("@/pages/DevPdfPreview"),
+
   // Authenticated
   home: () => import("@/pages/Home"),
   crm: () => import("@/pages/Crm"),
@@ -60,6 +63,7 @@ const AcceptInvitation = lazy(importers.acceptInvitation);
 const POConfirmationPage = lazy(importers.poConfirmation);
 const CustomerPortalPage = lazy(importers.customerPortal);
 const PublicPresentationPage = lazy(importers.publicPresentation);
+const DevPdfPreviewPage = lazy(importers.devPdfPreview);
 
 const Home = lazy(importers.home);
 const CRM = lazy(importers.crm);
@@ -177,6 +181,11 @@ export const router = createBrowserRouter([
   { path: ROUTES.PO_CONFIRMATION, element: withSuspense(POConfirmationPage) },
   { path: ROUTES.CUSTOMER_PORTAL, element: withSuspense(CustomerPortalPage) },
   { path: ROUTES.PUBLIC_PRESENTATION, element: withSuspense(PublicPresentationPage) },
+
+  // ---- Dev-only routes (only in development mode) ----
+  ...(import.meta.env.DEV ? [
+    { path: "/dev/pdf", element: withSuspense(DevPdfPreviewPage) },
+  ] : []),
 
   // ---- Authenticated routes ----
   {

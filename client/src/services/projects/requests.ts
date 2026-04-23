@@ -140,3 +140,18 @@ export async function fetchProjectCommunications(
   const res = await apiRequest("GET", `/api/projects/${projectId}/communications?type=${type}`);
   return res.json();
 }
+
+// ── Service Charges ──
+export async function createServiceCharge(projectId: string | number, data: Record<string, any>) {
+  const res = await apiRequest("POST", `/api/projects/${projectId}/service-charges`, data);
+  return res.json();
+}
+
+export async function updateServiceCharge(projectId: string | number, chargeId: string, data: Record<string, any>) {
+  const res = await apiRequest("PATCH", `/api/projects/${projectId}/service-charges/${chargeId}`, data);
+  return res.json();
+}
+
+export async function deleteServiceCharge(projectId: string | number, chargeId: string) {
+  await apiRequest("DELETE", `/api/projects/${projectId}/service-charges/${chargeId}`);
+}

@@ -681,6 +681,7 @@ export function usePurchaseOrdersSection({ projectId, data, isLocked }: Purchase
     allItemLines,
     allItemCharges,
     allArtworkItems,
+    allArtworkCharges: data.allArtworkCharges || {},
     suppliers,
     data,
     isLocked,

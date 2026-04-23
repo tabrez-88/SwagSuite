@@ -89,7 +89,7 @@ async function recalculateOrderTotals(orderId: string) {
   // Sell total: all revenue-generating charges ("include in price" + "display to client").
   // Only "subtract from margin" (displayToClient=false, includeInUnitPrice=false) is excluded.
   const additionalChargesTotal = allCharges
-    .filter((c: any) => c.displayToClient !== false || c.includeInUnitPrice)
+    .filter((c: any) => (c.displayToClient !== false) && !c.includeInUnitPrice)
     .reduce((sum: number, c: any) => {
       const parentItem = allItems.find(i => i.id === c.orderItemId);
       const itemQty = parentItem?.quantity || 1;
@@ -1286,6 +1286,17 @@ export class ProjectController {
       await db.delete(artworkItems).where(eq(artworkItems.orderItemId, req.params.itemId));
       await db.update(mediaLibrary).set({ orderItemId: null }).where(eq(mediaLibrary.orderItemId, req.params.itemId));
       await db.update(orderFiles).set({ orderItemId: null }).where(eq(orderFiles.orderItemId, req.params.itemId));
+
+      // Clean up auto-created shipping service charge for this item
+      const { orderServiceCharges } = await import("@shared/schema");
+      const { and: andOp } = await import("drizzle-orm");
+      const autoTag = `auto:shipping:${req.params.itemId}`;
+      await db.delete(orderServiceCharges).where(
+        andOp(
+          eq(orderServiceCharges.orderId, req.params.projectId),
+          eq(orderServiceCharges.notes, autoTag),
+        ),
+      );
 
       // Now safe to delete the order item
       await projectRepository.deleteOrderItem(req.params.itemId);

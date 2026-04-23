@@ -407,9 +407,13 @@ export function useAddProductPage({ projectId, data }: AddProductPageProps) {
       const products = await searchSanMarApi(q);
       const results: ProductResult[] = (Array.isArray(products) ? products : []).map((p: any) => {
         const tiers: { quantity: number; cost: number }[] = [];
-        if (p.piecePrice) tiers.push({ quantity: 1, cost: parseFloat(p.piecePrice) || 0 });
-        if (p.dozenPrice) tiers.push({ quantity: 12, cost: parseFloat(p.dozenPrice) || 0 });
-        if (p.casePrice && p.caseSize) tiers.push({ quantity: parseInt(p.caseSize) || 72, cost: parseFloat(p.casePrice) || 0 });
+        const pieceP = parseFloat(p.piecePrice) || 0;
+        const dozenP = p.dozenPrice ? (parseFloat(p.dozenPrice) / 12) : 0;
+        const caseQty = parseInt(p.caseSize) || 72;
+        const caseP = p.casePrice ? (parseFloat(p.casePrice) / caseQty) : 0;
+        if (pieceP > 0) tiers.push({ quantity: 1, cost: +pieceP.toFixed(2) });
+        if (dozenP > 0 && +dozenP.toFixed(2) !== +pieceP.toFixed(2)) tiers.push({ quantity: 12, cost: +dozenP.toFixed(2) });
+        if (caseP > 0 && +caseP.toFixed(2) !== +dozenP.toFixed(2)) tiers.push({ quantity: caseQty, cost: +caseP.toFixed(2) });
         return {
           id: p.styleId || p.id || `sanmar_${p.productId}`,
           source: "sanmar" as const,
@@ -458,9 +462,13 @@ export function useAddProductPage({ projectId, data }: AddProductPageProps) {
       const results: ProductResult[] = [];
       for (const [, { base: p, colors, sizes }] of Array.from(styleMap.entries())) {
         const ssTiers: { quantity: number; cost: number }[] = [];
-        if (p.customerPrice || p.piecePrice) ssTiers.push({ quantity: 1, cost: parseFloat(p.customerPrice || p.piecePrice) || 0 });
-        if (p.dozenPrice) ssTiers.push({ quantity: 12, cost: parseFloat(p.dozenPrice) || 0 });
-        if (p.casePrice && p.caseQty) ssTiers.push({ quantity: parseInt(p.caseQty) || 72, cost: parseFloat(p.casePrice) || 0 });
+        const ssPieceP = parseFloat(p.customerPrice || p.piecePrice) || 0;
+        const ssCaseQty = parseInt(p.caseQty) || 72;
+        const ssDozenP = p.dozenPrice ? (parseFloat(p.dozenPrice) / 12) : 0;
+        const ssCaseP = p.casePrice ? (parseFloat(p.casePrice) / ssCaseQty) : 0;
+        if (ssPieceP > 0) ssTiers.push({ quantity: 1, cost: +ssPieceP.toFixed(2) });
+        if (ssDozenP > 0 && +ssDozenP.toFixed(2) !== +ssPieceP.toFixed(2)) ssTiers.push({ quantity: 12, cost: +ssDozenP.toFixed(2) });
+        if (ssCaseP > 0 && +ssCaseP.toFixed(2) !== +ssDozenP.toFixed(2)) ssTiers.push({ quantity: ssCaseQty, cost: +ssCaseP.toFixed(2) });
         results.push({
           id: `ss_${p.styleID}`,
           source: "ss_activewear",

@@ -246,3 +246,44 @@ export function useUpdateProjectStage() {
     onError: () => toast({ title: "Failed to update stage", variant: "destructive" }),
   });
 }
+
+// ── Service Charges ──
+
+function useInvalidateServiceCharges(projectId: string | number) {
+  const queryClient = useQueryClient();
+  return () => {
+    queryClient.invalidateQueries({ queryKey: projectKeys.serviceCharges(projectId) });
+    queryClient.invalidateQueries({ queryKey: projectKeys.detail(projectId) });
+  };
+}
+
+export function useAddServiceCharge(projectId: string | number) {
+  const { toast } = useToast();
+  const invalidate = useInvalidateServiceCharges(projectId);
+  return useMutation({
+    mutationFn: (charge: Record<string, any>) => requests.createServiceCharge(projectId, charge),
+    onSuccess: () => { invalidate(); toast({ title: "Service charge added" }); },
+    onError: () => toast({ title: "Failed to add service charge", variant: "destructive" }),
+  });
+}
+
+export function useUpdateServiceCharge(projectId: string | number) {
+  const { toast } = useToast();
+  const invalidate = useInvalidateServiceCharges(projectId);
+  return useMutation({
+    mutationFn: ({ chargeId, data }: { chargeId: string; data: Record<string, any> }) =>
+      requests.updateServiceCharge(projectId, chargeId, data),
+    onSuccess: () => { invalidate(); toast({ title: "Service charge updated" }); },
+    onError: () => toast({ title: "Failed to update service charge", variant: "destructive" }),
+  });
+}
+
+export function useDeleteServiceCharge(projectId: string | number) {
+  const { toast } = useToast();
+  const invalidate = useInvalidateServiceCharges(projectId);
+  return useMutation({
+    mutationFn: (chargeId: string) => requests.deleteServiceCharge(projectId, chargeId),
+    onSuccess: () => { invalidate(); toast({ title: "Service charge deleted" }); },
+    onError: () => toast({ title: "Failed to delete service charge", variant: "destructive" }),
+  });
+}

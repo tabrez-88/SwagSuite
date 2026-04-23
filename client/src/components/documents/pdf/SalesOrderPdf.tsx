@@ -119,7 +119,7 @@ export function SalesOrderPdf({
             )}
           </View>
           <View style={styles.headerRight}>
-            <Text style={styles.brandName}>{sellerName || "Liquid Screen Design"}</Text>
+            <Text style={styles.brandName}>{"Liquid Screen Design"}</Text>
             {order?.isFirm && (
               <View style={[styles.badge, styles.badgeBlue, { marginTop: 6 }]}>
                 <Text>FIRM ORDER</Text>
@@ -212,13 +212,33 @@ export function SalesOrderPdf({
 
         {/* ── Items ────────────────────────────────────────────── */}
         {orderItems.map((item: any) => {
-          const unitPrice = parseFloat(item.unitPrice) || 0;
-          const quantity = item.quantity || 0;
-          const itemTotal = parseFloat(item.totalPrice) || unitPrice * quantity;
+          const realLines = allItemLines[item.id] || [];
+          const hasMultipleLines = realLines.length > 1;
           const itemArtworks = allArtworkItems[item.id] || [];
           const itemCharges = (allItemCharges[item.id] || []).filter(
             (c: any) => c.displayToClient && !c.includeInUnitPrice
           );
+
+          // Use getItemPricing for accurate total including charges
+          const pricingLines: PricingLine[] =
+            realLines.length > 0
+              ? realLines.map((l: any) => ({
+                  quantity: l.quantity || 0,
+                  cost: parseFloat(l.cost || "0"),
+                  unitPrice: parseFloat(l.unitPrice || "0"),
+                }))
+              : [{ quantity: item.quantity || 0, cost: parseFloat(item.cost || "0"), unitPrice: parseFloat(item.unitPrice || "0") }];
+          const decoCharges: DecorationCharge[] = [];
+          for (const art of itemArtworks) {
+            for (const c of allArtworkCharges[art.id] || []) decoCharges.push(c as DecorationCharge);
+          }
+          const pricing = getItemPricing(pricingLines, itemCharges as ProductCharge[], decoCharges, item);
+          const productTotal = pricing.itemSellGrandTotal;
+
+          const totalUnits = hasMultipleLines
+            ? realLines.reduce((s: number, l: any) => s + (l.quantity || 0), 0)
+            : item.quantity || 0;
+
           const productImgSrc = resolvePdfImage(item.imageUrl || item.productImageUrl);
 
           return (
@@ -245,27 +265,56 @@ export function SalesOrderPdf({
                     <Text style={[styles.tableHeadCell, styles.colAmount]}>AMOUNT</Text>
                   </View>
 
-                  <View style={styles.tableRow}>
-                    <Text style={[styles.tableCell, styles.colItem]}>
-                      {item.color && item.size
-                        ? `Size: ${item.size} - Color: ${item.color}`
-                        : item.color
-                          ? `Color: ${item.color}`
-                          : item.size
-                            ? `Size: ${item.size}`
-                            : item.productName}
-                    </Text>
-                    <Text style={[styles.tableCell, styles.colQty]}>{quantity}</Text>
-                    <Text style={[styles.tableCell, styles.colPrice]}>{fmtMoney(unitPrice)}</Text>
-                    <Text style={[styles.tableCell, styles.colAmount, styles.bold]}>
-                      {fmtMoney(itemTotal)}
-                    </Text>
-                  </View>
+                  {hasMultipleLines ? (
+                    <>
+                      {realLines.map((line: any, idx: number) => {
+                        const lineQty = line.quantity || 0;
+                        const linePrice = parseFloat(line.unitPrice || "0");
+                        const lineLabel = [
+                          line.size && `Size: ${line.size}`,
+                          line.color && `Color: ${line.color}`,
+                        ].filter(Boolean).join(" - ") || `Line ${idx + 1}`;
+                        return (
+                          <View key={line.id || idx} style={styles.tableRow}>
+                            <Text style={[styles.tableCell, styles.colItem]}>{lineLabel}</Text>
+                            <Text style={[styles.tableCell, styles.colQty]}>{lineQty}</Text>
+                            <Text style={[styles.tableCell, styles.colPrice]}>{fmtMoney(linePrice)}</Text>
+                            <Text style={[styles.tableCell, styles.colAmount, styles.bold]}>
+                              {fmtMoney(lineQty * linePrice)}
+                            </Text>
+                          </View>
+                        );
+                      })}
+                      <View style={[styles.tableRow, { backgroundColor: "#f9fafb" }]}>
+                        <Text style={[styles.tableCell, styles.colItem, styles.bold]}>TOTAL UNITS</Text>
+                        <Text style={[styles.tableCell, styles.colQty, styles.bold]}>{totalUnits}</Text>
+                        <Text style={[styles.tableCell, styles.colPrice]}> </Text>
+                        <Text style={[styles.tableCell, styles.colAmount]}> </Text>
+                      </View>
+                    </>
+                  ) : (
+                    <View style={styles.tableRow}>
+                      <Text style={[styles.tableCell, styles.colItem]}>
+                        {item.color && item.size
+                          ? `Size: ${item.size} - Color: ${item.color}`
+                          : item.color
+                            ? `Color: ${item.color}`
+                            : item.size
+                              ? `Size: ${item.size}`
+                              : item.productName}
+                      </Text>
+                      <Text style={[styles.tableCell, styles.colQty]}>{totalUnits}</Text>
+                      <Text style={[styles.tableCell, styles.colPrice]}>{fmtMoney(parseFloat(item.unitPrice || "0"))}</Text>
+                      <Text style={[styles.tableCell, styles.colAmount, styles.bold]}>
+                        {fmtMoney(totalUnits * parseFloat(item.unitPrice || "0"))}
+                      </Text>
+                    </View>
+                  )}
 
                   {itemCharges.map((charge: any) => {
                     const chargeAmt = parseFloat(charge.retailPrice || charge.amount || "0");
                     const chargeQty =
-                      charge.chargeCategory === "run" ? quantity : charge.quantity || 1;
+                      charge.chargeCategory === "run" ? totalUnits : charge.quantity || 1;
                     return (
                       <View key={charge.id} style={styles.tableRow}>
                         <Text style={[styles.tableCell, styles.colItem, styles.muted]}>
@@ -286,7 +335,7 @@ export function SalesOrderPdf({
                     <Text style={[styles.tableCell, styles.colQty]}> </Text>
                     <Text style={[styles.tableCell, styles.colPrice]}> </Text>
                     <Text style={[styles.tableCell, styles.colAmount, styles.bold]}>
-                      {fmtMoney(itemTotal)}
+                      {fmtMoney(productTotal)}
                     </Text>
                   </View>
                 </View>

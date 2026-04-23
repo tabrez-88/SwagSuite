@@ -44,7 +44,7 @@ export default function ProjectModal(props: ProjectModalProps) {
       <DialogContent className="max-w-5xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
-            {h.isEditing ? `Edit Project \u2014 ${h.stageLabel} Stage` : "Create New Project"}
+            {h.isEditing ? `Edit Project ${h.stageLabel} Stage` : "Create New Project"}
           </DialogTitle>
         </DialogHeader>
         <Separator />

@@ -26,6 +26,26 @@ async function uploadImageToCloudinary(imageUrl: string, sku?: string): Promise<
   }
 }
 
+/**
+ * Convert flat piece/dozen/case pricing into normalized per-unit tiers.
+ * Used by SanMar & S&S sync paths.
+ */
+export function convertFlatPricingToTiers(
+  piecePrice: number,
+  dozenPrice: number,
+  casePrice: number,
+  caseQty: number = 72,
+): { quantity: number; cost: number }[] | undefined {
+  const tiers: { quantity: number; cost: number }[] = [];
+  const piece = piecePrice || 0;
+  const dozen = dozenPrice ? dozenPrice / 12 : 0;
+  const caseUnit = casePrice ? casePrice / (caseQty || 72) : 0;
+  if (piece > 0) tiers.push({ quantity: 1, cost: +piece.toFixed(2) });
+  if (dozen > 0 && +dozen.toFixed(2) !== +piece.toFixed(2)) tiers.push({ quantity: 12, cost: +dozen.toFixed(2) });
+  if (caseUnit > 0 && +caseUnit.toFixed(2) !== +dozen.toFixed(2)) tiers.push({ quantity: caseQty, cost: +caseUnit.toFixed(2) });
+  return tiers.length > 0 ? tiers : undefined;
+}
+
 export class ProductService {
   async getAll(supplierId?: string) {
     if (supplierId) {

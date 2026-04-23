@@ -467,6 +467,15 @@ export default function PurchaseOrdersSection({ projectId, data, isLocked }: Pur
                     <div className="bg-gray-50/50">
                       {po.items.map((item, idx: number) => {
                         const itemLines = po.lines[item.id] || [];
+                        const itemRunCharges = (hook.allItemCharges[item.id] || []).filter((c: any) => c.chargeCategory === "run");
+                        const itemFixedCharges = (hook.allItemCharges[item.id] || []).filter((c: any) => c.chargeCategory === "fixed" || (!c.chargeCategory && !c.includeInUnitPrice));
+                        const itemArts = hook.allArtworkItems[item.id] || [];
+                        const itemArtworkCharges: any[] = [];
+                        itemArts.forEach((art: any) => {
+                          (hook.allArtworkCharges[art.id] || []).forEach((c: any) => {
+                            itemArtworkCharges.push({ ...c, artworkName: art.name || "Artwork" });
+                          });
+                        });
                         return (
                           <div key={item.id} className={`px-6 py-3 ${idx < po.items.length - 1 ? "border-b" : ""}`}>
                             <div className="flex items-center justify-between mb-2">
@@ -512,10 +521,90 @@ export default function PurchaseOrdersSection({ projectId, data, isLocked }: Pur
                                 {item.color && <span>Color: {item.color}</span>}
                               </div>
                             )}
+
+                            {/* Per-item charges */}
+                            {(itemRunCharges.length > 0 || itemFixedCharges.length > 0 || itemArtworkCharges.length > 0) && (
+                              <div className="mt-2 space-y-1.5 ml-6">
+                                {itemRunCharges.map((c: any) => {
+                                  const cost = parseFloat(c.netCost || c.amount || "0");
+                                  const qty = item.quantity || 1;
+                                  return (
+                                    <div key={c.id} className="flex items-center justify-between text-xs bg-blue-50 border border-blue-100 rounded px-3 py-1.5">
+                                      <span className="text-blue-700">{c.description} <span className="text-blue-400">(per unit)</span></span>
+                                      <span className="font-medium text-blue-700">${cost.toFixed(2)} × {qty} = ${(cost * qty).toFixed(2)}</span>
+                                    </div>
+                                  );
+                                })}
+                                {itemFixedCharges.map((c: any) => {
+                                  const cost = parseFloat(c.netCost || c.amount || "0");
+                                  return (
+                                    <div key={c.id} className="flex items-center justify-between text-xs bg-purple-50 border border-purple-100 rounded px-3 py-1.5">
+                                      <span className="text-purple-700">{c.description} <span className="text-purple-400">(one-time)</span></span>
+                                      <span className="font-medium text-purple-700">${cost.toFixed(2)}</span>
+                                    </div>
+                                  );
+                                })}
+                                {itemArtworkCharges.map((c: any) => {
+                                  const cost = parseFloat(c.netCost || c.amount || "0");
+                                  const qty = c.chargeCategory === "run" ? (item.quantity || 1) : (c.quantity || 1);
+                                  return (
+                                    <div key={c.id} className="flex items-center justify-between text-xs bg-amber-50 border border-amber-100 rounded px-3 py-1.5">
+                                      <span className="text-amber-700">{c.chargeName || c.description} <span className="text-amber-400">({c.artworkName})</span></span>
+                                      <span className="font-medium text-amber-700">${cost.toFixed(2)}{c.chargeCategory === "run" ? ` × ${qty} = $${(cost * qty).toFixed(2)}` : ""}</span>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
                           </div>
                         );
                       })}
                     </div>
+
+                    {/* Vendor Cost Summary */}
+                    {(() => {
+                      let productSubtotal = 0;
+                      let runChargesTotal = 0;
+                      let fixedChargesTotal = 0;
+                      let artworkChargesTotal = 0;
+                      po.items.forEach((item) => {
+                        const itemLines = po.lines[item.id] || [];
+                        if (itemLines.length > 0) {
+                          itemLines.forEach((l) => { productSubtotal += (l.quantity || 0) * parseFloat(l.cost || "0"); });
+                        } else {
+                          productSubtotal += (item.quantity || 0) * parseFloat(item.cost || item.unitPrice || "0");
+                        }
+                        (hook.allItemCharges[item.id] || []).forEach((c: any) => {
+                          const cost = parseFloat(c.netCost || c.amount || "0");
+                          if (c.chargeCategory === "run") {
+                            runChargesTotal += cost * (item.quantity || 1);
+                          } else {
+                            fixedChargesTotal += cost * (c.quantity || 1);
+                          }
+                        });
+                        (hook.allArtworkItems[item.id] || []).forEach((art: any) => {
+                          (hook.allArtworkCharges[art.id] || []).forEach((c: any) => {
+                            const cost = parseFloat(c.netCost || c.amount || "0");
+                            const qty = c.chargeCategory === "run" ? (item.quantity || 1) : (c.quantity || 1);
+                            artworkChargesTotal += cost * qty;
+                          });
+                        });
+                      });
+                      const vendorTotal = productSubtotal + runChargesTotal + fixedChargesTotal + artworkChargesTotal;
+                      const hasCharges = runChargesTotal > 0 || fixedChargesTotal > 0 || artworkChargesTotal > 0;
+                      if (!hasCharges) return null;
+                      return (
+                        <div className="border-t bg-gray-50 p-4">
+                          <div className="text-xs space-y-1">
+                            <div className="flex justify-between"><span className="text-gray-500">Product Subtotal</span><span className="font-medium">${productSubtotal.toFixed(2)}</span></div>
+                            {runChargesTotal > 0 && <div className="flex justify-between"><span className="text-blue-600">Run Charges</span><span className="font-medium text-blue-600">${runChargesTotal.toFixed(2)}</span></div>}
+                            {fixedChargesTotal > 0 && <div className="flex justify-between"><span className="text-purple-600">Fixed Charges</span><span className="font-medium text-purple-600">${fixedChargesTotal.toFixed(2)}</span></div>}
+                            {artworkChargesTotal > 0 && <div className="flex justify-between"><span className="text-amber-600">Artwork Charges</span><span className="font-medium text-amber-600">${artworkChargesTotal.toFixed(2)}</span></div>}
+                            <div className="flex justify-between pt-1 border-t border-gray-200"><span className="font-bold text-gray-900">Vendor Total</span><span className="font-bold text-gray-900">${vendorTotal.toFixed(2)}</span></div>
+                          </div>
+                        </div>
+                      );
+                    })()}
 
                     {/* Proofing Section */}
                     {vendorArtworks.length > 0 && (
