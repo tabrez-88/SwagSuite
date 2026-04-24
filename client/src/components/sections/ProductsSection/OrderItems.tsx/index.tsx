@@ -164,7 +164,7 @@ export default function OrderItemCard({ item, productSection }: OrderItemCardPro
                   <p className="font-semibold">{totals.totalQty}</p>
                 </div>
                 <div className="text-center">
-                  <p className="text-[10px] text-gray-400 uppercase">Revenue</p>
+                  <p className="text-[10px] text-gray-400 uppercase">Subtotal</p>
                   <p className="font-semibold text-blue-600">${totals.itemSellGrandTotal.toFixed(2)}</p>
                 </div>
                 {totals.taxRate > 0 && (
@@ -535,7 +535,7 @@ export default function OrderItemCard({ item, productSection }: OrderItemCardPro
           <div className="px-6 py-3 border-t bg-gray-100/50">
             <div className="flex justify-end gap-6 text-xs">
               <div className="text-right">
-                <span className="text-gray-500">Revenue:</span>{" "}
+                <span className="text-gray-500">Subtotal:</span>{" "}
                 <span className="font-semibold text-blue-600">${totals.itemSellGrandTotal.toFixed(2)}</span>
               </div>
               {totals.taxRate > 0 && (

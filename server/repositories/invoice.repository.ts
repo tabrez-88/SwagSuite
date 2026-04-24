@@ -63,6 +63,22 @@ export class InvoiceRepository {
     return invoice;
   }
 
+  async getNextInvoiceSequence(orderId: string): Promise<number> {
+    const rows = await db
+      .select({ invoiceNumber: invoices.invoiceNumber })
+      .from(invoices)
+      .where(eq(invoices.orderId, orderId));
+    let max = 0;
+    for (const row of rows) {
+      const match = /-INV-(\d+)$/.exec(row.invoiceNumber || "");
+      if (match) {
+        const n = parseInt(match[1], 10);
+        if (!isNaN(n) && n > max) max = n;
+      }
+    }
+    return max + 1;
+  }
+
   async getInvoices(status?: string): Promise<Invoice[]> {
     if (status) {
       return await db.select().from(invoices).where(eq(invoices.status, status));

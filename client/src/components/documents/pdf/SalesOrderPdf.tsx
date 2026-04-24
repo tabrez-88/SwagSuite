@@ -92,9 +92,8 @@ export function SalesOrderPdf({
     );
   }, 0);
 
-  const shipping =
-    parseFloat(order?.shippingCost) || parseFloat(order?.shipping) || 0;
   const tax = parseFloat(order?.tax) || 0;
+  const taxRate = parseFloat(order?.taxRate) || 0;
   const clientServiceCharges = serviceCharges.filter(
     (c: any) => c.displayToClient !== false,
   );
@@ -103,7 +102,7 @@ export function SalesOrderPdf({
       sum + (c.quantity || 1) * parseFloat(c.unitPrice || "0"),
     0,
   );
-  const total = subtotal + serviceChargesTotal + shipping + tax;
+  const total = subtotal + serviceChargesTotal + tax;
 
   const repProfileSrc = resolvePdfImage(assignedUser?.profileImageUrl);
 
@@ -687,8 +686,14 @@ export function SalesOrderPdf({
                 <Text>SUBTOTAL</Text>
                 <Text>{fmtMoney(subtotal)}</Text>
               </View>
+              {serviceChargesTotal > 0 && (
+                <View style={styles.totalsRow}>
+                  <Text>SERVICES & FEES</Text>
+                  <Text>{fmtMoney(serviceChargesTotal)}</Text>
+                </View>
+              )}
               <View style={styles.totalsRow}>
-                <Text>TAX</Text>
+                <Text>{tax > 0 && taxRate > 0 ? `TAX (${taxRate}%)` : "TAX"}</Text>
                 {tax > 0 ? (
                   <Text>{fmtMoney(tax)}</Text>
                 ) : (

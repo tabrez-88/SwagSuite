@@ -166,77 +166,82 @@ async function recalculateOrderTotals(orderId: string) {
   // If order has an explicit tax code, it overrides company-level exempt
   // Only use company exempt as default when no order-level tax code is set
   const hasOrderTaxCode = orderTaxCode !== null;
-  const isExempt = hasOrderTaxCode
+  const orderLevelExempt = hasOrderTaxCode
     ? orderTaxCode.isExempt === true   // Order tax code decides
     : companyTaxExempt;                 // Fall back to company default
 
-  if (!isExempt && discountedSubtotal > 0) {
-    // Try TaxJar API (if tax code has a TaxJar product code or no tax code is set)
-    const taxService = await getTaxJarCredentials();
-    if (taxService) {
-      try {
-        const shippingAddr = (() => {
-          try { return existingOrder?.shippingAddress ? JSON.parse(existingOrder.shippingAddress) : null; }
-          catch { return null; }
-        })();
-        if (shippingAddr?.state && shippingAddr?.zipCode) {
-          // Load configurable origin address from integration settings
-          const [settings] = await db.select().from(integrationSettings).limit(1);
-          const fromState = settings?.taxOriginState || "NY";
-          const fromZip = settings?.taxOriginZip || "10001";
-          const fromCountry = settings?.taxOriginCountry || "US";
-          const fromCity = settings?.taxOriginCity || "";
-          const fromStreet = settings?.taxOriginStreet || "";
+  // Check if any items have their own (non-exempt) tax codes — these override order-level exempt
+  const allItemTaxCodeIds = [...new Set(allItems.map((i: any) => i.taxCodeId).filter(Boolean))];
+  const itemTaxCodesAll = allItemTaxCodeIds.length > 0
+    ? await db.select().from(taxCodes).where(inArray(taxCodes.id, allItemTaxCodeIds))
+    : [];
+  const hasItemLevelTax = itemTaxCodesAll.some(tc => !tc.isExempt && parseFloat(tc.rate || "0") > 0);
 
-          // Resolve per-item TaxJar product codes
-          const allTaxCodeIds = [...new Set(allItems.map((i: any) => i.taxCodeId).filter(Boolean))];
-          const itemTaxCodes = allTaxCodeIds.length > 0
-            ? await db.select().from(taxCodes).where(inArray(taxCodes.id, allTaxCodeIds))
-            : [];
-          const taxCodeMap = new Map(itemTaxCodes.map(tc => [tc.id, tc]));
+  // Only fully skip tax when order is exempt AND no items have their own taxable codes
+  const skipTaxEntirely = orderLevelExempt && !hasItemLevelTax;
 
-          const taxResult = await taxService.calculateTax({
-            from_country: fromCountry,
-            from_state: fromState,
-            from_zip: fromZip,
-            from_city: fromCity,
-            from_street: fromStreet,
-            to_country: shippingAddr.country || "US",
-            to_state: shippingAddr.state,
-            to_zip: shippingAddr.zipCode,
-            to_city: shippingAddr.city || "",
-            to_street: shippingAddr.street || shippingAddr.address || "",
-            amount: discountedSubtotal,
-            shipping: shippingTotal,
-            line_items: allItems.map((item: any) => {
-              const itemTaxCode = item.taxCodeId ? taxCodeMap.get(item.taxCodeId) : null;
-              const productTaxCode = itemTaxCode?.taxjarProductCode || orderTaxCode?.taxjarProductCode || undefined;
-              return {
-                id: item.id,
-                quantity: item.quantity,
-                unit_price: parseFloat(item.unitPrice) || 0,
-                discount: 0,
-                ...(productTaxCode ? { product_tax_code: productTaxCode } : {}),
-              };
-            }),
-          });
-          tax = taxResult.amount_to_collect;
-          taxSource = "taxjar";
+  if (!skipTaxEntirely && discountedSubtotal > 0) {
+    // Try TaxJar API (only when order is not exempt — TaxJar handles the full order)
+    if (!orderLevelExempt) {
+      const taxService = await getTaxJarCredentials();
+      if (taxService) {
+        try {
+          const shippingAddr = (() => {
+            try { return existingOrder?.shippingAddress ? JSON.parse(existingOrder.shippingAddress) : null; }
+            catch { return null; }
+          })();
+          if (shippingAddr?.state && shippingAddr?.zipCode) {
+            // Load configurable origin address from integration settings
+            const [settings] = await db.select().from(integrationSettings).limit(1);
+            const fromState = settings?.taxOriginState || "NY";
+            const fromZip = settings?.taxOriginZip || "10001";
+            const fromCountry = settings?.taxOriginCountry || "US";
+            const fromCity = settings?.taxOriginCity || "";
+            const fromStreet = settings?.taxOriginStreet || "";
+
+            // Resolve per-item TaxJar product codes
+            const taxCodeMap = new Map(itemTaxCodesAll.map(tc => [tc.id, tc]));
+
+            const taxResult = await taxService.calculateTax({
+              from_country: fromCountry,
+              from_state: fromState,
+              from_zip: fromZip,
+              from_city: fromCity,
+              from_street: fromStreet,
+              to_country: shippingAddr.country || "US",
+              to_state: shippingAddr.state,
+              to_zip: shippingAddr.zipCode,
+              to_city: shippingAddr.city || "",
+              to_street: shippingAddr.street || shippingAddr.address || "",
+              amount: discountedSubtotal,
+              shipping: shippingTotal,
+              line_items: allItems.map((item: any) => {
+                const itemTaxCode = item.taxCodeId ? taxCodeMap.get(item.taxCodeId) : null;
+                const productTaxCode = itemTaxCode?.taxjarProductCode || orderTaxCode?.taxjarProductCode || undefined;
+                return {
+                  id: item.id,
+                  quantity: item.quantity,
+                  unit_price: parseFloat(item.unitPrice) || 0,
+                  discount: 0,
+                  ...(productTaxCode ? { product_tax_code: productTaxCode } : {}),
+                };
+              }),
+            });
+            tax = taxResult.amount_to_collect;
+            taxSource = "taxjar";
+          }
+        } catch (err) {
+          console.warn(`TaxJar calculation failed for order ${orderId}, falling back to manual rate:`, err);
         }
-      } catch (err) {
-        console.warn(`TaxJar calculation failed for order ${orderId}, falling back to manual rate:`, err);
       }
     }
-    // Fallback to manual tax rate: when TaxJar not available, failed, OR returned 0 but manual rate exists
+    // Manual tax rate fallback: handles per-item tax codes even when order is exempt
     if (taxSource === "none" || (taxSource === "taxjar" && tax === 0)) {
-      const orderRate = orderTaxCode ? parseFloat(orderTaxCode.rate || "0") : parseFloat((existingOrder as any)?.taxRate || "0");
+      const orderRate = (!orderLevelExempt && orderTaxCode) ? parseFloat(orderTaxCode.rate || "0")
+        : (!orderLevelExempt) ? parseFloat((existingOrder as any)?.taxRate || "0")
+        : 0; // Order exempt → order rate = 0, only item-level rates apply
 
-      // Check for per-item tax code overrides
-      const allItemTaxCodeIds = [...new Set(allItems.map((i: any) => i.taxCodeId).filter(Boolean))];
-      const itemTaxCodesForManual = allItemTaxCodeIds.length > 0
-        ? await db.select().from(taxCodes).where(inArray(taxCodes.id, allItemTaxCodeIds))
-        : [];
-      const itemTaxCodeMap = new Map(itemTaxCodesForManual.map(tc => [tc.id, tc]));
+      const itemTaxCodeMap = new Map(itemTaxCodesAll.map(tc => [tc.id, tc]));
 
       let manualTax = 0;
       for (const item of allItems) {
@@ -246,13 +251,14 @@ async function recalculateOrderTotals(orderId: string) {
         const itemTaxCode = item.taxCodeId ? itemTaxCodeMap.get(item.taxCodeId) : null;
         if (itemTaxCode?.isExempt === true) continue; // Per-item exempt → skip
 
+        // Item has own tax code → use its rate; otherwise fall back to order rate
         const rate = itemTaxCode ? parseFloat(itemTaxCode.rate || "0") : orderRate;
         if (rate > 0) {
           manualTax += itemTotal * (rate / 100);
         }
       }
 
-      // Tax additional/service/artwork charges at order rate
+      // Tax additional/service/artwork charges at order rate (only when order is not exempt)
       if (orderRate > 0) {
         manualTax += (additionalChargesTotal + serviceChargesTotal + artworkChargesTotal) * (orderRate / 100);
       }

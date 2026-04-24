@@ -78,10 +78,14 @@ export class InvoiceController {
       const taxAmount = Number(order.tax || 0);
       const totalAmount = Number(order.subtotal) + taxAmount + Number(order.shipping || 0);
 
+      // Generate sequential invoice number: {orderNumber}-INV-{seq}
+      const nextSeq = await invoiceRepository.getNextInvoiceSequence(order.id);
+      const invoiceNumber = `${order.orderNumber}-INV-${String(nextSeq).padStart(2, "0")}`;
+
       // Create invoice
       const invoice = await invoiceRepository.createInvoice({
         orderId: order.id,
-        invoiceNumber: `INV-${Date.now()}`,
+        invoiceNumber,
         subtotal: order.subtotal ?? '0',
         taxAmount: taxAmount.toString(),
         totalAmount: totalAmount.toString(),

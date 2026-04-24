@@ -37,7 +37,6 @@ import {
   Plus,
   Save,
   Trash2,
-  Truck,
   TrendingUp,
   X,
 } from "lucide-react";
@@ -46,6 +45,8 @@ import OrderItemCard from "./OrderItems.tsx";
 import type { ProductsSectionProps } from "./types";
 import { Separator } from "@/components/ui/separator";
 import { FilePreviewModal } from "@/components/modals/FilePreviewModal.tsx";
+import ServiceChargesPanel from "@/pages/Projects/ProjectDetail/sections/SalesOrderSection/ServiceChargesPanel";
+import { useCallback, useRef } from "react";
 
 /** Portal dragged row to document.body so Radix Dialog transform doesn't offset it */
 function PortalAwareDrag({ provided, snapshot, children }: {
@@ -66,6 +67,8 @@ function PortalAwareDrag({ provided, snapshot, children }: {
 
 export default function ProductsSection({ projectId, data, isLocked }: ProductsSectionProps) {
   const productSection = useProductsSection({ projectId, data, isLocked });
+  const addServiceRef = useRef<(() => void) | null>(null);
+  const onRegisterAdd = useCallback((fn: () => void) => { addServiceRef.current = fn; }, []);
 
   const handleDragEnd = (result: DropResult) => {
     if (!result.destination) return;
@@ -93,10 +96,16 @@ export default function ProductsSection({ projectId, data, isLocked }: ProductsS
               {productSection.orderItems.length} {productSection.orderItems.length === 1 ? "item" : "items"}
             </Badge>
           </div>
-          <Button size="sm" onClick={() => productSection.setLocation(productSection.addProductPath)} disabled={productSection.isLocked}>
-            <Plus className="w-4 h-4" />
-            Add Product
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button size="sm" variant="outline" onClick={() => addServiceRef.current?.()} disabled={productSection.isLocked}>
+              <Plus className="w-4 h-4" />
+              Service
+            </Button>
+            <Button size="sm" onClick={() => productSection.setLocation(productSection.addProductPath)} disabled={productSection.isLocked}>
+              <Plus className="w-4 h-4" />
+              Add Product
+            </Button>
+          </div>
         </div>
       </CardHeader>
       <CardContent>
@@ -147,45 +156,40 @@ export default function ProductsSection({ projectId, data, isLocked }: ProductsS
               )}
             </Droppable>
           </DragDropContext>
+          {/* SERVICE CHARGES (embedded) */}
+          <ServiceChargesPanel
+            projectId={projectId}
+            isLocked={!!isLocked}
+            embedded
+            onRegisterAdd={onRegisterAdd}
+          />
           <Separator className="my-4" />
-          {/* ORDER TOTALS */}
+          {/* ORDER SUMMARY */}
           <Card className="bg-gray-200 rounded-none">
             <CardContent className="p-6">
-              <div className="flex items-center justify-end ">
+              <div className="flex items-center justify-between">
+                {/* Left: item counts + cost */}
                 <div className="flex items-center gap-6 text-sm">
                   <div>
-                    <span className="uppercase">Items</span>
+                    <span className="uppercase text-[10px] text-gray-500">Items</span>
                     <p className="font-semibold">{productSection.orderItems.length}</p>
                   </div>
                   <div>
-                    <span className="uppercase">Total Qty</span>
+                    <span className="uppercase text-[10px] text-gray-500">Total Qty</span>
                     <p className="font-semibold">{productSection.orderTotals.totalQty}</p>
                   </div>
                   <div>
-                    <span className="uppercase">Total Cost</span>
+                    <span className="uppercase text-[10px] text-gray-500">Total Cost</span>
                     <p className="font-semibold">${productSection.orderTotals.totalCost.toFixed(2)}</p>
                   </div>
                   {productSection.orderTotals.totalCharges > 0 && (
                     <div>
-                      <span className="uppercase">Charges</span>
+                      <span className="uppercase text-[10px] text-gray-500">Charges</span>
                       <p className="font-semibold">${productSection.orderTotals.totalCharges.toFixed(2)}</p>
                     </div>
                   )}
-                  {productSection.shippingTotals.revenue > 0 && (
-                    <div title={`Cost: $${productSection.shippingTotals.cost.toFixed(2)} → Revenue: $${productSection.shippingTotals.revenue.toFixed(2)}`}>
-                      <span className="uppercase flex items-center gap-1"><Truck className="w-3 h-3" />Shipping</span>
-                      <p className="font-semibold">
-                        ${productSection.shippingTotals.revenue.toFixed(2)}
-                        {productSection.shippingTotals.revenue > productSection.shippingTotals.cost && (
-                          <span className="text-green-600 text-[10px] ml-1">
-                            +{((productSection.shippingTotals.revenue - productSection.shippingTotals.cost) / productSection.shippingTotals.revenue * 100).toFixed(0)}%
-                          </span>
-                        )}
-                      </p>
-                    </div>
-                  )}
                   <div title={`Min: ${productSection.marginSettings.minimumMargin}% | Target: ${productSection.marginSettings.defaultMargin}%`}>
-                    <span className="uppercase">Margin</span>
+                    <span className="uppercase text-[10px] text-gray-500">Margin</span>
                     <p className={`font-bold flex items-center gap-1 ${productSection.marginColor(productSection.margin)}`}>
                       <TrendingUp className="w-4 h-4" />
                       {productSection.margin.toFixed(1)}%
@@ -194,11 +198,31 @@ export default function ProductsSection({ projectId, data, isLocked }: ProductsS
                       )}
                     </p>
                   </div>
-                  <div className="text-right">
-                    <span className="uppercase">Revenue</span>
-                    <p className="text-sm font-semibold">${(productSection.orderTotals.subtotal + productSection.orderTotals.totalCharges).toFixed(2)}</p>
-                  </div>
                 </div>
+                {/* Right: Subtotal / Tax / Total */}
+                {(() => {
+                  const order = data?.order;
+                  const subtotal = parseFloat(order?.subtotal || "0");
+                  const tax = parseFloat(order?.tax || "0");
+                  const taxRate = parseFloat(order?.taxRate || "0");
+                  const total = parseFloat(order?.total || "0");
+                  return (
+                    <div className="text-sm text-right space-y-0.5 min-w-[180px]">
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Subtotal</span>
+                        <span className="font-medium">${subtotal.toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">{tax > 0 && taxRate > 0 ? `Tax (${taxRate}%)` : "Tax"}</span>
+                        <span className="font-medium">{tax > 0 ? `$${tax.toFixed(2)}` : "Exempt"}</span>
+                      </div>
+                      <div className="flex justify-between border-t border-gray-400 pt-1 mt-1">
+                        <span className="font-bold">Total</span>
+                        <span className="font-bold">${total.toFixed(2)}</span>
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
               {isBelowMinimum(productSection.margin, productSection.marginSettings) && (
                 <div className="mt-2 pt-2 border-t border-red-200 flex items-center justify-end gap-2 text-xs text-red-600">
@@ -537,7 +561,7 @@ export default function ProductsSection({ projectId, data, isLocked }: ProductsS
                             {productSection.editDialogMargin.toFixed(1)}%
                           </span>
                         </td>
-                        <td className="p-3 text-right text-sm font-semibold">${productSection.editDialogTotals.revenue.toFixed(2)}</td>
+                        <td className="p-3 text-right text-sm font-semibold">${productSection.editDialogTotals.subtotal.toFixed(2)}</td>
                         <td></td>
                       </tr>
                     </tfoot>
@@ -558,10 +582,10 @@ export default function ProductsSection({ projectId, data, isLocked }: ProductsS
                     Margin: <strong className={productSection.marginColor(productSection.editDialogMargin)}>{productSection.editDialogMargin.toFixed(1)}%</strong>
                   </span>
                   <span className="text-gray-600">
-                    Profit: <strong className="text-green-700">${(productSection.editDialogTotals.revenue - productSection.editDialogTotals.cost).toFixed(2)}</strong>
+                    Profit: <strong className="text-green-700">${(productSection.editDialogTotals.subtotal - productSection.editDialogTotals.cost).toFixed(2)}</strong>
                   </span>
                 </div>
-                <span className="font-bold text-blue-600 text-base">${productSection.editDialogTotals.revenue.toFixed(2)}</span>
+                <span className="font-bold text-blue-600 text-base">${productSection.editDialogTotals.subtotal.toFixed(2)}</span>
               </div>
 
               {/* Minimum Margin Warning */}

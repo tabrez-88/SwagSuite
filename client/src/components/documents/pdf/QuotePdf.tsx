@@ -89,14 +89,14 @@ export function QuotePdf({
     return sum + getItemPricing(lines, itemCharges, decoCharges, item).itemSellGrandTotal;
   }, 0);
 
-  const shipping = parseFloat(order?.shippingCost) || parseFloat(order?.shipping) || 0;
   const clientServiceCharges = serviceCharges.filter((c: any) => c.displayToClient !== false);
   const serviceChargesTotal = clientServiceCharges.reduce(
     (sum: number, c: any) => sum + (c.quantity || 1) * parseFloat(c.unitPrice || "0"),
     0
   );
   const tax = parseFloat(order?.tax) || 0;
-  const total = subtotal + serviceChargesTotal + shipping + tax;
+  const taxRate = parseFloat(order?.taxRate) || 0;
+  const total = subtotal + serviceChargesTotal + tax;
 
   const repProfileSrc = resolvePdfImage(assignedUser?.profileImageUrl);
 
@@ -394,15 +394,9 @@ export function QuotePdf({
                 <Text>{fmtMoney(serviceChargesTotal)}</Text>
               </View>
             )}
-            {shipping > 0 && (
-              <View style={styles.totalsRow}>
-                <Text>Shipping:</Text>
-                <Text>{fmtMoney(shipping)}</Text>
-              </View>
-            )}
             {tax > 0 && (
               <View style={styles.totalsRow}>
-                <Text>Tax:</Text>
+                <Text>{taxRate > 0 ? `Tax (${taxRate}%):` : "Tax:"}</Text>
                 <Text>{fmtMoney(tax)}</Text>
               </View>
             )}

@@ -43,7 +43,7 @@ import {
 import { useProjectServiceCharges } from "@/services/projects/queries";
 import type { OrderServiceCharge } from "@shared/schema";
 import { DollarSign, Loader2, Pencil, Plus, Trash2 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 const CHARGE_TYPES = [
   { value: "freight", label: "Freight" },
@@ -57,6 +57,10 @@ const CHARGE_TYPES = [
 interface ServiceChargesPanelProps {
   projectId: string | number;
   isLocked: boolean;
+  /** When true, renders inline without Card wrapper (for embedding in ProductsSection) */
+  embedded?: boolean;
+  /** Ref to expose openAdd so parent can trigger "+ Service" button */
+  onRegisterAdd?: (fn: () => void) => void;
 }
 
 interface ChargeFormState {
@@ -87,7 +91,7 @@ function chargeTypeLabel(type: string) {
   return CHARGE_TYPES.find((t) => t.value === type)?.label || type;
 }
 
-export default function ServiceChargesPanel({ projectId, isLocked }: ServiceChargesPanelProps) {
+export default function ServiceChargesPanel({ projectId, isLocked, embedded, onRegisterAdd }: ServiceChargesPanelProps) {
   const { data: charges = [] } = useProjectServiceCharges(projectId);
   const addMutation = useAddServiceCharge(projectId);
   const updateMutation = useUpdateServiceCharge(projectId);
@@ -156,100 +160,128 @@ export default function ServiceChargesPanel({ projectId, isLocked }: ServiceChar
     0,
   );
 
+  // Register openAdd for parent "+ Service" button
+  useEffect(() => {
+    onRegisterAdd?.(openAdd);
+  }, [onRegisterAdd, openAdd]);
+
+  const serviceTable = charges.length === 0 ? null : (
+    <Table>
+      <TableHeader className="bg-gray-100 border-b">
+        <TableRow>
+          <TableHead className="text-black p-3 font-bold">Description</TableHead>
+          <TableHead className="text-black text-center p-3 font-bold w-20">Type</TableHead>
+          <TableHead className="text-black text-center p-3 font-bold w-20">QTY</TableHead>
+          <TableHead className="text-black text-center p-3 font-bold w-20">Cost</TableHead>
+          <TableHead className="text-black text-center p-3 font-bold w-20">Price</TableHead>
+          <TableHead className="text-black text-center p-3 font-bold w-20">Amount</TableHead>
+          {!isLocked && <TableHead className="w-[80px]" />}
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {charges.map((charge) => {
+          const qty = charge.quantity ?? 1;
+          const price = parseFloat(String(charge.unitPrice ?? "0"));
+          const cost = parseFloat(String(charge.unitCost ?? "0"));
+          return (
+            <TableRow key={charge.id}>
+              <TableCell className="font-medium">
+                {charge.description}
+                {!charge.displayToClient && (
+                  <span className="text-xs text-muted-foreground ml-1">(internal)</span>
+                )}
+              </TableCell>
+              <TableCell className="text-xs text-muted-foreground">
+                {chargeTypeLabel(charge.chargeType)}
+              </TableCell>
+              <TableCell className="text-center">{qty}</TableCell>
+              <TableCell className="text-right">${cost.toFixed(2)}</TableCell>
+              <TableCell className="text-right">${price.toFixed(2)}</TableCell>
+              <TableCell className="text-right font-medium">
+                ${(qty * price).toFixed(2)}
+              </TableCell>
+              {!isLocked && (
+                <TableCell className="text-right">
+                  <div className="flex justify-end gap-1">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7"
+                      onClick={() => openEdit(charge)}
+                    >
+                      <Pencil className="w-3.5 h-3.5" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 text-destructive"
+                      onClick={() => setDeleteTarget(charge)}
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </Button>
+                  </div>
+                </TableCell>
+              )}
+            </TableRow>
+          );
+        })}
+      </TableBody>
+    </Table>
+  );
+
+  const serviceContent = embedded ? (
+    // Embedded mode: inline section within ProductsSection
+    charges.length > 0 ? (
+      <div>
+        <div className="flex items-center gap-2 mb-3">
+          <DollarSign className="w-4 h-4 text-muted-foreground" />
+          <span className="text-sm font-semibold">Services & Fees</span>
+          <span className="text-xs text-muted-foreground">
+            ({charges.length} item{charges.length !== 1 ? "s" : ""} · ${totalAmount.toFixed(2)})
+          </span>
+        </div>
+        {serviceTable}
+      </div>
+    ) : null
+  ) : (
+    // Standalone mode: own Card wrapper
+    <Card>
+      <CardHeader className="py-3">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-sm flex items-center gap-2">
+            <DollarSign className="w-4 h-4" />
+            Services & Fees
+            {charges.length > 0 && (
+              <span className="text-xs font-normal text-muted-foreground ml-1">
+                ({charges.length} item{charges.length !== 1 ? "s" : ""} · $
+                {totalAmount.toFixed(2)})
+              </span>
+            )}
+          </CardTitle>
+          {!isLocked && (
+            <Button size="sm" variant="outline" onClick={openAdd}>
+              <Plus className="w-4 h-4 mr-1.5" />
+              Service
+            </Button>
+          )}
+        </div>
+      </CardHeader>
+      <CardContent>
+        {charges.length === 0 ? (
+          <div className="text-center py-8 text-sm text-muted-foreground">
+            No service charges yet.{" "}
+            {!isLocked && 'Click "+ Service" to add freight, fulfillment, or other fees.'}
+          </div>
+        ) : (
+          serviceTable
+        )}
+      </CardContent>
+    </Card>
+  );
+
   return (
     <>
-      <Card>
-        <CardHeader className="py-3">
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-sm flex items-center gap-2">
-              <DollarSign className="w-4 h-4" />
-              Services & Fees
-              {charges.length > 0 && (
-                <span className="text-xs font-normal text-muted-foreground ml-1">
-                  ({charges.length} item{charges.length !== 1 ? "s" : ""} · $
-                  {totalAmount.toFixed(2)})
-                </span>
-              )}
-            </CardTitle>
-            {!isLocked && (
-              <Button size="sm" variant="outline" onClick={openAdd}>
-                <Plus className="w-4 h-4 mr-1.5" />
-                Service
-              </Button>
-            )}
-          </div>
-        </CardHeader>
-        <CardContent>
-          {charges.length === 0 ? (
-            <div className="text-center py-8 text-sm text-muted-foreground">
-              No service charges yet.{" "}
-              {!isLocked && 'Click "+ Service" to add freight, fulfillment, or other fees.'}
-            </div>
-          ) : (
-            <Table>
-              <TableHeader className="bg-gray-100 border-b">
-                <TableRow>
-                  <TableHead className="text-black p-3 font-bold">Description</TableHead>
-                  <TableHead className="text-black text-center p-3 font-bold w-20">Type</TableHead>
-                  <TableHead className="text-black text-center p-3 font-bold w-20">QTY</TableHead>
-                  <TableHead className="text-black text-center p-3 font-bold w-20">Cost</TableHead>
-                  <TableHead className="text-black text-center p-3 font-bold w-20">Price</TableHead>
-                  <TableHead className="text-black text-center p-3 font-bold w-20">Amount</TableHead>
-                  {!isLocked && <TableHead className="w-[80px]" />}
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {charges.map((charge) => {
-                  const qty = charge.quantity ?? 1;
-                  const price = parseFloat(String(charge.unitPrice ?? "0"));
-                  const cost = parseFloat(String(charge.unitCost ?? "0"));
-                  return (
-                    <TableRow key={charge.id}>
-                      <TableCell className="font-medium">
-                        {charge.description}
-                        {!charge.displayToClient && (
-                          <span className="text-xs text-muted-foreground ml-1">(internal)</span>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-xs text-muted-foreground">
-                        {chargeTypeLabel(charge.chargeType)}
-                      </TableCell>
-                      <TableCell className="text-center">{qty}</TableCell>
-                      <TableCell className="text-right">${cost.toFixed(2)}</TableCell>
-                      <TableCell className="text-right">${price.toFixed(2)}</TableCell>
-                      <TableCell className="text-right font-medium">
-                        ${(qty * price).toFixed(2)}
-                      </TableCell>
-                      {!isLocked && (
-                        <TableCell className="text-right">
-                          <div className="flex justify-end gap-1">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-7 w-7"
-                              onClick={() => openEdit(charge)}
-                            >
-                              <Pencil className="w-3.5 h-3.5" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-7 w-7 text-destructive"
-                              onClick={() => setDeleteTarget(charge)}
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      )}
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
+      {serviceContent}
 
       {/* Add/Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>

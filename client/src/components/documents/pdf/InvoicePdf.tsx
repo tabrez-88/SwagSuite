@@ -116,6 +116,7 @@ export function InvoicePdf({
   const isPaid = invoice?.status === "paid";
 
   // Tax exempt check
+  const taxRate = parseFloat(order?.taxRate) || 0;
   const taxExempt = tax === 0;
 
   return (
@@ -564,7 +565,7 @@ export function InvoicePdf({
               <Text>{fmtMoney(subtotal)}</Text>
             </View>
             <View style={styles.totalsRow}>
-              <Text>TAX{taxExempt ? " (Exempt)" : ""}</Text>
+              <Text>TAX{taxExempt ? " (Exempt)" : taxRate > 0 ? ` (${taxRate}%)` : ""}</Text>
               <Text>{fmtMoney(tax)}</Text>
             </View>
             {shipping > 0 && (

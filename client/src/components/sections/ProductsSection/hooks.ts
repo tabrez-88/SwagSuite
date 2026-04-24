@@ -305,12 +305,12 @@ export function useProductsSection({ projectId, data, isLocked }: ProductsSectio
     (acc, l) => ({
       qty: acc.qty + (l.quantity || 0),
       cost: acc.cost + (l.quantity || 0) * (l.cost || 0),
-      revenue: acc.revenue + (l.quantity || 0) * (l.unitPrice || 0),
+      subtotal: acc.subtotal + (l.quantity || 0) * (l.unitPrice || 0),
     }),
-    { qty: 0, cost: 0, revenue: 0 }
+    { qty: 0, cost: 0, subtotal: 0 }
   );
-  const editDialogMargin = editDialogTotals.revenue > 0
-    ? ((editDialogTotals.revenue - editDialogTotals.cost) / editDialogTotals.revenue * 100) : 0;
+  const editDialogMargin = editDialogTotals.subtotal > 0
+    ? ((editDialogTotals.subtotal - editDialogTotals.cost) / editDialogTotals.subtotal * 100) : 0;
 
   const handleSaveEditItem = () => {
     if (!editingItem) return;
