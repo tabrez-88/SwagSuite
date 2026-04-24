@@ -19,12 +19,12 @@ import { PurchaseOrderPdf } from "@/components/documents/pdf/PurchaseOrderPdf";
 type DocType = "invoice" | "quote" | "so" | "purchase_order";
 
 export default function DevPdfPreview() {
-  const [docType, setDocType] = useState<DocType>("quote");
-  const [projectId, setProjectId] = useState("ca05fdf3-505d-4d4e-b742-61fdf1691cda");
-  const [inputValue, setInputValue] = useState("");
+  const [docType, setDocType] = useState<DocType>("so");
+  const [projectId, setProjectId] = useState("a71de981-dfcf-4c99-affc-dc09de201897");
+  const [inputValue, setInputValue] = useState("a71de981-dfcf-4c99-affc-dc09de201897");
 
   // Load real project data if projectId is set
-  const projectData = useProjectData(projectId || null, "quote");
+  const projectData = useProjectData("a71de981-dfcf-4c99-affc-dc09de201897", "quote");
   const isLoading = projectData.orderLoading;
   const usingRealData = !!projectData.order;
 
@@ -46,8 +46,6 @@ export default function DevPdfPreview() {
       }
     : mockPdfData;
 
-  console.log("PDF Data:", pdfData);
-  console.log("Using real data:", usingRealData);
   const renderPdf = () => {
     if (docType === "quote") {
       return (

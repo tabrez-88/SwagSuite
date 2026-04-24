@@ -402,14 +402,6 @@ export default function SalesOrderSection(props: SalesOrderSectionProps) {
         taxCodes={taxCodes || []}
       />
 
-      {/* Live PDF preview (uses react-pdf PDFViewer — same renderer as save) */}
-      <PdfPreviewDialog
-        open={hook.showLivePreview}
-        onOpenChange={hook.setShowLivePreview}
-        title={`Sales Order Preview — ${hook.order?.orderNumber || ""}`}
-        document={hook.showLivePreview ? hook.buildSODoc() : null}
-      />
-
       {/* Document Editor Modal */}
       {hook.previewDocument && (
         <DocumentEditor

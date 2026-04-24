@@ -81,14 +81,14 @@ export function DocumentEditor(props: DocumentEditorProps) {
           <Button variant="outline" onClick={onClose}>
             Close
           </Button>
-          {fileUrl && (
+          {/* {fileUrl && (
             <Button asChild>
               <a href={fileUrl} download={fileName} target="_blank" rel="noreferrer">
                 <Download className="w-4 h-4 mr-2" />
                 Download PDF
               </a>
             </Button>
-          )}
+          )} */}
         </DialogFooter>
       </DialogContent>
     </Dialog>

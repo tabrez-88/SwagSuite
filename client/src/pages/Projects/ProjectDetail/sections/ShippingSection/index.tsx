@@ -583,7 +583,7 @@ export default function ShippingSection({ projectId, data, isLocked }: ShippingS
                   </div>
                 </div>
 
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-2 gap-3">
                   <div>
                     <Label>In-Hands Date</Label>
                     <Input type="date" value={hook.editShippingForm.leg2InHandsDate}

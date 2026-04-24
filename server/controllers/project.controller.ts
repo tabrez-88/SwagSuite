@@ -1163,11 +1163,10 @@ export class ProjectController {
       for (const charge of allCharges) { (charges[charge.orderItemId] ??= []).push(charge); }
       for (const art of allArtworks) { (artworks[art.orderItemId] ??= []).push(art); }
       for (const ac of allArtworkCharges) { (artCharges[ac.artworkItemId] ??= []).push(ac); }
-
       const artFiles: Record<string, any[]> = {};
       for (const af of allArtItemFiles) { (artFiles[af.artworkItemId] ??= []).push(af); }
 
-      res.json({ items, lines, charges, artworks, artworkCharges: artCharges, artworkFiles: artFiles });
+      res.json({ items, lines, charges, artworks, artworkCharges: artCharges, artworkFiles: artFiles,  });
     } catch (error) {
       console.error("Error fetching items with details:", error);
       res.status(500).json({ message: "Failed to fetch items with details" });

@@ -68,9 +68,9 @@ export const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-start",
-    paddingBottom: 12,
+    paddingBottom: 8,
     marginBottom: 16,
-    borderBottomWidth: 2,
+    borderBottomWidth: 1,
     borderBottomColor: colors.gray300,
     borderBottomStyle: "solid",
   },
@@ -110,6 +110,10 @@ export const styles = StyleSheet.create({
   addressGrid: {
     flexDirection: "row",
     marginBottom: 16,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: colors.gray200,
+    borderStyle: "solid",
     gap: 24,
   },
   addressCol: { flex: 1 },
@@ -128,10 +132,10 @@ export const styles = StyleSheet.create({
   // ─── Line item rows ───────────────────────────────────────────────
   itemBlock: {
     marginBottom: 16,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.gray200,
-    borderBottomStyle: "solid",
+    padding: 12,
+    borderWidth: 1,
+    borderColor: colors.gray200,
+    borderStyle: "solid",
   },
   itemTitle: {
     fontSize: 11,
@@ -166,10 +170,6 @@ export const styles = StyleSheet.create({
   productImage: {
     width: 100,
     height: 100,
-    borderWidth: 1,
-    borderColor: colors.gray200,
-    borderStyle: "solid",
-    borderRadius: 2,
     objectFit: "contain",
   },
   imageCaption: {
@@ -196,9 +196,6 @@ export const styles = StyleSheet.create({
   },
   tableRow: {
     flexDirection: "row",
-    borderBottomWidth: 1,
-    borderBottomColor: colors.gray100,
-    borderBottomStyle: "solid",
     paddingVertical: 3,
   },
   tableTotalRow: {
@@ -213,7 +210,7 @@ export const styles = StyleSheet.create({
     color: colors.gray800,
   },
   // column widths (sums = 1)
-  colItem: { flex: 0.55 },
+  colItem: { flex: 1 },
   colQty: { width: 40, textAlign: "center" },
   colPrice: { width: 50, textAlign: "right" },
   colAmount: { width: 60, textAlign: "right" },
@@ -226,11 +223,9 @@ export const styles = StyleSheet.create({
     fontSize: 10,
     fontFamily: "Helvetica-Bold",
     color: colors.gray900,
+    backgroundColor: colors.gray100,
     marginBottom: 4,
-    paddingBottom: 2,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.gray300,
-    borderBottomStyle: "solid",
+    padding: 4
   },
   artworkRow: {
     flexDirection: "row",
@@ -256,19 +251,16 @@ export const styles = StyleSheet.create({
   artworkThumb: {
     width: 80,
     height: 80,
-    borderWidth: 1,
-    borderColor: colors.gray200,
-    borderStyle: "solid",
-    borderRadius: 2,
     objectFit: "contain",
+    overflow: "hidden"
   },
 
   // ─── Totals box ───────────────────────────────────────────────────
   totalsWrap: {
     flexDirection: "row",
     justifyContent: "flex-end",
-    marginTop: 8,
-    marginBottom: 16,
+    backgroundColor: colors.gray100,
+    padding: 12,
   },
   totalsBox: {
     width: 220,
@@ -284,10 +276,10 @@ export const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingVertical: 6,
     marginTop: 4,
-    borderTopWidth: 2,
+    borderTopWidth: 1,
     borderTopColor: colors.gray300,
     borderTopStyle: "solid",
-    fontSize: 12,
+    fontSize: 9,
     fontFamily: "Helvetica-Bold",
   },
 

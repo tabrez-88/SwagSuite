@@ -187,14 +187,14 @@ export default function ServiceChargesPanel({ projectId, isLocked }: ServiceChar
             </div>
           ) : (
             <Table>
-              <TableHeader>
+              <TableHeader className="bg-gray-100 border-b">
                 <TableRow>
-                  <TableHead>Description</TableHead>
-                  <TableHead className="w-[80px]">Type</TableHead>
-                  <TableHead className="w-[60px] text-right">QTY</TableHead>
-                  <TableHead className="w-[90px] text-right">Cost</TableHead>
-                  <TableHead className="w-[90px] text-right">Price</TableHead>
-                  <TableHead className="w-[100px] text-right">Amount</TableHead>
+                  <TableHead className="text-black p-3 font-bold">Description</TableHead>
+                  <TableHead className="text-black text-center p-3 font-bold w-20">Type</TableHead>
+                  <TableHead className="text-black text-center p-3 font-bold w-20">QTY</TableHead>
+                  <TableHead className="text-black text-center p-3 font-bold w-20">Cost</TableHead>
+                  <TableHead className="text-black text-center p-3 font-bold w-20">Price</TableHead>
+                  <TableHead className="text-black text-center p-3 font-bold w-20">Amount</TableHead>
                   {!isLocked && <TableHead className="w-[80px]" />}
                 </TableRow>
               </TableHeader>
@@ -214,7 +214,7 @@ export default function ServiceChargesPanel({ projectId, isLocked }: ServiceChar
                       <TableCell className="text-xs text-muted-foreground">
                         {chargeTypeLabel(charge.chargeType)}
                       </TableCell>
-                      <TableCell className="text-right">{qty}</TableCell>
+                      <TableCell className="text-center">{qty}</TableCell>
                       <TableCell className="text-right">${cost.toFixed(2)}</TableCell>
                       <TableCell className="text-right">${price.toFixed(2)}</TableCell>
                       <TableCell className="text-right font-medium">

@@ -83,17 +83,25 @@ export function SalesOrderPdf({
     const itemCharges = (allItemCharges[item.id] || []) as ProductCharge[];
     const decoCharges: DecorationCharge[] = [];
     for (const art of allArtworkItems[item.id] || []) {
-      for (const c of allArtworkCharges[art.id] || []) decoCharges.push(c as DecorationCharge);
+      for (const c of allArtworkCharges[art.id] || [])
+        decoCharges.push(c as DecorationCharge);
     }
-    return sum + getItemPricing(lines, itemCharges, decoCharges, item).itemSellGrandTotal;
+    return (
+      sum +
+      getItemPricing(lines, itemCharges, decoCharges, item).itemSellGrandTotal
+    );
   }, 0);
 
-  const shipping = parseFloat(order?.shippingCost) || parseFloat(order?.shipping) || 0;
+  const shipping =
+    parseFloat(order?.shippingCost) || parseFloat(order?.shipping) || 0;
   const tax = parseFloat(order?.tax) || 0;
-  const clientServiceCharges = serviceCharges.filter((c: any) => c.displayToClient !== false);
+  const clientServiceCharges = serviceCharges.filter(
+    (c: any) => c.displayToClient !== false,
+  );
   const serviceChargesTotal = clientServiceCharges.reduce(
-    (sum: number, c: any) => sum + (c.quantity || 1) * parseFloat(c.unitPrice || "0"),
-    0
+    (sum: number, c: any) =>
+      sum + (c.quantity || 1) * parseFloat(c.unitPrice || "0"),
+    0,
   );
   const total = subtotal + serviceChargesTotal + shipping + tax;
 
@@ -105,18 +113,12 @@ export function SalesOrderPdf({
         {/* ── Header ───────────────────────────────────────────── */}
         <View style={styles.header} fixed>
           <View style={styles.headerLeft}>
-            <Text style={[styles.docTitle, { color: colors.emerald600 }]}>SALES ORDER</Text>
-            <Text style={styles.docMeta}>SO #{order?.orderNumber || "N/A"}</Text>
-            <Text style={styles.docMeta}>Date: {fmtDate(order?.createdAt)}</Text>
-            {order?.inHandsDate && (
-              <Text style={styles.docMeta}>In-Hands Date: {fmtDate(order.inHandsDate)}</Text>
-            )}
-            {order?.eventDate && (
-              <Text style={styles.docMeta}>Event Date: {fmtDate(order.eventDate)}</Text>
-            )}
-            {order?.customerPo && (
-              <Text style={styles.docMeta}>Customer PO: {order.customerPo}</Text>
-            )}
+            <Text style={[styles.docTitle, { color: colors.emerald600 }]}>
+              SALES ORDER
+            </Text>
+            <Text style={{ fontSize: 12, fontWeight: 600 }}>
+              for {companyName || "N/A"}
+            </Text>
           </View>
           <View style={styles.headerRight}>
             <Text style={styles.brandName}>{"Liquid Screen Design"}</Text>
@@ -125,90 +127,122 @@ export function SalesOrderPdf({
                 <Text>FIRM ORDER</Text>
               </View>
             )}
-            {order?.isRush && (
-              <View style={[styles.badge, styles.badgeRed, { marginTop: 4 }]}>
-                <Text>RUSH ORDER</Text>
-              </View>
-            )}
           </View>
         </View>
 
         {/* ── Addresses ────────────────────────────────────────── */}
         <View style={styles.addressGrid}>
           <View style={styles.addressCol}>
-            <Text style={styles.addressLabel}>BILLING ADDRESS:</Text>
-            <Text style={[styles.addressLine, styles.bold]}>{companyName || "N/A"}</Text>
-            {billingAddr?.contactName && <Text style={styles.addressLine}>{billingAddr.contactName}</Text>}
+            <Text style={styles.addressLabel}>BILLING ADDRESS</Text>
+            {billingAddr?.contactName && (
+              <Text style={styles.addressLine}>{billingAddr.contactName}</Text>
+            )}
+            <Text style={[styles.addressLine]}>{companyName}</Text>
             {!billingAddr?.contactName && primaryContact && (
               <Text style={styles.addressLine}>
                 {primaryContact.firstName} {primaryContact.lastName}
               </Text>
             )}
-            {billingAddr?.street && <Text style={styles.addressLine}>{billingAddr.street}</Text>}
-            {billingAddr?.street2 && <Text style={styles.addressLine}>{billingAddr.street2}</Text>}
-            {billingAddr && <Text style={styles.addressLine}>{formatCityLine(billingAddr)}</Text>}
+            {billingAddr?.street && (
+              <Text style={styles.addressLine}>{billingAddr.street}</Text>
+            )}
+            {billingAddr?.street2 && (
+              <Text style={styles.addressLine}>{billingAddr.street2}</Text>
+            )}
+            {billingAddr && (
+              <Text style={styles.addressLine}>
+                {formatCityLine(billingAddr)}
+              </Text>
+            )}
             {(billingAddr?.email || primaryContact?.email) && (
-              <Text style={styles.addressLine}>{billingAddr?.email || primaryContact?.email}</Text>
+              <Text style={styles.addressLine}>
+                {billingAddr?.email || primaryContact?.email}
+              </Text>
             )}
             {(billingAddr?.phone || primaryContact?.phone) && (
-              <Text style={styles.addressLine}>{billingAddr?.phone || primaryContact?.phone}</Text>
+              <Text style={styles.addressLine}>
+                {billingAddr?.phone || primaryContact?.phone}
+              </Text>
             )}
           </View>
           <View style={styles.addressCol}>
-            <Text style={styles.addressLabel}>SHIPPING ADDRESS:</Text>
+            <Text style={styles.addressLabel}>SHIPPING ADDRESS</Text>
             {shippingAddr ? (
               <>
-                <Text style={[styles.addressLine, styles.bold]}>{companyName}</Text>
                 {shippingAddr.contactName && (
-                  <Text style={styles.addressLine}>{shippingAddr.contactName}</Text>
+                  <Text style={styles.addressLine}>
+                    {shippingAddr.contactName}
+                  </Text>
                 )}
+                <Text style={[styles.addressLine]}>{companyName}</Text>
                 {!shippingAddr.contactName && primaryContact && (
                   <Text style={styles.addressLine}>
                     {primaryContact.firstName} {primaryContact.lastName}
                   </Text>
                 )}
                 {(shippingAddr.street || shippingAddr.address) && (
-                  <Text style={styles.addressLine}>{shippingAddr.street || shippingAddr.address}</Text>
+                  <Text style={styles.addressLine}>
+                    {shippingAddr.street || shippingAddr.address}
+                  </Text>
                 )}
-                {shippingAddr.street2 && <Text style={styles.addressLine}>{shippingAddr.street2}</Text>}
-                <Text style={styles.addressLine}>{formatCityLine(shippingAddr)}</Text>
+                {shippingAddr.street2 && (
+                  <Text style={styles.addressLine}>{shippingAddr.street2}</Text>
+                )}
+                <Text style={styles.addressLine}>
+                  {formatCityLine(shippingAddr)}
+                </Text>
+                {(shippingAddr.email || primaryContact?.email) && (
+                  <Text style={styles.addressLine}>
+                    {shippingAddr.email || primaryContact?.email}
+                  </Text>
+                )}
+                {(shippingAddr.phone || primaryContact?.phone) && (
+                  <Text style={styles.addressLine}>
+                    {shippingAddr.phone || primaryContact?.phone}
+                  </Text>
+                )}
               </>
             ) : (
-              <Text style={[styles.addressLine, styles.muted]}>Not specified</Text>
-            )}
-          </View>
-        </View>
-
-        {/* ── Sales rep + payment terms ────────────────────────── */}
-        {(assignedUser || order?.paymentTerms) && (
-          <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 12 }}>
-            {order?.paymentTerms && (
-              <Text style={{ fontSize: 9, color: colors.gray700 }}>
-                <Text style={styles.bold}>Payment Terms: </Text>
-                {formatPaymentTerms(order.paymentTerms)}
+              <Text style={[styles.addressLine, styles.muted]}>
+                Not specified
               </Text>
             )}
-            {assignedUser && (
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                {repProfileSrc && (
-                  <Image
-                    src={repProfileSrc}
-                    style={{ width: 26, height: 26, borderRadius: 13, objectFit: "cover" }}
-                  />
-                )}
-                <View>
-                  <Text style={[styles.tiny, styles.bold]}>Your Sales Rep</Text>
-                  <Text style={styles.tiny}>
-                    {[assignedUser.firstName, assignedUser.lastName].filter(Boolean).join(" ")}
-                  </Text>
-                  {assignedUser.email && (
-                    <Text style={[styles.tiny, styles.muted]}>{assignedUser.email}</Text>
-                  )}
-                </View>
-              </View>
-            )}
           </View>
-        )}
+          <View style={{ flex: 2, flexDirection: "row" }}>
+            <View style={{ flex: 1, gap: 8 }}>
+              <View>
+                <Text style={[styles.docMeta, styles.bold]}>PROJECT #</Text>
+                <Text style={[styles.docMeta]}>
+                  {order?.orderNumber || "N/A"}
+                </Text>
+              </View>
+              <View>
+                <Text style={[styles.docMeta, styles.bold]}>TERMS</Text>
+                {order?.paymentTerms && (
+                  <Text style={styles.docMeta}>
+                    {formatPaymentTerms(order.paymentTerms)}
+                  </Text>
+                )}
+              </View>
+            </View>
+            <View style={{ flex: 1, gap: 8 }}>
+              <View>
+                <Text style={[styles.docMeta, styles.bold]}>IN HANDS DATE</Text>
+                {order?.inHandsDate && (
+                  <Text style={styles.docMeta}>
+                    {fmtDate(order.inHandsDate)}
+                  </Text>
+                )}
+              </View>
+              <View>
+                <Text style={[styles.docMeta, styles.bold]}>CUSTOMER PO</Text>
+                {order?.customerPo && (
+                  <Text style={styles.docMeta}>{order.customerPo}</Text>
+                )}
+              </View>
+            </View>
+          </View>
+        </View>
 
         {/* ── Items ────────────────────────────────────────────── */}
         {orderItems.map((item: any) => {
@@ -216,7 +250,7 @@ export function SalesOrderPdf({
           const hasMultipleLines = realLines.length > 1;
           const itemArtworks = allArtworkItems[item.id] || [];
           const itemCharges = (allItemCharges[item.id] || []).filter(
-            (c: any) => c.displayToClient && !c.includeInUnitPrice
+            (c: any) => c.displayToClient && !c.includeInUnitPrice,
           );
 
           // Use getItemPricing for accurate total including charges
@@ -227,42 +261,77 @@ export function SalesOrderPdf({
                   cost: parseFloat(l.cost || "0"),
                   unitPrice: parseFloat(l.unitPrice || "0"),
                 }))
-              : [{ quantity: item.quantity || 0, cost: parseFloat(item.cost || "0"), unitPrice: parseFloat(item.unitPrice || "0") }];
+              : [
+                  {
+                    quantity: item.quantity || 0,
+                    cost: parseFloat(item.cost || "0"),
+                    unitPrice: parseFloat(item.unitPrice || "0"),
+                  },
+                ];
           const decoCharges: DecorationCharge[] = [];
           for (const art of itemArtworks) {
-            for (const c of allArtworkCharges[art.id] || []) decoCharges.push(c as DecorationCharge);
+            for (const c of allArtworkCharges[art.id] || [])
+              decoCharges.push(c as DecorationCharge);
           }
-          const pricing = getItemPricing(pricingLines, itemCharges as ProductCharge[], decoCharges, item);
+          const pricing = getItemPricing(
+            pricingLines,
+            itemCharges as ProductCharge[],
+            decoCharges,
+            item,
+          );
           const productTotal = pricing.itemSellGrandTotal;
 
           const totalUnits = hasMultipleLines
             ? realLines.reduce((s: number, l: any) => s + (l.quantity || 0), 0)
             : item.quantity || 0;
 
-          const productImgSrc = resolvePdfImage(item.imageUrl || item.productImageUrl);
+          const productImgSrc = resolvePdfImage(
+            item.imageUrl || item.productImageUrl,
+          );
 
           return (
             <View key={item.id} style={styles.itemBlock} wrap={false}>
               <Text style={styles.itemTitle}>{item.productName}</Text>
               {(item.description || item.productDescription) && (
-                <Text style={styles.itemDesc}>{item.description || item.productDescription}</Text>
+                <Text style={styles.itemDesc}>
+                  {item.description || item.productDescription}
+                </Text>
               )}
               {item.notes && <Text style={styles.itemNotes}>{item.notes}</Text>}
 
               <View style={styles.itemBody}>
                 {productImgSrc && (
                   <View style={styles.productImageBox}>
-                    <Image src={productImgSrc} style={styles.productImage} />
-                    <Text style={styles.imageCaption}>Product image for reference only.</Text>
+                    <View
+                      style={{
+                        borderWidth: 1,
+                        borderColor: colors.gray200,
+                        borderStyle: "solid",
+                        borderRadius: 2,
+                      }}
+                    >
+                      <Image src={productImgSrc} style={styles.productImage} />
+                    </View>
+                    <Text style={styles.imageCaption}>
+                      Product image for reference only.
+                    </Text>
                   </View>
                 )}
 
                 <View style={styles.itemTableWrap}>
                   <View style={styles.tableHead}>
-                    <Text style={[styles.tableHeadCell, styles.colItem]}>ITEM</Text>
-                    <Text style={[styles.tableHeadCell, styles.colQty]}>QTY</Text>
-                    <Text style={[styles.tableHeadCell, styles.colPrice]}>PRICE</Text>
-                    <Text style={[styles.tableHeadCell, styles.colAmount]}>AMOUNT</Text>
+                    <Text style={[styles.tableHeadCell, styles.colItem]}>
+                      ITEM
+                    </Text>
+                    <Text style={[styles.tableHeadCell, styles.colQty]}>
+                      QTY
+                    </Text>
+                    <Text style={[styles.tableHeadCell, styles.colPrice]}>
+                      PRICE
+                    </Text>
+                    <Text style={[styles.tableHeadCell, styles.colAmount]}>
+                      AMOUNT
+                    </Text>
                   </View>
 
                   {hasMultipleLines ? (
@@ -270,26 +339,62 @@ export function SalesOrderPdf({
                       {realLines.map((line: any, idx: number) => {
                         const lineQty = line.quantity || 0;
                         const linePrice = parseFloat(line.unitPrice || "0");
-                        const lineLabel = [
-                          line.size && `Size: ${line.size}`,
-                          line.color && `Color: ${line.color}`,
-                        ].filter(Boolean).join(" - ") || `Line ${idx + 1}`;
+                        const lineLabel =
+                          [
+                            line.size && `Size: ${line.size}`,
+                            line.color && `Color: ${line.color}`,
+                          ]
+                            .filter(Boolean)
+                            .join(" - ") || `Line ${idx + 1}`;
                         return (
                           <View key={line.id || idx} style={styles.tableRow}>
-                            <Text style={[styles.tableCell, styles.colItem]}>{lineLabel}</Text>
-                            <Text style={[styles.tableCell, styles.colQty]}>{lineQty}</Text>
-                            <Text style={[styles.tableCell, styles.colPrice]}>{fmtMoney(linePrice)}</Text>
-                            <Text style={[styles.tableCell, styles.colAmount, styles.bold]}>
+                            <Text style={[styles.tableCell, styles.colItem]}>
+                              {lineLabel}
+                            </Text>
+                            <Text style={[styles.tableCell, styles.colQty]}>
+                              {lineQty}
+                            </Text>
+                            <Text style={[styles.tableCell, styles.colPrice]}>
+                              {fmtMoney(linePrice)}
+                            </Text>
+                            <Text
+                              style={[
+                                styles.tableCell,
+                                styles.colAmount,
+                                styles.bold,
+                              ]}
+                            >
                               {fmtMoney(lineQty * linePrice)}
                             </Text>
                           </View>
                         );
                       })}
-                      <View style={[styles.tableRow, { backgroundColor: "#f9fafb" }]}>
-                        <Text style={[styles.tableCell, styles.colItem, styles.bold]}>TOTAL UNITS</Text>
-                        <Text style={[styles.tableCell, styles.colQty, styles.bold]}>{totalUnits}</Text>
-                        <Text style={[styles.tableCell, styles.colPrice]}> </Text>
-                        <Text style={[styles.tableCell, styles.colAmount]}> </Text>
+                      <View
+                        style={[
+                          styles.tableRow,
+                          { backgroundColor: "#f9fafb" },
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.tableCell,
+                            styles.colItem,
+                            styles.bold,
+                          ]}
+                        >
+                          TOTAL UNITS
+                        </Text>
+                        <Text
+                          style={[styles.tableCell, styles.colQty, styles.bold]}
+                        >
+                          {totalUnits}
+                        </Text>
+                        <Text style={[styles.tableCell, styles.colPrice]}>
+                          {" "}
+                        </Text>
+                        <Text style={[styles.tableCell, styles.colAmount]}>
+                          {" "}
+                        </Text>
                       </View>
                     </>
                   ) : (
@@ -303,38 +408,113 @@ export function SalesOrderPdf({
                               ? `Size: ${item.size}`
                               : item.productName}
                       </Text>
-                      <Text style={[styles.tableCell, styles.colQty]}>{totalUnits}</Text>
-                      <Text style={[styles.tableCell, styles.colPrice]}>{fmtMoney(parseFloat(item.unitPrice || "0"))}</Text>
-                      <Text style={[styles.tableCell, styles.colAmount, styles.bold]}>
-                        {fmtMoney(totalUnits * parseFloat(item.unitPrice || "0"))}
+                      <Text style={[styles.tableCell, styles.colQty]}>
+                        {totalUnits}
+                      </Text>
+                      <Text style={[styles.tableCell, styles.colPrice]}>
+                        {fmtMoney(parseFloat(item.unitPrice || "0"))}
+                      </Text>
+                      <Text
+                        style={[
+                          styles.tableCell,
+                          styles.colAmount,
+                          styles.bold,
+                        ]}
+                      >
+                        {fmtMoney(
+                          totalUnits * parseFloat(item.unitPrice || "0"),
+                        )}
                       </Text>
                     </View>
                   )}
 
                   {itemCharges.map((charge: any) => {
-                    const chargeAmt = parseFloat(charge.retailPrice || charge.amount || "0");
+                    const chargeAmt = parseFloat(
+                      charge.retailPrice || charge.amount || "0",
+                    );
                     const chargeQty =
-                      charge.chargeCategory === "run" ? totalUnits : charge.quantity || 1;
+                      charge.chargeCategory === "run"
+                        ? totalUnits
+                        : charge.quantity || 1;
                     return (
                       <View key={charge.id} style={styles.tableRow}>
-                        <Text style={[styles.tableCell, styles.colItem, styles.muted]}>
+                        <Text
+                          style={[
+                            styles.tableCell,
+                            styles.colItem,
+                            styles.muted,
+                          ]}
+                        >
                           {charge.description}
                           {charge.chargeCategory === "run" && " (per unit)"}
                         </Text>
-                        <Text style={[styles.tableCell, styles.colQty]}>{chargeQty}</Text>
-                        <Text style={[styles.tableCell, styles.colPrice]}>{fmtMoney(chargeAmt)}</Text>
-                        <Text style={[styles.tableCell, styles.colAmount, styles.bold]}>
+                        <Text style={[styles.tableCell, styles.colQty]}>
+                          {chargeQty}
+                        </Text>
+                        <Text style={[styles.tableCell, styles.colPrice]}>
+                          {fmtMoney(chargeAmt)}
+                        </Text>
+                        <Text
+                          style={[
+                            styles.tableCell,
+                            styles.colAmount,
+                            styles.bold,
+                          ]}
+                        >
                           {fmtMoney(chargeAmt * chargeQty)}
                         </Text>
                       </View>
                     );
                   })}
+                  {itemArtworks.flatMap((art: any) =>
+                    (allArtworkCharges[art.id] || [])
+                      .filter((c: any) => c.displayMode === "display_to_client")
+                      .map((c: any) => (
+                        <View key={c.id} style={styles.tableRow}>
+                          <Text
+                            style={[
+                              styles.tableCell,
+                              styles.colItem,
+                              styles.muted,
+                            ]}
+                          >
+                            {formatLabel(c.chargeName)}
+                            {" - "}
+                            {art.location && `${formatLabel(art.location)}`}
+                          </Text>
+                          <Text style={[styles.tableCell, styles.colQty]}>
+                            {c.quantity}
+                          </Text>
+                          <Text style={[styles.tableCell, styles.colPrice]}>
+                            {fmtMoney(c.retailPrice)}
+                          </Text>
+                          <Text
+                            style={[
+                              styles.tableCell,
+                              styles.colAmount,
+                              styles.bold,
+                            ]}
+                          >
+                            {fmtMoney(
+                              (c.quantity || 1) *
+                                parseFloat(c.retailPrice || "0"),
+                            )}
+                          </Text>
+                        </View>
+                      )),
+                  )}
 
                   <View style={styles.tableTotalRow}>
-                    <Text style={[styles.tableCell, styles.colItem, styles.bold]}>TOTAL</Text>
+                    <Text
+                      style={[styles.tableCell, styles.colItem, styles.bold]}
+                    >
+                      TOTAL
+                    </Text>
                     <Text style={[styles.tableCell, styles.colQty]}> </Text>
                     <Text style={[styles.tableCell, styles.colPrice]}> </Text>
-                    <Text style={[styles.tableCell, styles.colAmount, styles.bold]}>
+                    <Text
+                      style={[styles.tableCell, styles.colAmount, styles.bold]}
+                    >
                       {fmtMoney(productTotal)}
                     </Text>
                   </View>
@@ -346,30 +526,39 @@ export function SalesOrderPdf({
                   <Text style={styles.artworkHeader}>Artwork Details</Text>
                   {itemArtworks.map((art: any, idx: number) => {
                     const artUrl = art.filePath || art.fileUrl;
-                    const artSrc = resolvePdfImage(getRenderableImageUrl(artUrl) || artUrl);
-                    const artCharges = (allArtworkCharges[art.id] || []).filter(
-                      (c: any) => c.displayMode === "display_to_client"
+                    const artSrc = resolvePdfImage(
+                      getRenderableImageUrl(artUrl) || artUrl,
                     );
                     return (
                       <View key={art.id || idx} style={styles.artworkRow}>
                         <View style={styles.artworkFields}>
                           {art.name && (
                             <View style={styles.artworkFieldRow}>
-                              <Text style={styles.artworkFieldLabel}>DESIGN NAME</Text>
-                              <Text style={styles.artworkFieldValue}>{art.name}</Text>
+                              <Text style={styles.artworkFieldLabel}>
+                                DESIGN NAME
+                              </Text>
+                              <Text style={styles.artworkFieldValue}>
+                                {art.name}
+                              </Text>
                             </View>
                           )}
                           {(art.artworkType || art.imprintMethod) && (
                             <View style={styles.artworkFieldRow}>
-                              <Text style={styles.artworkFieldLabel}>IMPRINT TYPE</Text>
+                              <Text style={styles.artworkFieldLabel}>
+                                IMPRINT TYPE
+                              </Text>
                               <Text style={styles.artworkFieldValue}>
-                                {getImprintMethodLabel(art.artworkType || art.imprintMethod)}
+                                {getImprintMethodLabel(
+                                  art.artworkType || art.imprintMethod,
+                                )}
                               </Text>
                             </View>
                           )}
                           {art.location && (
                             <View style={styles.artworkFieldRow}>
-                              <Text style={styles.artworkFieldLabel}>DESIGN LOCATION</Text>
+                              <Text style={styles.artworkFieldLabel}>
+                                DESIGN LOCATION
+                              </Text>
                               <Text style={styles.artworkFieldValue}>
                                 {getImprintLocationLabel(art.location)}
                               </Text>
@@ -377,35 +566,47 @@ export function SalesOrderPdf({
                           )}
                           {(art.size || art.designSize) && (
                             <View style={styles.artworkFieldRow}>
-                              <Text style={styles.artworkFieldLabel}>DESIGN SIZE</Text>
-                              <Text style={styles.artworkFieldValue}>{art.size || art.designSize}</Text>
+                              <Text style={styles.artworkFieldLabel}>
+                                DESIGN SIZE
+                              </Text>
+                              <Text style={styles.artworkFieldValue}>
+                                {art.size || art.designSize}
+                              </Text>
                             </View>
                           )}
                           {(art.color || art.colors) && (
                             <View style={styles.artworkFieldRow}>
-                              <Text style={styles.artworkFieldLabel}>DESIGN COLOR</Text>
-                              <Text style={styles.artworkFieldValue}>{art.color || art.colors}</Text>
+                              <Text style={styles.artworkFieldLabel}>
+                                DESIGN COLOR
+                              </Text>
+                              <Text style={styles.artworkFieldValue}>
+                                {art.color || art.colors}
+                              </Text>
                             </View>
                           )}
                           {art.notes && (
                             <View style={styles.artworkFieldRow}>
-                              <Text style={styles.artworkFieldLabel}>NOTES</Text>
-                              <Text style={styles.artworkFieldValue}>{art.notes}</Text>
-                            </View>
-                          )}
-                          {artCharges.map((c: any) => (
-                            <View key={c.id} style={styles.artworkFieldRow}>
                               <Text style={styles.artworkFieldLabel}>
-                                {c.chargeCategory === "run" ? "IMPRINT COST" : "SETUP COST"}
+                                NOTES
                               </Text>
                               <Text style={styles.artworkFieldValue}>
-                                {formatLabel(c.chargeName)}: {fmtMoney(c.retailPrice)}
-                                {c.chargeCategory === "run" ? " per unit" : " (one-time)"}
+                                {art.notes}
                               </Text>
                             </View>
-                          ))}
+                          )}
                         </View>
-                        {artSrc && <Image src={artSrc} style={styles.artworkThumb} />}
+                        {artSrc && (
+                          <View
+                            style={{
+                              borderWidth: 1,
+                              borderColor: colors.gray200,
+                              borderStyle: "solid",
+                              borderRadius: 2,
+                            }}
+                          >
+                            <Image src={artSrc} style={styles.artworkThumb} />
+                          </View>
+                        )}
                       </View>
                     );
                   })}
@@ -417,23 +618,43 @@ export function SalesOrderPdf({
 
         {/* ── Service Charges ──────────────────────────────────── */}
         {clientServiceCharges.length > 0 && (
-          <View style={{ marginBottom: 12 }} wrap={false}>
-            <Text style={styles.artworkHeader}>Services & Fees</Text>
+          <View
+            style={{
+              marginBottom: 12,
+              padding: 12,
+              borderWidth: 1,
+              borderColor: colors.gray200,
+              borderStyle: "solid",
+              borderRadius: 2,
+            }}
+            wrap={false}
+          >
+            <Text style={styles.artworkHeader}>Services</Text>
             <View style={styles.tableHead}>
-              <Text style={[styles.tableHeadCell, styles.colItem]}>SERVICE</Text>
+              <Text style={[styles.tableHeadCell, styles.colItem]}>
+                SERVICE
+              </Text>
               <Text style={[styles.tableHeadCell, styles.colQty]}>QTY</Text>
               <Text style={[styles.tableHeadCell, styles.colPrice]}>PRICE</Text>
-              <Text style={[styles.tableHeadCell, styles.colAmount]}>AMOUNT</Text>
+              <Text style={[styles.tableHeadCell, styles.colAmount]}>
+                AMOUNT
+              </Text>
             </View>
             {clientServiceCharges.map((charge: any) => {
               const qty = charge.quantity || 1;
               const price = parseFloat(charge.unitPrice || "0");
               return (
                 <View key={charge.id} style={styles.tableRow}>
-                  <Text style={[styles.tableCell, styles.colItem]}>{charge.description}</Text>
+                  <Text style={[styles.tableCell, styles.colItem]}>
+                    {charge.description}
+                  </Text>
                   <Text style={[styles.tableCell, styles.colQty]}>{qty}</Text>
-                  <Text style={[styles.tableCell, styles.colPrice]}>{fmtMoney(price)}</Text>
-                  <Text style={[styles.tableCell, styles.colAmount, styles.bold]}>
+                  <Text style={[styles.tableCell, styles.colPrice]}>
+                    {fmtMoney(price)}
+                  </Text>
+                  <Text
+                    style={[styles.tableCell, styles.colAmount, styles.bold]}
+                  >
                     {fmtMoney(qty * price)}
                   </Text>
                 </View>
@@ -443,33 +664,41 @@ export function SalesOrderPdf({
         )}
 
         {/* ── Totals ───────────────────────────────────────────── */}
-        <View style={styles.totalsWrap} wrap={false}>
-          <View style={styles.totalsBox}>
-            <View style={styles.totalsRow}>
-              <Text>Subtotal:</Text>
-              <Text>{fmtMoney(subtotal)}</Text>
-            </View>
-            {serviceChargesTotal > 0 && (
+        <View
+          style={{
+            flexDirection: "row",
+            justifyContent: "space-between",
+            alignItems: "flex-start",
+          }}
+          wrap={false}
+        >
+          <View>
+            <Text style={{ fontSize: 12, marginBottom: 4 }}>
+              Questions about this sales order?
+            </Text>
+            <Text>
+              {assignedUser?.firstName} {assignedUser?.lastName}
+            </Text>
+            <Text>{assignedUser?.email}</Text>
+          </View>
+          <View style={styles.totalsWrap} wrap={false}>
+            <View style={styles.totalsBox}>
               <View style={styles.totalsRow}>
-                <Text>Services & Fees:</Text>
-                <Text>{fmtMoney(serviceChargesTotal)}</Text>
+                <Text>SUBTOTAL</Text>
+                <Text>{fmtMoney(subtotal)}</Text>
               </View>
-            )}
-            {shipping > 0 && (
               <View style={styles.totalsRow}>
-                <Text>Shipping:</Text>
-                <Text>{fmtMoney(shipping)}</Text>
+                <Text>TAX</Text>
+                {tax > 0 ? (
+                  <Text>{fmtMoney(tax)}</Text>
+                ) : (
+                  <Text style={styles.muted}>EXEMPT</Text>
+                )}
               </View>
-            )}
-            {tax > 0 && (
-              <View style={styles.totalsRow}>
-                <Text>Tax:</Text>
-                <Text>{fmtMoney(tax)}</Text>
+              <View style={styles.totalsGrandRow}>
+                <Text>TOTAL</Text>
+                <Text>{fmtMoney(total)}</Text>
               </View>
-            )}
-            <View style={styles.totalsGrandRow}>
-              <Text>Total:</Text>
-              <Text>{fmtMoney(total)}</Text>
             </View>
           </View>
         </View>
@@ -486,13 +715,16 @@ export function SalesOrderPdf({
         <View style={styles.pageFooter} fixed>
           <Text>Thank you for your business!</Text>
           <Text style={{ marginTop: 2 }}>
-            This sales order confirms the agreed-upon terms for the products listed above.
+            This sales order confirms the agreed-upon terms for the products
+            listed above.
           </Text>
         </View>
         <Text
           style={styles.pageNumber}
           fixed
-          render={({ pageNumber, totalPages }) => `${pageNumber} / ${totalPages}`}
+          render={({ pageNumber, totalPages }) =>
+            `${pageNumber} / ${totalPages}`
+          }
         />
       </Page>
     </Document>
