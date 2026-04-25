@@ -239,6 +239,13 @@
       "when": 1776669624986,
       "tag": "0033_foamy_blackheart",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1777011902464,
+      "tag": "0034_eminent_stephen_strange",
+      "breakpoints": true
     }
   ]
 }

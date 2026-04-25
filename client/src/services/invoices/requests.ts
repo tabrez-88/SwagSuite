@@ -19,3 +19,18 @@ export async function createStripePayment(invoiceId: string | number) {
   const res = await apiRequest("POST", `/api/invoices/${invoiceId}/payment-link`);
   return res.json();
 }
+
+export async function createDepositInvoice(projectId: string | number) {
+  const res = await apiRequest("POST", `/api/projects/${projectId}/deposit-invoice`);
+  return res.json();
+}
+
+export async function createFinalInvoice(projectId: string | number) {
+  const res = await apiRequest("POST", `/api/projects/${projectId}/final-invoice`);
+  return res.json();
+}
+
+export async function getInvoices(projectId: string | number) {
+  const res = await apiRequest("GET", `/api/projects/${projectId}/invoices`);
+  return res.json();
+}

@@ -335,7 +335,8 @@ async function recalculateOrderTotals(orderId: string) {
     return rate.toFixed(2);
   })();
 
-  const updatedOrder = await projectRepository.updateOrder(orderId, {
+  // Build update payload, including deposit recalculation if applicable
+  const orderUpdate: any = {
     subtotal: subtotal.toFixed(2),
     shipping: shippingTotal.toFixed(2),
     tax: tax.toFixed(2),
@@ -343,7 +344,30 @@ async function recalculateOrderTotals(orderId: string) {
     total: total.toFixed(2),
     margin: marginStr,
     taxCalculatedAt: taxSource !== "none" ? new Date() : undefined,
-  } as any);
+  };
+
+  // Recalculate deposit amount when deposit is configured and NOT yet received
+  if (existingOrder?.depositPercent && existingOrder.depositStatus !== "received") {
+    const pct = parseFloat(String(existingOrder.depositPercent));
+    if (pct > 0) {
+      orderUpdate.depositAmount = (total * pct / 100).toFixed(2);
+    }
+  }
+
+  const updatedOrder = await projectRepository.updateOrder(orderId, orderUpdate);
+
+  // Update unpaid deposit invoice amount if total changed
+  if (existingOrder?.depositPercent && existingOrder.depositStatus !== "received") {
+    const { invoiceRepository } = await import("../repositories/invoice.repository");
+    const depositInvoice = await invoiceRepository.getDepositInvoiceByOrderId(orderId);
+    if (depositInvoice && depositInvoice.status !== "paid") {
+      const newDepositAmount = orderUpdate.depositAmount || depositInvoice.totalAmount;
+      await invoiceRepository.updateInvoice(depositInvoice.id, {
+        subtotal: newDepositAmount,
+        totalAmount: newDepositAmount,
+      });
+    }
+  }
 
   // Update YTD spending (reuse allItems already fetched above)
   if (updatedOrder.companyId) {

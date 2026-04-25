@@ -47,6 +47,11 @@ export function InvoicePdf({
   serviceCharges = [],
   sellerName,
 }: InvoicePdfProps) {
+  const invoiceType: string = invoice?.invoiceType || "standard";
+  const isDeposit = invoiceType === "deposit";
+  const isFinal = invoiceType === "final";
+  const depositDeduction = parseFloat(invoice?.depositDeduction) || 0;
+
   const billingAddr = parseAddress(order?.billingAddress);
   const shippingAddr = parseAddress(order?.shippingAddress);
 
@@ -120,7 +125,7 @@ export function InvoicePdf({
   const taxExempt = tax === 0;
 
   return (
-    <Document title={`Invoice ${invoice?.invoiceNumber || ""}`}>
+    <Document title={`${isDeposit ? "Deposit Invoice" : "Invoice"} ${invoice?.invoiceNumber || ""}`}>
       <Page size="A4" style={styles.page} wrap>
         {/* ── Header: Seller Name + Invoice Title ──────────────── */}
         <View style={{ marginBottom: 16 }} fixed>
@@ -142,7 +147,7 @@ export function InvoicePdf({
                 color: colors.gray800,
               }}
             >
-              INVOICE
+              {isDeposit ? "DEPOSIT INVOICE" : "INVOICE"}
             </Text>
             <Text style={{ fontSize: 11, color: colors.gray600 }}>
               for {companyName || "Client"}
@@ -246,7 +251,7 @@ export function InvoicePdf({
             <Text
               style={{ fontSize: 8, color: colors.gray500, marginBottom: 2 }}
             >
-              AMOUNT DUE
+              {isFinal ? "BALANCE DUE" : "AMOUNT DUE"}
             </Text>
             <Text
               style={{
@@ -255,7 +260,7 @@ export function InvoicePdf({
                 color: colors.gray800,
               }}
             >
-              {fmtMoney(total)}
+              {fmtMoney(isFinal ? total - depositDeduction : isDeposit ? parseFloat(invoice?.totalAmount || "0") : total)}
             </Text>
           </View>
 
@@ -352,7 +357,36 @@ export function InvoicePdf({
           </View>
         </View>
 
-        {/* ── Flat Summary Table ────────────────────────────────── */}
+        {/* ── Deposit Invoice: Simple reference block (no line items) ── */}
+        {isDeposit && (
+          <View style={{ marginBottom: 16, padding: 12, backgroundColor: colors.gray100, borderRadius: 4 }}>
+            <Text style={{ fontSize: 10, fontFamily: "Helvetica-Bold", marginBottom: 6 }}>
+              Deposit for Sales Order #{order?.orderNumber || "N/A"}
+            </Text>
+            <View style={{ flexDirection: "row", justifyContent: "space-between", paddingVertical: 3 }}>
+              <Text style={{ fontSize: 9, color: colors.gray600 }}>Order Total</Text>
+              <Text style={{ fontSize: 9 }}>{fmtMoney(parseFloat(order?.total || "0"))}</Text>
+            </View>
+            <View style={{ flexDirection: "row", justifyContent: "space-between", paddingVertical: 3 }}>
+              <Text style={{ fontSize: 9, color: colors.gray600 }}>
+                Deposit Required ({parseFloat(order?.depositPercent || "0")}%)
+              </Text>
+              <Text style={{ fontSize: 9, fontFamily: "Helvetica-Bold" }}>
+                {fmtMoney(parseFloat(invoice?.totalAmount || "0"))}
+              </Text>
+            </View>
+            <View style={{ height: 1, backgroundColor: colors.gray300, marginVertical: 4 }} />
+            <View style={{ flexDirection: "row", justifyContent: "space-between", paddingVertical: 3 }}>
+              <Text style={{ fontSize: 10, fontFamily: "Helvetica-Bold" }}>AMOUNT DUE</Text>
+              <Text style={{ fontSize: 10, fontFamily: "Helvetica-Bold" }}>
+                {fmtMoney(parseFloat(invoice?.totalAmount || "0"))}
+              </Text>
+            </View>
+          </View>
+        )}
+
+        {/* ── Flat Summary Table (Standard + Final invoices) ──── */}
+        {!isDeposit && <>
         <View
           style={[
             styles.tableHead,
@@ -575,11 +609,24 @@ export function InvoicePdf({
               </View>
             )}
             <View style={[styles.totalsGrandRow, { color: colors.gray800 }]}>
-              <Text>TOTAL</Text>
+              <Text>ORDER TOTAL</Text>
               <Text>{fmtMoney(total)}</Text>
             </View>
+            {isFinal && depositDeduction > 0 && (
+              <>
+                <View style={[styles.totalsRow, { marginTop: 4 }]}>
+                  <Text style={{ color: "#16a34a" }}>Less: Deposit Received</Text>
+                  <Text style={{ color: "#16a34a" }}>({fmtMoney(depositDeduction)})</Text>
+                </View>
+                <View style={[styles.totalsGrandRow, { color: colors.gray800, marginTop: 2 }]}>
+                  <Text>BALANCE DUE</Text>
+                  <Text>{fmtMoney(total - depositDeduction)}</Text>
+                </View>
+              </>
+            )}
           </View>
         </View>
+        </>}
 
         {/* ── Notes / Terms ────────────────────────────────────── */}
         {(invoice?.notes || order?.notes) && (

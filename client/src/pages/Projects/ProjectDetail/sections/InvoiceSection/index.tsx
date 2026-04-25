@@ -78,19 +78,45 @@ export default function InvoiceSection(props: InvoiceSectionProps) {
           </p>
         </div>
         {!hook.invoice && (
-          <Button
-            onClick={() => hook.createInvoiceMutation.mutate()}
-            disabled={hook.createInvoiceMutation.isPending}
-          >
-            {hook.createInvoiceMutation.isPending ? (
-              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+          <div className="flex items-center gap-2">
+            {hook.hasDeposit && !hook.depositReceived ? (
+              <Button
+                onClick={() => hook.createDepositInvoiceMutation.mutate()}
+                disabled={hook.createDepositInvoiceMutation.isPending}
+              >
+                {hook.createDepositInvoiceMutation.isPending ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <Plus className="w-4 h-4 mr-2" />
+                )}
+                {hook.createDepositInvoiceMutation.isPending ? "Creating..." : "Create Deposit Invoice"}
+              </Button>
+            ) : hook.hasDeposit && hook.depositReceived ? (
+              <Button
+                onClick={() => hook.createFinalInvoiceMutation.mutate()}
+                disabled={hook.createFinalInvoiceMutation.isPending}
+              >
+                {hook.createFinalInvoiceMutation.isPending ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <Plus className="w-4 h-4 mr-2" />
+                )}
+                {hook.createFinalInvoiceMutation.isPending ? "Creating..." : "Create Final Invoice"}
+              </Button>
             ) : (
-              <Plus className="w-4 h-4 mr-2" />
+              <Button
+                onClick={() => hook.createInvoiceMutation.mutate()}
+                disabled={hook.createInvoiceMutation.isPending}
+              >
+                {hook.createInvoiceMutation.isPending ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <Plus className="w-4 h-4 mr-2" />
+                )}
+                {hook.createInvoiceMutation.isPending ? "Creating..." : "Create Invoice"}
+              </Button>
             )}
-            {hook.createInvoiceMutation.isPending
-              ? "Creating..."
-              : "Create Invoice"}
-          </Button>
+          </div>
         )}
       </div>
 
@@ -109,7 +135,14 @@ export default function InvoiceSection(props: InvoiceSectionProps) {
               <div className="flex items-center justify-between">
                 <CardTitle className="text-sm flex items-center gap-2">
                   <FileText className="w-4 h-4" />
+                  {hook.invoice.invoiceType === "deposit" ? "Deposit " : hook.invoice.invoiceType === "final" ? "Final " : ""}
                   Invoice #{hook.invoice.invoiceNumber}
+                  {hook.invoice.invoiceType === "deposit" && (
+                    <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-5 bg-amber-50 text-amber-700 border-amber-200">DEPOSIT</Badge>
+                  )}
+                  {hook.invoice.invoiceType === "final" && (
+                    <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-5 bg-blue-50 text-blue-700 border-blue-200">FINAL</Badge>
+                  )}
                 </CardTitle>
                 <Badge
                   className={
@@ -514,21 +547,49 @@ export default function InvoiceSection(props: InvoiceSectionProps) {
               No invoice yet
             </h3>
             <p className="text-gray-500 mb-4">
-              Create an invoice to start tracking payments for this project
+              {hook.hasDeposit && !hook.depositReceived
+                ? "Create a deposit invoice to collect upfront payment"
+                : hook.hasDeposit && hook.depositReceived
+                  ? "Deposit received. Create a final invoice for the remaining balance"
+                  : "Create an invoice to start tracking payments for this project"}
             </p>
-            <Button
-              onClick={() => hook.createInvoiceMutation.mutate()}
-              disabled={hook.createInvoiceMutation.isPending}
-            >
-              {hook.createInvoiceMutation.isPending ? (
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              ) : (
-                <Plus className="w-4 h-4 mr-2" />
-              )}
-              {hook.createInvoiceMutation.isPending
-                ? "Creating..."
-                : "Create Invoice"}
-            </Button>
+            {hook.hasDeposit && !hook.depositReceived ? (
+              <Button
+                onClick={() => hook.createDepositInvoiceMutation.mutate()}
+                disabled={hook.createDepositInvoiceMutation.isPending}
+              >
+                {hook.createDepositInvoiceMutation.isPending ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <Plus className="w-4 h-4 mr-2" />
+                )}
+                {hook.createDepositInvoiceMutation.isPending ? "Creating..." : "Create Deposit Invoice"}
+              </Button>
+            ) : hook.hasDeposit && hook.depositReceived ? (
+              <Button
+                onClick={() => hook.createFinalInvoiceMutation.mutate()}
+                disabled={hook.createFinalInvoiceMutation.isPending}
+              >
+                {hook.createFinalInvoiceMutation.isPending ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <Plus className="w-4 h-4 mr-2" />
+                )}
+                {hook.createFinalInvoiceMutation.isPending ? "Creating..." : "Create Final Invoice"}
+              </Button>
+            ) : (
+              <Button
+                onClick={() => hook.createInvoiceMutation.mutate()}
+                disabled={hook.createInvoiceMutation.isPending}
+              >
+                {hook.createInvoiceMutation.isPending ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <Plus className="w-4 h-4 mr-2" />
+                )}
+                {hook.createInvoiceMutation.isPending ? "Creating..." : "Create Invoice"}
+              </Button>
+            )}
           </CardContent>
         </Card>
       )}

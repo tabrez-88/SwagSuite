@@ -53,6 +53,19 @@ export class InvoiceRepository {
     return invoice;
   }
 
+  async getInvoicesByOrderId(orderId: string): Promise<Invoice[]> {
+    return await db.select().from(invoices)
+      .where(eq(invoices.orderId, orderId))
+      .orderBy(desc(invoices.createdAt));
+  }
+
+  async getDepositInvoiceByOrderId(orderId: string): Promise<Invoice | undefined> {
+    const { and } = await import("drizzle-orm");
+    const [invoice] = await db.select().from(invoices)
+      .where(and(eq(invoices.orderId, orderId), eq(invoices.invoiceType, "deposit")));
+    return invoice;
+  }
+
   async getInvoiceByStripeInvoiceId(stripeInvoiceId: string): Promise<Invoice | undefined> {
     const [invoice] = await db.select().from(invoices).where(eq(invoices.stripeInvoiceId, stripeInvoiceId));
     return invoice;

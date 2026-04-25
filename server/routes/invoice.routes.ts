@@ -20,7 +20,10 @@ router.post("/api/projects/:id/quickbooks/sync", isAuthenticated, asyncHandler(I
 
 router.post("/api/projects/:id/invoice", isAuthenticated, asyncHandler(InvoiceController.createInvoice));
 router.get("/api/projects/:id/invoice", isAuthenticated, asyncHandler(InvoiceController.getInvoice));
+router.get("/api/projects/:id/invoices", isAuthenticated, asyncHandler(InvoiceController.getInvoices));
 router.patch("/api/projects/:id/invoice", isAuthenticated, asyncHandler(InvoiceController.updateInvoice));
+router.post("/api/projects/:id/deposit-invoice", isAuthenticated, asyncHandler(InvoiceController.createDepositInvoice));
+router.post("/api/projects/:id/final-invoice", isAuthenticated, asyncHandler(InvoiceController.createFinalInvoice));
 
 // =====================================================
 // STRIPE PAYMENTS

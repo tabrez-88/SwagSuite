@@ -7,6 +7,8 @@ import {
   useUpdateInvoiceNotes,
   useRecordManualPayment,
   useCreateStripePayment,
+  useCreateDepositInvoice,
+  useCreateFinalInvoice,
 } from "@/services/invoices";
 import { differenceInDays } from "date-fns";
 import { useDocumentGeneration, buildItemsHash } from "@/hooks/useDocumentGeneration";
@@ -75,10 +77,16 @@ export function useInvoiceSection({ projectId, data }: InvoiceSectionProps) {
 
   // Mutations
   const createInvoiceMutation = useCreateInvoice(projectId);
+  const createDepositInvoiceMutation = useCreateDepositInvoice(projectId);
+  const createFinalInvoiceMutation = useCreateFinalInvoice(projectId);
   const updateDueDateMutation = useUpdateInvoiceDueDate(projectId);
   const updateNotesMutation = useUpdateInvoiceNotes(projectId);
   const manualPaymentMutation = useRecordManualPayment(projectId);
   const stripePaymentMutation = useCreateStripePayment(projectId);
+
+  // Deposit helpers
+  const hasDeposit = !!order?.depositPercent && Number(order.depositPercent) > 0;
+  const depositReceived = order?.depositStatus === "received";
 
   const buildInvoiceDoc = () =>
     buildInvoicePdf({
@@ -254,8 +262,14 @@ export function useInvoiceSection({ projectId, data }: InvoiceSectionProps) {
 
     // Mutations
     createInvoiceMutation,
+    createDepositInvoiceMutation,
+    createFinalInvoiceMutation,
     stripePaymentMutation,
     manualPaymentMutation,
+
+    // Deposit
+    hasDeposit,
+    depositReceived,
 
     // Handlers
     handleGeneratePdf,

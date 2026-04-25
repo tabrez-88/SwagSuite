@@ -36,6 +36,9 @@ export const invoices = pgTable("invoices", {
   nextReminderDate: timestamp("next_reminder_date"),
   lastReminderSentAt: timestamp("last_reminder_sent_at"),
   paidAt: timestamp("paid_at"),
+  // Deposit invoice support
+  invoiceType: varchar("invoice_type").default("standard"), // "standard" | "deposit" | "final"
+  depositDeduction: decimal("deposit_deduction", { precision: 12, scale: 2 }).default("0"), // Amount deducted on final invoice
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

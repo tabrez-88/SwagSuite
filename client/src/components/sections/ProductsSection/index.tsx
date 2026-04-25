@@ -26,7 +26,9 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { ImprintOptionSelect } from "@/components/shared/ImprintOptionSelect";
+import { Checkbox } from "@/components/ui/checkbox";
 import { isBelowMinimum } from "@/hooks/useMarginSettings";
+import { useUpdateProject } from "@/services/projects/mutations";
 import {
   AlertTriangle,
   Edit2,
@@ -46,7 +48,7 @@ import type { ProductsSectionProps } from "./types";
 import { Separator } from "@/components/ui/separator";
 import { FilePreviewModal } from "@/components/modals/FilePreviewModal.tsx";
 import ServiceChargesPanel from "@/pages/Projects/ProjectDetail/sections/SalesOrderSection/ServiceChargesPanel";
-import { useCallback, useRef } from "react";
+import { useCallback, useRef, useState } from "react";
 
 /** Portal dragged row to document.body so Radix Dialog transform doesn't offset it */
 function PortalAwareDrag({ provided, snapshot, children }: {
@@ -68,6 +70,13 @@ function PortalAwareDrag({ provided, snapshot, children }: {
 export default function ProductsSection({ projectId, data, isLocked }: ProductsSectionProps) {
   const productSection = useProductsSection({ projectId, data, isLocked });
   const addServiceRef = useRef<(() => void) | null>(null);
+  const updateProjectMutation = useUpdateProject(projectId);
+
+  // Deposit state
+  const order = data?.order;
+  const hasDeposit = !!order?.depositPercent && Number(order.depositPercent) > 0;
+  const [depositPercent, setDepositPercent] = useState<string>(order?.depositPercent || "50");
+  const [depositEnabled, setDepositEnabled] = useState(hasDeposit);
   const onRegisterAdd = useCallback((fn: () => void) => { addServiceRef.current = fn; }, []);
 
   const handleDragEnd = (result: DropResult) => {
@@ -220,10 +229,68 @@ export default function ProductsSection({ projectId, data, isLocked }: ProductsS
                         <span className="font-bold">Total</span>
                         <span className="font-bold">${total.toFixed(2)}</span>
                       </div>
+                      {/* Deposit toggle */}
+                      {depositEnabled && (
+                        <div className="flex justify-between pt-1 text-amber-700">
+                          <span>Deposit ({depositPercent}%)</span>
+                          <span className="font-medium">${(total * Number(depositPercent) / 100).toFixed(2)}</span>
+                        </div>
+                      )}
                     </div>
                   );
                 })()}
               </div>
+              {/* Upfront Payment / Deposit toggle */}
+              {!isLocked && (
+                <div className="flex items-center gap-3 mt-2 pt-2 border-t border-gray-300 justify-end">
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      id="requireDeposit"
+                      checked={depositEnabled}
+                      onCheckedChange={(checked) => {
+                        const enabled = !!checked;
+                        setDepositEnabled(enabled);
+                        if (enabled) {
+                          updateProjectMutation.mutate({ depositPercent: depositPercent || "50" });
+                        } else {
+                          updateProjectMutation.mutate({ depositPercent: null, depositAmount: null, depositStatus: null });
+                        }
+                      }}
+                    />
+                    <Label htmlFor="requireDeposit" className="text-xs text-gray-600 cursor-pointer">
+                      Require Upfront Payment
+                    </Label>
+                  </div>
+                  {depositEnabled && (
+                    <div className="flex items-center gap-1.5">
+                      <Input
+                        type="number"
+                        min="1"
+                        max="100"
+                        value={depositPercent}
+                        onChange={(e) => setDepositPercent(e.target.value)}
+                        onBlur={() => updateProjectMutation.mutate({ depositPercent })}
+                        className="w-16 h-7 text-xs text-center"
+                      />
+                      <span className="text-xs text-gray-500">%</span>
+                    </div>
+                  )}
+                  {updateProjectMutation.isPending && <Loader2 className="w-3.5 h-3.5 animate-spin text-gray-400" />}
+                </div>
+              )}
+              {isLocked && depositEnabled && (
+                <div className="flex items-center gap-2 mt-2 pt-2 border-t border-gray-300 justify-end">
+                  <Badge variant="outline" className="text-xs bg-amber-50 text-amber-700 border-amber-200">
+                    {depositPercent}% Deposit Required
+                  </Badge>
+                  {order?.depositStatus === "received" && (
+                    <Badge className="text-xs bg-green-100 text-green-800 border-green-200">Received</Badge>
+                  )}
+                  {order?.depositStatus === "pending" && (
+                    <Badge className="text-xs bg-orange-100 text-orange-800 border-orange-200">Pending</Badge>
+                  )}
+                </div>
+              )}
               {isBelowMinimum(productSection.margin, productSection.marginSettings) && (
                 <div className="mt-2 pt-2 border-t border-red-200 flex items-center justify-end gap-2 text-xs text-red-600">
                   <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />

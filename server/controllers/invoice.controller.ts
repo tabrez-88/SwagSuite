@@ -67,10 +67,11 @@ export class InvoiceController {
       const order = await projectRepository.getOrder(req.params.id);
       if (!order) return res.status(404).json({ message: "Order not found" });
 
-      // Check if invoice already exists
-      const existingInvoice = await invoiceRepository.getInvoiceByOrderId(order.id);
-      if (existingInvoice) {
-        return res.json(existingInvoice);
+      // Check if a standard invoice already exists (deposit/final have their own endpoints)
+      const existing = await invoiceRepository.getInvoicesByOrderId(order.id);
+      const existingStandard = existing.find(inv => !inv.invoiceType || inv.invoiceType === "standard");
+      if (existingStandard) {
+        return res.json(existingStandard);
       }
 
       // Use the order's already-calculated tax (from recalculateOrderTotals which handles
@@ -90,6 +91,7 @@ export class InvoiceController {
         taxAmount: taxAmount.toString(),
         totalAmount: totalAmount.toString(),
         status: 'pending',
+        invoiceType: 'standard',
         dueDate: new Date() // Default to invoice date; editable after creation
       });
 
@@ -104,7 +106,6 @@ export class InvoiceController {
           });
         } catch (qbError) {
           console.error("QB sync error during invoice creation:", qbError);
-          // Continue even if QB sync fails
         }
       }
 
@@ -115,11 +116,118 @@ export class InvoiceController {
     }
   }
 
+  // =====================================================
+  // DEPOSIT INVOICE
+  // =====================================================
+
+  static async createDepositInvoice(req: Request, res: Response) {
+    try {
+      const order = await projectRepository.getOrder(req.params.id);
+      if (!order) return res.status(404).json({ message: "Order not found" });
+
+      const depositPercent = Number(order.depositPercent);
+      if (!depositPercent || depositPercent <= 0) {
+        return res.status(400).json({ message: "Deposit percentage not set on this order" });
+      }
+
+      // Check if deposit invoice already exists
+      const existingDeposit = await invoiceRepository.getDepositInvoiceByOrderId(order.id);
+      if (existingDeposit) {
+        return res.json(existingDeposit);
+      }
+
+      // Calculate deposit amount from order total
+      const orderTotal = Number(order.total || 0);
+      const depositAmount = orderTotal * depositPercent / 100;
+
+      const nextSeq = await invoiceRepository.getNextInvoiceSequence(order.id);
+      const invoiceNumber = `${order.orderNumber}-INV-${String(nextSeq).padStart(2, "0")}`;
+
+      const invoice = await invoiceRepository.createInvoice({
+        orderId: order.id,
+        invoiceNumber,
+        subtotal: depositAmount.toFixed(2),
+        taxAmount: "0",
+        totalAmount: depositAmount.toFixed(2),
+        status: 'pending',
+        invoiceType: 'deposit',
+        dueDate: new Date()
+      });
+
+      // Update order deposit status
+      await projectRepository.updateOrder(order.id, {
+        depositAmount: depositAmount.toFixed(2),
+        depositStatus: "pending",
+      } as any);
+
+      res.json(invoice);
+    } catch (error) {
+      console.error("Deposit invoice creation error:", error);
+      res.status(500).json({ message: String(error) });
+    }
+  }
+
+  static async createFinalInvoice(req: Request, res: Response) {
+    try {
+      const order = await projectRepository.getOrder(req.params.id);
+      if (!order) return res.status(404).json({ message: "Order not found" });
+
+      if (order.depositStatus !== "received") {
+        return res.status(400).json({ message: "Deposit must be received before creating final invoice" });
+      }
+
+      // Check if final invoice already exists
+      const existing = await invoiceRepository.getInvoicesByOrderId(order.id);
+      const existingFinal = existing.find(inv => inv.invoiceType === "final");
+      if (existingFinal) {
+        return res.json(existingFinal);
+      }
+
+      const orderTotal = Number(order.total || 0);
+      const depositPaid = Number(order.depositAmount || 0);
+      const taxAmount = Number(order.tax || 0);
+      const subtotal = Number(order.subtotal || 0);
+      const shipping = Number(order.shipping || 0);
+      const balanceDue = orderTotal - depositPaid;
+
+      const nextSeq = await invoiceRepository.getNextInvoiceSequence(order.id);
+      const invoiceNumber = `${order.orderNumber}-INV-${String(nextSeq).padStart(2, "0")}`;
+
+      const invoice = await invoiceRepository.createInvoice({
+        orderId: order.id,
+        invoiceNumber,
+        subtotal: subtotal.toFixed(2),
+        taxAmount: taxAmount.toFixed(2),
+        totalAmount: balanceDue.toFixed(2),
+        status: 'pending',
+        invoiceType: 'final',
+        depositDeduction: depositPaid.toFixed(2),
+        dueDate: new Date()
+      });
+
+      res.json(invoice);
+    } catch (error) {
+      console.error("Final invoice creation error:", error);
+      res.status(500).json({ message: String(error) });
+    }
+  }
+
   static async getInvoice(req: Request, res: Response) {
     try {
-      const invoice = await invoiceRepository.getInvoiceByOrderId(req.params.id);
-      if (!invoice) return res.status(404).json({ message: "Invoice not found" });
-      res.json(invoice);
+      // Return all invoices for this order (supports deposit + final)
+      const allInvoices = await invoiceRepository.getInvoicesByOrderId(req.params.id);
+      if (allInvoices.length === 0) return res.status(404).json({ message: "Invoice not found" });
+      // Return first invoice for backward compatibility (single invoice callers)
+      res.json(allInvoices[0]);
+    } catch (error) {
+      res.status(500).json({ message: String(error) });
+    }
+  }
+
+  static async getInvoices(req: Request, res: Response) {
+    try {
+      const allInvoices = await invoiceRepository.getInvoicesByOrderId(req.params.id);
+      res.json(allInvoices);
     } catch (error) {
       res.status(500).json({ message: String(error) });
     }
@@ -207,6 +315,13 @@ export class InvoiceController {
         paymentReference,
         paidAt: new Date()
       });
+
+      // If deposit invoice was paid, update order depositStatus
+      if (invoice.invoiceType === "deposit" && invoice.orderId) {
+        await projectRepository.updateOrder(invoice.orderId, {
+          depositStatus: "received",
+        } as any);
+      }
 
       // Sync to QuickBooks
       const qbService = await getQuickBooksCredentials();
@@ -333,8 +448,13 @@ export class InvoiceController {
           metadata: paymentIntent
         });
 
-        // Sync to QuickBooks if configured
+        // If deposit invoice was paid, update order depositStatus
         const invoice = await invoiceRepository.getInvoice(invoiceId);
+        if (invoice?.invoiceType === "deposit" && invoice.orderId) {
+          await projectRepository.updateOrder(invoice.orderId, {
+            depositStatus: "received",
+          } as any);
+        }
         const qbService = await getQuickBooksCredentials();
         if (qbService && invoice?.qbInvoiceId) {
           try {

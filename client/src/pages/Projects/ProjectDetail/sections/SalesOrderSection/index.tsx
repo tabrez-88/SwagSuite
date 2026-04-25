@@ -119,6 +119,20 @@ export default function SalesOrderSection(props: SalesOrderSectionProps) {
             <label className="text-xs font-medium text-gray-500 block mb-1">Sales Order Date</label>
             <span className="text-sm font-medium">{hook.order.createdAt ? format(new Date(hook.order.createdAt), "MMM d, yyyy") : "—"}</span>
           </div>
+
+          {/* Deposit Status Badge */}
+          {hook.order.depositPercent && Number(hook.order.depositPercent) > 0 && (
+            <div>
+              <label className="text-xs font-medium text-gray-500 block mb-1">Deposit</label>
+              {hook.order.depositStatus === "received" ? (
+                <Badge className="bg-green-100 text-green-800 border-green-200">Deposit Received</Badge>
+              ) : hook.order.depositStatus === "pending" ? (
+                <Badge className="bg-orange-100 text-orange-800 border-orange-200">Deposit Pending</Badge>
+              ) : (
+                <Badge className="bg-yellow-100 text-yellow-800 border-yellow-200">Deposit Required</Badge>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="flex items-center gap-2">
@@ -195,6 +209,14 @@ export default function SalesOrderSection(props: SalesOrderSectionProps) {
                   <span className="text-sm text-muted-foreground">Discount</span>
                   <span className="text-sm font-medium">{hook.order?.orderDiscount ? `${hook.order!.orderDiscount}%` : "—"}</span>
                 </div>
+                {hook.order?.depositPercent && Number(hook.order.depositPercent) > 0 && (
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">Deposit</span>
+                    <span className="text-sm font-medium">
+                      {hook.order.depositPercent}% (${Number(hook.order.depositAmount || 0).toLocaleString()})
+                    </span>
+                  </div>
+                )}
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-muted-foreground">Tax Code</span>
                   <span className="text-sm font-medium">
@@ -624,6 +646,7 @@ function SOEditDialog({
             />
             <Label htmlFor="isFirmEdit" className="text-sm font-normal cursor-pointer">Firm Order</Label>
           </div>
+
           <div className="grid grid-cols-2 gap-4">
             <div>
               <Label className="text-xs text-gray-500">Supplier Notes</Label>

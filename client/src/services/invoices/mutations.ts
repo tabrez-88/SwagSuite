@@ -62,3 +62,23 @@ export function useCreateStripePayment(projectId: string | number) {
     onError: () => toast({ title: "Failed to create Stripe payment", variant: "destructive" }),
   });
 }
+
+export function useCreateDepositInvoice(projectId: string | number) {
+  const { toast } = useToast();
+  const invalidate = useInvalidateInvoice(projectId);
+  return useMutation({
+    mutationFn: () => requests.createDepositInvoice(projectId),
+    onSuccess: () => { invalidate(); toast({ title: "Deposit invoice created" }); },
+    onError: () => toast({ title: "Failed to create deposit invoice", variant: "destructive" }),
+  });
+}
+
+export function useCreateFinalInvoice(projectId: string | number) {
+  const { toast } = useToast();
+  const invalidate = useInvalidateInvoice(projectId);
+  return useMutation({
+    mutationFn: () => requests.createFinalInvoice(projectId),
+    onSuccess: () => { invalidate(); toast({ title: "Final invoice created" }); },
+    onError: () => toast({ title: "Failed to create final invoice", variant: "destructive" }),
+  });
+}

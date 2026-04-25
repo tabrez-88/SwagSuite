@@ -84,6 +84,10 @@ export const orders = pgTable("orders", {
   quoteStatus: varchar("quote_status").default("draft"), // draft, sent, approved, rejected, expired
   enableShippingNotifications: boolean("enable_shipping_notifications").default(true),
   enableTrackingEmails: boolean("enable_tracking_emails").default(false), // Phase 2: auto tracking updates to client
+  // Deposit / upfront payment
+  depositPercent: decimal("deposit_percent", { precision: 5, scale: 2 }), // NULL = no deposit required
+  depositAmount: decimal("deposit_amount", { precision: 12, scale: 2 }), // Auto-calculated: total × depositPercent / 100
+  depositStatus: varchar("deposit_status"), // NULL | "pending" | "received"
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
