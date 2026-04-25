@@ -1,5 +1,6 @@
 import type { EmailFormData } from "@/components/email/types";
 import { useToast } from "@/hooks/use-toast";
+import { useProductionStages } from "@/hooks/useProductionStages";
 import { sendCommunication } from "@/services/communications";
 import { useUpdatePODocMeta } from "@/services/documents/mutations";
 import { updateArtwork as updateArtworkRequest } from "@/services/project-items";
@@ -24,6 +25,7 @@ export function useEmailVendor({
 }: UseEmailVendorParams) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { getInitialStage, getStageByFlag } = useProductionStages();
 
   const { data: poVendorContacts = [] } = useVendorContacts(vendorId, !!vendorId);
 
@@ -71,11 +73,14 @@ export function useEmailVendor({
         additionalAttachments: userAttachments,
       });
 
-      // Only advance stage to "submitted" on first send
+      // Only advance stage on first send (when at initial stage)
       const docMeta = (doc.metadata || {}) as Record<string, unknown>;
-      const currentStage = (docMeta.poStage as string) || "created";
-      const newStage = currentStage === "created" ? "submitted" : currentStage;
-      const activityContent = currentStage === "created" ? `PO stage changed to "Submitted"` : undefined;
+      const initialStage = getInitialStage();
+      const emailSentStage = getStageByFlag('onEmailSent');
+      const currentStage = (docMeta.poStage as string) || initialStage?.id || "created";
+      const isAtInitial = currentStage === (initialStage?.id || "created");
+      const newStage = isAtInitial && emailSentStage ? emailSentStage.id : currentStage;
+      const activityContent = isAtInitial && emailSentStage ? `PO stage changed to "${emailSentStage.name}"` : undefined;
       await _updatePODocMeta.mutateAsync({
         docId: doc.id,
         updates: {

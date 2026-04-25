@@ -18,14 +18,15 @@ export interface VendorStageControlsProps {
   onUpdateDocMeta: (params: { docId: string; updates: Record<string, unknown> }) => void;
   isUpdating: boolean;
   order: Record<string, unknown> | null;
+  initialStageId?: string;
 }
 
 export default function VendorStageControls({
   vendorDoc, PO_STAGES, PO_STATUSES, actionTypes,
-  isLocked, onUpdateDocMeta, order,
+  isLocked, onUpdateDocMeta, order, initialStageId = "created",
 }: VendorStageControlsProps) {
   const meta = vendorDoc.metadata as Record<string, unknown> | null;
-  const docStage = (meta?.poStage as string) || "created";
+  const docStage = (meta?.poStage as string) || initialStageId;
   const docStatus = (meta?.poStatus as string) || "ok";
 
   return (

@@ -331,21 +331,28 @@ export class CommunicationService {
       const allSent = allPOs.length > 0 && allPOs.every(po => po.status === "sent" || po.status === "approved");
 
       if (allSent && order.currentStage === "po-sent") {
-        const existingStages = JSON.parse(JSON.stringify(order.stagesCompleted || '["created","submitted"]'));
+        // Dynamic: use on_email_sent flag stage
+        const { productionRepository } = await import("../repositories/production.repository");
+        const emailSentStage = await productionRepository.getStageByFlag('onEmailSent');
+        const emailSentId = emailSentStage?.id || "submitted";
+        const initialStage = await productionRepository.getInitialStage();
+        const initialId = initialStage?.id || "created";
+
+        const existingStages = JSON.parse(JSON.stringify(order.stagesCompleted || `["${initialId}","${emailSentId}"]`));
         const stages = Array.isArray(existingStages) ? existingStages : JSON.parse(existingStages);
-        if (!stages.includes("submitted")) stages.push("submitted");
+        if (!stages.includes(emailSentId)) stages.push(emailSentId);
 
         await db
           .update(ordersTable)
-          .set({ currentStage: "submitted", stagesCompleted: JSON.stringify(stages), updatedAt: new Date() })
+          .set({ currentStage: emailSentId, stagesCompleted: JSON.stringify(stages), updatedAt: new Date() })
           .where(eq(ordersTable.id, orderId));
 
         await db.insert(projectActivities).values({
           orderId,
           userId,
           activityType: "status_change",
-          content: `All Purchase Orders sent to vendors. Order moved to PO Placed stage.`,
-          metadata: { action: "stage_change", oldStage: "po-sent", newStage: "submitted", totalPOs: allPOs.length },
+          content: `All Purchase Orders sent to vendors. Order moved to ${emailSentStage?.name || "PO Placed"} stage.`,
+          metadata: { action: "stage_change", oldStage: "po-sent", newStage: emailSentId, totalPOs: allPOs.length },
           isSystemGenerated: true,
         });
       }

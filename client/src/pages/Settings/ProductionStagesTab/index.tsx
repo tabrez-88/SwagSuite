@@ -7,6 +7,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -141,13 +142,18 @@ export function ProductionStagesTab() {
                               <GripVertical className="w-4 h-4 text-muted-foreground cursor-grab" />
                             </div>
                             <div className="flex-1">
-                              <div className="flex items-center gap-2">
+                              <div className="flex items-center gap-2 flex-wrap">
                                 <Badge className={stage.color || "bg-gray-100 text-gray-800"}>
                                   {stage.name}
                                 </Badge>
                                 <span className="text-xs text-muted-foreground">
                                   Step {index + 1}
                                 </span>
+                                {stage.isInitial && <Badge variant="outline" className="text-[10px] h-4 px-1">Initial</Badge>}
+                                {stage.isFinal && <Badge variant="outline" className="text-[10px] h-4 px-1">Final</Badge>}
+                                {stage.onEmailSent && <Badge variant="outline" className="text-[10px] h-4 px-1 border-blue-300 text-blue-600">On Email</Badge>}
+                                {stage.onVendorConfirm && <Badge variant="outline" className="text-[10px] h-4 px-1 border-green-300 text-green-600">On Confirm</Badge>}
+                                {stage.onBilling && <Badge variant="outline" className="text-[10px] h-4 px-1 border-orange-300 text-orange-600">On Billing</Badge>}
                               </div>
                               {stage.description && (
                                 <p className="text-xs text-muted-foreground mt-1">{stage.description}</p>
@@ -299,6 +305,70 @@ export function ProductionStagesTab() {
                     ))}
                   </SelectContent>
                 </Select>
+              </div>
+              <Separator />
+              <div>
+                <Label className="text-sm font-medium">Stage Flags</Label>
+                <p className="text-xs text-muted-foreground mb-3">
+                  Flags control automatic behavior. Single-flag roles (all except Final) auto-remove from other stages.
+                </p>
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      id="flag-initial"
+                      checked={!!editingStage.isInitial}
+                      onCheckedChange={(v) => setEditingStage({ ...editingStage, isInitial: !!v })}
+                    />
+                    <label htmlFor="flag-initial" className="text-sm">
+                      <span className="font-medium">Initial</span>
+                      <span className="text-muted-foreground"> — default stage when PO is generated</span>
+                    </label>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      id="flag-final"
+                      checked={!!editingStage.isFinal}
+                      onCheckedChange={(v) => setEditingStage({ ...editingStage, isFinal: !!v })}
+                    />
+                    <label htmlFor="flag-final" className="text-sm">
+                      <span className="font-medium">Final</span>
+                      <span className="text-muted-foreground"> — PO considered complete (multiple allowed)</span>
+                    </label>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      id="flag-email"
+                      checked={!!editingStage.onEmailSent}
+                      onCheckedChange={(v) => setEditingStage({ ...editingStage, onEmailSent: !!v })}
+                    />
+                    <label htmlFor="flag-email" className="text-sm">
+                      <span className="font-medium">On Email Sent</span>
+                      <span className="text-muted-foreground"> — auto-advance when PO emailed to vendor</span>
+                    </label>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      id="flag-confirm"
+                      checked={!!editingStage.onVendorConfirm}
+                      onCheckedChange={(v) => setEditingStage({ ...editingStage, onVendorConfirm: !!v })}
+                    />
+                    <label htmlFor="flag-confirm" className="text-sm">
+                      <span className="font-medium">On Vendor Confirm</span>
+                      <span className="text-muted-foreground"> — auto-set when vendor approves</span>
+                    </label>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      id="flag-billing"
+                      checked={!!editingStage.onBilling}
+                      onCheckedChange={(v) => setEditingStage({ ...editingStage, onBilling: !!v })}
+                    />
+                    <label htmlFor="flag-billing" className="text-sm">
+                      <span className="font-medium">On Billing</span>
+                      <span className="text-muted-foreground"> — auto-set when vendor bill created</span>
+                    </label>
+                  </div>
+                </div>
               </div>
               <div className="flex justify-end gap-2">
                 <Button variant="outline" onClick={() => setEditStageOpen(false)}>

@@ -97,23 +97,40 @@ export function useShippingSection(projectId: string, data: ProjectData) {
     setEditingItemId(item.id);
     const addr = item.shipToAddress as ShippingAddressData | null;
     const leg2Addr = item.leg2Address as ShippingAddressData | null;
+    // Auto-fill leg2 address from SO shipping address when destination=decorator and no leg2 address
+    let leg2AddrFinal = leg2Addr;
+    if (item.shippingDestination === "decorator" && !leg2Addr?.street && parsedAddress?.street) {
+      leg2AddrFinal = {
+        contactName: parsedAddress.contactName || "",
+        companyName: parsedAddress.companyName || "",
+        street: parsedAddress.street || "",
+        street2: parsedAddress.street2 || "",
+        city: parsedAddress.city || "",
+        state: parsedAddress.state || "",
+        zipCode: parsedAddress.zipCode || "",
+        country: parsedAddress.country || "",
+        email: parsedAddress.email || "",
+        phone: parsedAddress.phone || "",
+      };
+    }
+
     setEditShippingForm({
       shippingDestination: item.shippingDestination || "",
-      shippingAccountType: item.shippingAccountType || "",
+      shippingAccountType: item.shippingAccountType || "supplier_account",
       shippingMethodOverride: item.shippingMethodOverride || "",
       shippingNotes: item.shippingNotes || "",
       shipToAddressId: item.shipToAddressId || "",
       shipToAddress: addr || null,
       shipInHandsDate: item.shipInHandsDate
         ? new Date(item.shipInHandsDate).toISOString().slice(0, 10)
-        : order?.inHandsDate
-          ? new Date(order.inHandsDate).toISOString().slice(0, 10)
+        : order?.supplierInHandsDate
+          ? new Date(order.supplierInHandsDate).toISOString().slice(0, 10)
           : "",
-      shipFirm: item.shipFirm || false,
+      shipFirm: item.shipInHandsDate ? (item.shipFirm || false) : (order?.isFirm || false),
       shippingQuote: item.shippingQuote || "",
       leg2ShipTo: item.leg2ShipTo || "client",
       leg2AddressId: item.leg2AddressId || "",
-      leg2Address: leg2Addr || null,
+      leg2Address: leg2AddrFinal || null,
       leg2InHandsDate: item.leg2InHandsDate ? new Date(item.leg2InHandsDate).toISOString().slice(0, 10) : "",
       leg2Firm: item.leg2Firm || false,
       leg2ShippingMethod: item.leg2ShippingMethod || "",
@@ -185,12 +202,17 @@ export function useShippingSection(projectId: string, data: ProjectData) {
     }
   };
 
-  // Auto-populate address when changing destination to "client"
+  // Auto-populate address when changing destination
   const handleDestinationChange = (destination: string) => {
     setEditShippingForm(f => {
       const updated = { ...f, shippingDestination: destination };
-      // Auto-fill from order shipping address or default company address when selecting "client"
+      // Default account type to supplier_account
+      if (!f.shippingAccountType) {
+        updated.shippingAccountType = "supplier_account";
+      }
+
       if (destination === "client" && !f.shipToAddress?.street) {
+        // Auto-fill from order shipping address or default company address
         if (parsedAddress?.street) {
           updated.shipToAddress = {
             contactName: parsedAddress.contactName || "",
@@ -227,6 +249,70 @@ export function useShippingSection(projectId: string, data: ProjectData) {
             updated.shipToAddressId = da.id || "";
           }
         }
+      } else if (destination === "decorator" && !f.shipToAddress?.street) {
+        // Auto-fill from decorator's saved addresses (supplierAddresses updates via hook)
+        if (supplierAddresses.length > 0) {
+          const da = supplierAddresses[0]; // sorted by isDefault desc
+          updated.shipToAddress = {
+            contactName: "",
+            companyName: da.companyNameOnDocs || da.addressName || "",
+            street: da.street || "",
+            street2: da.street2 || "",
+            city: da.city || "",
+            state: da.state || "",
+            zipCode: da.zipCode || "",
+            country: da.country || "",
+            email: "",
+            phone: "",
+          };
+          updated.shipToAddressId = da.id || "";
+        }
+        // Auto-fill leg2 client address
+        if (!f.leg2Address?.street && parsedAddress?.street) {
+          updated.leg2Address = {
+            contactName: parsedAddress.contactName || "",
+            companyName: parsedAddress.companyName || "",
+            street: parsedAddress.street || "",
+            street2: parsedAddress.street2 || "",
+            city: parsedAddress.city || "",
+            state: parsedAddress.state || "",
+            zipCode: parsedAddress.zipCode || "",
+            country: parsedAddress.country || "",
+            email: parsedAddress.email || "",
+            phone: parsedAddress.phone || "",
+          };
+          updated.leg2AddressId = "";
+        }
+      } else if (destination !== f.shippingDestination) {
+        // Switching destination — clear address so new auto-fill can work
+        updated.shipToAddress = null;
+        updated.shipToAddressId = "";
+      }
+      return updated;
+    });
+  };
+
+  // Auto-populate leg2 address when changing leg2 ship-to
+  const handleLeg2ShipToChange = (shipTo: string) => {
+    setEditShippingForm(f => {
+      const updated = { ...f, leg2ShipTo: shipTo };
+      if (shipTo === "client" && !f.leg2Address?.street && parsedAddress?.street) {
+        updated.leg2Address = {
+          contactName: parsedAddress.contactName || "",
+          companyName: parsedAddress.companyName || "",
+          street: parsedAddress.street || "",
+          street2: parsedAddress.street2 || "",
+          city: parsedAddress.city || "",
+          state: parsedAddress.state || "",
+          zipCode: parsedAddress.zipCode || "",
+          country: parsedAddress.country || "",
+          email: parsedAddress.email || "",
+          phone: parsedAddress.phone || "",
+        };
+        updated.leg2AddressId = "";
+      } else if (shipTo !== f.leg2ShipTo) {
+        updated.leg2Address = null;
+        updated.leg2AddressId = "";
       }
       return updated;
     });
@@ -433,7 +519,7 @@ export function useShippingSection(projectId: string, data: ProjectData) {
     // Edit dialog
     editingItemId, editingItem, editShippingForm, setEditShippingForm,
     openEditDialog, closeEditDialog, handleEditSave,
-    selectStoredAddress, updateAddressField, handleDestinationChange, getAddressSummary,
+    selectStoredAddress, updateAddressField, handleDestinationChange, handleLeg2ShipToChange, getAddressSummary,
     companyAddresses, supplierAddresses,
 
     // Shipment form state

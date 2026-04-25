@@ -195,7 +195,7 @@ export default function BillsSection(props: BillsSectionProps) {
               <FileText className="w-5 h-5" /> Record Vendor Bill
             </DialogTitle>
             <DialogDescription>
-              Record a vendor invoice. Link it to a PO to auto-transition the PO to "Billed".
+              Record a vendor invoice. Link it to a PO to auto-transition its billing stage.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
@@ -229,7 +229,7 @@ export default function BillsSection(props: BillsSectionProps) {
                     ))}
                   </SelectContent>
                 </Select>
-                <p className="text-xs text-gray-400 mt-1">Linking auto-transitions "Ready for Billing" POs to "Billed"</p>
+                <p className="text-xs text-gray-400 mt-1">Linking auto-transitions PO to billing stage</p>
               </div>
             )}
 

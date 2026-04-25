@@ -114,7 +114,20 @@ export class ProductionController {
       return res.status(403).json({ message: "Only administrators and managers can update production stages" });
     }
 
-    const { name, description, color, icon } = req.body;
+    const { name, description, color, icon, isInitial, isFinal, onEmailSent, onVendorConfirm, onBilling } = req.body;
+
+    // Handle flag toggles with auto-disable for single-only flags
+    const flagFields = { isInitial, isFinal, onEmailSent, onVendorConfirm, onBilling } as const;
+    for (const [flag, value] of Object.entries(flagFields)) {
+      if (value !== undefined) {
+        await productionRepository.setStageFlag(
+          req.params.id,
+          flag as 'isInitial' | 'isFinal' | 'onEmailSent' | 'onVendorConfirm' | 'onBilling',
+          value
+        );
+      }
+    }
+
     const stage = await productionRepository.updateProductionStage(req.params.id, {
       ...(name && { name }),
       ...(description !== undefined && { description }),
@@ -262,6 +275,10 @@ export class ProductionController {
     const { eq, and, sql, lt, inArray, isNull, not } = await import("drizzle-orm");
     const now = new Date();
 
+    // Dynamic: fetch final stage IDs from DB
+    const finalStageIds = await productionRepository.getFinalStageIds();
+    const finalStagesForFilter = finalStageIds.length > 0 ? finalStageIds : ['__none__'];
+
     // 1. Overdue POs (open POs where order's inHandsDate < now)
     const overduePOsByInHands = await database
       .select({ count: sql<number>`count(*)::int` })
@@ -269,7 +286,7 @@ export class ProductionController {
       .innerJoin(orders, eq(generatedDocuments.orderId, orders.id))
       .where(and(
         eq(generatedDocuments.documentType, "purchase_order"),
-        not(inArray(sql`${generatedDocuments.metadata}->>'poStage'`, ["billed", "closed"])),
+        not(inArray(sql`${generatedDocuments.metadata}->>'poStage'`, finalStagesForFilter)),
         lt(orders.inHandsDate, now)
       ));
 
@@ -280,7 +297,7 @@ export class ProductionController {
       .innerJoin(orders, eq(generatedDocuments.orderId, orders.id))
       .where(and(
         eq(generatedDocuments.documentType, "purchase_order"),
-        not(inArray(sql`${generatedDocuments.metadata}->>'poStage'`, ["billed", "closed"])),
+        not(inArray(sql`${generatedDocuments.metadata}->>'poStage'`, finalStagesForFilter)),
         lt(orders.nextActionDate, now)
       ));
 
@@ -291,7 +308,7 @@ export class ProductionController {
       .where(and(
         eq(generatedDocuments.documentType, "purchase_order"),
         sql`${generatedDocuments.metadata}->>'poStatus' = 'problem'`,
-        not(inArray(sql`${generatedDocuments.metadata}->>'poStage'`, ["billed", "closed"]))
+        not(inArray(sql`${generatedDocuments.metadata}->>'poStage'`, finalStagesForFilter))
       ));
 
     // 4. POs in Follow Up status
@@ -301,7 +318,7 @@ export class ProductionController {
       .where(and(
         eq(generatedDocuments.documentType, "purchase_order"),
         sql`${generatedDocuments.metadata}->>'poStatus' = 'follow_up'`,
-        not(inArray(sql`${generatedDocuments.metadata}->>'poStage'`, ["billed", "closed"]))
+        not(inArray(sql`${generatedDocuments.metadata}->>'poStage'`, finalStagesForFilter))
       ));
 
     // 5. SOs in "client_approved" without any PO
@@ -366,14 +383,24 @@ export class ProductionController {
 
     const offset = (parseInt(page) - 1) * parseInt(limit);
 
+    // Dynamic stage lookups
+    const allStages = await productionRepository.getProductionStages();
+    const finalStageIds = allStages.filter(s => s.isFinal).map(s => s.id);
+    const nonFinalStageIds = allStages.filter(s => !s.isFinal).map(s => s.id);
+    const finalStagesSQL = finalStageIds.length > 0 ? finalStageIds.map(id => `'${id}'`).join(',') : "'__none__'";
+    const nonFinalStagesSQL = nonFinalStageIds.length > 0 ? nonFinalStageIds.map(id => `'${id}'`).join(',') : "'__none__'";
+
     // Build WHERE conditions
     const conditions: string[] = ["gd.document_type = 'purchase_order'"];
 
     if (stage) {
       if (stage === 'open') {
-        conditions.push(`gd.metadata->>'poStage' IN ('created','submitted','confirmed','shipped','ready_for_billing')`);
+        conditions.push(`gd.metadata->>'poStage' IN (${nonFinalStagesSQL})`);
       } else if (stage === 'in_production') {
-        conditions.push(`gd.metadata->>'poStage' IN ('created','submitted','confirmed')`);
+        // First ~40% of stages by order (before shipping)
+        const midpoint = Math.ceil(allStages.length * 0.4);
+        const earlyStages = allStages.slice(0, midpoint).map(s => `'${s.id}'`).join(',');
+        conditions.push(`gd.metadata->>'poStage' IN (${earlyStages})`);
       } else {
         conditions.push(`gd.metadata->>'poStage' = '${stage}'`);
       }
@@ -401,10 +428,10 @@ export class ProductionController {
     const alertFilter = req.query.alertFilter as string;
     if (alertFilter === 'overdue_in_hands') {
       conditions.push(`o.in_hands_date < NOW()`);
-      conditions.push(`gd.metadata->>'poStage' NOT IN ('billed', 'closed')`);
+      conditions.push(`gd.metadata->>'poStage' NOT IN (${finalStagesSQL})`);
     } else if (alertFilter === 'overdue_next_action') {
       conditions.push(`o.next_action_date < NOW()`);
-      conditions.push(`gd.metadata->>'poStage' NOT IN ('billed', 'closed')`);
+      conditions.push(`gd.metadata->>'poStage' NOT IN (${finalStagesSQL})`);
     } else if (alertFilter === 'problem') {
       conditions.push(`gd.metadata->>'poStatus' = 'problem'`);
     } else if (alertFilter === 'follow_up') {
@@ -567,11 +594,13 @@ export class ProductionController {
     }
 
     // Enrich rows
+    const initialStage = allStages.find(s => s.isInitial) || allStages[0];
+    const initialStageId = initialStage?.id || 'created';
     const enrichedRows = rows.map((row: any) => {
       const metadata = typeof row.metadata === 'string' ? JSON.parse(row.metadata) : (row.metadata || {});
       return {
         ...row,
-        poStage: metadata.poStage || 'created',
+        poStage: metadata.poStage || initialStageId,
         poStatus: metadata.poStatus || 'ok',
         totalCost: parseFloat(row.poTotalCost) || 0,
         itemCount: metadata.items?.length || 0,
@@ -664,10 +693,11 @@ export class ProductionController {
       LIMIT 20
     `));
 
+    const detailInitialStage = await productionRepository.getInitialStage();
     res.json({
       ...doc,
       metadata,
-      poStage: metadata.poStage || 'created',
+      poStage: metadata.poStage || detailInitialStage?.id || 'created',
       poStatus: metadata.poStatus || 'ok',
       totalCost: metadata.totalCost || 0,
       items: (itemsResult as any).rows ?? itemsResult,

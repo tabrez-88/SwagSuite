@@ -1,4 +1,3 @@
-import { DocumentEditor } from "@/components/feature/DocumentEditor";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -7,13 +6,13 @@ import {
   DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
-  AlertTriangle, Building2, Calendar, CheckCircle, ChevronDown, ChevronRight,
-  ClipboardList, Edit, Eye, FileText, Loader2, Mail, MessageSquare, MoreHorizontal, Package,
+  AlertTriangle, Building2, Calendar, ChevronDown, ChevronRight,
+  ClipboardList, Eye, FileText, Loader2, Mail, MessageSquare, MoreHorizontal, Package,
   Palette, Printer, Send,
 } from "lucide-react";
 import { useState } from "react";
 import type { GeneratedDocument } from "@shared/schema";
-import type { OrderVendor, EnrichedOrderItem } from "@/types/project-types";
+import type { OrderVendor } from "@/types/project-types";
 import type { VendorArtwork, VendorPO } from "../../types";
 import { PO_STATUSES } from "../../types";
 import ProductPoItem from "../ProductPoItem";
@@ -38,11 +37,9 @@ export interface VendorCardActions {
 
 export interface VendorCardContext {
   order: Record<string, unknown> | null;
-  orderItems: EnrichedOrderItem[];
   projectId: string;
   companyName: string;
   primaryContact?: { firstName?: string; lastName?: string; email?: string } | null;
-  getEditedItem: (id: string, item: unknown) => unknown;
   allItemCharges: Record<string, Array<Record<string, unknown>>>;
   allArtworkItems: Record<string, Array<Record<string, unknown>>>;
   allArtworkCharges: Record<string, Array<Record<string, unknown>>>;
@@ -71,7 +68,8 @@ export default function VendorCard({
 
   // Own mutations hook
   const {
-    PO_STAGES, actionTypes, vendorArtworks,
+    PO_STAGES, getInitialStage, getNextStage,
+    actionTypes, vendorArtworks,
     getDocStage, getDocStatus, isVendorDocStale,
     updateDocMetaMutation, updateArtworkMutation,
     handleOpenArtworkApprovalLink,
@@ -86,12 +84,12 @@ export default function VendorCard({
 
   // Local dialog states
   const [showTextPreview, setShowTextPreview] = useState(false);
-  const [showDocEditor, setShowDocEditor] = useState(false);
   const [showNotifyVendor, setShowNotifyVendor] = useState(false);
   const isDecorator = po.vendor.role === "decorator";
   const poStage = vendorDoc ? getDocStage(vendorDoc) : null;
   const poStatus = vendorDoc ? getDocStatus(vendorDoc) : null;
-  const stageInfo = poStage ? PO_STAGES[poStage] || PO_STAGES.created : null;
+  const initialStageId = getInitialStage()?.id || "created";
+  const stageInfo = poStage ? PO_STAGES[poStage] || PO_STAGES[initialStageId] : null;
   const statusInfo = poStatus ? PO_STATUSES[poStatus] || PO_STATUSES.ok : null;
   const docMeta = vendorDoc?.metadata as Record<string, unknown> | null;
   const vendorIhdValue = docMeta?.supplierIHD;
@@ -129,7 +127,7 @@ export default function VendorCard({
                 {effectiveIhd ? (
                   <Badge variant="outline" className={`text-[10px] ${vendorIhdValue ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-gray-50 text-gray-600 border-gray-200'}`}>
                     <Calendar className="w-3 h-3 mr-1" />
-                    IHD: {new Date(effectiveIhd as string).toLocaleDateString()}
+                    Supplier IHD: {new Date(effectiveIhd as string).toLocaleDateString()}
                     {vendorIhdValue ? <span className="ml-1 text-[8px]">(custom)</span> : null}
                   </Badge>
                 ) : (
@@ -148,6 +146,18 @@ export default function VendorCard({
                   return parts ? <span className="text-gray-400">| {parts as string}</span> : null;
                 })()}
               </div>
+              {/* Ship-to summary from first item */}
+              {(() => {
+                const firstShipTo = po.items.find(i => i.shipToAddress)?.shipToAddress as { companyName?: string; city?: string; state?: string } | null;
+                if (!firstShipTo) return null;
+                const shipParts = [firstShipTo.companyName, [firstShipTo.city, firstShipTo.state].filter(Boolean).join(", ")].filter(Boolean).join(" — ");
+                return shipParts ? (
+                  <div className="flex items-center gap-1.5 text-[11px] text-gray-500 mt-0.5">
+                    <Package className="w-3 h-3" />
+                    <span className="font-bold">Ship to: <span className="text-gray-600 font-medium">{shipParts}</span></span>
+                  </div>
+                ) : null;
+              })()}
             </div>
           </div>
 
@@ -188,23 +198,26 @@ export default function VendorCard({
                       Regenerate PO
                     </Button>
                   )}
-                  {poStage === "created" && (
+                  {poStage === initialStageId && (
                     <Button variant="default" size="sm" className="h-7 text-xs gap-1"
                       onClick={() => actions.onEmailPO(vendorDoc, po.vendor)} disabled={isLocked}>
                       <Mail className="w-3 h-3" /> Email to Vendor
                     </Button>
                   )}
-                  {poStage === "submitted" && (
-                    <Button variant="outline" size="sm" className="h-7 text-xs gap-1 border-green-200 text-green-700"
-                      onClick={() => onUpdateDocMeta({
-                        docId: vendorDoc.id,
-                        updates: { metadata: { ...(vendorDoc.metadata as Record<string, unknown> || {}), poStage: "confirmed" } },
-                      })}
-                      disabled={isLocked || isDocMetaUpdating}>
-                      {isDocMetaUpdating ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle className="w-3 h-3" />}
-                      Mark Confirmed
-                    </Button>
-                  )}
+                  {poStage && poStage !== initialStageId && (() => {
+                    const nextStage = getNextStage(poStage);
+                    return nextStage ? (
+                      <Button variant="outline" size="sm" className="h-7 text-xs gap-1 border-green-200 text-green-700"
+                        onClick={() => onUpdateDocMeta({
+                          docId: vendorDoc.id,
+                          updates: { metadata: { ...(vendorDoc.metadata as Record<string, unknown> || {}), poStage: nextStage.id } },
+                        })}
+                        disabled={isLocked || isDocMetaUpdating}>
+                        {isDocMetaUpdating ? <Loader2 className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3" />}
+                        Advance to {nextStage.name}
+                      </Button>
+                    ) : null;
+                  })()}
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button variant="outline" size="sm" className="h-7 w-7 p-0">
@@ -212,16 +225,13 @@ export default function VendorCard({
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      {poStage !== "created" && (
+                      {poStage !== initialStageId && (
                         <DropdownMenuItem onClick={() => actions.onEmailPO(vendorDoc, po.vendor)}>
                           <Mail className="w-4 h-4 mr-2" /> Resend PO
                         </DropdownMenuItem>
                       )}
                       <DropdownMenuItem onClick={() => setShowTextPreview(true)}>
                         <ClipboardList className="w-4 h-4 mr-2" /> Text Preview / Copy
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => setShowDocEditor(true)}>
-                        <Edit className="w-4 h-4 mr-2" /> Edit Document
                       </DropdownMenuItem>
                       <DropdownMenuItem onClick={() => setShowNotifyVendor(true)}>
                         <MessageSquare className="w-4 h-4 mr-2" /> Message Vendor
@@ -235,46 +245,6 @@ export default function VendorCard({
                         {isGenerating ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Printer className="w-4 h-4 mr-2" />}
                         {isGenerating ? "Regenerating..." : "Regenerate PO"}
                       </DropdownMenuItem>
-                      {poStage === "submitted" && (
-                        <DropdownMenuItem onClick={() => onUpdateDocMeta({
-                          docId: vendorDoc.id,
-                          updates: { metadata: { ...(vendorDoc.metadata as Record<string, unknown> || {}), poStage: "confirmed" } },
-                        })}>
-                          <CheckCircle className="w-4 h-4 mr-2" /> Mark as Confirmed
-                        </DropdownMenuItem>
-                      )}
-                      {poStage === "confirmed" && (
-                        <DropdownMenuItem onClick={() => onUpdateDocMeta({
-                          docId: vendorDoc.id,
-                          updates: { metadata: { ...(vendorDoc.metadata as Record<string, unknown> || {}), poStage: "shipped" } },
-                        })}>
-                          <Package className="w-4 h-4 mr-2" /> Mark as Shipped
-                        </DropdownMenuItem>
-                      )}
-                      {poStage === "shipped" && (
-                        <DropdownMenuItem onClick={() => onUpdateDocMeta({
-                          docId: vendorDoc.id,
-                          updates: { metadata: { ...(vendorDoc.metadata as Record<string, unknown> || {}), poStage: "ready_for_billing" } },
-                        })}>
-                          <ClipboardList className="w-4 h-4 mr-2" /> Ready for Billing
-                        </DropdownMenuItem>
-                      )}
-                      {poStage === "ready_for_billing" && (
-                        <DropdownMenuItem onClick={() => onUpdateDocMeta({
-                          docId: vendorDoc.id,
-                          updates: { metadata: { ...(vendorDoc.metadata as Record<string, unknown> || {}), poStage: "billed" } },
-                        })}>
-                          <FileText className="w-4 h-4 mr-2" /> Mark as Billed
-                        </DropdownMenuItem>
-                      )}
-                      {poStage === "billed" && (
-                        <DropdownMenuItem onClick={() => onUpdateDocMeta({
-                          docId: vendorDoc.id,
-                          updates: { metadata: { ...(vendorDoc.metadata as Record<string, unknown> || {}), poStage: "closed" } },
-                        })}>
-                          <CheckCircle className="w-4 h-4 mr-2" /> Close PO
-                        </DropdownMenuItem>
-                      )}
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </>
@@ -297,6 +267,7 @@ export default function VendorCard({
               onUpdateDocMeta={onUpdateDocMeta}
               isUpdating={isDocMetaUpdating}
               order={context.order}
+              initialStageId={initialStageId}
             />
           )}
 
@@ -392,18 +363,6 @@ export default function VendorCard({
         projectId={context.projectId}
       />
 
-      {showDocEditor && vendorDoc && (
-        <DocumentEditor
-          document={vendorDoc}
-          order={context.order}
-          orderItems={context.orderItems}
-          companyName={context.companyName}
-          primaryContact={context.primaryContact}
-          getEditedItem={context.getEditedItem}
-          onClose={() => setShowDocEditor(false)}
-          allArtworkItems={context.allArtworkItems}
-        />
-      )}
     </>
   );
 }

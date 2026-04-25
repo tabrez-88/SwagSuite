@@ -532,7 +532,7 @@ export default function ShippingSection({ projectId, data, isLocked }: ShippingS
                   <div>
                     <Label>Ship To</Label>
                     <Select value={hook.editShippingForm.leg2ShipTo}
-                      onValueChange={(v) => hook.setEditShippingForm(f => ({ ...f, leg2ShipTo: v }))}>
+                      onValueChange={(v) => hook.handleLeg2ShipToChange(v)}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="client">Client</SelectItem>

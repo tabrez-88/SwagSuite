@@ -1244,7 +1244,10 @@ export class ApprovalController {
       const docRows = (docResult as any).rows ?? docResult;
       if (docRows.length > 0) {
         const metadata = typeof docRows[0].metadata === 'string' ? JSON.parse(docRows[0].metadata) : (docRows[0].metadata || {});
-        metadata.poStage = "confirmed";
+        // Dynamic: use on_vendor_confirm flag stage
+        const { productionRepository } = await import("../repositories/production.repository");
+        const confirmStage = await productionRepository.getStageByFlag('onVendorConfirm');
+        metadata.poStage = confirmStage?.id || "confirmed";
         await db.execute(sql.raw(`
           UPDATE generated_documents SET metadata = '${JSON.stringify(metadata).replace(/'/g, "''")}' WHERE id = '${confirmation.document_id}'
         `));

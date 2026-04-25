@@ -1,6 +1,7 @@
 import { projectFileRepository } from "../repositories/projectFile.repository";
 import { registerInMediaLibrary } from "../utils/registerInMediaLibrary";
 import { activityRepository } from "../repositories/activity.repository";
+import { productionRepository } from "../repositories/production.repository";
 import { db } from "../db";
 import { orderItems, products, users } from "@shared/schema";
 import { eq } from "drizzle-orm";
@@ -294,23 +295,28 @@ export class OrderFileService {
       await projectFileRepository.updateOrderStatus(orderId, "pending_approval");
     }
 
-    // Auto-advance production stage
+    // Auto-advance production stage (dynamic: use on_vendor_confirm flag stage)
     try {
+      const initialStage = await productionRepository.getInitialStage();
+      const initialId = initialStage?.id || "created";
+      const confirmStage = await productionRepository.getStageByFlag('onVendorConfirm');
+      const confirmId = confirmStage?.id || "confirmed";
+
       const stagesCompleted = Array.isArray(order.stagesCompleted)
         ? order.stagesCompleted
-        : JSON.parse(JSON.stringify(order.stagesCompleted || '["created"]'));
+        : JSON.parse(JSON.stringify(order.stagesCompleted || `["${initialId}"]`));
       const stagesArr = Array.isArray(stagesCompleted) ? stagesCompleted : JSON.parse(stagesCompleted);
 
-      if (!stagesArr.includes("confirmed")) {
-        const updatedCompleted = Array.from(new Set([...stagesArr, "confirmed"]));
-        await projectFileRepository.updateOrderStage(orderId, "confirmed", updatedCompleted);
+      if (!stagesArr.includes(confirmId)) {
+        const updatedCompleted = Array.from(new Set([...stagesArr, confirmId]));
+        await projectFileRepository.updateOrderStage(orderId, confirmId, updatedCompleted);
 
         await activityRepository.createActivity({
           userId,
           entityType: "order",
           entityId: orderId,
           action: "stage_updated",
-          description: `Production stage auto-advanced to "Proof Received" when proof was sent to client`,
+          description: `Production stage auto-advanced to "${confirmStage?.name || 'Confirmed'}" when proof was sent to client`,
         });
       }
     } catch (stageError) {

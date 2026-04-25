@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { eq, and, ne, sql } from "drizzle-orm";
 import { db } from "../db";
 import {
   productionStages,
@@ -56,17 +56,56 @@ export class ProductionRepository {
     if (existing.length > 0) return; // Already seeded
 
     const defaults: InsertProductionStage[] = [
-      { id: 'created', name: 'Created', order: 1, color: 'bg-gray-100 text-gray-700', icon: 'FileText', description: 'PO created, not yet sent to vendor' },
-      { id: 'submitted', name: 'Submitted', order: 2, color: 'bg-blue-100 text-blue-800', icon: 'Send', description: 'PO sent to vendor' },
-      { id: 'confirmed', name: 'Confirmed', order: 3, color: 'bg-green-100 text-green-800', icon: 'CheckCircle', description: 'Vendor confirmed the order' },
+      { id: 'created', name: 'Created', order: 1, color: 'bg-gray-100 text-gray-700', icon: 'FileText', description: 'PO created, not yet sent to vendor', isInitial: true },
+      { id: 'submitted', name: 'Submitted', order: 2, color: 'bg-blue-100 text-blue-800', icon: 'Send', description: 'PO sent to vendor', onEmailSent: true },
+      { id: 'confirmed', name: 'Confirmed', order: 3, color: 'bg-green-100 text-green-800', icon: 'CheckCircle', description: 'Vendor confirmed the order', onVendorConfirm: true },
       { id: 'in_production', name: 'In Production', order: 4, color: 'bg-purple-100 text-purple-800', icon: 'Factory', description: 'Vendor is producing the order' },
       { id: 'shipped', name: 'Shipped', order: 5, color: 'bg-indigo-100 text-indigo-800', icon: 'Truck', description: 'Order shipped from vendor' },
       { id: 'ready_for_billing', name: 'Ready for Billing', order: 6, color: 'bg-teal-100 text-teal-800', icon: 'Receipt', description: 'Ready to create vendor bill' },
-      { id: 'billed', name: 'Billed', order: 7, color: 'bg-orange-100 text-orange-800', icon: 'CreditCard', description: 'Vendor bill recorded' },
-      { id: 'closed', name: 'Closed', order: 8, color: 'bg-red-100 text-red-800', icon: 'Lock', description: 'PO fully complete' },
+      { id: 'billed', name: 'Billed', order: 7, color: 'bg-orange-100 text-orange-800', icon: 'CreditCard', description: 'Vendor bill recorded', isFinal: true, onBilling: true },
+      { id: 'closed', name: 'Closed', order: 8, color: 'bg-red-100 text-red-800', icon: 'Lock', description: 'PO fully complete', isFinal: true },
     ];
 
     await db.insert(productionStages).values(defaults);
+  }
+
+  // ── Stage Flag Queries ──
+
+  async getInitialStage(): Promise<ProductionStage | undefined> {
+    const [stage] = await db.select().from(productionStages)
+      .where(and(eq(productionStages.isActive, true), eq(productionStages.isInitial, true)));
+    if (stage) return stage;
+    // Fallback: first active stage by order
+    const [first] = await db.select().from(productionStages)
+      .where(eq(productionStages.isActive, true))
+      .orderBy(productionStages.order)
+      .limit(1);
+    return first;
+  }
+
+  async getFinalStageIds(): Promise<string[]> {
+    const stages = await db.select({ id: productionStages.id }).from(productionStages)
+      .where(and(eq(productionStages.isActive, true), eq(productionStages.isFinal, true)));
+    return stages.map(s => s.id);
+  }
+
+  async getStageByFlag(flag: 'onEmailSent' | 'onVendorConfirm' | 'onBilling'): Promise<ProductionStage | undefined> {
+    const [stage] = await db.select().from(productionStages)
+      .where(and(eq(productionStages.isActive, true), eq(productionStages[flag], true)));
+    return stage;
+  }
+
+  /** Toggle a single-only flag: auto-disable on other stages first. `isFinal` skips auto-disable. */
+  async setStageFlag(stageId: string, flag: keyof Pick<InsertProductionStage, 'isInitial' | 'isFinal' | 'onEmailSent' | 'onVendorConfirm' | 'onBilling'>, value: boolean): Promise<void> {
+    if (value && flag !== 'isFinal') {
+      // Auto-disable same flag on all other stages
+      await db.update(productionStages)
+        .set({ [flag]: false, updatedAt: new Date() })
+        .where(ne(productionStages.id, stageId));
+    }
+    await db.update(productionStages)
+      .set({ [flag]: value, updatedAt: new Date() })
+      .where(eq(productionStages.id, stageId));
   }
 
   // ── Next Action Types ──

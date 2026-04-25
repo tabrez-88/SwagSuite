@@ -1,7 +1,9 @@
 import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useProductionStages } from "@/hooks/useProductionStages";
 import { useNextActionTypes } from "@/hooks/useNextActionTypes";
+import { productionKeys } from "@/services/production/keys";
 
 export const STAGE_COLORS = [
   { value: "bg-gray-100 text-gray-800", label: "Gray" },
@@ -19,6 +21,7 @@ export const STAGE_COLORS = [
 
 export function useProductionStagesTab() {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
 
   const {
     stages: productionStages,
@@ -107,6 +110,11 @@ export function useProductionStagesTab() {
         name: editingStage.name.trim(),
         description: editingStage.description?.trim() || undefined,
         color: editingStage.color,
+        isInitial: editingStage.isInitial ?? false,
+        isFinal: editingStage.isFinal ?? false,
+        onEmailSent: editingStage.onEmailSent ?? false,
+        onVendorConfirm: editingStage.onVendorConfirm ?? false,
+        onBilling: editingStage.onBilling ?? false,
       });
       toast({ title: "Stage updated" });
       setEditStageOpen(false);
@@ -119,9 +127,16 @@ export function useProductionStagesTab() {
     const reordered = [...productionStages];
     const [moved] = reordered.splice(sourceIndex, 1);
     reordered.splice(destIndex, 0, moved);
+    const updated = reordered.map((s, i) => ({ ...s, order: i + 1 }));
+
+    // Optimistic: update cache immediately
+    const prev = queryClient.getQueryData(productionKeys.stages);
+    queryClient.setQueryData(productionKeys.stages, updated);
+
     try {
-      await reorderStages(reordered.map((s: any) => s.id));
+      await reorderStages(updated.map((s: any) => s.id));
     } catch {
+      queryClient.setQueryData(productionKeys.stages, prev);
       toast({ title: "Failed to reorder stages", variant: "destructive" });
     }
   };
@@ -192,9 +207,16 @@ export function useProductionStagesTab() {
     const reordered = [...actionTypes];
     const [moved] = reordered.splice(sourceIndex, 1);
     reordered.splice(destIndex, 0, moved);
+    const updated = reordered.map((t, i) => ({ ...t, order: i + 1 }));
+
+    // Optimistic: update cache immediately
+    const prev = queryClient.getQueryData(productionKeys.nextActionTypes);
+    queryClient.setQueryData(productionKeys.nextActionTypes, updated);
+
     try {
-      await reorderActionTypes(reordered.map((t: any) => t.id));
+      await reorderActionTypes(updated.map((t: any) => t.id));
     } catch {
+      queryClient.setQueryData(productionKeys.nextActionTypes, prev);
       toast({ title: "Failed to reorder action types", variant: "destructive" });
     }
   };

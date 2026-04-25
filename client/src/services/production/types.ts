@@ -25,4 +25,9 @@ export interface StageUpdate {
   description?: string;
   color?: string;
   icon?: string;
+  isInitial?: boolean;
+  isFinal?: boolean;
+  onEmailSent?: boolean;
+  onVendorConfirm?: boolean;
+  onBilling?: boolean;
 }

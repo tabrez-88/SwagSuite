@@ -1,4 +1,5 @@
 import { Package } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import type { EnrichedOrderItem } from "@/types/project-types";
 import type { OrderItemLine } from "@shared/schema";
 
@@ -29,11 +30,30 @@ export default function ProductPoItem({
 }: ProductPoItemProps) {
   return (
     <div className={`px-6 py-3 ${!isLast ? "border-b" : ""}`}>
-      <div className="flex items-center justify-between mb-2">
-        <div className="flex items-center gap-2">
-          <Package className="w-4 h-4 text-gray-400" />
-          <span className="text-sm font-medium">{item.productName || "Product"}</span>
-          <span className="text-xs text-blue-600">{item.productSku || ""}</span>
+      <div className="flex items-start gap-3 mb-2">
+        {item.productImageUrl ? (
+          <img
+            src={item.productImageUrl}
+            alt={item.productName || "Product"}
+            className="w-12 h-12 rounded border object-cover flex-shrink-0"
+          />
+        ) : (
+          <div className="w-12 h-12 rounded border bg-gray-100 flex items-center justify-center flex-shrink-0">
+            <Package className="w-5 h-5 text-gray-300" />
+          </div>
+        )}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium">{item.productName || "Product"}</span>
+            {item.productSku && (
+              <Badge variant="outline" className="text-[10px] font-mono bg-gray-50">
+                SKU: {item.productSku}
+              </Badge>
+            )}
+          </div>
+          {item.productBrand && (
+            <span className="text-[11px] text-gray-400">{item.productBrand}</span>
+          )}
         </div>
       </div>
 
@@ -75,7 +95,7 @@ export default function ProductPoItem({
       )}
 
       {(runCharges.length > 0 || fixedCharges.length > 0 || artworkCharges.length > 0) && (
-        <div className="mt-2 space-y-1.5 ml-6">
+        <div className="mt-2 space-y-1.5">
           {runCharges.map((c) => {
             const cost = parseFloat(c.netCost || c.amount || "0");
             const qty = item.quantity || 1;

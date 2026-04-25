@@ -26,7 +26,7 @@ export function useVendorCardMutations({
 }: UseVendorCardMutationsParams) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { stages: productionStages } = useProductionStages();
+  const { stages: productionStages, getInitialStage, getNextStage } = useProductionStages();
   const { data: actionTypes = [] } = useNextActionTypesQuery();
 
   // Build PO_STAGES lookup from production stages
@@ -56,8 +56,9 @@ export function useVendorCardMutations({
   }, [po.items, po.vendor, allArtworkItems]);
 
   // Metadata helpers
+  const initialStageId = getInitialStage()?.id || "created";
   const getDocStage = (doc: GeneratedDocument): string =>
-    (doc.metadata as Record<string, unknown>)?.poStage as string || "created";
+    (doc.metadata as Record<string, unknown>)?.poStage as string || initialStageId;
 
   const getDocStatus = (doc: GeneratedDocument): string =>
     (doc.metadata as Record<string, unknown>)?.poStatus as string || "ok";
@@ -135,6 +136,9 @@ export function useVendorCardMutations({
 
   return {
     PO_STAGES,
+    productionStages,
+    getInitialStage,
+    getNextStage,
     actionTypes,
     vendorArtworks,
     getDocStage,

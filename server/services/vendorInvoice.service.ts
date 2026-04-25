@@ -38,25 +38,33 @@ export class VendorInvoiceService {
 
         if (poDoc && poDoc.documentType === 'purchase_order') {
           const currentMeta = typeof poDoc.metadata === 'string' ? JSON.parse(poDoc.metadata) : (poDoc.metadata || {});
-          const currentStage = currentMeta.poStage || 'created';
+          const { productionRepository } = await import("../repositories/production.repository");
+          const initialStage = await productionRepository.getInitialStage();
+          const currentStage = currentMeta.poStage || initialStage?.id || 'created';
 
-          // Only auto-transition if PO is at ready_for_billing stage
-          if (currentStage === 'ready_for_billing') {
+          // Dynamic: get billing stage from flag, auto-transition to it
+          const billingStage = await productionRepository.getStageByFlag('onBilling');
+          const billingStageId = billingStage?.id || 'billed';
+
+          // Auto-transition: advance to billing stage (from any non-final stage)
+          const finalStageIds = await productionRepository.getFinalStageIds();
+          if (!finalStageIds.includes(currentStage)) {
             await db
               .update(generatedDocuments)
               .set({
-                metadata: { ...currentMeta, poStage: 'billed' },
+                metadata: { ...currentMeta, poStage: billingStageId },
                 updatedAt: new Date(),
               })
               .where(eq(generatedDocuments.id, data.documentId));
 
             // Log activity
             const { projectActivities } = await import("@shared/schema");
+            const billingLabel = billingStage?.name || 'Billed';
             await db.insert(projectActivities).values({
               orderId,
               userId: 'system',
               activityType: 'system_action',
-              content: `PO #${poDoc.documentNumber || data.documentId} auto-transitioned to "Billed" — vendor bill #${data.invoiceNumber} recorded`,
+              content: `PO #${poDoc.documentNumber || data.documentId} auto-transitioned to "${billingLabel}" — vendor bill #${data.invoiceNumber} recorded`,
               metadata: {
                 action: 'bill_po_vouching',
                 documentId: data.documentId,
@@ -65,7 +73,7 @@ export class VendorInvoiceService {
               isSystemGenerated: true,
             } as any);
 
-            console.log(`[Bill→PO Auto] PO ${data.documentId} → billed (bill #${data.invoiceNumber})`);
+            console.log(`[Bill→PO Auto] PO ${data.documentId} → ${billingStageId} (bill #${data.invoiceNumber})`);
           }
         }
       } catch (autoErr) {

@@ -560,11 +560,6 @@ export function useEditProductPage(projectId: string, itemId: string, data: Proj
 
   const handleSave = () => {
     if (isSaving) return;
-    if (isBelowMinimum(margin, marginSettings)) {
-      setMarginWarningValue(margin);
-      setMarginWarningAction(() => () => saveAll());
-      return;
-    }
     saveAll();
   };
 
@@ -631,13 +626,15 @@ export function useEditProductPage(projectId: string, itemId: string, data: Proj
         }
       }
 
-      // Invalidate caches
-      queryClient.invalidateQueries({ queryKey: projectKeys.itemsWithDetails(projectId) });
-      queryClient.invalidateQueries({ queryKey: projectKeys.items(projectId) });
-      queryClient.invalidateQueries({ queryKey: projectKeys.detail(projectId) });
-      queryClient.invalidateQueries({ queryKey: projectKeys.itemLines(projectId) });
-      queryClient.invalidateQueries({ queryKey: projectKeys.itemCharges(projectId) });
-      queryClient.invalidateQueries({ queryKey: projectKeys.artworks(projectId) });
+      // Invalidate caches — await primary query to ensure fresh data before closing
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: projectKeys.itemsWithDetails(projectId) }),
+        queryClient.invalidateQueries({ queryKey: projectKeys.items(projectId) }),
+        queryClient.invalidateQueries({ queryKey: projectKeys.detail(projectId) }),
+        queryClient.invalidateQueries({ queryKey: projectKeys.itemLines(projectId) }),
+        queryClient.invalidateQueries({ queryKey: projectKeys.itemCharges(projectId) }),
+        queryClient.invalidateQueries({ queryKey: projectKeys.artworks(projectId) }),
+      ]);
 
       toast({ title: "Product updated", description: "All changes have been saved." });
       goBack();

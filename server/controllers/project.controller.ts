@@ -4,6 +4,7 @@ import { userRepository } from "../repositories/user.repository";
 import { activityRepository } from "../repositories/activity.repository";
 import { notificationRepository } from "../repositories/notification.repository";
 import { supplierRepository } from "../repositories/supplier.repository";
+import { supplierAddressRepository } from "../repositories/supplier-address.repository";
 import {
   insertOrderSchema,
   insertOrderItemSchema,
@@ -1282,6 +1283,60 @@ export class ProjectController {
       if (dataToInsert.sortOrder == null) {
         const existingItems = await projectRepository.getOrderItems(req.params.projectId);
         dataToInsert.sortOrder = existingItems.length;
+      }
+
+      // Auto-populate shipping defaults from order
+      if (parentOrder) {
+        let clientAddress = null;
+        try {
+          if (parentOrder.shippingAddress) {
+            clientAddress = JSON.parse(parentOrder.shippingAddress as string);
+          }
+        } catch {}
+
+        const hasThirdPartyDecorator = dataToInsert.decoratorType === "third_party" && dataToInsert.decoratorId;
+
+        if (hasThirdPartyDecorator) {
+          // Supplier ships TO decorator
+          dataToInsert.shippingDestination = dataToInsert.shippingDestination || "decorator";
+
+          // Resolve decorator address from supplier_addresses
+          if (!dataToInsert.shipToAddress) {
+            const decoratorAddresses = await supplierAddressRepository.getBySupplierId(dataToInsert.decoratorId);
+            const defaultAddr = decoratorAddresses?.[0]; // Already sorted by isDefault desc
+            if (defaultAddr) {
+              dataToInsert.shipToAddress = {
+                companyName: defaultAddr.companyNameOnDocs || defaultAddr.addressName || "",
+                street: defaultAddr.street || "",
+                street2: defaultAddr.street2 || "",
+                city: defaultAddr.city || "",
+                state: defaultAddr.state || "",
+                zipCode: defaultAddr.zipCode || "",
+                country: defaultAddr.country || "",
+              };
+            }
+          }
+
+          // Leg 2: decorator ships TO client
+          dataToInsert.leg2ShipTo = dataToInsert.leg2ShipTo || "client";
+          if (!dataToInsert.leg2Address && clientAddress) {
+            dataToInsert.leg2Address = clientAddress;
+          }
+        } else {
+          // Regular item: supplier ships TO client
+          dataToInsert.shippingDestination = dataToInsert.shippingDestination || "client";
+          if (!dataToInsert.shipToAddress && clientAddress) {
+            dataToInsert.shipToAddress = clientAddress;
+          }
+        }
+
+        // IHD + firm defaults
+        if (!dataToInsert.shipInHandsDate && parentOrder.supplierInHandsDate) {
+          dataToInsert.shipInHandsDate = parentOrder.supplierInHandsDate;
+        }
+        if (dataToInsert.shipFirm == null && parentOrder.isFirm) {
+          dataToInsert.shipFirm = parentOrder.isFirm;
+        }
       }
 
       const validatedData = insertOrderItemSchema.parse(dataToInsert);

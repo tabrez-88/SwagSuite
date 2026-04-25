@@ -16,7 +16,7 @@ export function usePODetailPanel(documentId: string | null, open: boolean) {
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState("overview");
   const [previewFile, setPreviewFile] = useState<PreviewFile | null>(null);
-  const { stages: productionStages } = useProductionStages();
+  const { stages: productionStages, getInitialStage } = useProductionStages();
   const { actionTypes } = useNextActionTypes();
 
   const { data: po, isLoading } = usePoReportDetail<any>(documentId, open);
@@ -89,7 +89,7 @@ export function usePODetailPanel(documentId: string | null, open: boolean) {
       }),
   });
 
-  const poStage = po?.poStage || "created";
+  const poStage = po?.poStage || getInitialStage()?.id || "created";
   const poStatus = po?.poStatus || "ok";
 
   const currentStageIdx = productionStages.findIndex((s: any) => s.id === poStage);

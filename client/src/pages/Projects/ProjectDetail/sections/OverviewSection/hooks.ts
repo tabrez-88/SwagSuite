@@ -101,16 +101,17 @@ export function useOverviewSection({ projectId, data, isLocked = false }: Overvi
  * Determines which production stages have been completed based on PO stages
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- data shape includes dynamic `documents` not on ProjectData type
-function computeProductionProgress(data: any, productionStages: Array<{ id: string; name: string }>) {
+function computeProductionProgress(data: any, productionStages: Array<{ id: string; name: string; isInitial?: boolean | null }>) {
   const poDocuments = (data?.documents || []).filter((d: any) => d.documentType === "purchase_order");
   const stageOrder = productionStages
     ? new Map(productionStages.map((s, i: number) => [s.id, i]))
     : new Map();
+  const initialStageId = productionStages?.find(s => s.isInitial)?.id || productionStages?.[0]?.id || "created";
 
   const reachedStages = new Set<string>();
   if (productionStages) {
     for (const po of poDocuments) {
-      const poStage = po.metadata?.poStage || "created";
+      const poStage = po.metadata?.poStage || initialStageId;
       const poStageIdx = stageOrder.get(poStage) ?? -1;
       for (const [stageId, idx] of stageOrder) {
         if (idx <= poStageIdx) reachedStages.add(stageId);

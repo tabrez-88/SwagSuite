@@ -1,4 +1,5 @@
 import { documentRepository } from "../repositories/document.repository";
+import { productionRepository } from "../repositories/production.repository";
 import { db } from "../db";
 
 export class DocumentService {
@@ -130,14 +131,18 @@ export class DocumentService {
       const allPOs = await documentRepository.getAllPOsForOrder(orderId);
       if (allPOs.length === 0) return;
 
-      const stageOrder: Record<string, number> = {
-        created: 1, submitted: 2, confirmed: 3, shipped: 4,
-        ready_for_billing: 5, billed: 6, closed: 7,
-      };
+      // Dynamic stage order from DB
+      const dbStages = await productionRepository.getProductionStages();
+      const stageOrder: Record<string, number> = {};
+      for (const s of dbStages) {
+        stageOrder[s.id] = s.order;
+      }
+      const initialStage = dbStages.find(s => s.isInitial) || dbStages[0];
+      const initialStageId = initialStage?.id || 'created';
 
       const allStages = allPOs.map((po: any) => {
         const m = typeof po.metadata === "string" ? JSON.parse(po.metadata) : (po.metadata || {});
-        return m.poStage || "created";
+        return m.poStage || initialStageId;
       });
 
       const minStageOrder = Math.min(...allStages.map((s: string) => stageOrder[s] || 1));
@@ -155,10 +160,15 @@ export class DocumentService {
       let newSOStatus: string | null = null;
       const currentSO = currentOrder.salesOrderStatus || "";
 
-      if (minStageOrder >= stageOrder.shipped && ["client_approved", "in_production"].includes(currentSO)) {
+      // Use stage order positions: ~60% through = shipped, ~75% through = ready_to_invoice
+      const totalStages = dbStages.length;
+      const shippedThreshold = Math.ceil(totalStages * 0.6);
+      const billingThreshold = Math.ceil(totalStages * 0.75);
+
+      if (minStageOrder >= shippedThreshold && ["client_approved", "in_production"].includes(currentSO)) {
         newSOStatus = "shipped";
       }
-      if (minStageOrder >= stageOrder.ready_for_billing && ["client_approved", "in_production", "shipped"].includes(currentSO)) {
+      if (minStageOrder >= billingThreshold && ["client_approved", "in_production", "shipped"].includes(currentSO)) {
         newSOStatus = "ready_to_invoice";
       }
 

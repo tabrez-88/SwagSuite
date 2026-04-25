@@ -19,6 +19,12 @@ export const productionStages = pgTable("production_stages", {
   color: varchar("color").notNull().default("bg-gray-100 text-gray-800"),
   icon: varchar("icon").notNull().default("Package"),
   isActive: boolean("is_active").default(true),
+  // Stage flags — mark what "role" each stage plays in PO lifecycle
+  isInitial: boolean("is_initial").default(false),
+  isFinal: boolean("is_final").default(false),
+  onEmailSent: boolean("on_email_sent").default(false),
+  onVendorConfirm: boolean("on_vendor_confirm").default(false),
+  onBilling: boolean("on_billing").default(false),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

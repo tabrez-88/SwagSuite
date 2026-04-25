@@ -6,6 +6,14 @@ async function json<T>(res: Response): Promise<T> {
 }
 
 // ---- Production stages ----
+export async function fetchStages(): Promise<ProductionStage[]> {
+  return json(await apiRequest("GET", "/api/production/stages"));
+}
+
+export async function fetchActionTypes(): Promise<NextActionType[]> {
+  return json(await apiRequest("GET", "/api/production/next-action-types"));
+}
+
 export async function createStage(input: StageInput): Promise<ProductionStage> {
   return json(await apiRequest("POST", "/api/production/stages", input));
 }

@@ -89,17 +89,15 @@ export default function PurchaseOrdersSection({ projectId, data, isLocked }: Pur
   // Shared context for all VendorCards
   const vendorCardContext: VendorCardContext = useMemo(() => ({
     order: hook.order || null,
-    orderItems: hook.orderItems,
     projectId: hook.projectId,
     companyName: hook.data.companyName || "",
     primaryContact: hook.data.primaryContact,
-    getEditedItem: hook.getEditedItem,
     allItemCharges: hook.allItemCharges,
     allArtworkItems: hook.allArtworkItems,
     allArtworkCharges: hook.allArtworkCharges,
     hasSupplierIHD: hook.hasSupplierIHD,
     getVendorDefaultAddress: hook.getVendorDefaultAddress,
-  }), [hook.order, hook.orderItems, hook.projectId, hook.data, hook.getEditedItem,
+  }), [hook.order, hook.projectId, hook.data,
     hook.allItemCharges, hook.allArtworkItems, hook.allArtworkCharges,
     hook.hasSupplierIHD, hook.getVendorDefaultAddress]);
 

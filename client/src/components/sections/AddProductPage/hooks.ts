@@ -637,8 +637,10 @@ export function useAddProductPage({ projectId, data }: AddProductPageProps) {
       notes: string;
       imprintLocation: string;
       imprintMethod: string;
+      decoratorType: "supplier" | "third_party";
+      decoratorId: string;
     }) => {
-      const { product, lines, notes, imprintLocation, imprintMethod } = payload;
+      const { product, lines, notes, imprintLocation, imprintMethod, decoratorType: decType, decoratorId: decId } = payload;
 
       const totalQty = lines.reduce((sum, l) => sum + l.quantity, 0);
       const totalCost = lines.reduce((sum, l) => sum + l.quantity * l.unitCost, 0);
@@ -667,6 +669,8 @@ export function useAddProductPage({ projectId, data }: AddProductPageProps) {
         imprintMethod,
         notes,
         sizePricing,
+        decoratorType: decType,
+        ...(decType === "third_party" && decId ? { decoratorId: decId } : {}),
       });
 
       // 2. Create order item lines (size/color breakdown)
@@ -963,6 +967,8 @@ export function useAddProductPage({ projectId, data }: AddProductPageProps) {
       notes: productNotes,
       imprintLocation,
       imprintMethod,
+      decoratorType,
+      decoratorId,
     });
     doAdd();
   };

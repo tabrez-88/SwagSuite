@@ -9,8 +9,9 @@ const STALE = 5 * 60 * 1000; // 5 minutes
 export function useProductionStagesQuery() {
   return useQuery<ProductionStage[]>({
     queryKey: productionKeys.stages,
+    queryFn: requests.fetchStages,
     staleTime: STALE,
-    initialData: DEFAULT_STAGES,
+    placeholderData: DEFAULT_STAGES,
   });
 }
 
@@ -29,8 +30,9 @@ export const DEFAULT_ACTION_TYPES: NextActionType[] = [
 export function useNextActionTypesQuery() {
   return useQuery<NextActionType[]>({
     queryKey: productionKeys.nextActionTypes,
+    queryFn: requests.fetchActionTypes,
     staleTime: STALE,
-    initialData: DEFAULT_ACTION_TYPES,
+    placeholderData: DEFAULT_ACTION_TYPES,
   });
 }
 
