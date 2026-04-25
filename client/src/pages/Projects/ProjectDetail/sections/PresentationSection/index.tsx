@@ -1,9 +1,6 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -12,37 +9,27 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
-import { CardHeader, CardTitle } from "@/components/ui/card";
-import {
   ChevronDown,
   ChevronUp,
   ExternalLink,
   Eye,
   EyeOff,
   ArrowRight,
-  Loader2,
   Package,
-  Palette,
-  Pencil,
   Plus,
   Send,
 } from "lucide-react";
 import { format } from "date-fns";
-import type { OrderItemLine } from "@shared/schema";
 import StageConversionDialog from "../../components/StageConversionDialog";
 import SendPresentationDialog from "@/components/modals/SendPresentationDialog";
-import { useToast } from "@/hooks/use-toast";
-import { usePresentationSection, presentationStatuses, calcMargin, marginColor } from "./hooks";
+import { usePresentationSection, presentationStatuses } from "./hooks";
 import ProductPricingEditor from "./components/ProductPricingEditor";
 import ProductPreviewLightbox from "./components/ProductPreviewLightbox";
 import ArtworkGrid from "./components/ArtworkGrid";
+import PresentationDetailsCard from "./components/PresentationDetailsCard";
+import PresentationEditDialog from "./components/PresentationEditDialog";
+import GridView from "./components/GridView";
+import DetailedView from "./components/DetailedView";
 import type { PresentationSectionProps } from "./types";
 
 export default function PresentationSection(props: PresentationSectionProps) {
@@ -52,7 +39,7 @@ export default function PresentationSection(props: PresentationSectionProps) {
 
   if (!hook.order) return null;
 
-  const selectedContactObj = hook.contacts?.find((c: any) => c.id === hook.selectedContact);
+  const selectedContactObj = hook.contacts?.find((c) => c.id === hook.selectedContact);
 
   return (
     <div className="space-y-6">
@@ -145,43 +132,16 @@ export default function PresentationSection(props: PresentationSectionProps) {
         </div>
       )}
 
-      {/* Collapsible Info Section — read-only display */}
+      {/* Collapsible Info Section */}
       {!hook.isInfoCollapsed && (
-        <Card>
-          <CardHeader className="py-3">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-sm">Presentation Details</CardTitle>
-              <Button variant="outline" size="sm" className="gap-1.5 h-8" onClick={() => setShowEditDialog(true)}>
-                <Pencil className="w-3.5 h-3.5" />
-                Edit
-              </Button>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <label className="text-xs font-medium text-gray-500 block mb-1">Introduction</label>
-              <p className="text-sm text-gray-700 whitespace-pre-wrap">{hook.introduction || <span className="text-gray-400 italic">No introduction</span>}</p>
-            </div>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-2">
-              <div>
-                <label className="text-xs font-medium text-gray-500 block mb-0.5">Client Contact</label>
-                <span className="text-sm font-medium">{selectedContactObj ? `${selectedContactObj.firstName}` : "—"}</span>
-              </div>
-              <div>
-                <label className="text-xs font-medium text-gray-500 block mb-0.5">Expiry Date</label>
-                <span className="text-sm font-medium">{hook.expiryDate ? format(new Date(hook.expiryDate + "T00:00:00"), "MMM d, yyyy") : "—"}</span>
-              </div>
-              <div>
-                <label className="text-xs font-medium text-gray-500 block mb-0.5">Currency</label>
-                <span className="text-sm font-medium">{hook.currency || "USD"}</span>
-              </div>
-              <div>
-                <label className="text-xs font-medium text-gray-500 block mb-0.5">Hide Pricing</label>
-                <span className="text-sm font-medium">{hook.hidePricing ? "Yes" : "No"}</span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        <PresentationDetailsCard
+          introduction={hook.introduction}
+          selectedContactName={selectedContactObj ? `${selectedContactObj.firstName}` : ""}
+          expiryDate={hook.expiryDate}
+          currency={hook.currency}
+          hidePricing={hook.hidePricing}
+          onEditClick={() => setShowEditDialog(true)}
+        />
       )}
 
       {/* Presentation Edit Dialog */}
@@ -282,350 +242,6 @@ export default function PresentationSection(props: PresentationSectionProps) {
           assignedUserEmail={props.data?.assignedUser?.email}
         />
       )}
-
     </div>
-  );
-}
-
-// ── Grid View ──────────────────────────────────────────────────────
-function GridView({ items, hidePricing, onPreview, onToggleVisibility }: {
-  items: any[]; hidePricing: boolean; onPreview: (item: any) => void; onToggleVisibility: (id: string) => void;
-}) {
-  return (
-    <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
-      {items.map((item: any) => (
-        <Card key={item.id} className={`overflow-hidden hover:shadow-md transition-shadow group ${!item.isVisible ? "opacity-50" : ""}`}>
-          <div className="aspect-square bg-gray-50 relative overflow-hidden cursor-pointer" onClick={() => onPreview(item)}>
-            {item.imageUrl ? (
-              <img src={item.imageUrl} alt={item.productName || "Product"} className="w-full h-full object-contain p-4" />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center"><Package className="w-16 h-16 text-gray-200" /></div>
-            )}
-            {!item.isVisible && (
-              <div className="absolute top-2 left-2">
-                <Badge variant="secondary" className="text-xs bg-gray-800 text-white">Hidden</Badge>
-              </div>
-            )}
-          </div>
-          <CardContent className="p-3">
-            <div className="flex items-center justify-between">
-              <p className="font-medium text-sm truncate flex-1">{item.productName || "Unnamed Product"}</p>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-6 w-6 p-0 flex-shrink-0"
-                onClick={(e) => { e.stopPropagation(); onToggleVisibility(item.id); }}
-              >
-                {item.isVisible ? <Eye className="w-3.5 h-3.5 text-gray-400" /> : <EyeOff className="w-3.5 h-3.5 text-red-400" />}
-              </Button>
-            </div>
-            {item.productSku && <p className="text-xs text-gray-400">{item.productSku}</p>}
-            <div className="flex items-center justify-between mt-2">
-              <span className="text-xs text-gray-500">Qty: {item.quantity}</span>
-              {!hidePricing && <span className="text-sm font-semibold">${Number(item.unitPrice || 0).toFixed(2)}</span>}
-            </div>
-            {item.colors && item.colors.length > 0 && (
-              <div className="flex gap-1 mt-2 flex-wrap">
-                {item.colors.slice(0, 8).map((color: string, idx: number) => (
-                  <div key={idx} className="w-5 h-5 rounded-full border border-gray-200" style={{ backgroundColor: color.toLowerCase() }} title={color} />
-                ))}
-                {item.colors.length > 8 && <span className="text-xs text-gray-400 self-center">+{item.colors.length - 8}</span>}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      ))}
-    </div>
-  );
-}
-
-// ── Detailed View (CommonSKU-style) ──────────────────────────────
-function DetailedView({ items, hidePricing, onEdit, onPreview, onToggleVisibility, onMoveItem }: {
-  items: any[]; hidePricing: boolean; onEdit: (item: any) => void; onPreview: (item: any) => void; onToggleVisibility: (id: string) => void; onMoveItem: (id: string, dir: "up" | "down") => void;
-}) {
-  return (
-    <div className="space-y-0 border rounded-lg overflow-hidden">
-      {/* Table Header */}
-      <div className="grid grid-cols-[36px_1fr_100px_100px_100px] gap-2 px-4 py-2 bg-gray-50 border-b text-xs font-semibold text-gray-500 uppercase">
-        <span />
-        <span>Item</span>
-        <span className="text-right">Units</span>
-        <span className="text-right">Margin</span>
-        <span className="text-right">Amount</span>
-      </div>
-
-      {items.map((item: any, idx: number) => {
-        const lines: OrderItemLine[] = item.lines || [];
-        const hasLines = lines.length > 0;
-        const cost = Number(item.cost || 0);
-        const price = Number(item.unitPrice || 0);
-        const itemMargin = calcMargin(cost, price);
-
-        return (
-          <div key={item.id} className={`border-b last:border-b-0 bg-white ${!item.isVisible ? "opacity-50" : ""}`}>
-            {/* Main product row */}
-            <div className="grid grid-cols-[36px_1fr_100px_100px_100px] gap-2 px-4 py-3 items-center">
-              {/* Reorder + Visibility controls */}
-              <div className="flex flex-col items-center gap-0.5 pt-1">
-                <button
-                  onClick={() => onMoveItem(item.id, "up")}
-                  disabled={idx === 0}
-                  className="text-gray-400 hover:text-gray-600 disabled:opacity-30 disabled:cursor-not-allowed"
-                >
-                  <ChevronUp className="w-3.5 h-3.5" />
-                </button>
-                <button
-                  onClick={() => onToggleVisibility(item.id)}
-                  className="text-gray-400 hover:text-gray-600"
-                  title={item.isVisible ? "Hide from client" : "Show to client"}
-                >
-                  {item.isVisible ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5 text-red-400" />}
-                </button>
-                <button
-                  onClick={() => onMoveItem(item.id, "down")}
-                  disabled={idx === items.length - 1}
-                  className="text-gray-400 hover:text-gray-600 disabled:opacity-30 disabled:cursor-not-allowed"
-                >
-                  <ChevronDown className="w-3.5 h-3.5" />
-                </button>
-              </div>
-
-              {/* Product Info */}
-              <div className="flex gap-3 items-center">
-                {/* Thumbnail */}
-                <div className="w-16 h-16 flex items-center flex-shrink-0 bg-gray-100 rounded-lg overflow-hidden cursor-pointer relative" onClick={() => onPreview(item)}>
-                  {item.imageUrl ? (
-                    <img src={item.imageUrl} alt={item.productName || ""} className="w-full h-full object-contain p-1" />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center"><Package className="w-6 h-6 text-gray-300" /></div>
-                  )}
-                  {!item.isVisible && (
-                    <div className="absolute inset-0 bg-gray-800/30 flex items-center justify-center">
-                      <EyeOff className="w-4 h-4 text-white" />
-                    </div>
-                  )}
-                </div>
-                <div className="min-w-0">
-                  {item.productSku && <p className="text-xs text-gray-400">{item.productSku}</p>}
-                  <p className="text-xs text-teal-600">{item.supplierName || "Unknown Supplier"}</p>
-                  <p className="text-sm font-medium cursor-pointer hover:text-teal-700" onClick={() => onPreview(item)}>
-                    {item.productName || "Unnamed Product"}
-                    {!item.isVisible && <span className="text-xs text-red-400 ml-2">(Hidden)</span>}
-                  </p>
-                  {/* Action buttons */}
-                  <div className="flex gap-1 mt-1.5">
-                    <Button size="sm" variant="default" className="h-8 px-2 font-semibold text-xs bg-secondary text-primary" onClick={() => onEdit(item)}>
-                      Edit
-                    </Button>
-                    <Button size="sm" variant="default" className="h-8 px-2 font-semibold text-xs bg-primary" onClick={() => onPreview(item)}>
-                      View
-                    </Button>
-                  </div>
-                </div>
-              </div>
-              {/* If no item lines, show the item-level pricing */}
-              {!hasLines ? (
-                <>
-                  <span className="text-sm text-right">{item.quantity}</span>
-                  <span className={`text-sm text-right font-medium ${marginColor(itemMargin)}`}>
-                    {hidePricing ? "-" : `${itemMargin.toFixed(2)}%`}
-                  </span>
-                  <span className="text-sm text-right font-semibold">
-                    {hidePricing ? "-" : `$${price.toFixed(2)}`}
-                  </span>
-                </>
-              ) : (
-                <><span /><span /><span /></>
-              )}
-            </div>
-
-            {/* Item Lines (pricing tiers) */}
-            {hasLines && (
-              <div className="px-4 pb-3">
-                {lines.map((line: OrderItemLine) => {
-                  const lineCost = Number(line.cost || 0);
-                  const linePrice = Number(line.unitPrice || 0);
-                  const lineMargin = calcMargin(lineCost, linePrice);
-                  return (
-                    <div key={line.id} className="grid grid-cols-[36px_1fr_100px_100px_100px] gap-2 py-1">
-                      <span /><span />
-                      <span className="text-sm text-right">{line.quantity}</span>
-                      <span className={`text-sm text-right font-medium ${marginColor(lineMargin)}`}>
-                        {hidePricing ? "-" : `${lineMargin.toFixed(2)}%`}
-                      </span>
-                      <span className="text-sm text-right font-semibold">
-                        {hidePricing ? "-" : `$${linePrice.toFixed(2)}`}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-
-            {/* Product description (expandable) */}
-            {item.description && (
-              <div className="px-4 pb-3">
-                <p className="text-sm text-gray-500 line-clamp-3">{item.description}</p>
-              </div>
-            )}
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-// ── Presentation Edit Dialog ──────────────────────────────────────
-function PresentationEditDialog({
-  open,
-  onOpenChange,
-  hook,
-  projectId,
-}: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  hook: ReturnType<typeof usePresentationSection>;
-  projectId: string;
-}) {
-  const { toast } = useToast();
-  const [form, setForm] = useState<Record<string, any>>({});
-  const [isSaving, setIsSaving] = useState(false);
-
-  // Populate form when dialog opens
-  React.useEffect(() => {
-    if (open) {
-      setForm({
-        inHandsDate: hook.order?.inHandsDate ? format(new Date(hook.order.inHandsDate), "yyyy-MM-dd") : "",
-        introduction: hook.introduction || "",
-        clientContactId: hook.selectedContact || "",
-        expiryDate: hook.expiryDate || "",
-        currency: hook.currency || "USD",
-        hidePricing: hook.hidePricing || false,
-      });
-    }
-  }, [open]);
-
-  const handleSave = async () => {
-    setIsSaving(true);
-    try {
-      // Save presentation settings (stageData)
-      const presSettings: Record<string, any> = {
-        introduction: form.introduction,
-        clientContactId: form.clientContactId,
-        expiryDate: form.expiryDate || null,
-        currency: form.currency,
-        hidePricing: form.hidePricing,
-      };
-
-      // Update local state in hook
-      hook.setIntroduction(form.introduction);
-      hook.setSelectedContact(form.clientContactId);
-      hook.setExpiryDate(form.expiryDate);
-      hook.setCurrency(form.currency);
-      hook.setHidePricing(form.hidePricing);
-
-      // Save presentation stageData settings
-      hook.saveSettingsMutation.mutate(presSettings, {
-        onSuccess: () => {
-          toast({ title: "Presentation details updated" });
-        },
-        onError: (error: Error) => {
-          toast({ title: "Failed to update", description: error.message, variant: "destructive" });
-        },
-      });
-
-      // Save inHandsDate as a separate order field if changed
-      const currentIHD = hook.order?.inHandsDate ? format(new Date(hook.order.inHandsDate), "yyyy-MM-dd") : "";
-      if (form.inHandsDate !== currentIHD) {
-        const { updateProject } = await import("@/services/projects/requests");
-        await updateProject(projectId, { inHandsDate: form.inHandsDate || null });
-      }
-
-      onOpenChange(false);
-    } catch (error: any) {
-      toast({ title: "Failed to update", description: error.message, variant: "destructive" });
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>Edit Presentation Details</DialogTitle>
-        </DialogHeader>
-        <div className="space-y-4 py-2">
-          <div>
-            <Label className="text-xs text-gray-500">In-Hands Date</Label>
-            <Input
-              type="date"
-              value={form.inHandsDate || ""}
-              onChange={(e) => setForm({ ...form, inHandsDate: e.target.value })}
-              className="mt-1"
-            />
-          </div>
-          <div>
-            <Label className="text-xs text-gray-500">Introduction</Label>
-            <Textarea
-              value={form.introduction || ""}
-              onChange={(e) => setForm({ ...form, introduction: e.target.value })}
-              placeholder="Add a message or introduction for this presentation..."
-              className="mt-1 min-h-[80px]"
-            />
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label className="text-xs text-gray-500">Client Contact</Label>
-              <Select value={form.clientContactId || ""} onValueChange={(val) => setForm({ ...form, clientContactId: val })}>
-                <SelectTrigger className="mt-1"><SelectValue placeholder="Select contact" /></SelectTrigger>
-                <SelectContent>
-                  {hook.contacts?.map((contact: any) => (
-                    <SelectItem key={contact.id} value={contact.id}>{contact.firstName} | {contact.email}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label className="text-xs text-gray-500">Expiry Date</Label>
-              <Input
-                type="date"
-                value={form.expiryDate || ""}
-                onChange={(e) => setForm({ ...form, expiryDate: e.target.value })}
-                className="mt-1"
-              />
-            </div>
-            <div>
-              <Label className="text-xs text-gray-500">Currency</Label>
-              <Select value={form.currency || "USD"} onValueChange={(val) => setForm({ ...form, currency: val })}>
-                <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="USD">USD</SelectItem>
-                  <SelectItem value="CAD">CAD</SelectItem>
-                  <SelectItem value="EUR">EUR</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex items-center gap-2 mt-6">
-              <input
-                type="checkbox"
-                id="hidePricingEdit"
-                checked={form.hidePricing || false}
-                onChange={(e) => setForm({ ...form, hidePricing: e.target.checked })}
-                className="rounded border-gray-300"
-              />
-              <label htmlFor="hidePricingEdit" className="text-sm text-gray-600">Hide Pricing</label>
-            </div>
-          </div>
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button onClick={handleSave} disabled={isSaving}>
-            {isSaving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-            Save Changes
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
   );
 }

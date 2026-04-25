@@ -1,89 +1,25 @@
 import { buildPurchaseOrderPdf } from "@/components/documents/pdf/builders";
-import type { EmailFormData } from "@/components/email/types";
 import { useToast } from "@/hooks/use-toast";
 import { buildItemsHash, useDocumentGeneration } from "@/hooks/useDocumentGeneration";
 import { useInlineEdit } from "@/hooks/useInlineEdit";
-import { useProductionStages } from "@/hooks/useProductionStages";
 import { getEditedItem } from "@/lib/projectDetailUtils";
-import { postActivity } from "@/services/activities";
-import { sendCommunication } from "@/services/communications";
 import { useUpdatePODocMeta } from "@/services/documents/mutations";
 import { fetchNextPoSequence } from "@/services/documents/requests";
-import { updateArtwork as updateArtworkRequest } from "@/services/project-items";
-import { useUpdateArtwork } from "@/services/project-items/mutations";
-import { projectKeys } from "@/services/projects/keys";
-import { useGenerateApproval } from "@/services/projects/mutations";
 import { useBranding } from "@/services/settings";
 import { fetchSupplierAddresses } from "@/services/supplier-addresses";
-import { useVendorContacts } from "@/services/suppliers";
 import type { OrderItemLine, GeneratedDocument } from "@shared/schema";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useMemo, useState } from "react";
-import type { EnrichedOrderItem, OrderVendor } from "@/types/project-types";
-import type { PurchaseOrdersSectionProps, VendorPO } from "./types";
-import { PO_STATUSES, PROOF_STATUSES } from "./types";
-
-/** Artwork enriched with product context for proofing display */
-interface VendorArtwork {
-  id: string;
-  name?: string;
-  status: string;
-  orderItemId: string;
-  productName: string;
-  supplierName: string;
-  proofRequired?: boolean | null;
-  proofFilePath?: string | null;
-  proofFileName?: string | null;
-  filePath?: string | null;
-  fileName?: string | null;
-  location?: string | null;
-  artworkType?: string | null;
-  [key: string]: unknown;
-}
+import { useQuery } from "@tanstack/react-query";
+import { useCallback, useMemo } from "react";
+import type { PurchaseOrdersSectionProps, VendorPO, VendorArtwork } from "./types";
 
 export function usePurchaseOrdersSection({ projectId, data, isLocked }: PurchaseOrdersSectionProps) {
   const { order, orderVendors, orderItems, allItemLines, allItemCharges, allArtworkItems, suppliers } = data;
   const { toast } = useToast();
-  const queryClient = useQueryClient();
-  const { stages: productionStages } = useProductionStages();
   const { updateField, isPending: isFieldPending } = useInlineEdit({ projectId, isLocked });
 
-  // Build a lookup map from stage ID → { label, color } for PO stage display
-  const PO_STAGES: Record<string, { label: string; color: string }> = useMemo(() => {
-    const map: Record<string, { label: string; color: string }> = {};
-    for (const s of productionStages) {
-      map[s.id] = { label: s.name, color: s.color };
-    }
-    return map;
-  }, [productionStages]);
-
-  const { data: branding } = useBranding();
-  const [previewVendorKey, setPreviewVendorKey] = useState<string | null>(null);
-
-  const [expandedVendors, setExpandedVendors] = useState<Set<string>>(new Set());
-  const [previewPO, setPreviewPO] = useState<VendorPO | null>(null);
-  const [generatingVendorId, setGeneratingVendorId] = useState<string | null>(null);
-  const [previewDocument, setPreviewDocument] = useState<GeneratedDocument | null>(null);
-
-  // Email PO to vendor
-  const [emailPOVendor, setEmailPOVendor] = useState<{ doc: GeneratedDocument; vendor: OrderVendor } | null>(null);
-  // Notify vendor (general email without PO stage change)
-  const [notifyVendor, setNotifyVendor] = useState<{ vendor: OrderVendor; subject?: string; body?: string } | null>(null);
-
-  // Proofing states
-  const [uploadProofArt, setUploadProofArt] = useState<VendorArtwork | null>(null);
-  const [sendProofArts, setSendProofArts] = useState<VendorArtwork[]>([]);
-  const [previewFile, setPreviewFile] = useState<{ url: string; name: string } | null>(null);
-
-  // Fetch vendor contacts for PO email dialog
-  const { data: poVendorContacts = [] } = useVendorContacts(
-    emailPOVendor?.vendor?.id,
-    !!emailPOVendor?.vendor?.id,
-  );
+  const { data: branding} = useBranding();
 
   // Fetch supplier addresses for every vendor on this order.
-  // Uses one react-query entry keyed by the vendor id list so the N
-  // supplier-address calls are batched + cached together.
   const vendorIds = orderVendors.map((v) => v.id).filter(Boolean);
   const supplierAddressQueries = useQuery<Record<string, Record<string, unknown>[]>>({
     queryKey: ["/api/supplier-addresses", vendorIds.join(",")],
@@ -102,7 +38,7 @@ export function usePurchaseOrdersSection({ projectId, data, isLocked }: Purchase
   });
   const vendorAddressesMap = supplierAddressQueries.data || {};
 
-  // Get default address for a vendor (prefers default billing/both, falls back to first)
+  // Get default address for a vendor
   const getVendorDefaultAddress = useCallback((vendorId: string) => {
     const addresses = vendorAddressesMap[vendorId] || [];
     if (addresses.length === 0) return null;
@@ -115,23 +51,12 @@ export function usePurchaseOrdersSection({ projectId, data, isLocked }: Purchase
     isGenerating,
     generateDocument,
     deleteDocument,
-    isDeleting,
   } = useDocumentGeneration(projectId);
 
-  const toggleVendor = useCallback((vendorId: string) => {
-    setExpandedVendors(prev => {
-      const next = new Set(prev);
-      if (next.has(vendorId)) next.delete(vendorId); else next.add(vendorId);
-      return next;
-    });
-  }, []);
-
-  // Build PO data per vendor (suppliers + decorators)
+  // Build PO data per vendor
   const vendorPOs: VendorPO[] = useMemo(() => {
     return orderVendors.map((vendor) => {
       const isDecorator = vendor.role === "decorator";
-
-      // For suppliers: filter by supplierId. For decorators: filter by decoratorId.
       const items = isDecorator
         ? orderItems.filter((item) => item.decoratorType === "third_party" && item.decoratorId === vendor.id)
         : orderItems.filter((item) => item.supplierId === vendor.id);
@@ -141,7 +66,6 @@ export function usePurchaseOrdersSection({ projectId, data, isLocked }: Purchase
       let totalCost = 0;
 
       if (isDecorator) {
-        // Decorator PO: cost = sum of artwork charges (netCost)
         items.forEach((item) => {
           const itemArts = allArtworkItems[item.id] || [];
           itemArts.forEach((art) => {
@@ -156,7 +80,6 @@ export function usePurchaseOrdersSection({ projectId, data, isLocked }: Purchase
           lines[item.id] = allItemLines[item.id] || [];
         });
       } else {
-        // Supplier PO: cost = product costs (blank goods)
         items.forEach((item) => {
           const itemLines = allItemLines[item.id] || [];
           lines[item.id] = itemLines;
@@ -198,35 +121,14 @@ export function usePurchaseOrdersSection({ projectId, data, isLocked }: Purchase
   }, [orderVendors, orderItems, order]);
 
   const getVendorDoc = (vendorKey: string) => {
-    // Match by metadata.vendorKey first (supports decorator-{id} keys), fallback to vendorId
     return poDocuments.find((d) => (d.metadata as Record<string, unknown>)?.vendorKey === vendorKey)
       || poDocuments.find((d) => d.vendorId === vendorKey);
-  };
-
-  const isVendorDocStale = (doc: GeneratedDocument) => {
-    const meta = doc.metadata as Record<string, unknown> | null;
-    if (!meta?.itemsHash) return false;
-    const key = (meta?.vendorKey as string) || doc.vendorId;
-    if (!key) return false;
-    return meta.itemsHash !== vendorHashes[key];
-  };
-
-  const getDocStage = (doc: GeneratedDocument): string => (doc.metadata as Record<string, unknown>)?.poStage as string || "created";
-  const getDocStatus = (doc: GeneratedDocument): string => (doc.metadata as Record<string, unknown>)?.poStatus as string || "ok";
-
-  // Get effective Supplier IHD: vendor-specific (from PO doc metadata) → order-level fallback
-  const getVendorIHD = (vendorId: string): string | null => {
-    const doc = getVendorDoc(vendorId);
-    const meta = doc?.metadata as Record<string, unknown> | null;
-    if (meta?.supplierIHD) return meta.supplierIHD as string;
-    return (order?.supplierInHandsDate as string | null) || null;
   };
 
   const orderExt = order as (typeof order) & { shippingCity?: string; shippingState?: string } | undefined;
   const hasShippingAddress = !!order?.shippingAddress ||
     !!(orderExt?.shippingCity && orderExt?.shippingState);
 
-  // Check if all vendor items have shipping details configured
   const getVendorShippingReady = (vendorKey: string): { ready: boolean; configured: number; total: number } => {
     const vendor = orderVendors.find((v) => (v.vendorKey || v.id) === vendorKey);
     const isDecorator = vendor?.role === "decorator";
@@ -238,10 +140,9 @@ export function usePurchaseOrdersSection({ projectId, data, isLocked }: Purchase
   };
 
   const allShippingConfigured = orderItems.length > 0 && orderItems.every((i) => i.shippingDestination);
-
   const hasSupplierIHD = !!order?.supplierInHandsDate;
 
-  // Get vendor artworks for proofing — supports both suppliers and decorators
+  // Internal helper for building vendor artworks (used by buildVendorPoDoc)
   const getVendorArtworks = (vendorKey: string) => {
     const vendor = orderVendors.find((v) => (v.vendorKey || v.id) === vendorKey);
     const isDecorator = vendor?.role === "decorator";
@@ -266,8 +167,10 @@ export function usePurchaseOrdersSection({ projectId, data, isLocked }: Purchase
 
   // ── Mutations ──
 
-  // Build a `<PurchaseOrderPdf>` element for a specific vendor PO. Used by both
-  // generation (mutation upload) and live preview.
+  // Raw doc meta mutation (no activity logging — used for initial metadata on generate)
+  const _updatePODocMeta = useUpdatePODocMeta(projectId);
+
+  // Build a PO PDF element for a specific vendor
   const buildVendorPoDoc = useCallback((vendorKey: string) => {
     const vendor = orderVendors.find((v) => (v.vendorKey || v.id) === vendorKey);
     if (!vendor) return null;
@@ -295,8 +198,6 @@ export function usePurchaseOrdersSection({ projectId, data, isLocked }: Purchase
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orderVendors, orderItems, order, data, branding]);
 
-  const handlePreviewPO = (vendorKey: string) => setPreviewVendorKey(vendorKey);
-
   const handleGeneratePO = async (vendorKey: string, vendorNameStr: string) => {
     const vendor = orderVendors.find((v) => (v.vendorKey || v.id) === vendorKey);
     const vendorId = vendor?.id || vendorKey;
@@ -321,45 +222,39 @@ export function usePurchaseOrdersSection({ projectId, data, isLocked }: Purchase
     }
     const pdfDoc = buildVendorPoDoc(vendorKey);
     if (!pdfDoc) return;
-    // Global PO counter — fetch next sequence and zero-pad to 2 digits (e.g. 10001-01)
     let poNumber: string;
     try {
       const { next } = await fetchNextPoSequence();
       const seq = String(next).padStart(2, "0");
       poNumber = `${order?.orderNumber || projectId}-${seq}`;
     } catch {
-      // Fallback to legacy format if sequence endpoint fails
       const suffix = isDecorator ? `DEC-${vendorId.substring(0, 4).toUpperCase()}` : vendorId.substring(0, 4).toUpperCase();
       poNumber = `${order?.orderNumber || projectId}-${suffix}`;
     }
-    setGeneratingVendorId(vendorKey);
     try {
       const newDoc = await generateDocument({
         pdfDocument: pdfDoc,
         documentType: "purchase_order",
         documentNumber: poNumber,
-        vendorId: vendorId, // actual supplier UUID for FK
+        vendorId: vendorId,
         vendorName: vendorNameStr,
         itemsHash: vendorHashes[vendorKey],
       });
-      // Store vendorKey + poType in metadata so we can identify decorator POs
       const orderIHD = order?.supplierInHandsDate;
       if (newDoc?.id) {
         const meta: Record<string, unknown> = { ...(newDoc.metadata as Record<string, unknown> || {}), vendorKey, poType: isDecorator ? "decorator" : "supplier" };
         if (orderIHD && !isDecorator) {
           meta.supplierIHD = new Date(orderIHD as unknown as string).toISOString().split("T")[0];
         }
-        await updateDocMetaMutation.mutateAsync({
+        await _updatePODocMeta.mutateAsync({
           docId: newDoc.id,
           updates: { metadata: meta },
         });
       }
       toast({ title: `PO PDF generated for ${vendorNameStr}` });
-    } catch { /* handled */ } finally { setGeneratingVendorId(null); }
+    } catch { /* handled */ }
   };
 
-  // Generate POs for every vendor that doesn't yet have one. Runs sequentially
-  // so each PO gets a unique global sequence number.
   const handleGenerateAllPOs = async () => {
     const targets = orderVendors.filter((v) => {
       const key = v.vendorKey || v.id;
@@ -375,8 +270,6 @@ export function usePurchaseOrdersSection({ projectId, data, isLocked }: Purchase
     toast({ title: `Generated ${targets.length} PO${targets.length > 1 ? "s" : ""}` });
   };
 
-  // Detect apparel items that have artwork but aren't routed through a third-party
-  // decorator — these typically need a dual-PO workflow (blanks → decorator → client).
   const itemsMissingDecorator = useMemo(() => {
     return orderItems.filter((item) => {
       const hasArtwork = (allArtworkItems[item.id] || []).length > 0;
@@ -388,297 +281,42 @@ export function usePurchaseOrdersSection({ projectId, data, isLocked }: Purchase
   const handleRegeneratePO = async (doc: GeneratedDocument) => {
     await deleteDocument(doc.id);
     await new Promise((r) => setTimeout(r, 300));
-    // Use vendorId as-is from the document (it stores vendorKey)
     const vendorName = orderVendors.find((v) => (v.vendorKey || v.id) === doc.vendorId)?.name || doc.vendorName || "";
     await handleGeneratePO(doc.vendorId || "", vendorName);
   };
 
-  // Update PO document metadata (stage/status) with activity logging via service
-  const _updatePODocMeta = useUpdatePODocMeta(projectId);
-  const updateDocMetaMutation = useMemo(() => ({
-    ..._updatePODocMeta,
-    mutate: ({ docId, updates }: { docId: string; updates: Record<string, unknown> }, opts?: Record<string, unknown>) => {
-      const newStage = (updates.metadata as Record<string, unknown> | undefined)?.poStage;
-      let activityContent: string | undefined;
-      if (newStage) {
-        const stageLabel = PO_STAGES[newStage as string]?.label || String(newStage);
-        activityContent = `PO stage changed to "${stageLabel}"`;
-      }
-      _updatePODocMeta.mutate({ docId, updates, activityContent }, opts);
-    },
-    mutateAsync: async ({ docId, updates }: { docId: string; updates: Record<string, unknown> }, opts?: Record<string, unknown>) => {
-      const newStage = (updates.metadata as Record<string, unknown> | undefined)?.poStage;
-      let activityContent: string | undefined;
-      if (newStage) {
-        const stageLabel = PO_STAGES[newStage as string]?.label || String(newStage);
-        activityContent = `PO stage changed to "${stageLabel}"`;
-      }
-      return _updatePODocMeta.mutateAsync({ docId, updates, activityContent }, opts);
-    },
-  }), [_updatePODocMeta, PO_STAGES]);
-
-  // Send PO email to vendor
-  const sendPOEmailMutation = useMutation({
-    mutationFn: async ({ doc, formData }: { doc: GeneratedDocument; formData: EmailFormData & { adHocEmails: string[] } }) => {
-      const emailBodyFull = formData.body;
-
-      // Build user-selected attachment URLs for direct buffer sending
-      const userAttachments = formData.attachments?.length
-        ? formData.attachments.map((att) => ({ fileUrl: att.cloudinaryUrl, fileName: att.fileName }))
-        : undefined;
-
-      await sendCommunication(projectId, {
-        communicationType: "vendor_email",
-        direction: "sent",
-        recipientEmail: formData.to,
-        recipientName: formData.toName,
-        subject: formData.subject,
-        body: emailBodyFull,
-        cc: formData.cc || undefined,
-        bcc: formData.bcc || undefined,
-        metadata: { type: "purchase_order", documentId: doc.id, vendorId: doc.vendorId },
-        autoAttachArtworkForVendor: doc.vendorId,
-        autoAttachDocumentFile: doc.fileUrl ? { fileUrl: doc.fileUrl, fileName: (doc as GeneratedDocument & { fileName?: string }).fileName || `PO-${doc.documentNumber}.pdf` } : undefined,
-        additionalAttachments: userAttachments,
-      });
-
-      // Only advance stage to "submitted" on first send, preserve stage on resends
-      const docMeta = (doc.metadata || {}) as Record<string, unknown>;
-      const currentStage = (docMeta.poStage as string) || "created";
-      await updateDocMetaMutation.mutateAsync({
-        docId: doc.id,
-        updates: {
-          status: "sent",
-          sentAt: new Date().toISOString(),
-          metadata: { ...docMeta, poStage: currentStage === "created" ? "submitted" : currentStage },
-        },
-      });
-    },
-    onSuccess: async (_data, vars) => {
-      toast({ title: "PO sent to vendor!", description: "Email sent successfully." });
-      // Auto-transition artworks to "awaiting_proof" when PO is sent
-      const vendorKey = vars.doc.vendorId || "";
-      const vendorArts = getVendorArtworks(vendorKey);
-      for (const art of vendorArts) {
-        if (art.proofRequired !== false && art.status === "pending") {
-          try {
-            await updateArtworkRequest(art.orderItemId, art.id, { name: art.name, status: "awaiting_proof" });
-          } catch { /* best effort */ }
-        }
-      }
-      queryClient.invalidateQueries({ queryKey: projectKeys.itemsWithDetails(projectId) });
-      setEmailPOVendor(null);
-    },
-    onError: () => toast({ title: "Failed to send PO", variant: "destructive" }),
-  });
-
-  // Update artwork (for proofing) — uses service mutation + adds activity logging
-  const _updateArtwork = useUpdateArtwork(projectId);
-  const updateArtworkMutation = useMemo(() => ({
-    ..._updateArtwork,
-    mutate: ({ artworkId, orderItemId, updates }: { artworkId: string; orderItemId: string; updates: Record<string, unknown> }, opts?: { onSuccess?: (...args: unknown[]) => void }) => {
-      _updateArtwork.mutate({ itemId: orderItemId, artworkId, updates }, {
-        ...opts,
-        onSuccess: (...args: unknown[]) => {
-          // Log proofing status changes
-          const newStatus = updates.status;
-          if (newStatus) {
-            const statusLabel = PROOF_STATUSES[newStatus as keyof typeof PROOF_STATUSES]?.label || newStatus;
-            const artName = updates.name || "Artwork";
-            postActivity(projectId, {
-              activityType: "system_action",
-              content: `Proof status for "${artName}" changed to "${statusLabel}"`,
-            }).catch(() => { /* best-effort */ });
-            queryClient.invalidateQueries({ queryKey: projectKeys.activities(projectId) });
-          }
-          opts?.onSuccess?.(...args);
-        },
-      });
-    },
-  }), [_updateArtwork, projectId, queryClient]);
-
-  // Send batch proofs to client (one email with all approval links for a vendor)
-  const generateApprovalMutation = useGenerateApproval(projectId);
-  const sendBatchProofMutation = useMutation({
-    mutationFn: async ({ artworks, formData }: { artworks: VendorArtwork[]; formData: EmailFormData & { adHocEmails: string[] } }) => {
-      const approvalLinks: { art: VendorArtwork; url: string }[] = [];
-      for (const art of artworks) {
-        const approval = await generateApprovalMutation.mutateAsync({
-          orderItemId: art.orderItemId,
-          artworkItemId: art.id,
-          clientEmail: formData.to,
-          clientName: formData.toName,
-        });
-        const approvalUrl = `${window.location.origin}/approval/${approval.approvalToken}`;
-        approvalLinks.push({ art, url: approvalUrl });
-      }
-
-      const linksList = approvalLinks.map((link, idx) => {
-        const art = link.art;
-        return `${idx + 1}. ${art.productName} — ${art.location || art.artworkType || "Artwork"}\n   Review & Approve: ${link.url}`;
-      }).join("\n\n");
-
-      const linksBlock = `---\nArtwork Proofs for Approval:\n\n${linksList}\n---`;
-
-      // Replace merge tags: data-merge-tag spans, bare {{artworkApprovalLink}}, or legacy {{approvalLinks}}
-      let emailBodyFull = formData.body;
-      const mergeTagSpanRe = /<span\s+data-merge-tag="artworkApprovalLink"[^>]*>.*?<\/span>/g;
-      const bareMergeRe = /\{\{artworkApprovalLink\}\}/g;
-      const legacyRe = /\{\{approvalLinks\}\}/g;
-
-      if (mergeTagSpanRe.test(emailBodyFull) || bareMergeRe.test(emailBodyFull) || legacyRe.test(emailBodyFull)) {
-        emailBodyFull = emailBodyFull
-          .replace(mergeTagSpanRe, linksBlock)
-          .replace(bareMergeRe, linksBlock)
-          .replace(legacyRe, linksBlock);
-      } else {
-        emailBodyFull = `${emailBodyFull}\n\n${linksBlock}`;
-      }
-
-      // Collect proof + original artwork files as attachments
-      const proofAttachments = artworks
-        .filter((art) => art.proofFilePath || art.filePath)
-        .map((art) => ({
-          fileUrl: art.proofFilePath || art.filePath,
-          fileName: art.proofFileName || art.fileName || `proof-${art.name || "artwork"}.pdf`,
-        }));
-
-      await sendCommunication(projectId, {
-        communicationType: "client_email", direction: "sent",
-        fromEmail: formData.from || undefined,
-        fromName: formData.fromName || undefined,
-        recipientEmail: formData.to, recipientName: formData.toName,
-        subject: `Artwork Proofs for Approval - Order #${order?.orderNumber || ""} (${artworks.length} item${artworks.length > 1 ? "s" : ""})`,
-        body: emailBodyFull,
-        cc: formData.cc || undefined,
-        bcc: formData.bcc || undefined,
-        metadata: { type: "proof_approval_batch", artworkIds: artworks.map(a => a.id), approvalLinks: approvalLinks.map(l => l.url) },
-        additionalAttachments: proofAttachments.length > 0 ? proofAttachments : undefined,
-      });
-
-      return approvalLinks;
-    },
-    onSuccess: (approvalLinks) => {
-      for (const link of approvalLinks) {
-        updateArtworkMutation.mutate({
-          artworkId: link.art.id, orderItemId: link.art.orderItemId,
-          updates: { name: link.art.name, status: "pending_approval" },
-        });
-      }
-      toast({ title: "Proofs sent to client!", description: `${approvalLinks.length} approval link${approvalLinks.length > 1 ? "s" : ""} sent.` });
-      setSendProofArts([]);
-    },
-    onError: () => toast({ title: "Failed to send proofs", variant: "destructive" }),
-  });
-
-  // Helper: open email PO dialog
-  const openEmailPO = (doc: GeneratedDocument, vendor: OrderVendor) => {
-    setEmailPOVendor({ doc, vendor });
-  };
-
-  // Collect all sendable proofs across ALL vendors
+  // Collect all sendable proofs across ALL vendors (for "Send All" button in header)
   const getAllSendableProofs = () => {
     const allProofs: VendorArtwork[] = [];
     for (const po of vendorPOs) {
-      const vendorArts = getVendorArtworks(po.vendor.id).filter(
-        (a) => a.proofRequired !== false && a.proofFilePath && ["proof_received", "change_requested"].includes(a.status)
+      const vendorKey = po.vendor.vendorKey || po.vendor.id;
+      const vendorItems = orderItems.filter((i) =>
+        po.vendor.role === "decorator"
+          ? i.decoratorType === "third_party" && i.decoratorId === po.vendor.id
+          : i.supplierId === vendorKey,
       );
-      allProofs.push(...vendorArts);
+      vendorItems.forEach((item) => {
+        const arts = allArtworkItems?.[item.id] || [];
+        arts.forEach((art) => {
+          const a = {
+            ...art,
+            productName: item.productName || "Unknown Product",
+            orderItemId: item.id,
+            supplierName: po.vendor.name || vendorKey,
+          } as VendorArtwork;
+          if (a.proofRequired !== false && a.proofFilePath && ["proof_received", "change_requested"].includes(a.status)) {
+            allProofs.push(a);
+          }
+        });
+      });
     }
     return allProofs;
-  };
-
-  // Helper: open batch send proofs to client — works for single vendor or all vendors
-  const openSendProofsDialog = (artworks: VendorArtwork[]) => {
-    if (artworks.length === 0) {
-      toast({ title: "No proofs ready to send", description: "Upload vendor proofs first.", variant: "destructive" });
-      return;
-    }
-    setSendProofArts(artworks);
-  };
-
-  const openSendAllProofs = (vendorId: string) => {
-    const vendorArts = getVendorArtworks(vendorId).filter(
-      (a) => a.proofRequired !== false && a.proofFilePath && ["proof_received", "change_requested"].includes(a.status)
-    );
-    openSendProofsDialog(vendorArts);
-  };
-
-  const openSendAllVendorProofs = () => {
-    openSendProofsDialog(getAllSendableProofs());
-  };
-
-  // Copy PO text
-  const copyPOToClipboard = useCallback((po: VendorPO) => {
-    const lns: string[] = [`PURCHASE ORDER`, `Order: ${order?.orderNumber || projectId}`, `Vendor: ${po.vendor.name}`];
-    if (po.vendor.email) lns.push(`Email: ${po.vendor.email}`);
-    lns.push(`Date: ${new Date().toLocaleDateString()}`, `${"─".repeat(50)}`);
-    po.items.forEach((item) => {
-      lns.push(`\n${item.productName || "Product"} (${item.productSku || "No SKU"})`);
-      const itemLines = po.lines[item.id] || [];
-      if (itemLines.length > 0) {
-        itemLines.forEach((l) => {
-          const qty = l.quantity || 0;
-          const cost = parseFloat(l.cost || "0");
-          lns.push(`  ${(l.color || "--").padEnd(11)}${(l.size || "--").padEnd(11)}${String(qty).padEnd(7)}$${cost.toFixed(2).padEnd(11)}$${(qty * cost).toFixed(2)}`);
-        });
-      } else {
-        const qty = item.quantity || 0;
-        const cost = parseFloat(item.cost || item.unitPrice || "0");
-        lns.push(`  Qty: ${qty}  |  Cost: $${cost.toFixed(2)}  |  Total: $${(qty * cost).toFixed(2)}`);
-      }
-    });
-    lns.push(`\n${"─".repeat(50)}`, `TOTAL: ${po.totalQty} units  |  $${po.totalCost.toFixed(2)}`);
-    navigator.clipboard.writeText(lns.join("\n")).then(() => toast({ title: "PO copied to clipboard" }));
-  }, [order, projectId, toast]);
-
-  // Open the artwork approval link in a new tab.
-  // Reuses an existing pending approval if one exists for the artwork; otherwise generates one
-  // using the project's primary contact email. Works regardless of current proof status.
-  const handleOpenArtworkApprovalLink = useCallback(async (art: VendorArtwork) => {
-    const pc = data?.primaryContact;
-    const fallbackEmail = pc?.email || "";
-    if (!fallbackEmail) {
-      toast({ title: "No client email", description: "Set a primary contact email for this project to generate an approval link.", variant: "destructive" });
-      return;
-    }
-    try {
-      const approval = await generateApprovalMutation.mutateAsync({
-        orderItemId: art.orderItemId,
-        artworkItemId: art.id,
-        clientEmail: fallbackEmail,
-        clientName: pc ? `${pc.firstName || ""} ${pc.lastName || ""}`.trim() : data?.companyName || "",
-      });
-      const approvalUrl = `${window.location.origin}/approval/${approval.approvalToken}`;
-      window.open(approvalUrl, "_blank", "noopener,noreferrer");
-    } catch {
-      toast({ title: "Failed to open approval link", variant: "destructive" });
-    }
-  }, [data, generateApprovalMutation, toast]);
-
-  // Handle proof upload from file picker
-  const handleProofUploaded = (files: Array<{ cloudinaryUrl: string; originalName?: string; fileName?: string }>) => {
-    const file = files[0];
-    if (file && uploadProofArt) {
-      updateArtworkMutation.mutate({
-        artworkId: uploadProofArt.id, orderItemId: uploadProofArt.orderItemId,
-        updates: {
-          name: uploadProofArt.name, status: "proof_received",
-          proofFilePath: file.cloudinaryUrl,
-          proofFileName: file.originalName || file.fileName,
-        },
-      });
-      toast({ title: "Vendor proof uploaded", description: "Status updated to Proof Received" });
-    }
-    setUploadProofArt(null);
   };
 
   return {
     // Data
     order,
-    orderVendors,
     orderItems,
-    allItemLines,
     allItemCharges,
     allArtworkItems,
     allArtworkCharges: data.allArtworkCharges || {},
@@ -686,78 +324,31 @@ export function usePurchaseOrdersSection({ projectId, data, isLocked }: Purchase
     data,
     isLocked,
     projectId,
-    // Production stages
-    PO_STAGES,
-    PO_STATUSES,
-    PROOF_STATUSES,
     // PDF preview
     buildVendorPoDoc,
-    handlePreviewPO,
-    previewVendorKey,
-    setPreviewVendorKey,
     // Vendors
     vendorPOs,
     grandTotalCost,
     grandTotalQty,
-    expandedVendors,
-    toggleVendor,
-    // Documents
-    poDocuments,
-    isGenerating,
-    generatingVendorId,
-    previewDocument,
-    setPreviewDocument,
-    previewPO,
-    setPreviewPO,
-    getVendorDoc,
-    isVendorDocStale,
-    getDocStage,
-    getDocStatus,
     vendorHashes,
+    // Documents
+    isGenerating,
+    getVendorDoc,
     handleGeneratePO,
     handleGenerateAllPOs,
     itemsMissingDecorator,
     handleRegeneratePO,
-    updateDocMetaMutation,
-    deleteDocument,
-    isDeleting,
     getEditedItem,
     // Shipping
     hasShippingAddress,
     allShippingConfigured,
     hasSupplierIHD,
-    getVendorShippingReady,
-    getVendorIHD,
     // Inline edit
     updateField,
     isFieldPending,
-    // Email
-    emailPOVendor,
-    setEmailPOVendor,
-    notifyVendor,
-    setNotifyVendor,
-    poVendorContacts,
-    openEmailPO,
-    sendPOEmailMutation,
     // Proofing
-    uploadProofArt,
-    setUploadProofArt,
-    sendProofArts,
-    setSendProofArts,
-    previewFile,
-    setPreviewFile,
-    updateArtworkMutation,
-    sendBatchProofMutation,
-    getVendorArtworks,
     getAllSendableProofs,
-    openSendAllProofs,
-    openSendAllVendorProofs,
-    handleProofUploaded,
-    handleOpenArtworkApprovalLink,
     // Vendor addresses
-    vendorAddressesMap,
     getVendorDefaultAddress,
-    // Clipboard
-    copyPOToClipboard,
   };
 }

@@ -19,7 +19,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Download, FileText, ShoppingCart } from "lucide-react";
+import { FileText, ShoppingCart } from "lucide-react";
 import type { DocumentEditorProps } from "./types";
 
 export function DocumentEditor(props: DocumentEditorProps) {

@@ -32,6 +32,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 
 import { vendorFormSchema, type VendorFormData } from "@/schemas/crm.schemas";
 import type { Vendor } from "@/services/suppliers/types";
+import { usePaymentTerms } from "@/services/payment-terms";
 
 interface VendorFormDialogProps {
   open: boolean;
@@ -39,7 +40,6 @@ interface VendorFormDialogProps {
   vendor?: Vendor | null;
   onSubmit: (data: VendorFormData) => void;
   isPending: boolean;
-  paymentTermsOptions: Array<{ id: string; name: string }>;
 }
 
 const defaultValues: VendorFormData = {
@@ -69,8 +69,8 @@ export function VendorFormDialog({
   vendor,
   onSubmit,
   isPending,
-  paymentTermsOptions,
 }: VendorFormDialogProps) {
+  const { data: paymentTermsOptions = [] } = usePaymentTerms();
   const isEdit = !!vendor;
 
   const form = useForm<VendorFormData>({

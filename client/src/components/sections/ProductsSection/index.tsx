@@ -47,7 +47,7 @@ import OrderItemCard from "./OrderItems.tsx";
 import type { ProductsSectionProps } from "./types";
 import { Separator } from "@/components/ui/separator";
 import { FilePreviewModal } from "@/components/modals/FilePreviewModal.tsx";
-import ServiceChargesPanel from "@/pages/Projects/ProjectDetail/sections/SalesOrderSection/ServiceChargesPanel";
+import ServiceChargesPanel from "@/pages/Projects/ProjectDetail/sections/SalesOrderSection/components/ServiceChargesPanel";
 import { useCallback, useRef, useState } from "react";
 
 /** Portal dragged row to document.body so Radix Dialog transform doesn't offset it */

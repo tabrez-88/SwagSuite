@@ -1,61 +1,133 @@
 import { PdfPreviewDialog } from "@/components/documents/pdf/PdfPreviewDialog";
-import EmailComposer from "@/components/email/EmailComposer";
-import type { EmailContact } from "@/components/email/types";
 import { useAutoFillSender } from "@/components/email/useAutoFillSender";
-import { DocumentEditor } from "@/components/feature/DocumentEditor";
 import FilePickerDialog from "@/components/modals/FilePickerDialog";
 import { FilePreviewModal } from "@/components/modals/FilePreviewModal";
 import { EditableDate } from "@/components/shared/InlineEditable";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import {
-  Dialog, DialogContent, DialogDescription,
-  DialogFooter,
-  DialogHeader, DialogTitle,
-} from "@/components/ui/dialog";
-import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Input } from "@/components/ui/input";
-import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
-import { useNextActionTypes } from "@/hooks/useNextActionTypes";
-import { getCloudinaryThumbnail } from "@/lib/media-library";
-import { sendCommunication } from "@/services/communications";
+import { useUpdateArtwork } from "@/services/project-items/mutations";
 import {
-  AlertTriangle, Building2, Calendar, CheckCircle, ChevronDown, ChevronRight,
-  ClipboardList, Copy, Download,
-  ExternalLink,
-  Eye, FileText, Loader2,
-  Mail, MoreHorizontal, Package, Palette, Printer, Send, ShieldCheck, Upload
+  AlertTriangle, Calendar, ClipboardList, FileText, Loader2, Send,
 } from "lucide-react";
 import { useMemo } from "react";
+import * as React from "react";
+import type { GeneratedDocument } from "@shared/schema";
+import type { OrderVendor } from "@/types/project-types";
 import { usePurchaseOrdersSection } from "./hooks";
-import type { PurchaseOrdersSectionProps } from "./types";
+import type { PurchaseOrdersSectionProps, VendorArtwork } from "./types";
+import VendorCard from "./components/VendorCard";
+import type { VendorCardActions, VendorCardContext } from "./components/VendorCard";
+import EmailVendor from "./components/EmailVendor";
+import EmailClientProof from "./components/EmailClientProof";
+import type { EmailClientProofProps } from "./components/EmailClientProof";
 
 export default function PurchaseOrdersSection({ projectId, data, isLocked }: PurchaseOrdersSectionProps) {
   const hook = usePurchaseOrdersSection({ projectId, data, isLocked });
   const { toast } = useToast();
   const sender = useAutoFillSender();
-  const { actionTypes } = useNextActionTypes();
+  const updateArtworkMutation = useUpdateArtwork(projectId);
+
+  // Dialog states
+  const [previewVendorKey, setPreviewVendorKey] = React.useState<string | null>(null);
+  const [expandedVendors, setExpandedVendors] = React.useState<Set<string>>(new Set());
+  const [generatingVendorId, setGeneratingVendorId] = React.useState<string | null>(null);
+  const [emailPOVendor, setEmailPOVendor] = React.useState<{ doc: GeneratedDocument; vendor: OrderVendor } | null>(null);
+  const [uploadProofArt, setUploadProofArt] = React.useState<VendorArtwork | null>(null);
+  const [sendProofArts, setSendProofArts] = React.useState<VendorArtwork[]>([]);
+  const [previewFile, setPreviewFile] = React.useState<{ url: string; name: string } | null>(null);
+
+  // Simple dialog helpers
+  const toggleVendor = (vendorId: string) => {
+    setExpandedVendors(prev => {
+      const next = new Set(prev);
+      if (next.has(vendorId)) next.delete(vendorId); else next.add(vendorId);
+      return next;
+    });
+  };
+
+  const openSendProofsDialog = (artworks: VendorArtwork[]) => {
+    if (artworks.length === 0) {
+      toast({ title: "No proofs ready to send", description: "Upload vendor proofs first.", variant: "destructive" });
+      return;
+    }
+    setSendProofArts(artworks);
+  };
+
+  const openSendAllVendorProofs = () => {
+    openSendProofsDialog(hook.getAllSendableProofs());
+  };
+
+  const handleProofUploaded = (files: Array<{ cloudinaryUrl: string; originalName?: string; fileName?: string }>) => {
+    const file = files[0];
+    if (file && uploadProofArt) {
+      updateArtworkMutation.mutate({
+        itemId: uploadProofArt.orderItemId,
+        artworkId: uploadProofArt.id,
+        updates: {
+          name: uploadProofArt.name, status: "proof_received",
+          proofFilePath: file.cloudinaryUrl,
+          proofFileName: file.originalName || file.fileName,
+        },
+      });
+      toast({ title: "Vendor proof uploaded", description: "Status updated to Proof Received" });
+    }
+    setUploadProofArt(null);
+  };
+
+  // Wrap handleGeneratePO to manage local generatingVendorId state
+  const handleGeneratePO = async (vendorKey: string, vendorName: string) => {
+    setGeneratingVendorId(vendorKey);
+    try {
+      await hook.handleGeneratePO(vendorKey, vendorName);
+    } finally {
+      setGeneratingVendorId(null);
+    }
+  };
+
+  // Shared context for all VendorCards
+  const vendorCardContext: VendorCardContext = useMemo(() => ({
+    order: hook.order || null,
+    orderItems: hook.orderItems,
+    projectId: hook.projectId,
+    companyName: hook.data.companyName || "",
+    primaryContact: hook.data.primaryContact,
+    getEditedItem: hook.getEditedItem,
+    allItemCharges: hook.allItemCharges,
+    allArtworkItems: hook.allArtworkItems,
+    allArtworkCharges: hook.allArtworkCharges,
+    hasSupplierIHD: hook.hasSupplierIHD,
+    getVendorDefaultAddress: hook.getVendorDefaultAddress,
+  }), [hook.order, hook.orderItems, hook.projectId, hook.data, hook.getEditedItem,
+    hook.allItemCharges, hook.allArtworkItems, hook.allArtworkCharges,
+    hook.hasSupplierIHD, hook.getVendorDefaultAddress]);
+
+  // Shared actions for all VendorCards
+  const vendorCardActions: VendorCardActions = useMemo(() => ({
+    onPreviewPO: (vendorKey: string) => setPreviewVendorKey(vendorKey),
+    onGeneratePO: handleGeneratePO,
+    onRegeneratePO: hook.handleRegeneratePO,
+    onEmailPO: (doc: GeneratedDocument, vendor: OrderVendor) => setEmailPOVendor({ doc, vendor }),
+    onUploadProof: setUploadProofArt,
+    onSendProofs: openSendProofsDialog,
+    onPreviewFile: setPreviewFile,
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), [hook.handleRegeneratePO]);
 
   // Merge data for PO email template
   const poMergeData = useMemo(() => ({
     companyName: hook.data.companyName || "",
     senderName: sender.name || "",
-    vendorName: hook.emailPOVendor?.vendor.name || "",
-    vendorContactName: hook.emailPOVendor?.vendor.contactPerson || hook.emailPOVendor?.vendor.name || "",
+    vendorName: emailPOVendor?.vendor.name || "",
+    vendorContactName: emailPOVendor?.vendor.contactPerson || emailPOVendor?.vendor.name || "",
     orderNumber: hook.order?.orderNumber || "",
-    poNumber: hook.emailPOVendor?.doc.documentNumber || "",
+    poNumber: emailPOVendor?.doc.documentNumber || "",
     supplierInHandsDate: (() => {
-      const ihd = (hook.emailPOVendor?.doc?.metadata as Record<string, unknown> | undefined)?.supplierIHD || hook.order?.supplierInHandsDate;
+      const ihd = (emailPOVendor?.doc?.metadata as Record<string, unknown> | undefined)?.supplierIHD || hook.order?.supplierInHandsDate;
       return ihd ? new Date(ihd as string).toLocaleDateString() : "";
     })(),
-  }), [hook.emailPOVendor, hook.order, hook.data, sender]);
+  }), [emailPOVendor, hook.order, hook.data, sender]);
 
   // Merge data for Proof email template
   const proofMergeData = useMemo(() => ({
@@ -63,8 +135,8 @@ export default function PurchaseOrdersSection({ projectId, data, isLocked }: Pur
     senderName: sender.name || "",
     recipientName: hook.data.primaryContact ? `${hook.data.primaryContact.firstName} ${hook.data.primaryContact.lastName}` : "",
     recipientFirstName: hook.data.primaryContact?.firstName || "there",
-    artworkList: hook.sendProofArts.map((a) => `  - ${a.productName} (${a.location || a.artworkType || "Artwork"})`).join("\n"),
-  }), [hook.data, hook.sendProofArts, sender]);
+    artworkList: sendProofArts.map((a) => `  - ${a.productName} (${a.location || a.artworkType || "Artwork"})`).join("\n"),
+  }), [hook.data, sendProofArts, sender]);
 
   return (
     <div className="space-y-6">
@@ -79,7 +151,7 @@ export default function PurchaseOrdersSection({ projectId, data, isLocked }: Pur
           </Badge>
         </div>
         {!hook.isLocked && hook.getAllSendableProofs().length > 0 && (
-          <Button variant="default" size="sm" onClick={hook.openSendAllVendorProofs}>
+          <Button variant="default" size="sm" onClick={openSendAllVendorProofs}>
             <Send className="w-4 h-4 mr-1.5" />
             Send All Proofs to Client ({hook.getAllSendableProofs().length})
           </Button>
@@ -142,7 +214,7 @@ export default function PurchaseOrdersSection({ projectId, data, isLocked }: Pur
         </div>
       )}
 
-      {/* Dual-PO reminder: apparel items with artwork should route through a third-party decorator */}
+      {/* Dual-PO reminder */}
       {hook.itemsMissingDecorator.length > 0 && (
         <div className="flex items-start gap-2 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
           <AlertTriangle className="h-4 w-4 flex-shrink-0 mt-0.5" />
@@ -163,8 +235,8 @@ export default function PurchaseOrdersSection({ projectId, data, isLocked }: Pur
             <p className="font-medium">Generate POs in bulk</p>
             <p className="text-xs text-gray-500">Create PDFs for every vendor that doesn't have one yet.</p>
           </div>
-          <Button size="sm" onClick={hook.handleGenerateAllPOs} disabled={hook.isGenerating || !!hook.generatingVendorId || hook.isLocked}>
-            {hook.generatingVendorId ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <FileText className="w-3.5 h-3.5 mr-1.5" />}
+          <Button size="sm" onClick={hook.handleGenerateAllPOs} disabled={hook.isGenerating || !!generatingVendorId || hook.isLocked}>
+            {generatingVendorId ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <FileText className="w-3.5 h-3.5 mr-1.5" />}
             Generate All POs
           </Button>
         </div>
@@ -183,601 +255,20 @@ export default function PurchaseOrdersSection({ projectId, data, isLocked }: Pur
         <div className="space-y-3">
           {hook.vendorPOs.map((po) => {
             const vendorKey = po.vendor.vendorKey || po.vendor.id;
-            const isDecorator = po.vendor.role === "decorator";
-            const isExpanded = hook.expandedVendors.has(vendorKey);
-            const vendorDoc = hook.getVendorDoc(vendorKey);
-            const isVendorGenerating = hook.generatingVendorId === vendorKey;
-            const poStage = vendorDoc ? hook.getDocStage(vendorDoc) : null;
-            const poStatus = vendorDoc ? hook.getDocStatus(vendorDoc) : null;
-            const stageInfo = poStage ? hook.PO_STAGES[poStage] || hook.PO_STAGES.created : null;
-            const statusInfo = poStatus ? hook.PO_STATUSES[poStatus] || hook.PO_STATUSES.ok : null;
-            const vendorArtworks = hook.getVendorArtworks(vendorKey);
-            const vendorIhdValue = vendorDoc?.metadata?.supplierIHD;
-            const effectiveIhd = vendorIhdValue || hook.order?.supplierInHandsDate;
-
             return (
-              <Card key={vendorKey} className="overflow-hidden">
-                {/* Vendor header row */}
-                <div className="p-4 cursor-pointer hover:bg-gray-50 transition-colors" onClick={() => hook.toggleVendor(vendorKey)}>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      {isExpanded ? <ChevronDown className="w-4 h-4 text-gray-400" /> : <ChevronRight className="w-4 h-4 text-gray-400" />}
-                      <Building2 className={`w-5 h-5 ${isDecorator ? "text-purple-500" : "text-blue-500"}`} />
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <h3 className="font-semibold text-sm">{po.vendor.name}</h3>
-                          {isDecorator && <Badge variant="outline" className="text-[10px] border-purple-200 text-purple-600 bg-purple-50">Decorator</Badge>}
-                          {stageInfo && <Badge variant="outline" className={`text-[10px] ${stageInfo.color}`}>{stageInfo.label}</Badge>}
-                          {statusInfo && poStatus !== "ok" && <Badge variant="outline" className={`text-[10px] ${statusInfo.color}`}>{statusInfo.label}</Badge>}
-                          {vendorDoc && hook.isVendorDocStale(vendorDoc) && (
-                            <Badge variant="outline" className="text-[10px] border-orange-300 text-orange-600 bg-orange-50">
-                              <AlertTriangle className="w-2.5 h-2.5 mr-0.5" /> Outdated
-                            </Badge>
-                          )}
-                          {effectiveIhd ? (
-                            <Badge variant="outline" className={`text-[10px] ${vendorIhdValue ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-gray-50 text-gray-600 border-gray-200'}`}>
-                              <Calendar className="w-3 h-3 mr-1" />
-                              IHD: {new Date(effectiveIhd).toLocaleDateString()}
-                              {vendorIhdValue && <span className="ml-1 text-[8px]">(custom)</span>}
-                            </Badge>
-                          ) : (
-                            <Badge variant="outline" className="text-[10px] bg-red-50 text-red-600 border-red-200">
-                              No IHD set
-                            </Badge>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-2 text-xs text-gray-500">
-                          {po.vendor.contactPerson && <span>Attn: {po.vendor.contactPerson}</span>}
-                          {po.vendor.email && <span>{po.vendor.email}</span>}
-                          {(() => {
-                            const addr = hook.getVendorDefaultAddress(po.vendor.id);
-                            if (!addr) return null;
-                            const parts = [addr.city, addr.state].filter(Boolean).join(", ");
-                            return parts ? <span className="text-gray-400">| {parts}</span> : null;
-                          })()}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-4 text-sm">
-                      <div className="text-center">
-                        <p className="text-[10px] text-gray-400 uppercase">Items</p>
-                        <p className="font-semibold">{po.items.length}</p>
-                      </div>
-                      <div className="text-center">
-                        <p className="text-[10px] text-gray-400 uppercase">Qty</p>
-                        <p className="font-semibold">{po.totalQty}</p>
-                      </div>
-                      <div className="text-center">
-                        <p className="text-[10px] text-gray-400 uppercase">Cost</p>
-                        <p className="font-semibold text-blue-600">${po.totalCost.toFixed(2)}</p>
-                      </div>
-
-                      {/* Actions */}
-                      <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
-                        <Button variant="outline" size="sm" className="h-7 text-xs gap-1"
-                          onClick={() => hook.handlePreviewPO(vendorKey)}>
-                          <Eye className="w-3 h-3" /> Preview
-                        </Button>
-                        {!vendorDoc ? (
-                          <Button variant="default" size="sm" className="h-7 text-xs gap-1"
-                            onClick={() => hook.handleGeneratePO(vendorKey, po.vendor.name)}
-                            disabled={isVendorGenerating || hook.isGenerating || hook.isLocked || (!hook.hasSupplierIHD && !isDecorator)}>
-                            {isVendorGenerating ? <Loader2 className="w-3 h-3 animate-spin" /> : <FileText className="w-3 h-3" />}
-                            Generate PO
-                          </Button>
-                        ) : (
-                          <>
-                            {hook.isVendorDocStale(vendorDoc) && (
-                              <Button variant="destructive" size="sm" className="h-7 text-xs gap-1"
-                                onClick={() => hook.handleRegeneratePO(vendorDoc)}
-                                disabled={hook.isGenerating || hook.isLocked}>
-                                {hook.generatingVendorId ? <Loader2 className="w-3 h-3 animate-spin" /> : <AlertTriangle className="w-3 h-3" />}
-                                Regenerate PO
-                              </Button>
-                            )}
-                            {poStage === "created" && (
-                              <Button variant="default" size="sm" className="h-7 text-xs gap-1"
-                                onClick={() => hook.openEmailPO(vendorDoc, po.vendor)} disabled={hook.isLocked}>
-                                <Mail className="w-3 h-3" /> Email to Vendor
-                              </Button>
-                            )}
-                            {(poStage === "submitted") && vendorDoc && (
-                              <Button variant="outline" size="sm" className="h-7 text-xs gap-1 border-green-200 text-green-700"
-                                onClick={() => hook.updateDocMetaMutation.mutate({
-                                  docId: vendorDoc.id,
-                                  updates: { metadata: { ...vendorDoc.metadata, poStage: "confirmed" } },
-                                })}
-                                disabled={hook.isLocked || hook.updateDocMetaMutation.isPending}>
-                                {hook.updateDocMetaMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle className="w-3 h-3" />}
-                                Mark Confirmed
-                              </Button>
-                            )}
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button variant="outline" size="sm" className="h-7 w-7 p-0">
-                                  <MoreHorizontal className="w-3 h-3" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
-                                {poStage !== "created" && (
-                                  <DropdownMenuItem onClick={() => hook.openEmailPO(vendorDoc, po.vendor)}>
-                                    <Mail className="w-4 h-4 mr-2" /> Resend PO
-                                  </DropdownMenuItem>
-                                )}
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem
-                                  onClick={() => hook.handleRegeneratePO(vendorDoc)}
-                                  disabled={hook.isGenerating || hook.isLocked}
-                                  className="text-orange-600"
-                                >
-                                  {hook.isGenerating ? (
-                                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                                  ) : (
-                                    <Printer className="w-4 h-4 mr-2" />
-                                  )}
-                                  {hook.isGenerating ? "Regenerating..." : "Regenerate PO"}
-                                </DropdownMenuItem>
-                                {poStage === "submitted" && (
-                                  <DropdownMenuItem onClick={() => hook.updateDocMetaMutation.mutate({
-                                    docId: vendorDoc.id,
-                                    updates: { metadata: { ...vendorDoc.metadata, poStage: "confirmed" } },
-                                  })}>
-                                    <CheckCircle className="w-4 h-4 mr-2" /> Mark as Confirmed
-                                  </DropdownMenuItem>
-                                )}
-                                {poStage === "confirmed" && (
-                                  <DropdownMenuItem onClick={() => hook.updateDocMetaMutation.mutate({
-                                    docId: vendorDoc.id,
-                                    updates: { metadata: { ...vendorDoc.metadata, poStage: "shipped" } },
-                                  })}>
-                                    <Package className="w-4 h-4 mr-2" /> Mark as Shipped
-                                  </DropdownMenuItem>
-                                )}
-                                {poStage === "shipped" && (
-                                  <DropdownMenuItem onClick={() => hook.updateDocMetaMutation.mutate({
-                                    docId: vendorDoc.id,
-                                    updates: { metadata: { ...vendorDoc.metadata, poStage: "ready_for_billing" } },
-                                  })}>
-                                    <ClipboardList className="w-4 h-4 mr-2" /> Ready for Billing
-                                  </DropdownMenuItem>
-                                )}
-                                {poStage === "ready_for_billing" && (
-                                  <DropdownMenuItem onClick={() => hook.updateDocMetaMutation.mutate({
-                                    docId: vendorDoc.id,
-                                    updates: { metadata: { ...vendorDoc.metadata, poStage: "billed" } },
-                                  })}>
-                                    <FileText className="w-4 h-4 mr-2" /> Mark as Billed
-                                  </DropdownMenuItem>
-                                )}
-                                {poStage === "billed" && (
-                                  <DropdownMenuItem onClick={() => hook.updateDocMetaMutation.mutate({
-                                    docId: vendorDoc.id,
-                                    updates: { metadata: { ...vendorDoc.metadata, poStage: "closed" } },
-                                  })}>
-                                    <CheckCircle className="w-4 h-4 mr-2" /> Close PO
-                                  </DropdownMenuItem>
-                                )}
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Expanded — items + proofing */}
-                {isExpanded && (
-                  <div className="border-t">
-                    {/* PO Stage selector + Supplier IHD */}
-                    {vendorDoc && (
-                      <div className="border-b p-4 flex items-center gap-4 flex-wrap">
-                        <div>
-                          <label className="text-[10px] font-medium text-gray-500 block mb-1">PO Stage</label>
-                          <Select
-                            value={hook.getDocStage(vendorDoc)}
-                            onValueChange={(val) => hook.updateDocMetaMutation.mutate({
-                              docId: vendorDoc.id,
-                              updates: { metadata: { ...vendorDoc.metadata, poStage: val } },
-                            })}
-                            disabled={hook.isLocked}
-                          >
-                            <SelectTrigger className="h-8 text-xs w-[180px]">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {Object.entries(hook.PO_STAGES).map(([key, val]) => (
-                                <SelectItem key={key} value={key}>
-                                  <span className="flex items-center gap-2">
-                                    <span className={`inline-block w-2 h-2 rounded-full ${val.color.split(" ")[0]}`} />
-                                    {val.label}
-                                  </span>
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div>
-                          <label className="text-[10px] font-medium text-gray-500 block mb-1">PO Status</label>
-                          <Select
-                            value={hook.getDocStatus(vendorDoc)}
-                            onValueChange={(val) => hook.updateDocMetaMutation.mutate({
-                              docId: vendorDoc.id,
-                              updates: { metadata: { ...vendorDoc.metadata, poStatus: val } },
-                            })}
-                            disabled={hook.isLocked}
-                          >
-                            <SelectTrigger className="h-8 text-xs w-[150px]">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {Object.entries(hook.PO_STATUSES).map(([key, val]) => (
-                                <SelectItem key={key} value={key}>
-                                  <span className="flex items-center gap-2">
-                                    <span className={`inline-block w-2 h-2 rounded-full ${val.color.split(" ")[0]}`} />
-                                    {val.label}
-                                  </span>
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div>
-                          <label className="text-[10px] font-medium text-gray-500 block mb-1">Next Action</label>
-                          <Select
-                            value={vendorDoc.metadata?.nextActionType || ''}
-                            onValueChange={(val) => hook.updateDocMetaMutation.mutate({
-                              docId: vendorDoc.id,
-                              updates: { metadata: { ...vendorDoc.metadata, nextActionType: val } },
-                            })}
-                            disabled={hook.isLocked}
-                          >
-                            <SelectTrigger className="h-8 text-xs w-[160px]">
-                              <SelectValue placeholder="Select action" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {actionTypes.map((t) => (
-                                <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div>
-                          <label className="text-[10px] font-medium text-gray-500 block mb-1">Next Action Date</label>
-                          <Input
-                            type="date"
-                            value={vendorDoc.metadata?.nextActionDate || ''}
-                            onChange={(e) => hook.updateDocMetaMutation.mutate({
-                              docId: vendorDoc.id,
-                              updates: { metadata: { ...vendorDoc.metadata, nextActionDate: e.target.value } },
-                            })}
-                            className="h-8 text-xs w-[160px]"
-                            disabled={hook.isLocked}
-                          />
-                        </div>
-                        {hook.order?.inHandsDate && (
-                          <div className="text-[10px] text-gray-500 ml-auto">
-                            Customer IHD: <strong>{new Date(hook.order!.inHandsDate).toLocaleDateString()}</strong>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                    {/* Items List */}
-                    <div className="bg-gray-50/50">
-                      {po.items.map((item, idx: number) => {
-                        const itemLines = po.lines[item.id] || [];
-                        const itemRunCharges = (hook.allItemCharges[item.id] || []).filter((c: any) => c.chargeCategory === "run");
-                        const itemFixedCharges = (hook.allItemCharges[item.id] || []).filter((c: any) => c.chargeCategory === "fixed" || (!c.chargeCategory && !c.includeInUnitPrice));
-                        const itemArts = hook.allArtworkItems[item.id] || [];
-                        const itemArtworkCharges: any[] = [];
-                        itemArts.forEach((art: any) => {
-                          (hook.allArtworkCharges[art.id] || []).forEach((c: any) => {
-                            itemArtworkCharges.push({ ...c, artworkName: art.name || "Artwork" });
-                          });
-                        });
-                        return (
-                          <div key={item.id} className={`px-6 py-3 ${idx < po.items.length - 1 ? "border-b" : ""}`}>
-                            <div className="flex items-center justify-between mb-2">
-                              <div className="flex items-center gap-2">
-                                <Package className="w-4 h-4 text-gray-400" />
-                                <span className="text-sm font-medium">{item.productName || "Product"}</span>
-                                <span className="text-xs text-blue-600">{item.productSku || ""}</span>
-                              </div>
-                            </div>
-                            {itemLines.length > 0 ? (
-                              <div className="border rounded bg-white overflow-hidden">
-                                <table className="w-full text-xs">
-                                  <thead className="bg-gray-50 border-b">
-                                    <tr>
-                                      <th className="text-left p-2 font-medium">Color</th>
-                                      <th className="text-left p-2 font-medium">Size</th>
-                                      <th className="text-right p-2 font-medium">Qty</th>
-                                      <th className="text-right p-2 font-medium">Cost</th>
-                                      <th className="text-right p-2 font-medium">Amount</th>
-                                    </tr>
-                                  </thead>
-                                  <tbody>
-                                    {itemLines.map((l) => {
-                                      const qty = l.quantity || 0;
-                                      const cost = parseFloat(l.cost || "0");
-                                      return (
-                                        <tr key={l.id} className="border-b last:border-0">
-                                          <td className="p-2">{l.color || "--"}</td>
-                                          <td className="p-2">{l.size || "--"}</td>
-                                          <td className="p-2 text-right font-medium">{qty}</td>
-                                          <td className="p-2 text-right">${cost.toFixed(2)}</td>
-                                          <td className="p-2 text-right font-medium">${(qty * cost).toFixed(2)}</td>
-                                        </tr>
-                                      );
-                                    })}
-                                  </tbody>
-                                </table>
-                              </div>
-                            ) : (
-                              <div className="text-xs text-gray-500 flex gap-4 ml-6">
-                                <span>Qty: <strong>{item.quantity}</strong></span>
-                                <span>Cost: <strong>${parseFloat(item.cost || item.unitPrice || "0").toFixed(2)}</strong></span>
-                                {item.color && <span>Color: {item.color}</span>}
-                              </div>
-                            )}
-
-                            {/* Per-item charges */}
-                            {(itemRunCharges.length > 0 || itemFixedCharges.length > 0 || itemArtworkCharges.length > 0) && (
-                              <div className="mt-2 space-y-1.5 ml-6">
-                                {itemRunCharges.map((c: any) => {
-                                  const cost = parseFloat(c.netCost || c.amount || "0");
-                                  const qty = item.quantity || 1;
-                                  return (
-                                    <div key={c.id} className="flex items-center justify-between text-xs bg-blue-50 border border-blue-100 rounded px-3 py-1.5">
-                                      <span className="text-blue-700">{c.description} <span className="text-blue-400">(per unit)</span></span>
-                                      <span className="font-medium text-blue-700">${cost.toFixed(2)} × {qty} = ${(cost * qty).toFixed(2)}</span>
-                                    </div>
-                                  );
-                                })}
-                                {itemFixedCharges.map((c: any) => {
-                                  const cost = parseFloat(c.netCost || c.amount || "0");
-                                  return (
-                                    <div key={c.id} className="flex items-center justify-between text-xs bg-purple-50 border border-purple-100 rounded px-3 py-1.5">
-                                      <span className="text-purple-700">{c.description} <span className="text-purple-400">(one-time)</span></span>
-                                      <span className="font-medium text-purple-700">${cost.toFixed(2)}</span>
-                                    </div>
-                                  );
-                                })}
-                                {itemArtworkCharges.map((c: any) => {
-                                  const cost = parseFloat(c.netCost || c.amount || "0");
-                                  const qty = c.chargeCategory === "run" ? (item.quantity || 1) : (c.quantity || 1);
-                                  return (
-                                    <div key={c.id} className="flex items-center justify-between text-xs bg-amber-50 border border-amber-100 rounded px-3 py-1.5">
-                                      <span className="text-amber-700">{c.chargeName || c.description} <span className="text-amber-400">({c.artworkName})</span></span>
-                                      <span className="font-medium text-amber-700">${cost.toFixed(2)}{c.chargeCategory === "run" ? ` × ${qty} = $${(cost * qty).toFixed(2)}` : ""}</span>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-
-                    {/* Vendor Cost Summary */}
-                    {(() => {
-                      let productSubtotal = 0;
-                      let runChargesTotal = 0;
-                      let fixedChargesTotal = 0;
-                      let artworkChargesTotal = 0;
-                      po.items.forEach((item) => {
-                        const itemLines = po.lines[item.id] || [];
-                        if (itemLines.length > 0) {
-                          itemLines.forEach((l) => { productSubtotal += (l.quantity || 0) * parseFloat(l.cost || "0"); });
-                        } else {
-                          productSubtotal += (item.quantity || 0) * parseFloat(item.cost || item.unitPrice || "0");
-                        }
-                        (hook.allItemCharges[item.id] || []).forEach((c: any) => {
-                          const cost = parseFloat(c.netCost || c.amount || "0");
-                          if (c.chargeCategory === "run") {
-                            runChargesTotal += cost * (item.quantity || 1);
-                          } else {
-                            fixedChargesTotal += cost * (c.quantity || 1);
-                          }
-                        });
-                        (hook.allArtworkItems[item.id] || []).forEach((art: any) => {
-                          (hook.allArtworkCharges[art.id] || []).forEach((c: any) => {
-                            const cost = parseFloat(c.netCost || c.amount || "0");
-                            const qty = c.chargeCategory === "run" ? (item.quantity || 1) : (c.quantity || 1);
-                            artworkChargesTotal += cost * qty;
-                          });
-                        });
-                      });
-                      const vendorTotal = productSubtotal + runChargesTotal + fixedChargesTotal + artworkChargesTotal;
-                      const hasCharges = runChargesTotal > 0 || fixedChargesTotal > 0 || artworkChargesTotal > 0;
-                      if (!hasCharges) return null;
-                      return (
-                        <div className="border-t bg-gray-50 p-4">
-                          <div className="text-xs space-y-1">
-                            <div className="flex justify-between"><span className="text-gray-500">Product Subtotal</span><span className="font-medium">${productSubtotal.toFixed(2)}</span></div>
-                            {runChargesTotal > 0 && <div className="flex justify-between"><span className="text-blue-600">Run Charges</span><span className="font-medium text-blue-600">${runChargesTotal.toFixed(2)}</span></div>}
-                            {fixedChargesTotal > 0 && <div className="flex justify-between"><span className="text-purple-600">Fixed Charges</span><span className="font-medium text-purple-600">${fixedChargesTotal.toFixed(2)}</span></div>}
-                            {artworkChargesTotal > 0 && <div className="flex justify-between"><span className="text-amber-600">Artwork Charges</span><span className="font-medium text-amber-600">${artworkChargesTotal.toFixed(2)}</span></div>}
-                            <div className="flex justify-between pt-1 border-t border-gray-200"><span className="font-bold text-gray-900">Vendor Total</span><span className="font-bold text-gray-900">${vendorTotal.toFixed(2)}</span></div>
-                          </div>
-                        </div>
-                      );
-                    })()}
-
-                    {/* Proofing Section */}
-                    {vendorArtworks.length > 0 && (
-                      <div className="border-t p-4">
-                        <div className="flex items-center justify-between mb-3">
-                          <h4 className="text-sm font-semibold flex items-center gap-2">
-                            <Palette className="w-4 h-4 text-purple-500" />
-                            Artwork Proofs
-                            <Badge variant="secondary" className="text-[10px]">
-                              {vendorArtworks.filter((a) => a.proofRequired !== false && ["approved", "proofing_complete"].includes(a.status)).length}/{vendorArtworks.filter((a) => a.proofRequired !== false).length} approved
-                            </Badge>
-                          </h4>
-                          {!hook.isLocked && vendorArtworks.some((a) => a.proofRequired !== false && a.proofFilePath && ["proof_received", "change_requested"].includes(a.status)) && (
-                            <Button variant="default" size="sm" className="h-7 text-xs gap-1"
-                              onClick={() => hook.openSendAllProofs(vendorKey)}>
-                              <Send className="w-3 h-3" /> Send All Proofs to Client
-                            </Button>
-                          )}
-                        </div>
-                        <div className="space-y-3">
-                          {vendorArtworks.map((art) => {
-                            const proofRequired = art.proofRequired !== false;
-                            const si = hook.PROOF_STATUSES[art.status] || hook.PROOF_STATUSES.pending;
-                            const canRequestProof = proofRequired && ["pending", "change_requested"].includes(art.status || "pending");
-                            const canUpload = proofRequired && ["pending", "awaiting_proof", "change_requested"].includes(art.status || "pending");
-                            const canMarkComplete = proofRequired && art.status === "approved";
-
-                            return (
-                              <div key={art.id} className={`rounded-lg border`}>
-                                <div className="flex items-center gap-3 p-3">
-                                  <div className="w-12 h-12 flex-shrink-0 bg-white rounded border overflow-hidden flex items-center justify-center cursor-pointer"
-                                    onClick={() => { const url = (art.fileUrl || art.filePath) as string | undefined; if (url) hook.setPreviewFile({ url, name: (art.name as string) || "Artwork" }); }}>
-                                    {art.fileUrl || art.filePath ? (
-                                      (() => {
-                                        const url = (art.fileUrl || art.filePath) as string;
-                                        const ext = url.split("?")[0].split(".").pop()?.toLowerCase();
-                                        const isDesignFile = ["ai", "eps", "psd"].includes(ext || "");
-                                        const imgSrc = isDesignFile && url.includes("cloudinary.com")
-                                          ? getCloudinaryThumbnail(url, 96, 96) : url;
-                                        return <img src={imgSrc} alt="" className="w-full h-full object-contain p-0.5"
-                                          onError={(e) => {
-                                            (e.target as HTMLImageElement).style.display = "none";
-                                            e.currentTarget.parentElement?.insertAdjacentHTML("afterbegin",
-                                              `<span class="text-[9px] text-gray-400 uppercase font-medium">.${ext || "file"}</span>`);
-                                          }} />;
-                                      })()
-                                    ) : (
-                                      <Palette className="w-5 h-5 text-gray-300" />
-                                    )}
-                                  </div>
-
-                                  <div className="flex-1 min-w-0">
-                                    <p className="text-sm font-medium truncate">{art.name || art.fileName}</p>
-                                    <p className="text-xs text-gray-500">
-                                      {art.productName}
-                                      {art.location && <span className="ml-1 text-gray-400">· {art.location}</span>}
-                                      {art.artworkType && <span className="ml-1 text-gray-400">· {art.artworkType}</span>}
-                                    </p>
-                                  </div>
-
-                                  <div className="flex flex-col items-start gap-1.5" title={proofRequired ? "Proof required" : "No proof needed"}>
-                                    <div className="flex gap-1 items-center justify-start">
-                                      <ShieldCheck className={`w-3.5 h-3.5 ${proofRequired ? "text-blue-500" : "text-gray-300"}`} />
-                                      <p className="text-xs">Proof Required </p>
-                                    </div>
-                                    <div className="flex gap-2 w-full">
-                                      <Switch
-                                        checked={proofRequired}
-                                        onCheckedChange={(checked) => {
-                                          hook.updateArtworkMutation.mutate({
-                                            artworkId: art.id, orderItemId: art.orderItemId,
-                                            updates: { name: art.name, proofRequired: checked },
-                                          });
-                                        }}
-                                        disabled={hook.isLocked}
-                                      />
-                                      {proofRequired ? (
-                                        <Badge className={`text-[10px] ${si.color}`}>{si.label}</Badge>
-                                      ) : (
-                                        <Badge variant="outline" className="text-[10px] text-gray-400">No Proof</Badge>
-                                      )}
-                                    </div>
-
-                                  </div>
-
-                                </div>
-
-                                {proofRequired && art.proofFilePath && (
-                                  <div className="px-3 pb-2">
-                                    <div className="flex items-center gap-3 p-2 bg-blue-50 rounded-md border border-blue-100">
-                                      <div className="w-10 h-10 flex-shrink-0 bg-white rounded border overflow-hidden cursor-pointer"
-                                        onClick={() => hook.setPreviewFile({ url: art.proofFilePath as string, name: (art.proofFileName as string) || "Vendor Proof" })}>
-                                        {(() => {
-                                          const pPath = art.proofFilePath as string;
-                                          const pExt = pPath.split("?")[0].split(".").pop()?.toLowerCase();
-                                          const pIsDesign = ["ai", "eps", "psd"].includes(pExt || "");
-                                          const pSrc = pIsDesign && pPath.includes("cloudinary.com")
-                                            ? getCloudinaryThumbnail(pPath, 80, 80) : pPath;
-                                          return <img src={pSrc} alt="Proof" className="w-full h-full object-contain p-0.5"
-                                            onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />;
-                                        })()}
-                                      </div>
-                                      <div className="flex-1 min-w-0">
-                                        <p className="text-xs font-medium text-blue-700">Vendor Proof</p>
-                                        <p className="text-[10px] text-blue-500 truncate">{(art.proofFileName as string) || "proof-file"}</p>
-                                      </div>
-                                      <Button variant="ghost" size="sm" className="h-7 text-xs text-blue-600 hover:text-blue-800"
-                                        onClick={() => hook.setPreviewFile({ url: art.proofFilePath as string, name: (art.proofFileName as string) || "Vendor Proof" })}>
-                                        <Eye className="w-3 h-3 mr-1" /> View
-                                      </Button>
-                                    </div>
-                                  </div>
-                                )}
-
-                                <div className="flex items-center gap-2 px-3 pb-3 flex-wrap">
-                                  <Button variant="outline" size="sm" className="h-7 text-xs gap-1 border-purple-200 text-purple-700 hover:bg-purple-50"
-                                    onClick={() => hook.handleOpenArtworkApprovalLink(art)}>
-                                    <ExternalLink className="w-3 h-3" /> Open Approval Link
-                                  </Button>
-                                </div>
-
-                                {proofRequired && !hook.isLocked && (
-                                  <div className="flex items-center gap-2 px-3 pb-3 flex-wrap">
-                                    {canRequestProof && (
-                                      <Button variant="outline" size="sm" className="h-7 text-xs gap-1"
-                                        disabled={hook.updateArtworkMutation.isPending}
-                                        onClick={() => {
-                                          hook.updateArtworkMutation.mutate({
-                                            artworkId: art.id, orderItemId: art.orderItemId,
-                                            updates: { name: art.name, status: "awaiting_proof" },
-                                          });
-                                        }}>
-                                        {hook.updateArtworkMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Mail className="w-3 h-3" />} Request Proof
-                                      </Button>
-                                    )}
-
-                                    {canUpload && (
-                                      <Button variant="outline" size="sm" className="h-7 text-xs gap-1 border-blue-200 text-blue-700 hover:bg-blue-50"
-                                        onClick={() => hook.setUploadProofArt(art)}>
-                                        <Upload className="w-3 h-3" /> Upload Proof
-                                      </Button>
-                                    )}
-
-                                    {canMarkComplete && (
-                                      <Button variant="outline" size="sm" className="h-7 text-xs gap-1 border-green-200 text-green-700 hover:bg-green-50"
-                                        disabled={hook.updateArtworkMutation.isPending}
-                                        onClick={() => {
-                                          hook.updateArtworkMutation.mutate({
-                                            artworkId: art.id, orderItemId: art.orderItemId,
-                                            updates: { name: art.name, status: "proofing_complete" },
-                                          });
-                                        }}>
-                                        {hook.updateArtworkMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle className="w-3 h-3" />} Complete
-                                      </Button>
-                                    )}
-
-                                    {art.status === "change_requested" && art.proofFilePath && (
-                                      <Button variant="outline" size="sm" className="h-7 text-xs gap-1 border-orange-200 text-orange-700 hover:bg-orange-50"
-                                        onClick={() => hook.setUploadProofArt(art)}>
-                                        <Upload className="w-3 h-3" /> Re-upload Proof
-                                      </Button>
-                                    )}
-                                  </div>
-                                )}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </Card>
+              <VendorCard
+                key={vendorKey}
+                po={po}
+                isExpanded={expandedVendors.has(vendorKey)}
+                onToggle={() => toggleVendor(vendorKey)}
+                vendorDoc={hook.getVendorDoc(vendorKey) || null}
+                vendorItemsHash={hook.vendorHashes[vendorKey] || ""}
+                isLocked={!!hook.isLocked}
+                isGenerating={hook.isGenerating}
+                isVendorGenerating={generatingVendorId === vendorKey}
+                actions={vendorCardActions}
+                context={vendorCardContext}
+              />
             );
           })}
 
@@ -817,295 +308,61 @@ export default function PurchaseOrdersSection({ projectId, data, isLocked }: Pur
         </div>
       )}
 
-      {/* Live PDF preview for vendor POs (uses react-pdf PDFViewer) */}
+      {/* Live PDF preview */}
       <PdfPreviewDialog
-        open={!!hook.previewVendorKey}
-        onOpenChange={(open) => !open && hook.setPreviewVendorKey(null)}
-        title={`PO Preview`}
-        document={hook.previewVendorKey ? hook.buildVendorPoDoc(hook.previewVendorKey) : null}
+        open={!!previewVendorKey}
+        onOpenChange={(open) => !open && setPreviewVendorKey(null)}
+        title="PO Preview"
+        document={previewVendorKey ? hook.buildVendorPoDoc(previewVendorKey) : null}
       />
 
-      {/* Email PO to Vendor Dialog */}
-      <Dialog open={!!hook.emailPOVendor} onOpenChange={(open) => !open && hook.setEmailPOVendor(null)}>
-        <DialogContent className="max-w-5xl max-h-[85vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Mail className="w-5 h-5" /> Email PO to Vendor
-            </DialogTitle>
-            <DialogDescription>
-              Send PO #{hook.emailPOVendor?.doc.documentNumber} to {hook.emailPOVendor?.vendor.name}. The PO PDF link will be included.
-            </DialogDescription>
-          </DialogHeader>
-          <EmailComposer
-            contacts={hook.poVendorContacts.length > 0 ? hook.poVendorContacts.map((c) => ({
-              id: String(c.id),
-              firstName: c.firstName || "",
-              lastName: c.lastName || "",
-              email: c.email,
-              isPrimary: c.isPrimary,
-              title: c.title,
-              receiveOrderEmails: c.receiveOrderEmails,
-            } as EmailContact)) : undefined}
-            defaults={{
-              to: hook.emailPOVendor?.vendor.email || "",
-              toName: hook.emailPOVendor?.vendor.contactPerson || hook.emailPOVendor?.vendor.name || "",
-              subject: `${hook.order?.isFirm ? "FIRM - " : ""}Purchase Order #${hook.emailPOVendor?.doc.documentNumber} - ${hook.order?.orderNumber || ""}`,
-              body: (() => {
-                const ihd = (hook.emailPOVendor?.doc?.metadata as Record<string, unknown> | undefined)?.supplierIHD || hook.order?.supplierInHandsDate;
-                return `Hi ${hook.emailPOVendor?.vendor.contactPerson || hook.emailPOVendor?.vendor.name || "there"},\n\nPlease find the attached purchase order for your review and confirmation.\n\nOrder #: ${hook.order?.orderNumber || ""}\nPO #: ${hook.emailPOVendor?.doc.documentNumber || ""}\n${ihd ? `In-Hands Date: ${new Date(ihd as string).toLocaleDateString()}` : ""}\n\nPlease confirm receipt and acknowledge this order.\n\nThank you.`;
-              })(),
-            }}
-            templateType="purchase_order"
-            templateMergeData={poMergeData}
-            showAdvancedFields
-            showAttachments
-            contextProjectId={String(hook.order?.id || "")}
-            footerHint="The PO PDF and artwork files will be automatically attached. You can also attach additional files above."
-            onSend={(formData) => {
-              if (!hook.emailPOVendor) return;
-              hook.sendPOEmailMutation.mutate({ doc: hook.emailPOVendor.doc, formData });
-            }}
-            isSending={hook.sendPOEmailMutation.isPending}
-            sendLabel="Send PO"
-            onCancel={() => hook.setEmailPOVendor(null)}
-            resetTrigger={hook.emailPOVendor}
-          />
-        </DialogContent>
-      </Dialog>
+      {/* Email PO to Vendor */}
+      <EmailVendor
+        open={!!emailPOVendor}
+        onClose={() => setEmailPOVendor(null)}
+        doc={emailPOVendor?.doc || null}
+        vendor={emailPOVendor?.vendor || null}
+        order={hook.order || null}
+        projectId={hook.projectId}
+        poMergeData={poMergeData}
+        orderItems={hook.orderItems}
+        allArtworkItems={hook.allArtworkItems}
+      />
 
       {/* Upload Vendor Proof */}
       <FilePickerDialog
-        open={!!hook.uploadProofArt}
-        onClose={() => hook.setUploadProofArt(null)}
-        onSelect={hook.handleProofUploaded}
+        open={!!uploadProofArt}
+        onClose={() => setUploadProofArt(null)}
+        onSelect={handleProofUploaded}
         multiple={false}
         contextProjectId={hook.projectId}
         title="Upload Vendor Proof"
       />
 
-      {/* Send Batch Proofs to Client Dialog */}
-      <Dialog open={hook.sendProofArts.length > 0} onOpenChange={(open) => !open && hook.setSendProofArts([])}>
-        <DialogContent className="max-w-5xl max-h-[85vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Send className="w-5 h-5" /> Send Proofs to Client
-            </DialogTitle>
-            <DialogDescription>
-              Send {hook.sendProofArts.length} artwork proof{hook.sendProofArts.length > 1 ? "s" : ""} to your client for approval. One email will be sent with all approval links.
-            </DialogDescription>
-          </DialogHeader>
-          <EmailComposer
-            contacts={hook.data.contacts?.length > 0 ? hook.data.contacts.map((c) => ({
-              id: String(c.id),
-              firstName: c.firstName || "",
-              lastName: c.lastName || "",
-              email: c.email,
-              isPrimary: c.isPrimary,
-              title: c.title,
-              receiveOrderEmails: c.receiveOrderEmails,
-            } as EmailContact)) : undefined}
-            defaults={{
-              to: hook.data.primaryContact?.email || "",
-              toName: hook.data.primaryContact ? `${hook.data.primaryContact.firstName} ${hook.data.primaryContact.lastName}` : hook.data.companyName || "",
-              cc: (hook.data as unknown as { assignedUser?: { email?: string } })?.assignedUser?.email || "",
-              subject: `Artwork Proofs for Review - ${hook.order?.orderNumber || ""}`,
-              body: (() => {
-                const pc = hook.data.primaryContact;
-                const cn = hook.data.companyName || "";
-                const artItems = hook.sendProofArts.map((a) => `<li>${a.productName} (${a.location || a.artworkType || "Artwork"})</li>`).join("");
-                return `<p>Hi ${pc?.firstName || "there"},</p><p>We've received artwork proofs for your order. Please review each proof and let us know if you'd like to approve or request changes.</p><p>Proofs included:</p><ul>${artItems}</ul><p>Review and approve here: <span data-merge-tag="artworkApprovalLink">{{artworkApprovalLink}}</span></p><p>Best regards,<br>${cn}</p>`;
-              })(),
-            }}
-            templateType="proof"
-            templateMergeData={proofMergeData}
-            showAdvancedFields
-            beforeBody={
-              <div className="space-y-2 max-h-[200px] overflow-y-auto">
-                {hook.sendProofArts.map((art) => {
-                  const vName = (() => {
-                    const item = hook.orderItems.find((i) => i.id === art.orderItemId);
-                    if (!item?.supplierId) return null;
-                    const s = hook.suppliers.find((v) => v.id === item.supplierId);
-                    return s?.name || null;
-                  })();
-                  return (
-                    <div key={art.id} className="flex items-center gap-3 p-2 bg-gray-50 rounded-lg border">
-                      <div className="w-10 h-10 flex-shrink-0 bg-white rounded border overflow-hidden">
-                        {art.proofFilePath ? (
-                          <img src={art.proofFilePath} alt="Proof" className="w-full h-full object-contain p-0.5" />
-                        ) : (
-                          <Palette className="w-4 h-4 text-gray-300 m-auto mt-2" />
-                        )}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate">{art.productName}</p>
-                        <p className="text-[10px] text-gray-500 truncate">
-                          {vName && <span className="text-blue-600">{vName}</span>}
-                          {vName && " · "}{art.location || art.artworkType || "Artwork"} · {art.proofFileName || "proof"}
-                        </p>
-                      </div>
-                      <Badge className={`text-[10px] ${hook.PROOF_STATUSES[art.status]?.color || ""}`}>
-                        {hook.PROOF_STATUSES[art.status]?.label || art.status}
-                      </Badge>
-                    </div>
-                  );
-                })}
-              </div>
-            }
-            footerHint="Proof files will be attached to the email."
-            onSend={(formData) => {
-              hook.sendBatchProofMutation.mutate({ artworks: hook.sendProofArts, formData });
-            }}
-            isSending={hook.sendBatchProofMutation.isPending}
-            sendLabel={`Send ${hook.sendProofArts.length} Proof${hook.sendProofArts.length > 1 ? "s" : ""}`}
-            onCancel={() => hook.setSendProofArts([])}
-            resetTrigger={hook.sendProofArts.length > 0 ? hook.sendProofArts : null}
-          />
-        </DialogContent>
-      </Dialog>
-
-      {/* PO Preview Dialog */}
-      <Dialog open={!!hook.previewPO} onOpenChange={(open) => !open && hook.setPreviewPO(null)}>
-        <DialogContent className="max-w-5xl max-h-[85vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <FileText className="w-5 h-5" /> Purchase Order Preview
-            </DialogTitle>
-          </DialogHeader>
-          {hook.previewPO && (
-            <div className="space-y-4">
-              <div className="border rounded-lg p-4 bg-gray-50">
-                <div className="flex justify-between">
-                  <div>
-                    <h3 className="font-bold text-lg">PURCHASE ORDER</h3>
-                    <p className="text-sm text-gray-600">Order: {hook.order?.orderNumber || hook.projectId}</p>
-                    <p className="text-sm text-gray-600">Date: {new Date().toLocaleDateString()}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-semibold">{hook.previewPO.vendor.name}</p>
-                    {(() => {
-                      const addr = hook.getVendorDefaultAddress(hook.previewPO.vendor.id);
-                      if (!addr) return null;
-                      const line = [addr.street, addr.city, addr.state, addr.zipCode].filter(Boolean).join(", ");
-                      return line ? <p className="text-sm text-gray-600">{line}</p> : null;
-                    })()}
-                    {hook.previewPO.vendor.email && <p className="text-sm text-gray-600">{hook.previewPO.vendor.email}</p>}
-                  </div>
-                </div>
-              </div>
-              <div className="border rounded-lg overflow-hidden">
-                <table className="w-full text-sm">
-                  <thead className="bg-gray-100 border-b">
-                    <tr>
-                      <th className="text-left p-3 font-semibold">Product</th>
-                      <th className="text-right p-3 font-semibold">Qty</th>
-                      <th className="text-right p-3 font-semibold">Cost</th>
-                      <th className="text-right p-3 font-semibold">Total</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {hook.previewPO.items.map((item) => {
-                      const qty = item.quantity || 0;
-                      const cost = parseFloat(item.cost || item.unitPrice || "0");
-                      const itemArts = hook.allArtworkItems[item.id] || [];
-                      return (
-                        <tr key={item.id} className="border-b">
-                          <td className="p-3">
-                            <p className="font-medium">{item.productName}</p>
-                            <p className="text-xs text-gray-500">{item.productSku}</p>
-                            {itemArts.length > 0 && (
-                              <div className="mt-2 space-y-1">
-                                {itemArts.map((art) => (
-                                  <div key={art.id} className="flex items-center gap-2 text-[10px] text-gray-500 bg-gray-50 rounded px-2 py-1">
-                                    {art.filePath && (() => {
-                                      const ext = art.filePath.split("?")[0].split(".").pop()?.toLowerCase();
-                                      const isDesign = ["ai", "eps", "psd"].includes(ext || "");
-                                      const src = isDesign && art.filePath.includes("cloudinary.com")
-                                        ? getCloudinaryThumbnail(art.filePath, 48, 48) : art.filePath;
-                                      return <img src={src} className="w-6 h-6 rounded object-contain border" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />;
-                                    })()}
-                                    <span className="font-medium">{art.name}</span>
-                                    {art.artworkType && <span>· {art.artworkType}</span>}
-                                    {art.location && <span>· {art.location}</span>}
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                          </td>
-                          <td className="p-3 text-right align-top">{qty}</td>
-                          <td className="p-3 text-right align-top">${cost.toFixed(2)}</td>
-                          <td className="p-3 text-right font-medium align-top">${(qty * cost).toFixed(2)}</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                  <tfoot className="bg-gray-50"><tr><td colSpan={2} className="p-3 font-bold">TOTAL</td><td></td><td className="p-3 text-right font-bold text-blue-700">${hook.previewPO.totalCost.toFixed(2)}</td></tr></tfoot>
-                </table>
-              </div>
-            </div>
-          )}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => hook.setPreviewPO(null)}>Close</Button>
-            <Button variant="outline" onClick={() => { hook.previewPO && hook.copyPOToClipboard(hook.previewPO); }}><Copy className="w-4 h-4 mr-2" /> Copy</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Notify Vendor Email Dialog (general email, no PO stage change) */}
-      <Dialog open={!!hook.notifyVendor} onOpenChange={(open) => !open && hook.setNotifyVendor(null)}>
-        <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Send className="w-5 h-5" /> Email Vendor — {hook.notifyVendor?.vendor?.name}
-            </DialogTitle>
-          </DialogHeader>
-          {hook.notifyVendor && (
-            <EmailComposer
-              defaults={{
-                to: hook.notifyVendor.vendor.email || "",
-                toName: hook.notifyVendor.vendor.name || "",
-                subject: hook.notifyVendor.subject || "",
-                body: hook.notifyVendor.body || "",
-              }}
-              autoFillSender
-              onSend={async (formData) => {
-                await sendCommunication(projectId, {
-                  communicationType: "vendor_email",
-                  direction: "sent",
-                  recipientEmail: formData.to,
-                  recipientName: formData.toName,
-                  subject: formData.subject,
-                  body: formData.body,
-                  cc: formData.cc || undefined,
-                  bcc: formData.bcc || undefined,
-                  metadata: { type: "vendor_notification", vendorId: hook.notifyVendor?.vendor?.id },
-                });
-                toast({ title: "Email sent to vendor" });
-                hook.setNotifyVendor(null);
-              }}
-              onCancel={() => hook.setNotifyVendor(null)}
-              sendLabel="Send Email"
-            />
-          )}
-        </DialogContent>
-      </Dialog>
-
-      {/* Document Editor */}
-      {hook.previewDocument && (
-        <DocumentEditor document={hook.previewDocument} order={hook.order} orderItems={hook.orderItems}
-          companyName={hook.data.companyName || ""} primaryContact={hook.data.primaryContact}
-          getEditedItem={hook.getEditedItem} onClose={() => hook.setPreviewDocument(null)}
-          allArtworkItems={hook.allArtworkItems} />
-      )}
+      {/* Send Batch Proofs to Client */}
+      <EmailClientProof
+        open={sendProofArts.length > 0}
+        onClose={() => setSendProofArts([])}
+        sendProofArts={sendProofArts}
+        data={hook.data as EmailClientProofProps["data"]}
+        order={hook.order || null}
+        orderItems={hook.orderItems}
+        suppliers={hook.suppliers as EmailClientProofProps["suppliers"]}
+        proofMergeData={proofMergeData}
+        projectId={hook.projectId}
+        updateArtworkMutate={(params) => updateArtworkMutation.mutate({
+          itemId: params.orderItemId, artworkId: params.artworkId, updates: params.updates,
+        })}
+      />
 
       {/* File Preview */}
-      {hook.previewFile && (
+      {previewFile && (
         <FilePreviewModal open={true}
           file={{
-            fileName: hook.previewFile.name, originalName: hook.previewFile.name, filePath: hook.previewFile.url,
-            mimeType: hook.previewFile.url.match(/\.(png|jpg|jpeg|gif|webp|svg)$/i) ? "image/png" : "application/pdf"
+            fileName: previewFile.name, originalName: previewFile.name, filePath: previewFile.url,
+            mimeType: previewFile.url.match(/\.(png|jpg|jpeg|gif|webp|svg)$/i) ? "image/png" : "application/pdf"
           }}
-          onClose={() => hook.setPreviewFile(null)} />
+          onClose={() => setPreviewFile(null)} />
       )}
     </div>
   );

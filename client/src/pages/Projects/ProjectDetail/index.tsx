@@ -10,7 +10,7 @@ import OverviewSection from "./sections/OverviewSection";
 import PresentationSection from "./sections/PresentationSection";
 import QuoteSection from "./sections/QuoteSection";
 import SalesOrderSection from "./sections/SalesOrderSection";
-import ShippingSection from "./sections/ShippingSection";
+import ShippingSection from "./sections/SalesOrderSection/components/ShippingSection";
 import PurchaseOrdersSection from "./sections/PurchaseOrdersSection";
 import InvoiceSection from "./sections/InvoiceSection";
 import BillsSection from "./sections/BillsSection";

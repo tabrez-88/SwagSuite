@@ -7,7 +7,7 @@ Full-stack monorepo SaaS for promotional apparel/merchandise business management
 - **Backend**: Express 4 + Passport.js (session auth) + Multer (file uploads)
 - **Database**: PostgreSQL (Neon serverless) + Drizzle ORM 0.39
 - **File Storage**: Cloudinary (images/docs) + AWS S3 (Uppy)
-- **External**: Stripe, QuickBooks, TaxJar, SendGrid, Slack, Claude AI (Anthropic SDK)
+- **External**: Stripe, QuickBooks, TaxJar, SendGrid, Slack, OPEN AI
 - **Deployment**: GCP Cloud Run, GCP Secret Manager for env vars
 
 ## Architecture Rules
@@ -23,6 +23,9 @@ Full-stack monorepo SaaS for promotional apparel/merchandise business management
 ### Frontend Patterns
 - `apiRequest(method, url, data?)` — centralized fetch with credentials. NOT for FormData.
 - `getQueryFn({ on401: "throw" })` — default queryFn from query key URL
+- Hooks must be inside hooks.ts, not directly into the index.tsx or ui place
+- Mutation or request must be from services folder
+- each ui must be on his own file, so dont create new components in the page directly, must use create in separate component file then import it to the page
 - `staleTime: Infinity` + manual invalidation via `queryClient.invalidateQueries()`
 - Wouter routing (NOT React Router): `<Route path="...">`, `useLocation()`
 - Shadcn/ui + Lucide icons + date-fns + `useToast()` hook

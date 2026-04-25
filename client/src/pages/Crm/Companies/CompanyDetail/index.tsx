@@ -188,8 +188,6 @@ export default function CompanyDetail() {
         isPending={editModal.isPending}
         customFields={editModal.editCustomFields}
         onCustomFieldsChange={editModal.setEditCustomFields}
-        taxCodes={editModal.taxCodes}
-        paymentTermsOptions={editModal.paymentTermsOptions}
       />
     </div>
   );

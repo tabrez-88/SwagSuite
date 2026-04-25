@@ -32,6 +32,8 @@ import { Button } from "@/components/ui/button";
 import { companyFormSchema, type CompanyFormData } from "@/schemas/crm.schemas";
 import type { Company } from "@/services/companies/types";
 import { INDUSTRY_OPTIONS } from "../CompanyDetail/types";
+import { usePaymentTerms } from "@/services/payment-terms";
+import { useTaxCodes } from "@/services/tax-codes";
 
 interface CompanyFormDialogProps {
   open: boolean;
@@ -41,9 +43,6 @@ interface CompanyFormDialogProps {
   isPending: boolean;
   customFields: Record<string, string>;
   onCustomFieldsChange: (fields: Record<string, string>) => void;
-  // Optional props for detail page context (tax codes, payment terms)
-  taxCodes?: Array<{ id: number | string; label: string; rate?: number | string }>;
-  paymentTermsOptions?: Array<{ id: string; name: string }>;
 }
 
 export default function CompanyFormDialog({
@@ -54,9 +53,9 @@ export default function CompanyFormDialog({
   isPending,
   customFields,
   onCustomFieldsChange,
-  taxCodes,
-  paymentTermsOptions,
 }: CompanyFormDialogProps) {
+  const { data: paymentTermsOptions = [] } = usePaymentTerms();
+  const { data: taxCodes } = useTaxCodes();
   const isEdit = !!company;
 
   const [newCustomFieldKey, setNewCustomFieldKey] = useState("");

@@ -14,6 +14,7 @@ import { differenceInDays } from "date-fns";
 import { useDocumentGeneration, buildItemsHash } from "@/hooks/useDocumentGeneration";
 import { buildInvoicePdf } from "@/components/documents/pdf/builders";
 import { getEditedItem } from "@/lib/projectDetailUtils";
+import type { GeneratedDocument } from "@shared/schema";
 import type { InvoiceSectionProps } from "./types";
 
 export function useInvoiceSection({ projectId, data }: InvoiceSectionProps) {
@@ -26,7 +27,7 @@ export function useInvoiceSection({ projectId, data }: InvoiceSectionProps) {
   const [paymentMethod, setPaymentMethod] = useState("check");
   const [paymentReference, setPaymentReference] = useState("");
   const [paymentAmount, setPaymentAmount] = useState("");
-  const [previewDoc, setPreviewDoc] = useState<any>(null);
+  const [previewDoc, setPreviewDoc] = useState<GeneratedDocument | null>(null);
   const [showLivePreview, setShowLivePreview] = useState(false);
   const [invoiceNotes, setInvoiceNotes] = useState("");
   const [notesInitialized, setNotesInitialized] = useState(false);

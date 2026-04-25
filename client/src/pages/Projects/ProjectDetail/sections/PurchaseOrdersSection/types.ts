@@ -1,11 +1,30 @@
 import type { ProjectData, OrderVendor } from "@/types/project-types";
-import type { OrderItemLine } from "@shared/schema";
+import type { OrderItemLine, GeneratedDocument } from "@shared/schema";
 import type { EnrichedOrderItem } from "@/types/project-types";
 
 export interface PurchaseOrdersSectionProps {
   projectId: string;
   data: ProjectData;
   isLocked?: boolean;
+}
+
+/** Artwork enriched with product context for proofing display */
+export interface VendorArtwork {
+  id: string;
+  name?: string;
+  status: string;
+  orderItemId: string;
+  productName: string;
+  supplierName: string;
+  proofRequired?: boolean | null;
+  proofFilePath?: string | null;
+  proofFileName?: string | null;
+  filePath?: string | null;
+  fileName?: string | null;
+  fileUrl?: string | null;
+  location?: string | null;
+  artworkType?: string | null;
+  [key: string]: unknown;
 }
 
 export interface VendorPO {
