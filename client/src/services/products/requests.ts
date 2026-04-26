@@ -64,7 +64,7 @@ export async function syncProductFromSupplier(data: Record<string, any>): Promis
   return res.json();
 }
 
-export async function aiSearch(query: string): Promise<any> {
+export async function aiSearch(query: string): Promise<{ results: any[]; answer?: string }> {
   const res = await apiRequest("POST", "/api/search/ai", { query });
   return res.json();
 }

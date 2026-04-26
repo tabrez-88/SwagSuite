@@ -45,4 +45,21 @@ export class DashboardController {
     const leaderboard = await dashboardService.getTeamLeaderboard();
     res.json(leaderboard);
   }
+
+  static async getShippingMarginReport(req: Request, res: Response) {
+    const period = (req.query.period as string) || "ytd";
+    const from = req.query.from ? new Date(req.query.from as string) : undefined;
+    const to = req.query.to ? new Date(req.query.to as string) : undefined;
+
+    if (!["ytd", "mtd", "wtd", "all", "custom"].includes(period)) {
+      return res.status(400).json({ message: "Invalid period. Use: ytd, mtd, wtd, all, custom" });
+    }
+
+    const report = await dashboardService.getShippingMarginReport({
+      period: period as "ytd" | "mtd" | "wtd" | "all" | "custom",
+      from,
+      to,
+    });
+    res.json(report);
+  }
 }

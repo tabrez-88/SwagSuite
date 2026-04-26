@@ -11,4 +11,6 @@ export const reportKeys = {
   arAging: ["/api/reports/accounts-receivable"] as const,
   commissions: (from?: string, to?: string) =>
     ["/api/reports/commissions", { from, to }] as const,
+  shippingMargins: (period: string) =>
+    ["/api/dashboard/shipping-margins", { period }] as const,
 };

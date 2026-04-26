@@ -14,6 +14,7 @@ router.get("/api/image-proxy", isAuthenticated, asyncHandler(DashboardController
 router.get("/api/dashboard/stats", isAuthenticated, asyncHandler(DashboardController.getStats));
 router.get("/api/dashboard/recent-orders", isAuthenticated, asyncHandler(DashboardController.getRecentOrders));
 router.get("/api/dashboard/team-leaderboard", isAuthenticated, asyncHandler(DashboardController.getTeamLeaderboard));
+router.get("/api/dashboard/shipping-margins", isAuthenticated, asyncHandler(DashboardController.getShippingMarginReport));
 
 // Search
 router.post("/api/search/ai", isAuthenticated, asyncHandler(SearchController.aiSearch));

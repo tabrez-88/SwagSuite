@@ -23,3 +23,8 @@ export async function fetchCommissionReport(from?: string, to?: string) {
   const res = await apiRequest("GET", `/api/reports/commissions?${params.toString()}`);
   return res.json();
 }
+
+export async function fetchShippingMargins(period: string) {
+  const res = await apiRequest("GET", `/api/dashboard/shipping-margins?period=${period}`);
+  return res.json();
+}

@@ -3,6 +3,7 @@ import {
   useDashboardStats,
   useArAging,
   useCommissionReport,
+  useShippingMargins,
 } from "@/services/reports";
 import { useProjects } from "@/services/projects";
 import { useCompanies } from "@/services/companies";
@@ -71,6 +72,24 @@ export interface CommissionReport {
   grandTotalCommission: number;
 }
 
+export interface MarginCategory {
+  revenue: number;
+  cost: number;
+  margin: number;
+  marginPercent: number;
+}
+
+export interface ShippingMarginReport {
+  period: string;
+  fromDate: string;
+  toDate: string;
+  overall: MarginCategory;
+  product: MarginCategory;
+  shipping: MarginCategory;
+  setup: MarginCategory;
+  orderCount: number;
+}
+
 export function useReports() {
   const [dateRange, setDateRange] = useState("ytd");
   const [reportType, setReportType] = useState("revenue");
@@ -82,6 +101,7 @@ export function useReports() {
   const [commissionTo, setCommissionTo] = useState(
     () => new Date().toISOString().split("T")[0],
   );
+  const [shippingMarginPeriod, setShippingMarginPeriod] = useState("all");
   const [customReport, setCustomReport] = useState({
     name: "",
     description: "",
@@ -97,6 +117,9 @@ export function useReports() {
   const { data: commissionReport, isLoading: commissionLoading } = useCommissionReport<
     CommissionReport
   >(commissionFrom, commissionTo);
+
+  const { data: shippingMargins, isLoading: shippingMarginsLoading } =
+    useShippingMargins<ShippingMarginReport>(shippingMarginPeriod);
 
   const getDateRangeLabel = (range: string) => {
     switch (range) {
@@ -192,6 +215,10 @@ export function useReports() {
     setCommissionFrom,
     commissionTo,
     setCommissionTo,
+    shippingMargins,
+    shippingMarginsLoading,
+    shippingMarginPeriod,
+    setShippingMarginPeriod,
     getDateRangeLabel,
     handleGenerateReport,
     handleCreateCustomReport,

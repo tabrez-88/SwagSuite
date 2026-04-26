@@ -27,6 +27,10 @@ import {
   Send,
 } from "lucide-react";
 import { useState } from "react";
+import { useToast } from "@/hooks/use-toast";
+// ShipStation — uncomment when integration is live
+// import { pushOrderToShipStation } from "@/services/settings/requests";
+// import { useIntegrationSettings } from "@/services/settings/queries";
 import type { GeneratedDocument } from "@shared/schema";
 import type { OrderVendor } from "@/types/project-types";
 import type { VendorArtwork, VendorPO } from "../../types";
@@ -123,6 +127,20 @@ export default function VendorCard({
   // Local dialog states
   const [showTextPreview, setShowTextPreview] = useState(false);
   const [showNotifyVendor, setShowNotifyVendor] = useState(false);
+  const { toast } = useToast();
+  // ShipStation export — hidden until integration is live
+  // const { data: integrationSettings } = useIntegrationSettings();
+  // const isShipStationConnected = !!(integrationSettings as any)?.shipstationConnected;
+  // const pushToShipStationMutation = useMutation({
+  //   mutationFn: () => pushOrderToShipStation(context.order?.id as string),
+  //   onSuccess: (data) => {
+  //     toast({ title: "Exported to ShipStation", description: data.message });
+  //   },
+  //   onError: (err: Error) => {
+  //     toast({ title: "ShipStation Export Failed", description: err.message, variant: "destructive" });
+  //   },
+  // });
+
   const isDecorator = po.vendor.role === "decorator";
   // Prefer PO entity stage over doc metadata
   const poStage = poEntity?.currentStageId || (vendorDoc ? getDocStage(vendorDoc) : null);
@@ -387,6 +405,21 @@ export default function VendorCard({
                             Confirmation Link
                           </DropdownMenuItem>
                         )}
+                        {/* ShipStation export — hidden until integration is live
+                        {isShipStationConnected && !!context.order?.id && (
+                          <DropdownMenuItem
+                            onClick={() => pushToShipStationMutation.mutate()}
+                            disabled={pushToShipStationMutation.isPending}
+                          >
+                            {pushToShipStationMutation.isPending ? (
+                              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            ) : (
+                              <Ship className="w-4 h-4 mr-2" />
+                            )}
+                            {pushToShipStationMutation.isPending ? "Exporting..." : "Export to ShipStation"}
+                          </DropdownMenuItem>
+                        )}
+                        */}
                         <DropdownMenuSeparator />
                         <DropdownMenuItem
                           onClick={() => actions.onRegeneratePO(vendorDoc)}

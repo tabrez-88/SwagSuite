@@ -36,6 +36,10 @@ export class DashboardService {
   async getTeamLeaderboard() {
     return dashboardRepository.getTeamLeaderboard();
   }
+
+  async getShippingMarginReport(params: { period: "ytd" | "mtd" | "wtd" | "all" | "custom"; from?: Date; to?: Date }) {
+    return dashboardRepository.getShippingMarginReport(params);
+  }
 }
 
 export const dashboardService = new DashboardService();

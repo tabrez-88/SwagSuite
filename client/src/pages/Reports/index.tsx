@@ -36,9 +36,10 @@ import {
   DollarSign,
   Loader2,
   Users,
+  Ship,
 } from "lucide-react";
 import { Link } from "@/lib/wouter-compat";
-import { useReports, type ArAgingBucket } from "./hooks";
+import { useReports, type ArAgingBucket, type MarginCategory } from "./hooks";
 
 const AR_BUCKET_ORDER: ArAgingBucket[] = ["current", "1-30", "31-60", "61-90", "90+"];
 const AR_BUCKET_LABELS: Record<ArAgingBucket, string> = {
@@ -78,6 +79,10 @@ export default function Reports() {
     setCommissionFrom,
     commissionTo,
     setCommissionTo,
+    shippingMargins,
+    shippingMarginsLoading,
+    shippingMarginPeriod,
+    setShippingMarginPeriod,
     getDateRangeLabel,
     handleGenerateReport,
     handleCreateCustomReport,
@@ -523,6 +528,109 @@ export default function Reports() {
                       </TableCell>
                     </TableRow>
                   ))}
+                </TableBody>
+              </Table>
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+
+    {/* Shipping & Setup Margins */}
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <CardTitle className="flex items-center gap-2">
+            <Ship className="h-5 w-5" />
+            Shipping & Setup Margins
+          </CardTitle>
+          <Select value={shippingMarginPeriod} onValueChange={setShippingMarginPeriod}>
+            <SelectTrigger className="w-40 h-8 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Time</SelectItem>
+              <SelectItem value="ytd">Year to Date</SelectItem>
+              <SelectItem value="mtd">Month to Date</SelectItem>
+              <SelectItem value="wtd">Week to Date</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {shippingMarginsLoading ? (
+          <div className="flex items-center justify-center py-8 text-gray-500 gap-2">
+            <Loader2 className="w-4 h-4 animate-spin" />
+            Loading margin data...
+          </div>
+        ) : !shippingMargins ? (
+          <div className="text-center py-8 text-gray-500">
+            <Ship className="w-8 h-8 mx-auto mb-2 text-gray-300" />
+            <p>No margin data available for this period.</p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {/* Overall summary */}
+            <div className="grid grid-cols-4 gap-3">
+              <div className="border rounded-lg p-3 bg-slate-50 border-slate-200">
+                <div className="text-xs text-slate-600">Orders</div>
+                <div className="text-lg font-semibold text-slate-900">{shippingMargins.orderCount}</div>
+              </div>
+              <div className="border rounded-lg p-3 bg-blue-50 border-blue-200">
+                <div className="text-xs text-blue-700">Total Revenue</div>
+                <div className="text-lg font-semibold text-blue-900">{formatCurrency(shippingMargins.overall.revenue)}</div>
+              </div>
+              <div className="border rounded-lg p-3 bg-green-50 border-green-200">
+                <div className="text-xs text-green-700">Total Margin</div>
+                <div className="text-lg font-semibold text-green-900">{formatCurrency(shippingMargins.overall.margin)}</div>
+              </div>
+              <div className="border rounded-lg p-3 bg-purple-50 border-purple-200">
+                <div className="text-xs text-purple-700">Margin %</div>
+                <div className="text-lg font-semibold text-purple-900">{shippingMargins.overall.marginPercent}%</div>
+              </div>
+            </div>
+
+            {/* Category breakdown table */}
+            <div className="border rounded-lg overflow-hidden">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Category</TableHead>
+                    <TableHead className="text-right">Revenue</TableHead>
+                    <TableHead className="text-right">Cost</TableHead>
+                    <TableHead className="text-right">Margin</TableHead>
+                    <TableHead className="text-right">Margin %</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {(
+                    [
+                      { label: "Product", data: shippingMargins.product, color: "text-blue-700" },
+                      { label: "Shipping", data: shippingMargins.shipping, color: "text-orange-700" },
+                      { label: "Setup / Fixed", data: shippingMargins.setup, color: "text-violet-700" },
+                    ] as { label: string; data: MarginCategory; color: string }[]
+                  ).map((row) => (
+                    <TableRow key={row.label}>
+                      <TableCell className="font-medium">{row.label}</TableCell>
+                      <TableCell className="text-right">{formatCurrency(row.data.revenue)}</TableCell>
+                      <TableCell className="text-right">{formatCurrency(row.data.cost)}</TableCell>
+                      <TableCell className={`text-right font-semibold ${row.data.margin >= 0 ? "text-green-700" : "text-red-600"}`}>
+                        {formatCurrency(row.data.margin)}
+                      </TableCell>
+                      <TableCell className={`text-right font-semibold ${row.color}`}>
+                        {row.data.marginPercent}%
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  <TableRow className="bg-gray-50 font-semibold">
+                    <TableCell>Overall</TableCell>
+                    <TableCell className="text-right">{formatCurrency(shippingMargins.overall.revenue)}</TableCell>
+                    <TableCell className="text-right">{formatCurrency(shippingMargins.overall.cost)}</TableCell>
+                    <TableCell className={`text-right ${shippingMargins.overall.margin >= 0 ? "text-green-700" : "text-red-600"}`}>
+                      {formatCurrency(shippingMargins.overall.margin)}
+                    </TableCell>
+                    <TableCell className="text-right text-purple-700">{shippingMargins.overall.marginPercent}%</TableCell>
+                  </TableRow>
                 </TableBody>
               </Table>
             </div>

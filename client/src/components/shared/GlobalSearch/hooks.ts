@@ -2,11 +2,12 @@ import { useState, useEffect, useRef } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { aiSearch } from "@/services/products/requests";
 import { useLocation } from "@/lib/wouter-compat";
-import type { SearchResult } from "./types";
+import type { SearchResult, SearchResponse } from "./types";
 
 export function useGlobalSearch() {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
+  const [answer, setAnswer] = useState<string | undefined>();
   const [isOpen, setIsOpen] = useState(false);
   const [, setLocation] = useLocation();
   const searchRef = useRef<HTMLDivElement>(null);
@@ -34,13 +35,15 @@ export function useGlobalSearch() {
   // AI-powered search mutation
   const searchMutation = useMutation({
     mutationFn: (searchQuery: string) => aiSearch(searchQuery),
-    onSuccess: (data: SearchResult[]) => {
-      setResults(data || []);
+    onSuccess: (data: SearchResponse) => {
+      setResults(data?.results || []);
+      setAnswer(data?.answer);
       setIsOpen(true);
     },
     onError: (error) => {
       console.error("Search error:", error);
       setResults([]);
+      setAnswer(undefined);
     },
   });
 
@@ -48,6 +51,7 @@ export function useGlobalSearch() {
   const handleSearch = (searchQuery: string) => {
     if (searchQuery.trim().length < 2) {
       setResults([]);
+      setAnswer(undefined);
       setIsOpen(false);
       return;
     }
@@ -64,6 +68,8 @@ export function useGlobalSearch() {
       setIsProductModalOpen(true);
     } else if (result.type === "company") {
       setLocation(`/crm/companies/${result.id}`);
+    } else if (result.type === "contact" && result.url) {
+      setLocation(result.url);
     } else if (result.url) {
       setLocation(result.url);
     }
@@ -71,6 +77,7 @@ export function useGlobalSearch() {
     setIsOpen(false);
     setQuery("");
     setResults([]);
+    setAnswer(undefined);
   };
 
   // Handle keyboard shortcuts
@@ -108,6 +115,7 @@ export function useGlobalSearch() {
         handleSearch(query);
       } else {
         setResults([]);
+        setAnswer(undefined);
         setIsOpen(false);
       }
     }, 300);
@@ -134,6 +142,7 @@ export function useGlobalSearch() {
     query,
     setQuery,
     results,
+    answer,
     isOpen,
     searchRef,
     inputRef,

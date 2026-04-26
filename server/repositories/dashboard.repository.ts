@@ -1,9 +1,38 @@
-import { and, desc, eq, gte, inArray, lte, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, lte, or, sql } from "drizzle-orm";
 import { db } from "../db";
-import { companies, orders, type Order } from "@shared/schema";
+import { companies, orders, orderServiceCharges, orderAdditionalCharges, orderShipments, type Order } from "@shared/schema";
 
 const COMMITTED_STAGES = ["sales_order", "invoice"];
 const PIPELINE_STAGES = ["presentation", "quote"];
+
+/**
+ * Pipeline = quote stage (quoteStatus beyond "draft") but NOT yet committed.
+ * Presentations are implicitly pipeline if they exist (default stage).
+ */
+const isPipelineOrder = and(
+  // Not committed
+  sql`NOT (
+    ${orders.salesOrderStatus} = 'ready_to_invoice'
+    OR ${orders.orderType} IN ('sales_order', 'rush_order')
+    OR (${orders.salesOrderStatus} IS NOT NULL AND ${orders.salesOrderStatus} != 'new')
+  )`,
+);
+
+/**
+ * SQL filter that mirrors client-side determineBusinessStage() logic.
+ * An order is "committed" (sales_order or invoice) when:
+ *  - salesOrderStatus = 'ready_to_invoice' (invoice stage)
+ *  - orderType IN ('sales_order', 'rush_order')
+ *  - salesOrderStatus is set and != 'new'
+ */
+const isCommittedOrder = or(
+  eq(orders.salesOrderStatus, "ready_to_invoice"),
+  inArray(orders.orderType, ["sales_order", "rush_order"]),
+  and(
+    sql`${orders.salesOrderStatus} IS NOT NULL`,
+    sql`${orders.salesOrderStatus} != 'new'`,
+  ),
+);
 
 export interface FinanceStats {
   ytdRevenue: number;
@@ -92,7 +121,7 @@ export class DashboardRepository {
 
     const committedRevenue = async (from: Date, to?: Date) => {
       const conditions = [
-        inArray(orders.currentStage, COMMITTED_STAGES),
+        isCommittedOrder,
         gte(orders.createdAt, from),
       ];
       if (to) conditions.push(lte(orders.createdAt, to));
@@ -133,7 +162,7 @@ export class DashboardRepository {
           count: sql<number>`COUNT(*)::int`,
         })
         .from(orders)
-        .where(inArray(orders.currentStage, PIPELINE_STAGES))
+        .where(isPipelineOrder)
         .then(([r]) => ({
           total: parseFloat(r?.total || "0"),
           count: Number(r?.count || 0),
@@ -152,7 +181,7 @@ export class DashboardRepository {
         .from(orders)
         .where(
           and(
-            inArray(orders.currentStage, COMMITTED_STAGES),
+            isCommittedOrder,
             gte(orders.createdAt, yearStart),
           ),
         )
@@ -175,6 +204,153 @@ export class DashboardRepository {
       avgOrderValue: Math.round(avgOrderValue * 100) / 100,
       orderQuantity: ytd.count,
       grossMargin: Math.round(marginRow * 10) / 10,
+    };
+  }
+
+  /**
+   * Shipping & setup margin breakdown for Trello tickets 4+5.
+   * Returns revenue/cost/margin for: product, shipping, setup categories.
+   * Supports period filtering: ytd, mtd, wtd, custom.
+   */
+  async getShippingMarginReport(params: {
+    period: "ytd" | "mtd" | "wtd" | "all" | "custom";
+    from?: Date;
+    to?: Date;
+  }): Promise<{
+    period: string;
+    fromDate: string;
+    toDate: string;
+    overall: { revenue: number; cost: number; margin: number; marginPercent: number };
+    product: { revenue: number; cost: number; margin: number; marginPercent: number };
+    shipping: { revenue: number; cost: number; margin: number; marginPercent: number };
+    setup: { revenue: number; cost: number; margin: number; marginPercent: number };
+    orderCount: number;
+  }> {
+    const now = new Date();
+    const year = now.getFullYear();
+
+    let fromDate: Date;
+    let toDate = new Date();
+
+    switch (params.period) {
+      case "mtd":
+        fromDate = new Date(year, now.getMonth(), 1);
+        break;
+      case "wtd": {
+        fromDate = new Date(now);
+        fromDate.setHours(0, 0, 0, 0);
+        fromDate.setDate(fromDate.getDate() - fromDate.getDay());
+        break;
+      }
+      case "custom":
+        fromDate = params.from || new Date(year, 0, 1);
+        toDate = params.to || new Date();
+        break;
+      case "all":
+        fromDate = new Date(2000, 0, 1);
+        break;
+      default: // ytd
+        fromDate = new Date(year, 0, 1);
+    }
+
+    const dateConditions = [
+      isCommittedOrder,
+      gte(orders.createdAt, fromDate),
+    ];
+    if (params.period !== "all") {
+      dateConditions.push(lte(orders.createdAt, toDate));
+    }
+    const dateFilter = and(...dateConditions);
+
+    // 1. Overall order totals (revenue = total, cost derived from margin)
+    const [orderTotals] = await db
+      .select({
+        totalRevenue: sql<string>`COALESCE(SUM(${orders.total}), 0)`,
+        totalCost: sql<string>`COALESCE(SUM(${orders.total} * (1 - ${orders.margin} / 100)), 0)`,
+        count: sql<number>`COUNT(*)::int`,
+      })
+      .from(orders)
+      .where(dateFilter);
+
+    // 2. Shipping service charges (chargeType in freight, shipping, fulfillment)
+    const [shippingCharges] = await db
+      .select({
+        revenue: sql<string>`COALESCE(SUM(${orderServiceCharges.unitPrice} * ${orderServiceCharges.quantity}), 0)`,
+        cost: sql<string>`COALESCE(SUM(${orderServiceCharges.unitCost} * ${orderServiceCharges.quantity}), 0)`,
+      })
+      .from(orderServiceCharges)
+      .innerJoin(orders, eq(orderServiceCharges.orderId, orders.id))
+      .where(
+        and(
+          dateFilter,
+          sql`${orderServiceCharges.chargeType} IN ('freight', 'shipping', 'fulfillment')`,
+        ),
+      );
+
+    // 3. Actual shipping costs from shipments (from ShipStation)
+    const [shipmentCosts] = await db
+      .select({
+        totalCost: sql<string>`COALESCE(SUM(${orderShipments.shippingCost}), 0)`,
+      })
+      .from(orderShipments)
+      .innerJoin(orders, eq(orderShipments.orderId, orders.id))
+      .where(dateFilter);
+
+    // 4. Setup charges (chargeCategory = 'fixed' on additional charges)
+    // Use raw SQL to join through order_items → orders
+    const setupResult = await db.execute<{
+      revenue: string;
+      cost: string;
+    }>(sql`
+      SELECT
+        COALESCE(SUM(COALESCE(ac.retail_price, ac.amount) * ac.quantity), 0) as revenue,
+        COALESCE(SUM(ac.net_cost * ac.quantity), 0) as cost
+      FROM order_additional_charges ac
+      INNER JOIN order_items oi ON ac.order_item_id = oi.id
+      INNER JOIN orders o ON oi.order_id = o.id
+      WHERE (
+        o.sales_order_status = 'ready_to_invoice'
+        OR o.order_type IN ('sales_order', 'rush_order')
+        OR (o.sales_order_status IS NOT NULL AND o.sales_order_status != 'new')
+      )
+        AND o.created_at >= ${fromDate}
+        ${params.period !== "all" ? sql`AND o.created_at <= ${toDate}` : sql``}
+        AND ac.charge_category = 'fixed'
+    `);
+    const setupCharges = setupResult.rows?.[0] ?? { revenue: "0", cost: "0" };
+
+    const overallRevenue = parseFloat(orderTotals?.totalRevenue || "0");
+    const overallCost = parseFloat(orderTotals?.totalCost || "0");
+
+    const shippingRevenue = parseFloat(shippingCharges?.revenue || "0");
+    // Use the higher of: service charge costs or actual shipment costs
+    const shippingServiceCost = parseFloat(shippingCharges?.cost || "0");
+    const shippingActualCost = parseFloat(shipmentCosts?.totalCost || "0");
+    const shippingCost = Math.max(shippingServiceCost, shippingActualCost);
+
+    const setupRevenue = parseFloat(setupCharges?.revenue || "0");
+    const setupCost = parseFloat(setupCharges?.cost || "0");
+
+    // Product = overall minus shipping and setup
+    const productRevenue = overallRevenue - shippingRevenue - setupRevenue;
+    const productCost = overallCost - shippingCost - setupCost;
+
+    const calcMargin = (rev: number, cost: number) => ({
+      revenue: Math.round(rev * 100) / 100,
+      cost: Math.round(cost * 100) / 100,
+      margin: Math.round((rev - cost) * 100) / 100,
+      marginPercent: rev > 0 ? Math.round(((rev - cost) / rev) * 1000) / 10 : 0,
+    });
+
+    return {
+      period: params.period,
+      fromDate: fromDate.toISOString(),
+      toDate: toDate.toISOString(),
+      overall: calcMargin(overallRevenue, overallCost),
+      product: calcMargin(productRevenue, productCost),
+      shipping: calcMargin(shippingRevenue, shippingCost),
+      setup: calcMargin(setupRevenue, setupCost),
+      orderCount: Number(orderTotals?.count || 0),
     };
   }
 

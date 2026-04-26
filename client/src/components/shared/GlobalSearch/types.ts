@@ -1,6 +1,6 @@
 export interface SearchResult {
   id: string;
-  type: "order" | "product" | "company" | "contact" | "file" | "other";
+  type: "order" | "product" | "company" | "contact" | "vendor" | "file" | "other";
   title: string;
   description: string;
   metadata?: {
@@ -11,4 +11,9 @@ export interface SearchResult {
     [key: string]: any;
   };
   url?: string;
+}
+
+export interface SearchResponse {
+  results: SearchResult[];
+  answer?: string;
 }

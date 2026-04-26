@@ -6,10 +6,10 @@ export class SearchController {
     const { query } = req.body;
 
     if (!query || query.trim().length === 0) {
-      return res.json([]);
+      return res.json({ results: [], answer: undefined });
     }
 
-    const results = await searchService.aiSearch(query);
-    res.json(results);
+    const response = await searchService.aiSearch(query);
+    res.json(response);
   }
 }

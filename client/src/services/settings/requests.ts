@@ -61,6 +61,11 @@ export async function testShipStationConnection(data: { apiKey: string; apiSecre
   return res.json();
 }
 
+export async function pushOrderToShipStation(orderId: string): Promise<{ success: boolean; shipstationOrderId?: number; message: string }> {
+  const res = await apiRequest("POST", `/api/shipstation/orders/${orderId}/push`);
+  return res.json();
+}
+
 // ---- User Email Settings (Mail Credentials) ----
 
 export async function saveUserEmailSettings(data: Record<string, any>): Promise<any> {

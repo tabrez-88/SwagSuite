@@ -44,3 +44,10 @@ export function useCommissionReport<T = any>(from?: string, to?: string) {
     queryFn: () => requests.fetchCommissionReport(from, to),
   });
 }
+
+export function useShippingMargins<T = any>(period: string) {
+  return useQuery<T>({
+    queryKey: reportKeys.shippingMargins(period),
+    queryFn: () => requests.fetchShippingMargins(period),
+  });
+}
