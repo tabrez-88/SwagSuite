@@ -33,6 +33,9 @@ import paymentTermsRoutes from "./paymentTerms.routes";
 import dataImportRoutes from "./dataImport.routes";
 import commissionRoutes from "./commission.routes";
 import imprintOptionRoutes from "./imprintOption.routes";
+import shippingAccountRoutes from "./shipping-account.routes";
+import shippingMethodRoutes from "./shipping-method.routes";
+import purchaseOrderRoutes from "./purchase-order.routes";
 
 /**
  * Register all modular route files.
@@ -90,6 +93,13 @@ export function registerModularRoutes(app: Express) {
 
   // Shipments & Portal
   app.use(shipmentRoutes);
+
+  // Shipping Accounts & Methods
+  app.use(shippingAccountRoutes);
+  app.use(shippingMethodRoutes);
+
+  // Purchase Orders
+  app.use(purchaseOrderRoutes);
 
   // Vendor Invoices (Bills)
   app.use(vendorInvoiceRoutes);

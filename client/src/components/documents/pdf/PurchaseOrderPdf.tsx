@@ -47,6 +47,9 @@ export interface PurchaseOrderPdfProps {
   allItemCharges?: Record<string, any[]>;
   serviceCharges?: any[]; // CommonSKU pattern: order-level shipping/setup/etc. — filtered by displayToVendor + vendorId match
   vendorIHD?: string | null;
+  vendorFirm?: boolean | null;
+  shippingAccountName?: string | null;
+  shippingAccountNumber?: string | null;
   vendorAddress?: VendorAddressData | null;
   poType?: "supplier" | "decorator";
   decoratorAddress?: VendorAddressData | null;
@@ -63,6 +66,9 @@ export function PurchaseOrderPdf({
   allItemCharges = {},
   serviceCharges = [],
   vendorIHD,
+  vendorFirm,
+  shippingAccountName,
+  shippingAccountNumber,
   vendorAddress,
   poType = "supplier",
   decoratorAddress,
@@ -153,12 +159,12 @@ export function PurchaseOrderPdf({
             </Text>
             <Text style={styles.docMeta}>PO #{poNumber}</Text>
             <Text style={styles.docMeta}>Date: {fmtDate(order?.createdAt)}</Text>
-            {order?.supplierInHandsDate && (
+            {effectiveIHD && (
               <Text style={[styles.docMeta, styles.bold, { color: colors.red600 }]}>
-                Required by: {fmtDate(order.supplierInHandsDate)}
+                Required by: {fmtDate(effectiveIHD)}
               </Text>
             )}
-            {order?.isFirm && (
+            {(vendorFirm || order?.isFirm) && (
               <Text style={[styles.docMeta, styles.bold, { color: colors.blue700 }]}>
                 FIRM ORDER — Date cannot be adjusted
               </Text>
@@ -240,6 +246,11 @@ export function PurchaseOrderPdf({
               <Text style={[{ fontSize: 8, color: colors.blue700 }, styles.bold]}>
                 SHIPPING: {acctLabels[acctType] || acctType?.toUpperCase()}
               </Text>
+              {shippingAccountName && (
+                <Text style={{ fontSize: 8, color: colors.gray700, marginTop: 2 }}>
+                  Account: {shippingAccountName}{shippingAccountNumber ? ` (${shippingAccountNumber})` : ""}
+                </Text>
+              )}
               {method && (
                 <Text style={{ fontSize: 8, color: colors.gray700, marginTop: 2 }}>
                   Method: {method}

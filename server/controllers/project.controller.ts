@@ -1421,6 +1421,7 @@ export class ProjectController {
         body.leg2Firm = false;
         body.leg2ShippingMethod = null;
         body.leg2ShippingAccountType = null;
+        body.leg2ShippingAccountId = null;
         body.leg2ShippingQuote = null;
       }
 

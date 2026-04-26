@@ -47,28 +47,28 @@ export default function VendorCostSummary({
   if (!hasCharges) return null;
 
   return (
-    <div className="border-t bg-gray-50 p-4">
-      <div className="text-xs space-y-1">
+    <div className="border-t bg-gray-50 p-6">
+      <div className="text-xs font-bold space-y-1">
         <div className="flex justify-between">
           <span className="text-gray-500">Product Subtotal</span>
-          <span className="font-medium">${productSubtotal.toFixed(2)}</span>
+          <span className="font-bold">${productSubtotal.toFixed(2)}</span>
         </div>
         {runChargesTotal > 0 && (
           <div className="flex justify-between">
             <span className="text-blue-600">Run Charges</span>
-            <span className="font-medium text-blue-600">${runChargesTotal.toFixed(2)}</span>
+            <span className="font-bold text-blue-600">${runChargesTotal.toFixed(2)}</span>
           </div>
         )}
         {fixedChargesTotal > 0 && (
           <div className="flex justify-between">
             <span className="text-purple-600">Fixed Charges</span>
-            <span className="font-medium text-purple-600">${fixedChargesTotal.toFixed(2)}</span>
+            <span className="font-bold text-purple-600">${fixedChargesTotal.toFixed(2)}</span>
           </div>
         )}
         {artworkChargesTotal > 0 && (
           <div className="flex justify-between">
             <span className="text-amber-600">Artwork Charges</span>
-            <span className="font-medium text-amber-600">${artworkChargesTotal.toFixed(2)}</span>
+            <span className="font-bold text-amber-600">${artworkChargesTotal.toFixed(2)}</span>
           </div>
         )}
         <div className="flex justify-between pt-1 border-t border-gray-200">

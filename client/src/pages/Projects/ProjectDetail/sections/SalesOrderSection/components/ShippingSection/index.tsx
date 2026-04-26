@@ -29,17 +29,13 @@ import {
   Bell, BellOff,
   Calendar,
   CheckCircle2,
-  ChevronDown, ChevronUp,
-  Clock,
   Edit2,
-  ExternalLink,
   Loader2,
   Mail,
   MapPin,
   Package, Pencil,
   Pin,
   Plus,
-  Save,
   Send,
   Trash2,
   Truck,
@@ -53,11 +49,8 @@ import {
   SHIPPING_METHOD_OPTIONS,
   STATUS_OPTIONS,
 } from "./types";
-
-function getStatusBadge(status: string | null) {
-  const opt = STATUS_OPTIONS.find(o => o.value === status) || STATUS_OPTIONS[0];
-  return <Badge className={`${opt.color} text-xs`}>{opt.label}</Badge>;
-}
+import { ShippingEditDialog } from "./components/ShippingEditDialog";
+import { ShipmentTrackingCard } from "./components/ShipmentTrackingCard";
 
 const fmtDate = (d: string | Date | null) =>
   d ? new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "--";
@@ -182,7 +175,7 @@ export default function ShippingSection({ projectId, data, isLocked }: ShippingS
                 </div>
               </div>
 
-              {/* Products Table — read-only with Edit button */}
+              {/* Products Table */}
               <div className="border rounded-lg overflow-hidden">
                 <table className="w-full text-sm">
                   <thead className="bg-gray-50 border-b">
@@ -196,7 +189,7 @@ export default function ShippingSection({ projectId, data, isLocked }: ShippingS
                       <th className="text-left p-2.5 font-medium text-xs">Product</th>
                       <th className="text-left p-2.5 font-medium text-xs">Ship To</th>
                       <th className="text-left p-2.5 font-medium text-xs">Address</th>
-                      <th className="text-left p-2.5 font-medium text-xs">In-Hands</th>
+                      <th className="text-left p-2.5 font-medium text-xs">Supplier IHD</th>
                       <th className="text-left p-2.5 font-medium text-xs">Method</th>
                       <th className="p-2.5 w-8"></th>
                       <th className="p-2.5 w-16"></th>
@@ -239,7 +232,7 @@ export default function ShippingSection({ projectId, data, isLocked }: ShippingS
                           </td>
                           <td className="p-2.5">
                             {(() => {
-                              const itemDate = item.shipInHandsDate || hook.order?.inHandsDate;
+                              const itemDate = item.shipInHandsDate || hook.order?.supplierInHandsDate;
                               const isFromOrder = !item.shipInHandsDate && itemDate;
                               const ds = itemDate ? getDateStatus(itemDate) : null;
                               return itemDate ? (
@@ -287,337 +280,41 @@ export default function ShippingSection({ projectId, data, isLocked }: ShippingS
             </CardContent>
           </Card>
 
-          {/* SECTION 2: SHIPMENT TRACKING (kept same) */}
-          <Card>
-            <CardContent className="p-5">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-3">
-                  <CardTitle className="text-sm flex items-center gap-2">
-                    <Truck className="w-4 h-4 text-gray-400" />
-                    Shipment Tracking
-                  </CardTitle>
-                  <Badge variant="secondary" className="text-xs">
-                    {hook.shipments.length} shipment{hook.shipments.length !== 1 ? "s" : ""}
-                  </Badge>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Button size="sm" onClick={hook.openNew} disabled={isLocked}>
-                    <Plus className="w-4 h-4 mr-2" /> Add Shipment
-                  </Button>
-                </div>
-              </div>
-              {hook.showShipmentTracking && (
-                <div className="space-y-3 mt-2">
-                  {hook.shipmentsLoading ? (
-                    <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-gray-400" /></div>
-                  ) : hook.shipments.length === 0 ? (
-                    <Card>
-                      <CardContent className="py-12 text-center">
-                        <Truck className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-                        <h3 className="font-medium text-gray-900 mb-2">No shipments yet</h3>
-                        <p className="text-sm text-gray-500">Shipments will appear here once orders are shipped</p>
-                      </CardContent>
-                    </Card>
-                  ) : (
-                    <>
-                      <div className="space-y-3">
-                        {hook.shipments.map((s) => {
-                          const trackUrl = hook.getTrackingUrl(s.carrier, s.trackingNumber);
-                          return (
-                            <Card key={s.id}>
-                              <CardContent className="p-4">
-                                <div className="flex items-start justify-between gap-3">
-                                  <div className="flex-1 min-w-0">
-                                    <div className="flex items-center gap-2 mb-2">
-                                      {getStatusBadge(s.status)}
-                                      {s.carrier && <span className="text-sm font-medium">{s.carrier}</span>}
-                                      {s.shippingMethod && <span className="text-xs text-gray-500">{s.shippingMethod}</span>}
-                                    </div>
-                                    {s.trackingNumber && (
-                                      <div className="flex items-center gap-2 mb-2">
-                                        <span className="text-xs text-gray-500">Tracking:</span>
-                                        <code className="text-xs font-mono bg-gray-100 px-1.5 py-0.5 rounded">{s.trackingNumber}</code>
-                                        {trackUrl && (
-                                          <a href={trackUrl} target="_blank" rel="noopener noreferrer"
-                                            className="text-blue-600 hover:text-blue-800 flex items-center gap-0.5 text-xs">
-                                            Track <ExternalLink className="w-3 h-3" />
-                                          </a>
-                                        )}
-                                      </div>
-                                    )}
-                                    <div className="flex items-center gap-4 text-xs text-gray-500">
-                                      {s.shipDate && <span className="flex items-center gap-1"><Calendar className="w-3 h-3" /> Ship: {fmtDate(s.shipDate)}</span>}
-                                      {s.estimatedDelivery && <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> ETA: {fmtDate(s.estimatedDelivery)}</span>}
-                                      {s.actualDelivery && <span className="flex items-center gap-1 text-green-600"><CheckCircle2 className="w-3 h-3" /> Delivered: {fmtDate(s.actualDelivery)}</span>}
-                                    </div>
-                                    {(s.shipToName || s.shipToCompany || s.shipToAddress) && (
-                                      <div className="mt-2 text-xs text-gray-500 flex items-start gap-1">
-                                        <MapPin className="w-3 h-3 mt-0.5 flex-shrink-0" />
-                                        <span>{[s.shipToName, s.shipToCompany, s.shipToAddress].filter(Boolean).join(" - ")}</span>
-                                      </div>
-                                    )}
-                                    {s.notes && <p className="mt-2 text-xs text-gray-500 italic">{s.notes}</p>}
-                                  </div>
-                                  <div className="flex flex-col items-end gap-2 flex-shrink-0">
-                                    {s.shippingCost && parseFloat(s.shippingCost) > 0 && (
-                                      <span className="text-sm font-semibold">${parseFloat(s.shippingCost).toFixed(2)}</span>
-                                    )}
-                                    {s.trackingNumber && (
-                                      <Button variant="outline" size="sm" className="h-7 text-[10px] gap-1" onClick={() => hook.setNotifyShipment(s)}>
-                                        <Send className="w-3 h-3" /> Notify Client
-                                      </Button>
-                                    )}
-                                    <div className="flex gap-1">
-                                      <Button variant="ghost" size="sm" className="h-7 w-7 p-0" disabled={isLocked} onClick={() => hook.openEdit(s)}>
-                                        <Edit2 className="w-3.5 h-3.5 text-gray-400" />
-                                      </Button>
-                                      <Button variant="ghost" size="sm" className="h-7 w-7 p-0" disabled={isLocked} onClick={() => hook.setDeleteTarget(s)}>
-                                        <Trash2 className="w-3.5 h-3.5 text-gray-400 hover:text-red-500" />
-                                      </Button>
-                                    </div>
-                                  </div>
-                                </div>
-                              </CardContent>
-                            </Card>
-                          );
-                        })}
-                      </div>
-                      <Card className="bg-blue-50/60">
-                        <CardContent className="p-4">
-                          <dl className="flex items-center justify-between text-sm">
-                            <div className="flex items-center gap-5">
-                              <div><dt className="text-gray-500 text-xs">Shipments</dt><dd className="font-semibold">{hook.shipments.length}</dd></div>
-                              <div><dt className="text-gray-500 text-xs">Delivered</dt><dd className="font-semibold text-green-600">{hook.deliveredCount} / {hook.shipments.length}</dd></div>
-                            </div>
-                            <div className="text-right">
-                              <dt className="text-xs text-gray-500">Total Shipping</dt>
-                              <dd className="text-lg font-bold text-blue-600">${hook.totalShippingCost.toFixed(2)}</dd>
-                            </div>
-                          </dl>
-                        </CardContent>
-                      </Card>
-                    </>
-                  )}
-                </div>
-              )}
-            </CardContent>
-          </Card>
+          {/* SECTION 2: SHIPMENT TRACKING */}
+          <ShipmentTrackingCard
+            shipments={hook.shipments}
+            shipmentsLoading={hook.shipmentsLoading}
+            showShipmentTracking={hook.showShipmentTracking}
+            isLocked={isLocked}
+            deliveredCount={hook.deliveredCount}
+            totalShippingCost={hook.totalShippingCost}
+            getTrackingUrl={hook.getTrackingUrl}
+            openNew={hook.openNew}
+            openEdit={hook.openEdit}
+            setDeleteTarget={hook.setDeleteTarget}
+            setNotifyShipment={hook.setNotifyShipment}
+          />
         </CardContent>
       </Card>
 
-      {/* ═══ EDIT SHIPPING DIALOG ═══ */}
-      <Dialog open={!!hook.editingItemId} onOpenChange={(open) => !open && hook.closeEditDialog()}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Package className="w-5 h-5" />
-              Shipping Config — {hook.editingItem?.productName || "Product"}
-            </DialogTitle>
-          </DialogHeader>
-
-          <div className="space-y-5">
-            {/* ── LEG 1 ── */}
-            <div className="space-y-4">
-              <h4 className="text-sm font-semibold text-gray-700 border-b pb-1">
-                Leg 1: To {getShipToLabel(hook.editShippingForm.shippingDestination) || "Destination"}
-              </h4>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <Label>Ship To *</Label>
-                  <Select value={hook.editShippingForm.shippingDestination}
-                    onValueChange={(v) => hook.handleDestinationChange(v)}>
-                    <SelectTrigger><SelectValue placeholder="Select destination" /></SelectTrigger>
-                    <SelectContent>
-                      {SHIP_TO_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label>Account Type</Label>
-                  <Select value={hook.editShippingForm.shippingAccountType}
-                    onValueChange={(v) => hook.setEditShippingForm(f => ({ ...f, shippingAccountType: v }))}>
-                    <SelectTrigger><SelectValue placeholder="Select account" /></SelectTrigger>
-                    <SelectContent>
-                      {ACCOUNT_TYPE_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              {/* Address Picker */}
-              <div>
-                <Label>Address</Label>
-                {(() => {
-                  const addresses = hook.editShippingForm.shippingDestination === "client"
-                    ? hook.companyAddresses
-                    : hook.supplierAddresses;
-                  return addresses.length > 0 ? (
-                    <Select value={hook.editShippingForm.shipToAddressId}
-                      onValueChange={(v) => {
-                        const addr = addresses.find((a) => a.id === v);
-                        if (addr) hook.selectStoredAddress(addr, "leg1");
-                      }}>
-                      <SelectTrigger className="mb-2"><SelectValue placeholder="Select from saved addresses..." /></SelectTrigger>
-                      <SelectContent>
-                        {addresses.map((a) => (
-                          <SelectItem key={a.id} value={a.id}>
-                            {a.addressName || a.companyNameOnDocs || "Address"} — {[a.street, a.city, a.state].filter(Boolean).join(", ")}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  ) : null;
-                })()}
-                <div className="grid grid-cols-2 gap-2 text-xs">
-                  <Input className="h-7 text-xs" placeholder="Street" value={hook.editShippingForm.shipToAddress?.street || ""}
-                    onChange={(e) => hook.updateAddressField("leg1", "street", e.target.value)} />
-                  <Input className="h-7 text-xs" placeholder="Street 2" value={hook.editShippingForm.shipToAddress?.street2 || ""}
-                    onChange={(e) => hook.updateAddressField("leg1", "street2", e.target.value)} />
-                  <Input className="h-7 text-xs" placeholder="City" value={hook.editShippingForm.shipToAddress?.city || ""}
-                    onChange={(e) => hook.updateAddressField("leg1", "city", e.target.value)} />
-                  <Input className="h-7 text-xs" placeholder="State" value={hook.editShippingForm.shipToAddress?.state || ""}
-                    onChange={(e) => hook.updateAddressField("leg1", "state", e.target.value)} />
-                  <Input className="h-7 text-xs" placeholder="Zip Code" value={hook.editShippingForm.shipToAddress?.zipCode || ""}
-                    onChange={(e) => hook.updateAddressField("leg1", "zipCode", e.target.value)} />
-                  <Input className="h-7 text-xs" placeholder="Country" value={hook.editShippingForm.shipToAddress?.country || ""}
-                    onChange={(e) => hook.updateAddressField("leg1", "country", e.target.value)} />
-                  <Input className="h-7 text-xs" placeholder="Contact Name" value={hook.editShippingForm.shipToAddress?.contactName || ""}
-                    onChange={(e) => hook.updateAddressField("leg1", "contactName", e.target.value)} />
-                  <Input className="h-7 text-xs" placeholder="Phone" value={hook.editShippingForm.shipToAddress?.phone || ""}
-                    onChange={(e) => hook.updateAddressField("leg1", "phone", e.target.value)} />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <Label>In-Hands Date</Label>
-                  <Input type="date" value={hook.editShippingForm.shipInHandsDate}
-                    onChange={(e) => hook.setEditShippingForm(f => ({ ...f, shipInHandsDate: e.target.value }))} />
-                </div>
-                <div className="flex items-end gap-2 pb-0.5">
-                  <Checkbox checked={hook.editShippingForm.shipFirm}
-                    onCheckedChange={(c) => hook.setEditShippingForm(f => ({ ...f, shipFirm: !!c }))} />
-                  <Label className="font-normal text-sm">Firm</Label>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <Label>Shipping Method</Label>
-                  <Select value={hook.editShippingForm.shippingMethodOverride}
-                    onValueChange={(v) => hook.setEditShippingForm(f => ({ ...f, shippingMethodOverride: v }))}>
-                    <SelectTrigger><SelectValue placeholder="Select method" /></SelectTrigger>
-                    <SelectContent>
-                      {SHIPPING_METHOD_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label>Notes</Label>
-                  <Input value={hook.editShippingForm.shippingNotes}
-                    onChange={(e) => hook.setEditShippingForm(f => ({ ...f, shippingNotes: e.target.value }))} placeholder="Supplier notes..." />
-                </div>
-              </div>
-            </div>
-
-            {/* ── LEG 2 (only for decorator) ── */}
-            {hook.editShippingForm.shippingDestination === "decorator" && (
-              <div className="space-y-4 border-t pt-4">
-                <h4 className="text-sm font-semibold text-purple-700">
-                  Leg 2: Decorator → {getShipToLabel(hook.editShippingForm.leg2ShipTo)}
-                </h4>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <Label>Ship To</Label>
-                    <Select value={hook.editShippingForm.leg2ShipTo}
-                      onValueChange={(v) => hook.handleLeg2ShipToChange(v)}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="client">Client</SelectItem>
-                        <SelectItem value="fulfillment">Fulfillment</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label>Account Type</Label>
-                    <Select value={hook.editShippingForm.leg2ShippingAccountType}
-                      onValueChange={(v) => hook.setEditShippingForm(f => ({ ...f, leg2ShippingAccountType: v }))}>
-                      <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
-                      <SelectContent>
-                        {ACCOUNT_TYPE_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-
-                {/* Leg 2 Address Picker (from company addresses) */}
-                <div>
-                  <Label>Delivery Address</Label>
-                  {hook.companyAddresses.length > 0 && (
-                    <Select value={hook.editShippingForm.leg2AddressId}
-                      onValueChange={(v) => {
-                        const addr = hook.companyAddresses.find((a) => a.id === v);
-                        if (addr) hook.selectStoredAddress(addr, "leg2");
-                      }}>
-                      <SelectTrigger className="mb-2"><SelectValue placeholder="Select from saved addresses..." /></SelectTrigger>
-                      <SelectContent>
-                        {hook.companyAddresses.map((a) => (
-                          <SelectItem key={a.id} value={a.id}>
-                            {a.addressName || "Address"} — {[a.street, a.city, a.state].filter(Boolean).join(", ")}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  )}
-                  <div className="grid grid-cols-2 gap-2 text-xs">
-                    <Input className="h-7 text-xs" placeholder="Street" value={hook.editShippingForm.leg2Address?.street || ""}
-                      onChange={(e) => hook.updateAddressField("leg2", "street", e.target.value)} />
-                    <Input className="h-7 text-xs" placeholder="City" value={hook.editShippingForm.leg2Address?.city || ""}
-                      onChange={(e) => hook.updateAddressField("leg2", "city", e.target.value)} />
-                    <Input className="h-7 text-xs" placeholder="State" value={hook.editShippingForm.leg2Address?.state || ""}
-                      onChange={(e) => hook.updateAddressField("leg2", "state", e.target.value)} />
-                    <Input className="h-7 text-xs" placeholder="Zip Code" value={hook.editShippingForm.leg2Address?.zipCode || ""}
-                      onChange={(e) => hook.updateAddressField("leg2", "zipCode", e.target.value)} />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <Label>In-Hands Date</Label>
-                    <Input type="date" value={hook.editShippingForm.leg2InHandsDate}
-                      onChange={(e) => hook.setEditShippingForm(f => ({ ...f, leg2InHandsDate: e.target.value }))} />
-                  </div>
-                  <div className="flex items-end gap-2 pb-0.5">
-                    <Checkbox checked={hook.editShippingForm.leg2Firm}
-                      onCheckedChange={(c) => hook.setEditShippingForm(f => ({ ...f, leg2Firm: !!c }))} />
-                    <Label className="font-normal text-sm">Firm</Label>
-                  </div>
-                  <div>
-                    <Label>Method</Label>
-                    <Select value={hook.editShippingForm.leg2ShippingMethod}
-                      onValueChange={(v) => hook.setEditShippingForm(f => ({ ...f, leg2ShippingMethod: v }))}>
-                      <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
-                      <SelectContent>
-                        {SHIPPING_METHOD_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={hook.closeEditDialog}>Cancel</Button>
-            <Button onClick={hook.handleEditSave} disabled={hook.updateItemShippingMutation.isPending}>
-              {hook.updateItemShippingMutation.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
-              Save
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* EDIT SHIPPING DIALOG */}
+      <ShippingEditDialog
+        open={!!hook.editingItemId}
+        onClose={hook.closeEditDialog}
+        itemName={hook.editingItem?.productName || "Product"}
+        form={hook.editShippingForm}
+        setForm={hook.setEditShippingForm}
+        onSave={hook.handleEditSave}
+        isSaving={hook.updateItemShippingMutation.isPending}
+        companyAddresses={hook.companyAddresses}
+        supplierAddresses={hook.supplierAddresses}
+        selectStoredAddress={hook.selectStoredAddress}
+        updateAddressField={hook.updateAddressField}
+        handleDestinationChange={hook.handleDestinationChange}
+        handleLeg2ShipToChange={hook.handleLeg2ShipToChange}
+        allShippingAccounts={hook.allShippingAccounts}
+        filteredMethods={hook.filteredMethods}
+      />
 
       {/* BULK EDIT DIALOG */}
       <Dialog open={hook.bulkEditOpen} onOpenChange={(open) => !open && hook.setBulkEditOpen(false)}>
@@ -650,7 +347,7 @@ export default function ShippingSection({ projectId, data, isLocked }: ShippingS
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label className="text-xs">In-Hands Date</Label>
+                <Label className="text-xs">Supplier In-Hands Date</Label>
                 <Input type="date" className="h-8 text-sm" value={hook.bulkForm.shipInHandsDate}
                   onChange={(e) => hook.setBulkForm(p => ({ ...p, shipInHandsDate: e.target.value }))} />
               </div>

@@ -37,6 +37,8 @@ export * from './vendorApproval.schema';
 
 // Shipping
 export * from './shipment.schema';
+export * from './shipping-account.schema';
+export * from './shipping-method.schema';
 
 // Activities
 export * from './activity.schema';
@@ -50,6 +52,9 @@ export * from './presentation.schema';
 
 // Production
 export * from './production.schema';
+
+// Purchase Orders
+export * from './purchase-order.schema';
 
 // Sequences
 export * from './sequence.schema';

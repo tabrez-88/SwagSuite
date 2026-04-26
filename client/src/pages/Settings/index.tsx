@@ -21,6 +21,7 @@ import {
   Users,
   FileText,
   CreditCard,
+  Truck,
 } from "lucide-react";
 import { useTabParam } from "@/hooks/useTabParam";
 import { FeaturesTab } from "./FeaturesTab";
@@ -40,6 +41,7 @@ import { TaxCodesTab } from "./TaxCodesTab";
 import { EmailTemplatesTab } from "./EmailTemplatesTab";
 import { PaymentTermsTab } from "./PaymentTermsTab";
 import { ImprintOptionsTab } from "./ImprintOptionsTab";
+import { ShippingAccountsTab } from "./ShippingAccountsTab";
 import { useImprintSuggestionPendingCount } from "@/services/imprint-options";
 
 export default function Settings() {
@@ -170,6 +172,10 @@ export default function Settings() {
             <CreditCard className="w-4 h-4" />
             Payment Terms
           </TabsTrigger>
+          <TabsTrigger value="shipping-accounts" className="flex items-center gap-2">
+            <Truck className="w-4 h-4" />
+            Shipping Accounts
+          </TabsTrigger>
           <TabsTrigger value="imprint-options" className="flex items-center gap-2">
             <PaintBucket className="w-4 h-4" />
             Imprint Options
@@ -239,6 +245,10 @@ export default function Settings() {
 
         <TabsContent value="payment-terms" className="space-y-6">
           <PaymentTermsTab />
+        </TabsContent>
+
+        <TabsContent value="shipping-accounts" className="space-y-6">
+          <ShippingAccountsTab />
         </TabsContent>
 
         <TabsContent value="imprint-options" className="space-y-6">

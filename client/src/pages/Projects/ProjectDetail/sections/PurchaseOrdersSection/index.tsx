@@ -15,6 +15,7 @@ import { useMemo } from "react";
 import * as React from "react";
 import type { GeneratedDocument } from "@shared/schema";
 import type { OrderVendor } from "@/types/project-types";
+import { useSendPOConfirmation } from "@/services/purchase-orders";
 import { usePurchaseOrdersSection } from "./hooks";
 import type { PurchaseOrdersSectionProps, VendorArtwork } from "./types";
 import VendorCard from "./components/VendorCard";
@@ -28,6 +29,21 @@ export default function PurchaseOrdersSection({ projectId, data, isLocked }: Pur
   const { toast } = useToast();
   const sender = useAutoFillSender();
   const updateArtworkMutation = useUpdateArtwork(projectId);
+  const sendConfirmationMutation = useSendPOConfirmation(data.order?.id || "");
+
+  const handleSendConfirmation = async (poEntityId: string) => {
+    try {
+      const result = await sendConfirmationMutation.mutateAsync(poEntityId);
+      const fullUrl = `${window.location.origin}${result.portalUrl}`;
+      await navigator.clipboard.writeText(fullUrl);
+      toast({
+        title: "Confirmation link generated",
+        description: "Link copied to clipboard. Share with vendor to confirm PO.",
+      });
+    } catch {
+      toast({ title: "Failed to generate link", variant: "destructive" });
+    }
+  };
 
   // Dialog states
   const [previewVendorKey, setPreviewVendorKey] = React.useState<string | null>(null);
@@ -77,10 +93,10 @@ export default function PurchaseOrdersSection({ projectId, data, isLocked }: Pur
   };
 
   // Wrap handleGeneratePO to manage local generatingVendorId state
-  const handleGeneratePO = async (vendorKey: string, vendorName: string) => {
-    setGeneratingVendorId(vendorKey);
+  const handleGeneratePO = async (groupKey: string, vendorName: string) => {
+    setGeneratingVendorId(groupKey);
     try {
-      await hook.handleGeneratePO(vendorKey, vendorName);
+      await hook.handleGeneratePO(groupKey, vendorName);
     } finally {
       setGeneratingVendorId(null);
     }
@@ -110,6 +126,7 @@ export default function PurchaseOrdersSection({ projectId, data, isLocked }: Pur
     onUploadProof: setUploadProofArt,
     onSendProofs: openSendProofsDialog,
     onPreviewFile: setPreviewFile,
+    onSendConfirmation: handleSendConfirmation,
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }), [hook.handleRegeneratePO]);
 
@@ -145,7 +162,7 @@ export default function PurchaseOrdersSection({ projectId, data, isLocked }: Pur
             <ClipboardList className="w-5 h-5" /> Purchase Orders
           </h2>
           <Badge variant="secondary" className="text-xs">
-            {hook.vendorPOs.length} vendor{hook.vendorPOs.length !== 1 ? "s" : ""}
+            {hook.vendorPOs.length} PO{hook.vendorPOs.length !== 1 ? "s" : ""}
           </Badge>
         </div>
         {!hook.isLocked && hook.getAllSendableProofs().length > 0 && (
@@ -227,7 +244,7 @@ export default function PurchaseOrdersSection({ projectId, data, isLocked }: Pur
       )}
 
       {/* Batch generate all outstanding POs */}
-      {hook.vendorPOs.length > 1 && hook.vendorPOs.some((po) => !hook.getVendorDoc(po.vendor.vendorKey || po.vendor.id)) && (
+      {hook.vendorPOs.length > 1 && hook.vendorPOs.some((po) => !hook.getVendorDoc(po.groupKey)) && (
         <div className="flex items-center justify-between rounded-lg border bg-white px-4 py-3">
           <div className="text-sm">
             <p className="font-medium">Generate POs in bulk</p>
@@ -251,24 +268,22 @@ export default function PurchaseOrdersSection({ projectId, data, isLocked }: Pur
         </Card>
       ) : (
         <div className="space-y-3">
-          {hook.vendorPOs.map((po) => {
-            const vendorKey = po.vendor.vendorKey || po.vendor.id;
-            return (
+          {hook.vendorPOs.map((po) => (
               <VendorCard
-                key={vendorKey}
+                key={po.groupKey}
                 po={po}
-                isExpanded={expandedVendors.has(vendorKey)}
-                onToggle={() => toggleVendor(vendorKey)}
-                vendorDoc={hook.getVendorDoc(vendorKey) || null}
-                vendorItemsHash={hook.vendorHashes[vendorKey] || ""}
+                poEntity={hook.getPOEntity(po.groupKey)}
+                isExpanded={expandedVendors.has(po.groupKey)}
+                onToggle={() => toggleVendor(po.groupKey)}
+                vendorDoc={hook.getVendorDoc(po.groupKey) || null}
+                vendorItemsHash={hook.vendorHashes[po.groupKey] || ""}
                 isLocked={!!hook.isLocked}
                 isGenerating={hook.isGenerating}
-                isVendorGenerating={generatingVendorId === vendorKey}
+                isVendorGenerating={generatingVendorId === po.groupKey}
                 actions={vendorCardActions}
                 context={vendorCardContext}
               />
-            );
-          })}
+          ))}
 
           {/* Grand totals */}
           <Card className="bg-purple-50/60">

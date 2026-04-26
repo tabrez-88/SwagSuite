@@ -68,6 +68,7 @@ export const orders = pgTable("orders", {
   additionalInformation: text("additional_information"), // general additional info
   shippingAddress: text("shipping_address"),
   billingAddress: text("billing_address"),
+  shipDate: timestamp("ship_date"), // Order-level default ship date
   trackingNumber: varchar("tracking_number"),
   shippingMethod: varchar("shipping_method"),
   // Financial Integrations
@@ -126,16 +127,20 @@ export const orderItems = pgTable("order_items", {
   shipToAddressId: varchar("ship_to_address_id"), // Reference to stored address (company_addresses or supplier_addresses)
   shipToAddress: jsonb("ship_to_address"), // Snapshot: { contactName, companyName, street, street2, city, state, zipCode, country, email, phone }
   shipInHandsDate: timestamp("ship_in_hands_date"), // Per-product in-hands date
-  shipFirm: boolean("ship_firm").default(false), // Firm date flag
+  shippingDate: timestamp("shipping_date"), // Per-product ship date (when it leaves vendor)
+  shipFirm: boolean("ship_firm"), // Firm date flag (nullable, no default)
+  shippingAccountId: varchar("shipping_account_id"), // FK to shipping_accounts
   shippingQuote: decimal("shipping_quote", { precision: 10, scale: 2 }), // Shipping cost quote
   // Leg 2: decorator → client (only when shippingDestination = "decorator")
   leg2ShipTo: varchar("leg2_ship_to"), // Destination type for leg 2 (usually "client")
   leg2AddressId: varchar("leg2_address_id"), // Stored address reference
   leg2Address: jsonb("leg2_address"), // Address snapshot
   leg2InHandsDate: timestamp("leg2_in_hands_date"),
-  leg2Firm: boolean("leg2_firm").default(false),
+  leg2ShippingDate: timestamp("leg2_shipping_date"), // Leg 2 ship date
+  leg2Firm: boolean("leg2_firm"), // Firm date flag (nullable, no default)
   leg2ShippingMethod: varchar("leg2_shipping_method"),
   leg2ShippingAccountType: varchar("leg2_shipping_account_type"),
+  leg2ShippingAccountId: varchar("leg2_shipping_account_id"), // FK to shipping_accounts
   leg2ShippingQuote: decimal("leg2_shipping_quote", { precision: 10, scale: 2 }),
   taxCodeId: varchar("tax_code_id"), // Per-item tax code override
   sortOrder: integer("sort_order").default(0),

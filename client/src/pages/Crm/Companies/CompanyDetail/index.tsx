@@ -14,6 +14,7 @@ import ContactsTab from "./sections/ContactsTab";
 import AddressesTab from "./sections/AddressesTab";
 import SocialMediaTab from "./sections/SocialMediaTab";
 import ActivityTab from "./sections/ActivityTab";
+import ShippingAccountsTab from "./sections/ShippingAccountsTab";
 import CompanyFormDialog from "../components/CompanyFormDialog";
 import { useEditCompanyModal } from "./components/useEditCompanyModal";
 
@@ -137,6 +138,7 @@ export default function CompanyDetail() {
           <TabsTrigger className="flex-1" value="projects">Projects</TabsTrigger>
           <TabsTrigger className="flex-1" value="social">Social Media</TabsTrigger>
           <TabsTrigger className="flex-1" value="activity">Activity</TabsTrigger>
+          <TabsTrigger className="flex-1" value="shipping">Shipping</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="space-y-6">
@@ -170,6 +172,10 @@ export default function CompanyDetail() {
 
         <TabsContent value="activity" className="space-y-6">
           <ActivityTab companyId={companyId} />
+        </TabsContent>
+
+        <TabsContent value="shipping" className="space-y-6">
+          <ShippingAccountsTab companyId={String(company.id)} />
         </TabsContent>
       </Tabs>
 

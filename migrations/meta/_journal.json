@@ -253,6 +253,27 @@
       "when": 1777109916397,
       "tag": "0035_misty_matthew_murdock",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1777134061205,
+      "tag": "0036_fancy_stingray",
+      "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1777135630694,
+      "tag": "0037_polite_warbound",
+      "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1777137308799,
+      "tag": "0038_bored_thanos",
+      "breakpoints": true
     }
   ]
 }

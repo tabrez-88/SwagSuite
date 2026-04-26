@@ -28,11 +28,18 @@ export interface VendorArtwork {
 }
 
 export interface VendorPO {
+  groupKey: string;
   vendor: OrderVendor;
   items: EnrichedOrderItem[];
   lines: Record<string, OrderItemLine[]>;
   totalQty: number;
   totalCost: number;
+  label: string;
+  shipToAddress: Record<string, unknown> | null;
+  shipInHandsDate: string | null;
+  shipFirm: boolean | null;
+  shippingMethod: string | null;
+  shippingAccountId: string | null;
 }
 
 // PO Status (urgency)

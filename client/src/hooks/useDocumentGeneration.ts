@@ -12,6 +12,13 @@ export function buildItemsHash(items: any[], type: "quote" | "po" | "sales_order
     id: i.id,
     qty: i.quantity,
     price: type === "quote" || type === "sales_order" ? i.unitPrice : (i.cost || i.unitPrice),
+    ...(type === "po" ? {
+      shipToAddress: i.shipToAddress || null,
+      shipInHandsDate: i.shipInHandsDate || null,
+      shipFirm: i.shipFirm ?? null,
+      shippingMethodOverride: i.shippingMethodOverride || null,
+      shippingAccountId: i.shippingAccountId || null,
+    } : {}),
   }));
   const orderFields = order
     ? type === "quote"

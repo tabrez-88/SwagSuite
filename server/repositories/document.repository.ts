@@ -131,8 +131,17 @@ export class DocumentRepository {
     return updated;
   }
 
+  async unlinkPurchaseOrders(documentId: string) {
+    const { purchaseOrders } = await import("@shared/schema/purchase-order.schema");
+    await db
+      .update(purchaseOrders)
+      .set({ documentId: null, updatedAt: new Date() })
+      .where(eq(purchaseOrders.documentId, documentId));
+  }
+
   async delete(id: string) {
     const { generatedDocuments } = await import("@shared/schema");
+    await this.unlinkPurchaseOrders(id);
     await db.delete(generatedDocuments).where(eq(generatedDocuments.id, id));
   }
 

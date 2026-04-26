@@ -4,6 +4,8 @@ import { useCreateShipment, useUpdateShipment, useDeleteShipment } from "@/servi
 import { useUpdateItemShipping } from "@/services/project-items/mutations";
 import { useCompanyAddresses } from "@/services/company-addresses";
 import { useSupplierAddresses } from "@/services/supplier-addresses";
+import { useShippingAccounts, useCompanyShippingAccounts } from "@/services/shipping-accounts";
+import { useShippingMethods } from "@/services/shipping-methods";
 import { useToast } from "@/hooks/use-toast";
 import { hasTimelineConflict } from "@/lib/dateUtils";
 import type { OrderShipment } from "@shared/schema";
@@ -86,6 +88,27 @@ export function useShippingSection(projectId: string, data: ProjectData) {
     editingItemId && decoratorIdForAddresses ? decoratorIdForAddresses : undefined,
   );
 
+  // ── Shipping accounts & methods ──
+  const { data: orgAccounts = [] } = useShippingAccounts();
+  const { data: clientAccounts = [] } = useCompanyShippingAccounts(companyId || undefined);
+  const { data: shippingMethods = [] } = useShippingMethods();
+
+  // Combine org + client accounts for the picker
+  const allShippingAccounts = useMemo(() => {
+    const combined = [
+      ...orgAccounts.map((a) => ({ ...a, source: "org" as const })),
+      ...clientAccounts.map((a) => ({ ...a, source: "client" as const })),
+    ];
+    return combined.filter((a) => a.isActive);
+  }, [orgAccounts, clientAccounts]);
+
+  // Get filtered methods based on selected account's courier
+  const selectedAccount = allShippingAccounts.find((a) => a.id === editShippingForm.shippingAccountId);
+  const filteredMethods = useMemo(() => {
+    if (!selectedAccount) return shippingMethods.filter((m) => m.isActive);
+    return shippingMethods.filter((m) => m.isActive && (m.courier === selectedAccount.courier || m.courier === "other"));
+  }, [shippingMethods, selectedAccount]);
+
   // ── Mutations ──
   const createMutation = useCreateShipment(projectId);
   const updateMutation = useUpdateShipment(projectId);
@@ -124,17 +147,28 @@ export function useShippingSection(projectId: string, data: ProjectData) {
       shipInHandsDate: item.shipInHandsDate
         ? new Date(item.shipInHandsDate).toISOString().slice(0, 10)
         : order?.supplierInHandsDate
-          ? new Date(order.supplierInHandsDate).toISOString().slice(0, 10)
+          ? (() => {
+              const d = new Date(order.supplierInHandsDate);
+              // Decorator: leg1 default = supplier IHD minus 7 days
+              if (item.shippingDestination === "decorator") d.setDate(d.getDate() - 7);
+              return d.toISOString().slice(0, 10);
+            })()
           : "",
-      shipFirm: item.shipInHandsDate ? (item.shipFirm || false) : (order?.isFirm || false),
+      shipFirm: item.shipFirm ?? order?.isFirm ?? false,
+      shippingAccountId: item.shippingAccountId || "",
       shippingQuote: item.shippingQuote || "",
       leg2ShipTo: item.leg2ShipTo || "client",
       leg2AddressId: item.leg2AddressId || "",
       leg2Address: leg2AddrFinal || null,
-      leg2InHandsDate: item.leg2InHandsDate ? new Date(item.leg2InHandsDate).toISOString().slice(0, 10) : "",
-      leg2Firm: item.leg2Firm || false,
+      leg2InHandsDate: item.leg2InHandsDate
+        ? new Date(item.leg2InHandsDate).toISOString().slice(0, 10)
+        : item.shippingDestination === "decorator" && order?.supplierInHandsDate
+          ? new Date(order.supplierInHandsDate).toISOString().slice(0, 10)
+          : "",
+      leg2Firm: item.leg2Firm ?? order?.isFirm ?? false,
       leg2ShippingMethod: item.leg2ShippingMethod || "",
       leg2ShippingAccountType: item.leg2ShippingAccountType || "",
+      leg2ShippingAccountId: item.leg2ShippingAccountId || "",
       leg2ShippingQuote: item.leg2ShippingQuote || "",
     });
   };
@@ -156,6 +190,7 @@ export function useShippingSection(projectId: string, data: ProjectData) {
       shipToAddress: f.shipToAddress || null,
       shipInHandsDate: f.shipInHandsDate ? new Date(f.shipInHandsDate).toISOString() : null,
       shipFirm: f.shipFirm,
+      shippingAccountId: f.shippingAccountId || null,
       shippingQuote: f.shippingQuote || null,
     };
     // Leg 2 only for decorator
@@ -167,6 +202,7 @@ export function useShippingSection(projectId: string, data: ProjectData) {
       fields.leg2Firm = f.leg2Firm;
       fields.leg2ShippingMethod = f.leg2ShippingMethod || null;
       fields.leg2ShippingAccountType = f.leg2ShippingAccountType || null;
+      fields.leg2ShippingAccountId = f.leg2ShippingAccountId || null;
       fields.leg2ShippingQuote = f.leg2ShippingQuote || null;
     }
     updateItemShippingMutation.mutate(
@@ -282,6 +318,20 @@ export function useShippingSection(projectId: string, data: ProjectData) {
             phone: parsedAddress.phone || "",
           };
           updated.leg2AddressId = "";
+        }
+        // Auto-fill IHDs for decorator flow from order supplier IHD
+        if (order?.supplierInHandsDate) {
+          const sihd = new Date(order.supplierInHandsDate);
+          // Leg 1 (vendor → decorator): 1 week before supplier IHD
+          if (!f.shipInHandsDate) {
+            const leg1Date = new Date(sihd);
+            leg1Date.setDate(leg1Date.getDate() - 7);
+            updated.shipInHandsDate = leg1Date.toISOString().slice(0, 10);
+          }
+          // Leg 2 (decorator → client): supplier IHD as-is
+          if (!f.leg2InHandsDate) {
+            updated.leg2InHandsDate = sihd.toISOString().slice(0, 10);
+          }
         }
       } else if (destination !== f.shippingDestination) {
         // Switching destination — clear address so new auto-fill can work
@@ -555,6 +605,10 @@ export function useShippingSection(projectId: string, data: ProjectData) {
     // Mutation state
     updateItemShippingMutation,
     deleteMutation,
+
+    // Shipping accounts & methods
+    allShippingAccounts,
+    filteredMethods,
 
     // Query client for invalidation
     queryClient,

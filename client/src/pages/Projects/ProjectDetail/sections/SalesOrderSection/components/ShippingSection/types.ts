@@ -38,16 +38,18 @@ export interface ItemShippingFormData {
   shipToAddressId: string;
   shipToAddress: ShippingAddressData | null;
   shipInHandsDate: string;
-  shipFirm: boolean;
+  shipFirm: boolean | null;
+  shippingAccountId: string;
   shippingQuote: string;
   // Leg 2 (only when destination = decorator)
   leg2ShipTo: string;
   leg2AddressId: string;
   leg2Address: ShippingAddressData | null;
   leg2InHandsDate: string;
-  leg2Firm: boolean;
+  leg2Firm: boolean | null;
   leg2ShippingMethod: string;
   leg2ShippingAccountType: string;
+  leg2ShippingAccountId: string;
   leg2ShippingQuote: string;
 }
 
@@ -126,6 +128,7 @@ export const EMPTY_ITEM_SHIPPING: ItemShippingFormData = {
   shipToAddress: null,
   shipInHandsDate: "",
   shipFirm: false,
+  shippingAccountId: "",
   shippingQuote: "",
   leg2ShipTo: "client",
   leg2AddressId: "",
@@ -134,5 +137,6 @@ export const EMPTY_ITEM_SHIPPING: ItemShippingFormData = {
   leg2Firm: false,
   leg2ShippingMethod: "",
   leg2ShippingAccountType: "",
+  leg2ShippingAccountId: "",
   leg2ShippingQuote: "",
 };
