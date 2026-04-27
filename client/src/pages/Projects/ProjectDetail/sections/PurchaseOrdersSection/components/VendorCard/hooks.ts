@@ -3,6 +3,7 @@ import { useProductionStages } from "@/hooks/useProductionStages";
 import { postActivity } from "@/services/activities";
 import { useUpdatePODocMeta } from "@/services/documents/mutations";
 import { useUpdateArtwork } from "@/services/project-items/mutations";
+import { useUpdatePurchaseOrder } from "@/services/purchase-orders";
 import { useNextActionTypesQuery } from "@/services/production/queries";
 import { projectKeys } from "@/services/projects/keys";
 import { useGenerateApproval } from "@/services/projects/mutations";
@@ -19,10 +20,11 @@ interface UseVendorCardMutationsParams {
   allArtworkItems: Record<string, Array<Record<string, unknown>>>;
   primaryContact?: { firstName?: string; lastName?: string; email?: string } | null;
   companyName: string;
+  orderId?: string;
 }
 
 export function useVendorCardMutations({
-  projectId, po, vendorItemsHash, allArtworkItems, primaryContact, companyName,
+  projectId, po, vendorItemsHash, allArtworkItems, primaryContact, companyName, orderId,
 }: UseVendorCardMutationsParams) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -39,9 +41,14 @@ export function useVendorCardMutations({
   }, [productionStages]);
 
   // Compute vendor artworks from po.items + allArtworkItems
+  // Supplier PO: only show proofs for items where supplier does decoration (not third_party)
+  // Decorator PO: show proofs for all items (decorator is responsible for decoration)
+  const isDecorator = po.vendor.role === "decorator";
   const vendorArtworks: VendorArtwork[] = useMemo(() => {
     const artworks: VendorArtwork[] = [];
     po.items.forEach((item) => {
+      // On supplier PO, skip proofing for items with a third-party decorator
+      if (!isDecorator && item.decoratorType === "third_party") return;
       const arts = allArtworkItems?.[item.id] || [];
       arts.forEach((art) => {
         artworks.push({
@@ -53,7 +60,7 @@ export function useVendorCardMutations({
       });
     });
     return artworks;
-  }, [po.items, po.vendor, allArtworkItems]);
+  }, [po.items, po.vendor, allArtworkItems, isDecorator]);
 
   // Metadata helpers
   const initialStageId = getInitialStage()?.id || "created";
@@ -111,6 +118,9 @@ export function useVendorCardMutations({
     },
   }), [_updateArtwork, projectId, queryClient]);
 
+  // PO entity update (vendor notes, internal notes)
+  const updatePurchaseOrderMutation = useUpdatePurchaseOrder(orderId || "");
+
   // Approval link generation
   const generateApprovalMutation = useGenerateApproval(projectId);
 
@@ -146,6 +156,7 @@ export function useVendorCardMutations({
     isVendorDocStale,
     updateDocMetaMutation,
     updateArtworkMutation,
+    updatePurchaseOrderMutation,
     handleOpenArtworkApprovalLink,
   };
 }

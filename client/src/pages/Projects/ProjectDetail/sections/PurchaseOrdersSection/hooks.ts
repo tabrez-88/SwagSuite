@@ -17,7 +17,7 @@ import { useBranding } from "@/services/settings";
 import { fetchSupplierAddresses } from "@/services/supplier-addresses";
 import type { OrderItemLine, GeneratedDocument } from "@shared/schema";
 import { useQuery } from "@tanstack/react-query";
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useRef } from "react";
 import type { PurchaseOrdersSectionProps, VendorPO, VendorArtwork } from "./types";
 
 export function usePurchaseOrdersSection({ projectId, data, isLocked }: PurchaseOrdersSectionProps) {
@@ -69,12 +69,14 @@ export function usePurchaseOrdersSection({ projectId, data, isLocked }: Purchase
     isGenerating,
     generateDocument,
     deleteDocument,
+    startBatch,
+    endBatch,
   } = useDocumentGeneration(projectId);
 
   // Build PO groups (items grouped by vendor + address + dates + shipping method + account)
   const vendorPOs: VendorPO[] = useMemo(() => {
-    return computePOGroups(orderItems, orderVendors, allItemLines, allArtworkItems, data.allArtworkCharges, order);
-  }, [orderItems, orderVendors, allItemLines, allArtworkItems, data, order]);
+    return computePOGroups(orderItems, orderVendors, allItemLines, allArtworkItems, data.allArtworkCharges, order, allItemCharges, data.serviceCharges);
+  }, [orderItems, orderVendors, allItemLines, allArtworkItems, data, order, allItemCharges]);
 
   const grandTotalCost = vendorPOs.reduce((s, po) => s + po.totalCost, 0);
   const grandTotalQty = vendorPOs.reduce((s, po) => s + po.totalQty, 0);
@@ -109,11 +111,15 @@ export function usePurchaseOrdersSection({ projectId, data, isLocked }: Purchase
   const hasSupplierIHD = !!order?.supplierInHandsDate;
 
   // Internal helper for building vendor artworks (used by buildVendorPoDoc)
+  // Supplier PO: only include artwork for items where supplier decorates (not third_party)
+  // Decorator PO: include all artwork
   const getVendorArtworks = (groupKey: string) => {
     const group = vendorPOs.find((g) => g.groupKey === groupKey);
     if (!group) return [];
+    const isDecoratorGroup = group.vendor.role === "decorator";
     const artworks: VendorArtwork[] = [];
     group.items.forEach((item) => {
+      if (!isDecoratorGroup && item.decoratorType === "third_party") return;
       const arts = allArtworkItems?.[item.id] || [];
       arts.forEach((art) => {
         artworks.push({
@@ -131,6 +137,12 @@ export function usePurchaseOrdersSection({ projectId, data, isLocked }: Purchase
 
   // Raw doc meta mutation (no activity logging — used for initial metadata on generate)
   const _updatePODocMeta = useUpdatePODocMeta(projectId);
+  // Pending revision for regenerate flow
+  const _pendingRevision = useRef<number | null>(null);
+  // Pending vendor notes (set by VendorCard before PO entity exists)
+  const _pendingNotes = useRef<Record<string, { vendorNotes: string; internalNotes: string }>>({});
+  // Pending blind ship flag (set by VendorCard before doc exists)
+  const _pendingBlindShip = useRef<Record<string, boolean>>({});
 
   // Build a PO PDF element for a specific group
   const buildVendorPoDoc = useCallback((groupKey: string) => {
@@ -141,7 +153,9 @@ export function usePurchaseOrdersSection({ projectId, data, isLocked }: Purchase
     const vendorId = vendor.id || groupKey;
     const suffix = isDecorator ? `DEC-${vendorId.substring(0, 4).toUpperCase()}` : vendorId.substring(0, 4).toUpperCase();
     const poNumber = `${order?.orderNumber || projectId}-${suffix}`;
-    const docMeta = getVendorDoc(groupKey)?.metadata as Record<string, unknown> | null;
+    const vendorDoc = getVendorDoc(groupKey);
+    const docMeta = vendorDoc?.metadata as Record<string, unknown> | null;
+    const poEntityForGroup = getPOEntity(groupKey);
     return buildPurchaseOrderPdf({
       order,
       vendor,
@@ -150,6 +164,7 @@ export function usePurchaseOrdersSection({ projectId, data, isLocked }: Purchase
       artworkItems: getVendorArtworks(groupKey),
       allArtworkCharges: data.allArtworkCharges || {},
       allItemCharges: data.allItemCharges || {},
+      allItemLines: group.lines,
       serviceCharges: data.serviceCharges || [],
       vendorIHD: (docMeta?.supplierIHD as string) || group.shipInHandsDate || null,
       vendorFirm: group.shipFirm ?? null,
@@ -158,6 +173,9 @@ export function usePurchaseOrdersSection({ projectId, data, isLocked }: Purchase
       vendorAddress: getVendorDefaultAddress(vendor.id),
       poType: isDecorator ? "decorator" : "supplier",
       sellerName: branding?.companyName ?? undefined,
+      vendorNotes: poEntityForGroup?.vendorNotes || _pendingNotes.current[groupKey]?.vendorNotes || null,
+      revision: (docMeta?.revision as number) || undefined,
+      blindShip: !!(docMeta?.blindShip) || !!(_pendingBlindShip.current[groupKey]),
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [vendorPOs, order, data, branding]);
@@ -190,7 +208,7 @@ export function usePurchaseOrdersSection({ projectId, data, isLocked }: Purchase
     if (!pdfDoc) return;
     let poNumber: string;
     try {
-      const { next } = await fetchNextPoSequence();
+      const { next } = await fetchNextPoSequence(projectId);
       const seq = String(next).padStart(2, "0");
       poNumber = `${order?.orderNumber || projectId}-${seq}`;
     } catch {
@@ -213,6 +231,8 @@ export function usePurchaseOrdersSection({ projectId, data, isLocked }: Purchase
           vendorKey: vendor.vendorKey || vendor.id,
           groupKey,
           poType: isDecorator ? "decorator" : "supplier",
+          revision: _pendingRevision.current || (newDoc.metadata as Record<string, unknown>)?.revision || 1,
+          blindShip: _pendingBlindShip.current[groupKey] || false,
         };
         if (orderIHD && !isDecorator) {
           meta.supplierIHD = new Date(orderIHD as unknown as string).toISOString().split("T")[0];
@@ -224,6 +244,7 @@ export function usePurchaseOrdersSection({ projectId, data, isLocked }: Purchase
 
         // Create PO entity if it doesn't exist yet
         if (orderId && !getPOEntity(groupKey)) {
+          const pending = _pendingNotes.current[groupKey];
           try {
             await createPOMutation.mutateAsync({
               poNumber,
@@ -232,6 +253,8 @@ export function usePurchaseOrdersSection({ projectId, data, isLocked }: Purchase
               groupKey,
               documentId: newDoc.id,
               orderItemIds: group.items.map((i) => i.id),
+              vendorNotes: pending?.vendorNotes || undefined,
+              internalNotes: pending?.internalNotes || undefined,
               metadata: {
                 shipToAddress: group.shipToAddress,
                 shipInHandsDate: group.shipInHandsDate,
@@ -253,10 +276,21 @@ export function usePurchaseOrdersSection({ projectId, data, isLocked }: Purchase
       toast({ title: "All POs already generated" });
       return;
     }
-    for (const group of targets) {
-      await handleGeneratePO(group.groupKey, group.vendor.name);
+
+    // Batch mode: suppress generateDocument's per-call query invalidation
+    // to avoid unnecessary mid-loop refetches (performance optimization).
+    startBatch();
+    let generated = 0;
+    try {
+      for (const group of targets) {
+        await handleGeneratePO(group.groupKey, group.vendor.name);
+        generated++;
+      }
+    } finally {
+      // End batch + single invalidation for all generated docs
+      endBatch();
     }
-    toast({ title: `Generated ${targets.length} PO${targets.length > 1 ? "s" : ""}` });
+    toast({ title: `Generated ${generated} PO${generated > 1 ? "s" : ""}` });
   };
 
   const itemsMissingDecorator = useMemo(() => {
@@ -268,13 +302,17 @@ export function usePurchaseOrdersSection({ projectId, data, isLocked }: Purchase
   }, [orderItems, allArtworkItems]);
 
   const handleRegeneratePO = async (doc: GeneratedDocument) => {
+    const oldMeta = doc.metadata as Record<string, unknown> | null;
+    const oldRevision = (oldMeta?.revision as number) || 1;
     await deleteDocument(doc.id);
     await new Promise((r) => setTimeout(r, 300));
-    const meta = doc.metadata as Record<string, unknown> | null;
-    const groupKey = (meta?.groupKey as string) || doc.vendorId || "";
+    const groupKey = (oldMeta?.groupKey as string) || doc.vendorId || "";
     const group = vendorPOs.find((g) => g.groupKey === groupKey);
     const vendorName = group?.vendor.name || doc.vendorName || "";
+    // Store next revision so handleGeneratePO picks it up
+    _pendingRevision.current = oldRevision + 1;
     await handleGeneratePO(groupKey, vendorName);
+    _pendingRevision.current = null;
   };
 
   // Collect all sendable proofs across ALL groups (for "Send All" button in header)
@@ -306,6 +344,7 @@ export function usePurchaseOrdersSection({ projectId, data, isLocked }: Purchase
     allItemCharges,
     allArtworkItems,
     allArtworkCharges: data.allArtworkCharges || {},
+    serviceCharges: data.serviceCharges || [],
     suppliers,
     data,
     isLocked,
@@ -339,5 +378,8 @@ export function usePurchaseOrdersSection({ projectId, data, isLocked }: Purchase
     getPOEntity,
     // Vendor addresses
     getVendorDefaultAddress,
+    // Pending refs (for VendorCard state before PO entity/doc exists)
+    pendingNotesRef: _pendingNotes,
+    pendingBlindShipRef: _pendingBlindShip,
   };
 }

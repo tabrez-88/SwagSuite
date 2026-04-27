@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   useShippingAccounts,
   useCreateShippingAccount,
@@ -12,9 +13,10 @@ import {
   useCreateShippingMethod,
   useUpdateShippingMethod,
   useDeleteShippingMethod,
-  useReorderShippingMethods,
   type ShippingMethod,
 } from "@/services/shipping-methods";
+import { shippingMethodKeys } from "@/services/shipping-methods/keys";
+import { reorderShippingMethods } from "@/services/shipping-methods/requests";
 
 const EMPTY_ACCOUNT_FORM: Partial<ShippingAccount> = {
   accountName: "",
@@ -31,6 +33,7 @@ const EMPTY_METHOD_FORM: Partial<ShippingMethod> = {
 
 export function useShippingAccountsTab() {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
 
   // ── Accounts state ──
   const [isAccountDialogOpen, setIsAccountDialogOpen] = useState(false);
@@ -53,7 +56,6 @@ export function useShippingAccountsTab() {
   const createMethodMutation = useCreateShippingMethod();
   const updateMethodMutation = useUpdateShippingMethod();
   const deleteMethodMutation = useDeleteShippingMethod();
-  const reorderMethodsMutation = useReorderShippingMethods();
 
   // ── Account handlers ──
   const openCreateAccount = () => {
@@ -180,12 +182,22 @@ export function useShippingAccountsTab() {
     });
   };
 
-  const handleMoveMethod = (index: number, direction: "up" | "down") => {
-    const newMethods = [...methods];
-    const swapIndex = direction === "up" ? index - 1 : index + 1;
-    if (swapIndex < 0 || swapIndex >= newMethods.length) return;
-    [newMethods[index], newMethods[swapIndex]] = [newMethods[swapIndex], newMethods[index]];
-    reorderMethodsMutation.mutate(newMethods.map((m) => m.id));
+  const handleReorderMethods = async (sourceIndex: number, destIndex: number) => {
+    const reordered = [...methods];
+    const [moved] = reordered.splice(sourceIndex, 1);
+    reordered.splice(destIndex, 0, moved);
+    const updated = reordered.map((m, i) => ({ ...m, sortOrder: i }));
+
+    // Optimistic: update cache immediately
+    const prev = queryClient.getQueryData(shippingMethodKeys.all);
+    queryClient.setQueryData(shippingMethodKeys.all, updated);
+
+    try {
+      await reorderShippingMethods(updated.map((m) => m.id));
+    } catch {
+      queryClient.setQueryData(shippingMethodKeys.all, prev);
+      toast({ title: "Failed to reorder methods", variant: "destructive" });
+    }
   };
 
   return {
@@ -220,7 +232,7 @@ export function useShippingAccountsTab() {
     handleMethodChange,
     handleMethodSubmit,
     handleDeleteMethod,
-    handleMoveMethod,
+    handleReorderMethods,
     isMethodPending: createMethodMutation.isPending || updateMethodMutation.isPending,
     isMethodDeleting: deleteMethodMutation.isPending,
   };

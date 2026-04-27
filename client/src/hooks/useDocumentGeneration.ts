@@ -1,4 +1,4 @@
-import { useState, useCallback, type ReactElement } from "react";
+import { useState, useCallback, useRef, type ReactElement } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { pdf } from "@react-pdf/renderer";
@@ -60,6 +60,7 @@ export function useDocumentGeneration(projectId: string) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [isGenerating, setIsGenerating] = useState(false);
+  const batchModeRef = useRef(false);
 
   const { data: documents = [] } = useQuery<any[]>({
     queryKey: [`/api/projects/${projectId}/documents`],
@@ -110,7 +111,9 @@ export function useDocumentGeneration(projectId: string) {
       return uploadDocument(projectId, formData);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/documents`] });
+      if (!batchModeRef.current) {
+        queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/documents`] });
+      }
       setIsGenerating(false);
     },
     onError: (error: Error) => {
@@ -151,6 +154,14 @@ export function useDocumentGeneration(projectId: string) {
     [deleteDocumentMutation]
   );
 
+  /** Suppress per-document invalidation during bulk generation */
+  const startBatch = useCallback(() => { batchModeRef.current = true; }, []);
+  /** End batch mode and invalidate documents once */
+  const endBatch = useCallback(() => {
+    batchModeRef.current = false;
+    queryClient.invalidateQueries({ queryKey: [`/api/projects/${projectId}/documents`] });
+  }, [queryClient, projectId]);
+
   return {
     documents,
     quoteDocuments,
@@ -163,5 +174,7 @@ export function useDocumentGeneration(projectId: string) {
     deleteDocument,
     createQuoteApproval: createQuoteApprovalMutation.mutateAsync,
     isDeleting: deleteDocumentMutation.isPending,
+    startBatch,
+    endBatch,
   };
 }

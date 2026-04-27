@@ -111,11 +111,12 @@ export default function PurchaseOrdersSection({ projectId, data, isLocked }: Pur
     allItemCharges: hook.allItemCharges,
     allArtworkItems: hook.allArtworkItems,
     allArtworkCharges: hook.allArtworkCharges,
+    serviceCharges: hook.serviceCharges,
     hasSupplierIHD: hook.hasSupplierIHD,
     getVendorDefaultAddress: hook.getVendorDefaultAddress,
   }), [hook.order, hook.projectId, hook.data,
     hook.allItemCharges, hook.allArtworkItems, hook.allArtworkCharges,
-    hook.hasSupplierIHD, hook.getVendorDefaultAddress]);
+    hook.serviceCharges, hook.hasSupplierIHD, hook.getVendorDefaultAddress]);
 
   // Shared actions for all VendorCards
   const vendorCardActions: VendorCardActions = useMemo(() => ({
@@ -127,6 +128,12 @@ export default function PurchaseOrdersSection({ projectId, data, isLocked }: Pur
     onSendProofs: openSendProofsDialog,
     onPreviewFile: setPreviewFile,
     onSendConfirmation: handleSendConfirmation,
+    onNotesChange: (groupKey: string, notes: { vendorNotes: string; internalNotes: string }) => {
+      hook.pendingNotesRef.current[groupKey] = notes;
+    },
+    onBlindShipChange: (groupKey: string, blindShip: boolean, doc: GeneratedDocument | null) => {
+      hook.pendingBlindShipRef.current[groupKey] = blindShip;
+    },
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }), [hook.handleRegeneratePO]);
 

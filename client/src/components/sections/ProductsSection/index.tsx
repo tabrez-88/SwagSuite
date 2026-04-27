@@ -270,7 +270,7 @@ export default function ProductsSection({ projectId, data, isLocked }: ProductsS
                         value={depositPercent}
                         onChange={(e) => setDepositPercent(e.target.value)}
                         onBlur={() => updateProjectMutation.mutate({ depositPercent })}
-                        className="w-16 h-7 text-xs text-center"
+                        className=" h-7 text-xs text-center"
                       />
                       <span className="text-xs text-gray-500">%</span>
                     </div>

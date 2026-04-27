@@ -219,9 +219,17 @@ export function useShippingSection(projectId: string, data: ProjectData) {
   // Select a stored address → populate form fields
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- addresses come from CompanyAddress | SupplierAddress with varying shapes
   const selectStoredAddress = (addr: any, leg: "leg1" | "leg2") => {
+    // Resolve correct companyName based on leg + destination
+    // leg1 decorator → decorator vendor name; leg2 client → client company name
+    let companyFallback: string | undefined;
+    if (leg === "leg1" && editShippingForm.shippingDestination === "decorator") {
+      companyFallback = orderVendors.find((v) => v.id === editingItem?.decoratorId)?.name;
+    } else if (leg === "leg2") {
+      companyFallback = (data.companyName as string) || undefined;
+    }
     const snapshot: ShippingAddressData = {
       contactName: addr.contactName || "",
-      companyName: addr.companyNameOnDocs || addr.addressName || "",
+      companyName: addr.companyNameOnDocs || companyFallback || addr.addressName || "",
       street: addr.street || "",
       street2: addr.street2 || "",
       city: addr.city || "",
@@ -287,11 +295,13 @@ export function useShippingSection(projectId: string, data: ProjectData) {
         }
       } else if (destination === "decorator" && !f.shipToAddress?.street) {
         // Auto-fill from decorator's saved addresses (supplierAddresses updates via hook)
+        // Use the decorator's vendor name as companyName fallback (not the address label)
+        const decoratorVendor = orderVendors.find((v) => v.id === editingItem?.decoratorId);
         if (supplierAddresses.length > 0) {
           const da = supplierAddresses[0]; // sorted by isDefault desc
           updated.shipToAddress = {
             contactName: "",
-            companyName: da.companyNameOnDocs || da.addressName || "",
+            companyName: da.companyNameOnDocs || decoratorVendor?.name || da.addressName || "",
             street: da.street || "",
             street2: da.street2 || "",
             city: da.city || "",

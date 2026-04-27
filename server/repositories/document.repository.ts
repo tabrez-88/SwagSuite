@@ -45,12 +45,16 @@ export class DocumentRepository {
    * parses the trailing -NN suffix from documentNumber, and returns max+1.
    * Falls back to count+1 when no parseable suffix exists.
    */
-  async getNextPoSequence(): Promise<number> {
+  async getNextPoSequence(orderId?: string): Promise<number> {
     const { generatedDocuments } = await import("@shared/schema");
+    const conditions = [eq(generatedDocuments.documentType, "purchase_order")];
+    if (orderId) {
+      conditions.push(eq(generatedDocuments.orderId, orderId));
+    }
     const rows = await db
       .select({ documentNumber: generatedDocuments.documentNumber })
       .from(generatedDocuments)
-      .where(eq(generatedDocuments.documentType, "purchase_order"));
+      .where(and(...conditions));
     let max = 0;
     for (const row of rows) {
       const match = /-(\d+)$/.exec(row.documentNumber || "");
@@ -59,17 +63,21 @@ export class DocumentRepository {
         if (!isNaN(n) && n > max) max = n;
       }
     }
-    return (max || rows.length) + 1;
+    return max + 1;
   }
 
-  async findExisting(orderId: string, documentType: string, vendorId?: string) {
+  async findExisting(orderId: string, documentType: string, vendorId?: string, documentNumber?: string) {
     const { generatedDocuments } = await import("@shared/schema");
 
     const conditions = [
       eq(generatedDocuments.orderId, orderId),
       eq(generatedDocuments.documentType, documentType),
     ];
-    if (vendorId) {
+    // For POs: same vendor can have multiple POs (different groups/addresses).
+    // Use documentNumber for precise dedup when available.
+    if (documentNumber) {
+      conditions.push(eq(generatedDocuments.documentNumber, documentNumber));
+    } else if (vendorId) {
       conditions.push(eq(generatedDocuments.vendorId, vendorId));
     }
 

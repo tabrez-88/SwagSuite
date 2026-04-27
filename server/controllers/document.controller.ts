@@ -69,9 +69,10 @@ export class DocumentController {
     res.json({ success: true, message: "Document deleted" });
   }
 
-  static async nextPoSequence(_req: Request, res: Response) {
+  static async nextPoSequence(req: Request, res: Response) {
     const { documentRepository } = await import("../repositories/document.repository");
-    const next = await documentRepository.getNextPoSequence();
+    const orderId = req.query.orderId as string | undefined;
+    const next = await documentRepository.getNextPoSequence(orderId);
     res.json({ next });
   }
 }

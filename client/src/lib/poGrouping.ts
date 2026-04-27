@@ -92,6 +92,8 @@ export function computePOGroups(
   allArtworkItems?: Record<string, unknown[]>,
   allArtworkCharges?: Record<string, unknown[]>,
   order?: { isFirm?: boolean | null } | null,
+  allItemCharges?: Record<string, Array<Record<string, unknown>>>,
+  serviceCharges?: Array<Record<string, unknown>>,
 ): POGroup[] {
   const groupMap = new Map<string, POGroup>();
 
@@ -102,16 +104,35 @@ export function computePOGroups(
       : orderItems.filter((i) => i.supplierId === vendor.id);
 
     for (const item of vendorItems) {
+      // Decorator PO = leg 2 (decorator→client), so use leg2 address/date
+      // Supplier PO = leg 1 (supplier→destination), use shipTo address/date
+      const effectiveAddress = isDecorator
+        ? (item.leg2Address as Record<string, unknown>) || (item.shipToAddress as Record<string, unknown>) || null
+        : (item.shipToAddress as Record<string, unknown>) || null;
+      const rawIhd = isDecorator
+        ? (item.leg2InHandsDate as unknown as string) || (item.shipInHandsDate as unknown as string) || null
+        : (item.shipInHandsDate as unknown as string) || null;
+      const effectiveIhd = rawIhd
+        ? new Date(rawIhd).toISOString().slice(0, 10)
+        : null;
+      const effectiveFirm = isDecorator
+        ? (item.leg2Firm as boolean | null) ?? (item.shipFirm as boolean | null) ?? order?.isFirm ?? false
+        : (item.shipFirm as boolean | null) ?? order?.isFirm ?? false;
+      const effectiveMethod = isDecorator
+        ? (item.leg2ShippingMethod as string) || null
+        : (item.shippingMethodOverride as string) || null;
+      const effectiveAccountId = isDecorator
+        ? (item.leg2ShippingAccountId as string) || null
+        : (item.shippingAccountId as string) || null;
+
       const key = buildGroupKey({
         vendorId: vendor.id,
         vendorRole: isDecorator ? "decorator" : "supplier",
-        addressHash: hashAddress(item.shipToAddress),
-        shipInHandsDate: item.shipInHandsDate
-          ? new Date(item.shipInHandsDate as unknown as string).toISOString().slice(0, 10)
-          : null,
-        shipFirm: (item.shipFirm as boolean | null) ?? order?.isFirm ?? false,
-        shippingMethod: (item.shippingMethodOverride as string) || null,
-        shippingAccountId: (item.shippingAccountId as string) || null,
+        addressHash: hashAddress(effectiveAddress),
+        shipInHandsDate: effectiveIhd,
+        shipFirm: effectiveFirm,
+        shippingMethod: effectiveMethod,
+        shippingAccountId: effectiveAccountId,
       });
 
       if (!groupMap.has(key)) {
@@ -123,13 +144,11 @@ export function computePOGroups(
           totalQty: 0,
           totalCost: 0,
           label: buildLabel(vendor, item),
-          shipToAddress: (item.shipToAddress as Record<string, unknown>) || null,
-          shipInHandsDate: item.shipInHandsDate
-            ? new Date(item.shipInHandsDate as unknown as string).toISOString().slice(0, 10)
-            : null,
-          shipFirm: (item.shipFirm as boolean | null) ?? order?.isFirm ?? false,
-          shippingMethod: (item.shippingMethodOverride as string) || null,
-          shippingAccountId: (item.shippingAccountId as string) || null,
+          shipToAddress: effectiveAddress,
+          shipInHandsDate: effectiveIhd,
+          shipFirm: effectiveFirm,
+          shippingMethod: effectiveMethod,
+          shippingAccountId: effectiveAccountId,
         });
       }
 
@@ -166,18 +185,116 @@ export function computePOGroups(
           group.totalQty += qty;
           group.totalCost += qty * cost;
         }
+
+        // Item charges (setup, run charges) for supplier POs
+        const charges = allItemCharges?.[item.id] || [];
+        for (const c of charges) {
+          const cost = parseFloat((c.netCost as string) || (c.amount as string) || "0");
+          if (c.chargeCategory === "run") {
+            group.totalCost += cost * (item.quantity || 1);
+          } else {
+            group.totalCost += cost * ((c.quantity as number) || 1);
+          }
+        }
+
+        // Artwork charges on supplier PO ONLY if item has no third_party decorator
+        if (item.decoratorType !== "third_party") {
+          const itemArts = allArtworkItems?.[item.id] || [];
+          for (const art of itemArts) {
+            const artId = (art as Record<string, unknown>).id as string;
+            const artCharges = (allArtworkCharges?.[artId] || []) as Record<string, unknown>[];
+            for (const c of artCharges) {
+              const cost = parseFloat((c.netCost as string) || "0");
+              const category = c.chargeCategory as string;
+              const qty = category === "run" ? (item.quantity || 1) : ((c.quantity as number) || 1);
+              group.totalCost += cost * qty;
+            }
+          }
+        }
       }
     }
   }
 
-  // Sort: by vendor name, then by first product name for easy scanning
+  // Add service charges (shipping, etc.) to each group by vendorId match
+  if (serviceCharges && serviceCharges.length > 0) {
+    for (const group of groupMap.values()) {
+      const vendorId = group.vendor.id;
+      const matchingCharges = serviceCharges.filter((c) =>
+        c.displayToVendor !== false && (c.vendorId === vendorId || c.vendorId == null),
+      );
+      for (const c of matchingCharges) {
+        const qty = parseFloat(String(c.quantity || "1")) || 1;
+        const cost = parseFloat(String(c.unitCost || "0"));
+        group.totalCost += qty * cost;
+      }
+    }
+  }
+
+  // Sort: pair supplier PO with its decorator PO so they appear adjacent.
+  // Strategy: group by shared item IDs, supplier first then decorator.
   const groups = Array.from(groupMap.values());
-  groups.sort((a, b) => {
+
+  // Build a map: item ID → supplier group key (for linking decorator groups to their supplier counterpart)
+  const itemToSupplierGroup = new Map<string, string>();
+  for (const g of groups) {
+    if (g.vendor.role !== "decorator") {
+      for (const item of g.items) {
+        itemToSupplierGroup.set(item.id, g.groupKey);
+      }
+    }
+  }
+
+  // For each decorator group, find the supplier group that shares the most items
+  const decoratorToSupplier = new Map<string, string>();
+  for (const g of groups) {
+    if (g.vendor.role === "decorator") {
+      // Find supplier groups for each item in this decorator group
+      const supplierKeys = new Map<string, number>();
+      for (const item of g.items) {
+        const sk = itemToSupplierGroup.get(item.id);
+        if (sk) supplierKeys.set(sk, (supplierKeys.get(sk) || 0) + 1);
+      }
+      // Pick the supplier group with most shared items
+      let bestKey = "";
+      let bestCount = 0;
+      for (const [k, c] of supplierKeys) {
+        if (c > bestCount) { bestKey = k; bestCount = c; }
+      }
+      if (bestKey) decoratorToSupplier.set(g.groupKey, bestKey);
+    }
+  }
+
+  // Build ordered list: supplier groups sorted by vendor name, each followed by its decorator groups
+  const supplierGroups = groups.filter((g) => g.vendor.role !== "decorator");
+  supplierGroups.sort((a, b) => {
     const vendorCmp = (a.vendor.name || "").localeCompare(b.vendor.name || "");
     if (vendorCmp !== 0) return vendorCmp;
-    const aProduct = a.items[0]?.productName || "";
-    const bProduct = b.items[0]?.productName || "";
-    return aProduct.localeCompare(bProduct);
+    return (a.items[0]?.productName || "").localeCompare(b.items[0]?.productName || "");
   });
-  return groups;
+
+  const decoratorGroups = groups.filter((g) => g.vendor.role === "decorator");
+  const usedDecorators = new Set<string>();
+  const sorted: POGroup[] = [];
+
+  for (const sg of supplierGroups) {
+    sorted.push(sg);
+    // Append decorator groups linked to this supplier group
+    const linkedDecs = decoratorGroups.filter(
+      (dg) => decoratorToSupplier.get(dg.groupKey) === sg.groupKey,
+    );
+    linkedDecs.sort((a, b) =>
+      (a.items[0]?.productName || "").localeCompare(b.items[0]?.productName || ""),
+    );
+    for (const dg of linkedDecs) {
+      sorted.push(dg);
+      usedDecorators.add(dg.groupKey);
+    }
+  }
+
+  // Append any decorator groups not linked to a supplier (edge case)
+  for (const dg of decoratorGroups) {
+    if (!usedDecorators.has(dg.groupKey)) sorted.push(dg);
+  }
+
+  return sorted;
 }

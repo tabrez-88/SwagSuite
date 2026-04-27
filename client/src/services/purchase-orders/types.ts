@@ -30,6 +30,8 @@ export interface CreatePurchaseOrderData {
   groupKey: string;
   currentStageId?: string | null;
   documentId?: string | null;
+  vendorNotes?: string | null;
+  internalNotes?: string | null;
   orderItemIds?: string[];
   metadata?: Record<string, unknown>;
 }

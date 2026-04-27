@@ -49,8 +49,10 @@ export default function Settings() {
   const [activeTab, setActiveTab] = useTabParam("features");
 
   // Load admin settings from backend (admin/manager only).
-  const isStaff = (user as any)?.role === "admin" || (user as any)?.role === "manager";
-  const { data: adminSettings, isLoading: settingsLoading } = useAdminSettings(isStaff);
+  const isStaff =
+    (user as any)?.role === "admin" || (user as any)?.role === "manager";
+  const { data: adminSettings, isLoading: settingsLoading } =
+    useAdminSettings(isStaff);
 
   const isAdmin =
     (user as any)?.role === "admin" ||
@@ -125,6 +127,14 @@ export default function Settings() {
             <Bell className="w-4 h-4" />
             Notifications
           </TabsTrigger>
+          <TabsTrigger value="forms" className="flex items-center gap-2">
+            <List className="w-4 h-4" />
+            Forms
+          </TabsTrigger>
+          <TabsTrigger value="import" className="flex items-center gap-2">
+            <Brain className="w-4 h-4" />
+            Data Import
+          </TabsTrigger>
           <TabsTrigger
             value="email-reports"
             className="flex items-center gap-2"
@@ -135,6 +145,13 @@ export default function Settings() {
           <TabsTrigger value="email-config" className="flex items-center gap-2">
             <Mail className="w-4 h-4" />
             Email Config
+          </TabsTrigger>
+          <TabsTrigger
+            value="email-templates"
+            className="flex items-center gap-2"
+          >
+            <FileText className="w-4 h-4" />
+            Email Templates
           </TabsTrigger>
           <TabsTrigger value="integrations" className="flex items-center gap-2">
             <Globe className="w-4 h-4" />
@@ -148,15 +165,17 @@ export default function Settings() {
             <Palette className="w-4 h-4" />
             Theme
           </TabsTrigger>
-          <TabsTrigger value="forms" className="flex items-center gap-2">
-            <List className="w-4 h-4" />
-            Forms
-          </TabsTrigger>
-          <TabsTrigger value="production-stages" className="flex items-center gap-2">
+          <TabsTrigger
+            value="production-stages"
+            className="flex items-center gap-2"
+          >
             <Factory className="w-4 h-4" />
             Production Stages
           </TabsTrigger>
-          <TabsTrigger value="decorator-matrix" className="flex items-center gap-2">
+          <TabsTrigger
+            value="decorator-matrix"
+            className="flex items-center gap-2"
+          >
             <Grid3X3 className="w-4 h-4" />
             Decorator Matrix
           </TabsTrigger>
@@ -164,19 +183,25 @@ export default function Settings() {
             <Receipt className="w-4 h-4" />
             Tax Codes
           </TabsTrigger>
-          <TabsTrigger value="email-templates" className="flex items-center gap-2">
-            <FileText className="w-4 h-4" />
-            Email Templates
-          </TabsTrigger>
-          <TabsTrigger value="payment-terms" className="flex items-center gap-2">
+
+          <TabsTrigger
+            value="payment-terms"
+            className="flex items-center gap-2"
+          >
             <CreditCard className="w-4 h-4" />
             Payment Terms
           </TabsTrigger>
-          <TabsTrigger value="shipping-accounts" className="flex items-center gap-2">
+          <TabsTrigger
+            value="shipping-accounts"
+            className="flex items-center gap-2"
+          >
             <Truck className="w-4 h-4" />
             Shipping Accounts
           </TabsTrigger>
-          <TabsTrigger value="imprint-options" className="flex items-center gap-2">
+          <TabsTrigger
+            value="imprint-options"
+            className="flex items-center gap-2"
+          >
             <PaintBucket className="w-4 h-4" />
             Imprint Options
             {imprintPending && imprintPending.count > 0 && (
@@ -184,10 +209,6 @@ export default function Settings() {
                 {imprintPending.count}
               </Badge>
             )}
-          </TabsTrigger>
-          <TabsTrigger value="import" className="flex items-center gap-2">
-            <Brain className="w-4 h-4" />
-            Data Import
           </TabsTrigger>
         </TabsList>
 

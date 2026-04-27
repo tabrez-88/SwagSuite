@@ -46,6 +46,8 @@ temp
 # Attached assets (sesuaikan dengan kebutuhan)
 attached_assets
 docs
+demo
+daily-updates
 
 # Keep important documentation
 !README.md

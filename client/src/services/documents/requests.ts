@@ -28,8 +28,9 @@ export async function createQuoteApproval(
   return res.json();
 }
 
-export async function fetchNextPoSequence(): Promise<any> {
-  const res = await apiRequest("GET", "/api/documents/next-po-sequence");
+export async function fetchNextPoSequence(orderId?: string): Promise<any> {
+  const qs = orderId ? `?orderId=${encodeURIComponent(orderId)}` : "";
+  const res = await apiRequest("GET", `/api/documents/next-po-sequence${qs}`);
   return res.json();
 }
 

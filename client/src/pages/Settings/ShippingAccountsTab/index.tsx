@@ -35,7 +35,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Plus, Pencil, Trash2, Truck, Package, ArrowUp, ArrowDown } from "lucide-react";
+import { DragDropContext, Droppable, Draggable, type DropResult } from "react-beautiful-dnd";
+import { Plus, Pencil, Trash2, Truck, Package, GripVertical } from "lucide-react";
 import { useShippingAccountsTab } from "./hooks";
 import { ShippingAccountForm, COURIER_OPTIONS } from "./components/ShippingAccountForm";
 
@@ -75,78 +76,63 @@ export function ShippingAccountsTab() {
               No shipping methods yet. Click "Add Method" to create your first one.
             </div>
           ) : (
-            <div className="border rounded-lg">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-[60px]">Order</TableHead>
-                    <TableHead>Method Name</TableHead>
-                    <TableHead>Courier</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {hook.methods.map((method, index) => (
-                    <TableRow key={method.id}>
-                      <TableCell>
-                        <div className="flex flex-col gap-0.5">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-5 w-5 p-0"
-                            disabled={index === 0}
-                            onClick={() => hook.handleMoveMethod(index, "up")}
+            <DragDropContext onDragEnd={(result: DropResult) => {
+              if (!result.destination || result.source.index === result.destination.index) return;
+              hook.handleReorderMethods(result.source.index, result.destination.index);
+            }}>
+              <Droppable droppableId="shipping-methods">
+                {(provided) => (
+                  <div className="space-y-2" ref={provided.innerRef} {...provided.droppableProps}>
+                    {hook.methods.map((method, index) => (
+                      <Draggable key={method.id} draggableId={String(method.id)} index={index}>
+                        {(provided, snapshot) => (
+                          <div
+                            ref={provided.innerRef}
+                            {...provided.draggableProps}
+                            className={`flex items-center gap-3 p-3 bg-muted/30 rounded-lg border ${
+                              snapshot.isDragging ? "shadow-lg ring-2 ring-primary/20" : ""
+                            }`}
                           >
-                            <ArrowUp className="w-3 h-3" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-5 w-5 p-0"
-                            disabled={index === hook.methods.length - 1}
-                            onClick={() => hook.handleMoveMethod(index, "down")}
-                          >
-                            <ArrowDown className="w-3 h-3" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                      <TableCell className="font-medium">
-                        <div className="flex items-center gap-2">
-                          {method.name}
-                          {index === 0 && (
-                            <Badge variant="secondary" className="text-xs">
-                              Default
-                            </Badge>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline">{courierLabel(method.courier)}</Badge>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => hook.openEditMethod(method)}
-                          >
-                            <Pencil className="w-3.5 h-3.5" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                            onClick={() => hook.setDeleteMethodId(method.id)}
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
+                            <div {...provided.dragHandleProps}>
+                              <GripVertical className="w-4 h-4 text-muted-foreground cursor-grab" />
+                            </div>
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2">
+                                <span className="font-medium">{method.name}</span>
+                                <Badge variant="outline">{courierLabel(method.courier)}</Badge>
+                                {index === 0 && (
+                                  <Badge variant="secondary" className="text-xs">
+                                    Default
+                                  </Badge>
+                                )}
+                              </div>
+                            </div>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 w-8 p-0"
+                              onClick={() => hook.openEditMethod(method)}
+                            >
+                              <Pencil className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 w-8 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
+                              onClick={() => hook.setDeleteMethodId(method.id)}
+                              disabled={hook.isMethodDeleting}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        )}
+                      </Draggable>
+                    ))}
+                    {provided.placeholder}
+                  </div>
+                )}
+              </Droppable>
+            </DragDropContext>
           )}
         </CardContent>
       </Card>

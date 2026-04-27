@@ -16,8 +16,11 @@ export class DocumentService {
     metadata?: any;
     file: Express.Multer.File;
   }) {
-    // Delete existing duplicates
-    const existingDocs = await documentRepository.findExisting(orderId, data.documentType, data.vendorId);
+    // Delete existing duplicates (for POs, use documentNumber for precise matching
+    // since same vendor can have multiple POs with different group keys)
+    const existingDocs = await documentRepository.findExisting(
+      orderId, data.documentType, data.vendorId, data.documentNumber,
+    );
 
     if (existingDocs.length > 0) {
       for (const oldDoc of existingDocs) {

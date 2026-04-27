@@ -1,9 +1,16 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Switch } from "@/components/ui/switch";
 import { getCloudinaryThumbnail } from "@/lib/media-library";
 import {
   CheckCircle,
+  ChevronDown,
   ExternalLink,
   Eye,
   Loader2,
@@ -14,6 +21,7 @@ import {
 } from "lucide-react";
 import type { VendorArtwork } from "../../types";
 import { PROOF_STATUSES } from "../../types";
+import { formatLabel } from "@/lib/utils";
 
 export interface ArtworkProofItemProps {
   artwork: VendorArtwork;
@@ -97,10 +105,10 @@ export default function ArtworkProofItem({
           <p className="text-xs text-gray-500">
             {art.productName}
             {art.location && (
-              <span className="ml-1 text-gray-400">· {art.location}</span>
+              <span className="ml-1 text-gray-400">· {formatLabel(art.location)}</span>
             )}
             {art.artworkType && (
-              <span className="ml-1 text-gray-400">· {art.artworkType}</span>
+              <span className="ml-1 text-gray-400">· {formatLabel(art.artworkType)}</span>
             )}
           </p>
         </div>
@@ -128,7 +136,39 @@ export default function ArtworkProofItem({
               disabled={isLocked}
             />
             {proofRequired ? (
-              <Badge className={`text-[10px] ${si.color}`}>{si.label}</Badge>
+              !isLocked ? (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      className="inline-flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                      disabled={isUpdating}
+                    >
+                      <Badge className={`text-[10px] ${si.color}`}>{si.label}</Badge>
+                      <ChevronDown className="w-3 h-3 text-gray-400" />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start">
+                    {Object.entries(PROOF_STATUSES)
+                      .filter(([key]) => key !== art.status)
+                      .map(([key, info]) => (
+                        <DropdownMenuItem
+                          key={key}
+                          onClick={() => {
+                            onUpdateArtwork({
+                              artworkId: art.id,
+                              orderItemId: art.orderItemId,
+                              updates: { name: art.name, status: key },
+                            });
+                          }}
+                        >
+                          <Badge className={`text-[10px] mr-2 ${info.color}`}>{info.label}</Badge>
+                        </DropdownMenuItem>
+                      ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              ) : (
+                <Badge className={`text-[10px] ${si.color}`}>{si.label}</Badge>
+              )
             ) : (
               <Badge variant="outline" className="text-[10px] text-gray-400">
                 No Proof
@@ -276,6 +316,7 @@ export default function ArtworkProofItem({
                 <Upload className="w-3 h-3" /> Re-upload Proof
               </Button>
             )}
+
           </div>
         )}
       </div>

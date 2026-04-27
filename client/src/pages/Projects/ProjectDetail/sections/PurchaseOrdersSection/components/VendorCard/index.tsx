@@ -1,6 +1,8 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -10,12 +12,14 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
   AlertTriangle,
+  ArrowRight,
   Building2,
   Calendar,
   ChevronDown,
   ChevronRight,
   ClipboardList,
   Eye,
+  EyeOff,
   FileText,
   Loader2,
   Mail,
@@ -24,9 +28,10 @@ import {
   Package,
   Palette,
   Printer,
+  RefreshCw,
   Send,
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 // ShipStation — uncomment when integration is live
 // import { pushOrderToShipStation } from "@/services/settings/requests";
@@ -55,6 +60,8 @@ export interface VendorCardActions {
   onSendProofs: (artworks: VendorArtwork[]) => void;
   onPreviewFile: (file: { url: string; name: string }) => void;
   onSendConfirmation?: (poEntityId: string) => void;
+  onNotesChange?: (groupKey: string, notes: { vendorNotes: string; internalNotes: string }) => void;
+  onBlindShipChange?: (groupKey: string, blindShip: boolean, doc: GeneratedDocument | null) => void;
 }
 
 export interface VendorCardContext {
@@ -69,6 +76,7 @@ export interface VendorCardContext {
   allItemCharges: Record<string, Array<Record<string, unknown>>>;
   allArtworkItems: Record<string, Array<Record<string, unknown>>>;
   allArtworkCharges: Record<string, Array<Record<string, unknown>>>;
+  serviceCharges: Array<Record<string, unknown>>;
   hasSupplierIHD: boolean;
   getVendorDefaultAddress: (id: string) => Record<string, unknown> | null;
 }
@@ -114,6 +122,7 @@ export default function VendorCard({
     isVendorDocStale,
     updateDocMetaMutation,
     updateArtworkMutation,
+    updatePurchaseOrderMutation,
     handleOpenArtworkApprovalLink,
   } = useVendorCardMutations({
     projectId: context.projectId,
@@ -122,12 +131,43 @@ export default function VendorCard({
     allArtworkItems: context.allArtworkItems,
     primaryContact: context.primaryContact,
     companyName: context.companyName,
+    orderId: context.order?.id as string | undefined,
   });
 
   // Local dialog states
   const [showTextPreview, setShowTextPreview] = useState(false);
   const [showNotifyVendor, setShowNotifyVendor] = useState(false);
+  const [vendorNotesLocal, setVendorNotesLocal] = useState(poEntity?.vendorNotes || "");
+  const [internalNotesLocal, setInternalNotesLocal] = useState(poEntity?.internalNotes || "");
+  const [blindShipLocal, setBlindShipLocal] = useState(
+    !!((vendorDoc?.metadata as Record<string, unknown> | null)?.blindShip),
+  );
   const { toast } = useToast();
+
+  // Sync local state when poEntity / doc changes
+  useEffect(() => {
+    setVendorNotesLocal(poEntity?.vendorNotes || "");
+    setInternalNotesLocal(poEntity?.internalNotes || "");
+  }, [poEntity?.id]);
+  useEffect(() => {
+    setBlindShipLocal(!!((vendorDoc?.metadata as Record<string, unknown> | null)?.blindShip));
+  }, [vendorDoc?.id]);
+
+  const handleVendorNotesBlur = useCallback(() => {
+    if (poEntity) {
+      if (vendorNotesLocal === (poEntity.vendorNotes || "")) return;
+      updatePurchaseOrderMutation.mutate({ id: poEntity.id, data: { vendorNotes: vendorNotesLocal || null } });
+    }
+    actions.onNotesChange?.(vendorKey, { vendorNotes: vendorNotesLocal, internalNotes: internalNotesLocal });
+  }, [poEntity, vendorNotesLocal, internalNotesLocal, updatePurchaseOrderMutation, actions, vendorKey]);
+
+  const handleInternalNotesBlur = useCallback(() => {
+    if (poEntity) {
+      if (internalNotesLocal === (poEntity.internalNotes || "")) return;
+      updatePurchaseOrderMutation.mutate({ id: poEntity.id, data: { internalNotes: internalNotesLocal || null } });
+    }
+    actions.onNotesChange?.(vendorKey, { vendorNotes: vendorNotesLocal, internalNotes: internalNotesLocal });
+  }, [poEntity, internalNotesLocal, vendorNotesLocal, updatePurchaseOrderMutation, actions, vendorKey]);
   // ShipStation export — hidden until integration is live
   // const { data: integrationSettings } = useIntegrationSettings();
   // const isShipStationConnected = !!(integrationSettings as any)?.shipstationConnected;
@@ -143,7 +183,8 @@ export default function VendorCard({
 
   const isDecorator = po.vendor.role === "decorator";
   // Prefer PO entity stage over doc metadata
-  const poStage = poEntity?.currentStageId || (vendorDoc ? getDocStage(vendorDoc) : null);
+  const poStage =
+    poEntity?.currentStageId || (vendorDoc ? getDocStage(vendorDoc) : null);
   const poStatus = vendorDoc ? getDocStatus(vendorDoc) : null;
   const initialStageId = getInitialStage()?.id || "created";
   const stageInfo = poStage
@@ -152,7 +193,7 @@ export default function VendorCard({
   const statusInfo = poStatus ? PO_STATUSES[poStatus] || PO_STATUSES.ok : null;
   const docMeta = vendorDoc?.metadata as Record<string, unknown> | null;
   const vendorIhdValue = docMeta?.supplierIHD;
-  const effectiveIhd = vendorIhdValue || context.order?.supplierInHandsDate;
+  const effectiveIhd = vendorIhdValue || po.shipInHandsDate || context.order?.supplierInHandsDate;
 
   const onUpdateDocMeta = (params: {
     docId: string;
@@ -183,36 +224,58 @@ export default function VendorCard({
               ) : (
                 <ChevronRight className="w-4 h-4 text-gray-400" />
               )}
-              <Building2 className={`w-5 h-5 flex-shrink-0 ${isDecorator ? "text-purple-500" : "text-blue-500"}`} />
+              <Building2
+                className={`w-5 h-5 flex-shrink-0 ${isDecorator ? "text-purple-500" : "text-blue-500"}`}
+              />
               <div className="min-w-0">
                 {/* Line 1: Vendor → Ship To + badges */}
                 <div className="flex items-center gap-2 flex-wrap">
-                  <h3 className="font-semibold text-sm">
-                    {po.vendor.name}
+                  <div className="font-semibold text-sm flex items-center">
+                    <h3>{po.vendor.name}</h3>
+                    <ArrowRight className="w-3 h-3 mx-1" />
                     {(() => {
-                      const shipTo = po.items.find((i) => i.shipToAddress)?.shipToAddress as { companyName?: string; city?: string; state?: string } | null;
+                      // Use group-level shipToAddress (already resolved to leg2 for decorators in poGrouping)
+                      const shipTo = (po.shipToAddress || po.items.find((i) => i.shipToAddress)?.shipToAddress) as {
+                        companyName?: string;
+                        city?: string;
+                        state?: string;
+                      } | null;
                       if (!shipTo) return null;
-                      const dest = shipTo.companyName || [shipTo.city, shipTo.state].filter(Boolean).join(", ");
-                      return dest ? <span className="text-gray-400 font-normal"> - {dest}</span> : null;
+                      const dest =
+                        shipTo.companyName ||
+                        [shipTo.city, shipTo.state].filter(Boolean).join(", ");
+                      return dest ? <span className="">{dest}</span> : null;
                     })()}
-                  </h3>
+                  </div>
                   {isDecorator && (
-                    <Badge variant="outline" className="text-[10px] border-purple-200 text-purple-600 bg-purple-50">
+                    <Badge
+                      variant="outline"
+                      className="text-[10px] border-purple-200 text-purple-600 bg-purple-50"
+                    >
                       Decorator
                     </Badge>
                   )}
                   {stageInfo && (
-                    <Badge variant="outline" className={`text-[10px] ${stageInfo.color}`}>
+                    <Badge
+                      variant="outline"
+                      className={`text-[10px] ${stageInfo.color}`}
+                    >
                       {stageInfo.label}
                     </Badge>
                   )}
                   {statusInfo && poStatus !== "ok" && (
-                    <Badge variant="outline" className={`text-[10px] ${statusInfo.color}`}>
+                    <Badge
+                      variant="outline"
+                      className={`text-[10px] ${statusInfo.color}`}
+                    >
                       {statusInfo.label}
                     </Badge>
                   )}
                   {vendorDoc && isVendorDocStale(vendorDoc) && (
-                    <Badge variant="outline" className="text-[10px] border-orange-300 text-orange-600 bg-orange-50">
+                    <Badge
+                      variant="outline"
+                      className="text-[10px] border-orange-300 text-orange-600 bg-orange-50"
+                    >
                       <AlertTriangle className="w-2.5 h-2.5 mr-0.5" /> Outdated
                     </Badge>
                   )}
@@ -220,7 +283,9 @@ export default function VendorCard({
                 {/* Line 2: Product names */}
                 <p className="text-xs text-gray-500 truncate max-w-[400px]">
                   {(() => {
-                    const names = po.items.map((i) => i.productName).filter(Boolean);
+                    const names = po.items
+                      .map((i) => i.productName)
+                      .filter(Boolean);
                     if (names.length === 0) return "No products";
                     if (names.length <= 2) return names.join(", ");
                     return `${names[0]}, ${names[1]} + ${names.length - 2} more`;
@@ -234,21 +299,42 @@ export default function VendorCard({
                       className={`text-[10px] ${vendorIhdValue ? "bg-blue-50 text-blue-700 border-blue-200" : "bg-gray-50 text-gray-600 border-gray-200"}`}
                     >
                       <Calendar className="w-3 h-3 mr-1" />
-                      Required by: {new Date(effectiveIhd as string).toLocaleDateString()}
+                      Required by:{" "}
+                      {new Date(effectiveIhd as string).toLocaleDateString()}
                     </Badge>
                   ) : (
-                    <Badge variant="outline" className="text-[10px] bg-red-50 text-red-600 border-red-200">
+                    <Badge
+                      variant="outline"
+                      className="text-[10px] bg-red-50 text-red-600 border-red-200"
+                    >
                       No IHD set
                     </Badge>
                   )}
                   {poEntity?.poNumber && (
-                    <span className="text-[10px] text-gray-400">PO# {poEntity.poNumber}</span>
+                    <span className="text-[10px] text-gray-400">
+                      PO# {poEntity.poNumber}
+                    </span>
                   )}
+                  {(() => {
+                    const rev = vendorDoc ? Number((vendorDoc.metadata as Record<string, unknown>)?.revision) : 0;
+                    return rev > 1 ? (
+                      <Badge variant="outline" className="text-[10px] border-amber-200 text-amber-700 bg-amber-50">
+                        <RefreshCw className="w-2.5 h-2.5 mr-0.5" />
+                        Rev {rev}
+                      </Badge>
+                    ) : null;
+                  })()}
                   {poEntity?.confirmedAt && (
-                    <span className="text-[10px] text-green-600">Confirmed {new Date(poEntity.confirmedAt).toLocaleDateString()}</span>
+                    <span className="text-[10px] text-green-600">
+                      Confirmed{" "}
+                      {new Date(poEntity.confirmedAt).toLocaleDateString()}
+                    </span>
                   )}
                   {poEntity?.shippedAt && (
-                    <span className="text-[10px] text-blue-600">Shipped {new Date(poEntity.shippedAt).toLocaleDateString()}</span>
+                    <span className="text-[10px] text-blue-600">
+                      Shipped{" "}
+                      {new Date(poEntity.shippedAt).toLocaleDateString()}
+                    </span>
                   )}
                 </div>
               </div>
@@ -397,14 +483,18 @@ export default function VendorCard({
                           <MessageSquare className="w-4 h-4 mr-2" /> Message
                           Vendor
                         </DropdownMenuItem>
-                        {poEntity && !poEntity.confirmedAt && actions.onSendConfirmation && (
-                          <DropdownMenuItem
-                            onClick={() => actions.onSendConfirmation!(poEntity.id)}
-                          >
-                            <Send className="w-4 h-4 mr-2" /> Send
-                            Confirmation Link
-                          </DropdownMenuItem>
-                        )}
+                        {poEntity &&
+                          !poEntity.confirmedAt &&
+                          actions.onSendConfirmation && (
+                            <DropdownMenuItem
+                              onClick={() =>
+                                actions.onSendConfirmation!(poEntity.id)
+                              }
+                            >
+                              <Send className="w-4 h-4 mr-2" /> Send
+                              Confirmation Link
+                            </DropdownMenuItem>
+                          )}
                         {/* ShipStation export — hidden until integration is live
                         {isShipStationConnected && !!context.order?.id && (
                           <DropdownMenuItem
@@ -458,6 +548,68 @@ export default function VendorCard({
                 initialStageId={initialStageId}
               />
             )}
+
+            {/* Vendor Notes + Blind Ship */}
+            <div className="border-t p-4 space-y-3">
+              <div>
+                <label className="text-xs font-medium text-gray-600 block mb-1">
+                  Vendor Notes (shown on PO)
+                </label>
+                <Textarea
+                  value={vendorNotesLocal}
+                  onChange={(e) => setVendorNotesLocal(e.target.value)}
+                  onBlur={handleVendorNotesBlur}
+                  placeholder="Instructions for this vendor (appears in PO special instructions)"
+                  rows={2}
+                  className="text-sm"
+                  disabled={isLocked}
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-gray-600 block mb-1">
+                  Internal Notes (not shown on PO)
+                </label>
+                <Textarea
+                  value={internalNotesLocal}
+                  onChange={(e) => setInternalNotesLocal(e.target.value)}
+                  onBlur={handleInternalNotesBlur}
+                  placeholder="Internal notes about this vendor PO"
+                  rows={2}
+                  className="text-sm"
+                  disabled={isLocked}
+                />
+              </div>
+              {!isDecorator && (
+                <div className="flex items-center gap-2">
+                  <Switch
+                    checked={blindShipLocal}
+                    onCheckedChange={(checked) => {
+                      setBlindShipLocal(checked);
+                      // Persist to doc metadata if doc exists
+                      if (vendorDoc) {
+                        onUpdateDocMeta({
+                          docId: vendorDoc.id,
+                          updates: {
+                            metadata: {
+                              ...(docMeta || {}),
+                              blindShip: checked,
+                            },
+                          },
+                        });
+                      }
+                      actions.onBlindShipChange?.(vendorKey, checked, vendorDoc);
+                    }}
+                    disabled={isLocked || isDocMetaUpdating}
+                  />
+                  <label className="text-sm font-medium text-gray-700 flex items-center gap-1.5">
+                    <EyeOff className="w-3.5 h-3.5" /> Blind Shipment
+                  </label>
+                  <span className="text-xs text-gray-400">
+                    Vendor will not include their branding or packing slips
+                  </span>
+                </div>
+              )}
+            </div>
 
             {/* Items List */}
             <div className="bg-gray-50/50">
@@ -546,6 +698,9 @@ export default function VendorCard({
               allArtworkItems={context.allArtworkItems}
               allArtworkCharges={context.allArtworkCharges}
               lines={po.lines}
+              isDecorator={isDecorator}
+              serviceCharges={context.serviceCharges}
+              vendorId={po.vendor.id}
             />
 
             {/* Proofing Section */}

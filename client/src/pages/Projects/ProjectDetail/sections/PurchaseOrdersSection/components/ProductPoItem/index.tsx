@@ -64,9 +64,9 @@ export default function ProductPoItem({
               <tr>
                 <th className="text-left p-2 font-medium">Color</th>
                 <th className="text-left p-2 font-medium">Size</th>
-                <th className="text-right p-2 font-medium">Qty</th>
-                <th className="text-right p-2 font-medium">Cost</th>
-                <th className="text-right p-2 font-medium">Amount</th>
+                <th className="text-right p-2 w-16 font-medium">Qty</th>
+                <th className="text-right p-2 w-16 font-medium">Cost</th>
+                <th className="text-right p-2 w-16 font-medium">Amount</th>
               </tr>
             </thead>
             <tbody>
@@ -74,12 +74,12 @@ export default function ProductPoItem({
                 const qty = l.quantity || 0;
                 const cost = parseFloat(l.cost || "0");
                 return (
-                  <tr key={l.id} className="border-b last:border-0">
+                  <tr key={l.id} className="border-b last:border-0 font-bold">
                     <td className="p-2">{l.color || "--"}</td>
                     <td className="p-2">{l.size || "--"}</td>
-                    <td className="p-2 text-right font-medium">{qty}</td>
+                    <td className="p-2 text-right">{qty}</td>
                     <td className="p-2 text-right">${cost.toFixed(2)}</td>
-                    <td className="p-2 text-right font-medium">${(qty * cost).toFixed(2)}</td>
+                    <td className="p-2 text-right">${(qty * cost).toFixed(2)}</td>
                   </tr>
                 );
               })}
