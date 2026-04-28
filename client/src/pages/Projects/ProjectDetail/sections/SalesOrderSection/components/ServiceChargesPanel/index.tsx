@@ -41,8 +41,9 @@ import {
   useDeleteServiceCharge,
 } from "@/services/projects/mutations";
 import { useProjectServiceCharges } from "@/services/projects/queries";
+import { useTaxCodes } from "@/services/tax-codes/queries";
 import type { OrderServiceCharge } from "@shared/schema";
-import { DollarSign, Loader2, Pencil, Plus, Trash2 } from "lucide-react";
+import { Check, DollarSign, Loader2, Pencil, Plus, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 
 const CHARGE_TYPES = [
@@ -70,6 +71,7 @@ interface ChargeFormState {
   unitCost: string;
   unitPrice: string;
   taxable: boolean;
+  taxCodeId: string;
   displayToClient: boolean;
   includeInMargin: boolean;
   notes: string;
@@ -82,6 +84,7 @@ const emptyForm: ChargeFormState = {
   unitCost: "0",
   unitPrice: "0",
   taxable: false,
+  taxCodeId: "",
   displayToClient: true,
   includeInMargin: false,
   notes: "",
@@ -93,6 +96,8 @@ function chargeTypeLabel(type: string) {
 
 export default function ServiceChargesPanel({ projectId, isLocked, embedded, onRegisterAdd }: ServiceChargesPanelProps) {
   const { data: charges = [] } = useProjectServiceCharges(projectId);
+  const { data: taxCodesList = [] } = useTaxCodes();
+  const taxCodeMap = new Map(taxCodesList.map((tc) => [tc.id, tc]));
   const addMutation = useAddServiceCharge(projectId);
   const updateMutation = useUpdateServiceCharge(projectId);
   const deleteMutation = useDeleteServiceCharge(projectId);
@@ -117,6 +122,7 @@ export default function ServiceChargesPanel({ projectId, isLocked, embedded, onR
       unitCost: String(charge.unitCost ?? "0"),
       unitPrice: String(charge.unitPrice ?? "0"),
       taxable: charge.taxable ?? false,
+      taxCodeId: charge.taxCodeId || "",
       displayToClient: charge.displayToClient ?? true,
       includeInMargin: charge.includeInMargin ?? false,
       notes: charge.notes || "",
@@ -132,6 +138,7 @@ export default function ServiceChargesPanel({ projectId, isLocked, embedded, onR
       unitCost: form.unitCost,
       unitPrice: form.unitPrice,
       taxable: form.taxable,
+      taxCodeId: form.taxable && form.taxCodeId ? form.taxCodeId : null,
       displayToClient: form.displayToClient,
       includeInMargin: form.includeInMargin,
       notes: form.notes || null,
@@ -175,6 +182,7 @@ export default function ServiceChargesPanel({ projectId, isLocked, embedded, onR
           <TableHead className="text-black text-center p-3 font-bold w-20">Cost</TableHead>
           <TableHead className="text-black text-center p-3 font-bold w-20">Price</TableHead>
           <TableHead className="text-black text-center p-3 font-bold w-20">Amount</TableHead>
+          <TableHead className="text-black text-center p-3 font-bold w-24">Tax</TableHead>
           {!isLocked && <TableHead className="w-[80px]" />}
         </TableRow>
       </TableHeader>
@@ -199,6 +207,18 @@ export default function ServiceChargesPanel({ projectId, isLocked, embedded, onR
               <TableCell className="text-right">${price.toFixed(2)}</TableCell>
               <TableCell className="text-right font-medium">
                 ${(qty * price).toFixed(2)}
+              </TableCell>
+              <TableCell className="text-center text-xs">
+                {charge.taxable ? (
+                  <span className="inline-flex items-center gap-1">
+                    <Check className="w-3.5 h-3.5 text-green-600" />
+                    {charge.taxCodeId && taxCodeMap.get(charge.taxCodeId) ? (
+                      <span className="text-muted-foreground">{taxCodeMap.get(charge.taxCodeId)!.label}</span>
+                    ) : null}
+                  </span>
+                ) : (
+                  <span className="text-muted-foreground">—</span>
+                )}
               </TableCell>
               {!isLocked && (
                 <TableCell className="text-right">
@@ -360,12 +380,33 @@ export default function ServiceChargesPanel({ projectId, isLocked, embedded, onR
                 <Checkbox
                   id="sc-taxable"
                   checked={form.taxable}
-                  onCheckedChange={(c) => setForm({ ...form, taxable: !!c })}
+                  onCheckedChange={(c) => setForm({ ...form, taxable: !!c, taxCodeId: c ? form.taxCodeId : "" })}
                 />
                 <Label htmlFor="sc-taxable" className="text-sm font-normal cursor-pointer">
                   Taxable
                 </Label>
               </div>
+              {form.taxable && (
+                <div className="ml-6">
+                  <Label className="text-xs text-gray-500">Tax Code</Label>
+                  <Select
+                    value={form.taxCodeId || "__order_default__"}
+                    onValueChange={(val) => setForm({ ...form, taxCodeId: val === "__order_default__" ? "" : val })}
+                  >
+                    <SelectTrigger className="mt-1">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__order_default__">Use Order Tax Code (default)</SelectItem>
+                      {taxCodesList.map((tc) => (
+                        <SelectItem key={tc.id} value={String(tc.id)}>
+                          {tc.label} ({tc.rate}%)
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
               <div className="flex items-center gap-2">
                 <Checkbox
                   id="sc-display"

@@ -203,6 +203,39 @@ async function recalculateOrderTotals(orderId: string) {
             // Resolve per-item TaxJar product codes
             const taxCodeMap = new Map(itemTaxCodesAll.map(tc => [tc.id, tc]));
 
+            // Per-charge service charge handling for TaxJar:
+            // Non-taxable service charges must be subtracted from the amount sent to TaxJar.
+            // Taxable service charges are sent as individual line_items with their tax code.
+            const scTaxCodeIdsTJ = [...new Set(serviceCharges.map((c: any) => c.taxCodeId).filter(Boolean))];
+            const scTaxCodesTJ = scTaxCodeIdsTJ.length > 0
+              ? await db.select().from(taxCodes).where(inArray(taxCodes.id, scTaxCodeIdsTJ))
+              : [];
+            const scTaxCodeMapTJ = new Map(scTaxCodesTJ.map(tc => [tc.id, tc]));
+
+            let nonTaxableServiceTotal = 0;
+            const taxableServiceLineItems: Array<{ id: string; quantity: number; unit_price: number; discount: number; product_tax_code?: string }> = [];
+
+            for (const sc of serviceCharges) {
+              if ((sc as any).displayToClient === false) continue;
+              const qty = (sc as any).quantity || 1;
+              const price = parseFloat((sc as any).unitPrice || "0");
+              if (qty * price <= 0) continue;
+
+              if (!(sc as any).taxable) {
+                nonTaxableServiceTotal += qty * price;
+              } else {
+                const chargeTaxCode = (sc as any).taxCodeId ? scTaxCodeMapTJ.get((sc as any).taxCodeId) : null;
+                const productTaxCode = chargeTaxCode?.taxjarProductCode || orderTaxCode?.taxjarProductCode || undefined;
+                taxableServiceLineItems.push({
+                  id: `sc_${(sc as any).id}`,
+                  quantity: qty,
+                  unit_price: price,
+                  discount: 0,
+                  ...(productTaxCode ? { product_tax_code: productTaxCode } : {}),
+                });
+              }
+            }
+
             const taxResult = await taxService.calculateTax({
               from_country: fromCountry,
               from_state: fromState,
@@ -214,19 +247,22 @@ async function recalculateOrderTotals(orderId: string) {
               to_zip: shippingAddr.zipCode,
               to_city: shippingAddr.city || "",
               to_street: shippingAddr.street || shippingAddr.address || "",
-              amount: discountedSubtotal,
+              amount: discountedSubtotal - nonTaxableServiceTotal,
               shipping: shippingTotal,
-              line_items: allItems.map((item: any) => {
-                const itemTaxCode = item.taxCodeId ? taxCodeMap.get(item.taxCodeId) : null;
-                const productTaxCode = itemTaxCode?.taxjarProductCode || orderTaxCode?.taxjarProductCode || undefined;
-                return {
-                  id: item.id,
-                  quantity: item.quantity,
-                  unit_price: parseFloat(item.unitPrice) || 0,
-                  discount: 0,
-                  ...(productTaxCode ? { product_tax_code: productTaxCode } : {}),
-                };
-              }),
+              line_items: [
+                ...allItems.map((item: any) => {
+                  const itemTaxCode = item.taxCodeId ? taxCodeMap.get(item.taxCodeId) : null;
+                  const productTaxCode = itemTaxCode?.taxjarProductCode || orderTaxCode?.taxjarProductCode || undefined;
+                  return {
+                    id: item.id,
+                    quantity: item.quantity,
+                    unit_price: parseFloat(item.unitPrice) || 0,
+                    discount: 0,
+                    ...(productTaxCode ? { product_tax_code: productTaxCode } : {}),
+                  };
+                }),
+                ...taxableServiceLineItems,
+              ],
             });
             tax = taxResult.amount_to_collect;
             taxSource = "taxjar";
@@ -259,9 +295,34 @@ async function recalculateOrderTotals(orderId: string) {
         }
       }
 
-      // Tax additional/service/artwork charges at order rate (only when order is not exempt)
+      // Tax additional/artwork charges at order rate (only when order is not exempt)
       if (orderRate > 0) {
-        manualTax += (additionalChargesTotal + serviceChargesTotal + artworkChargesTotal) * (orderRate / 100);
+        manualTax += (additionalChargesTotal + artworkChargesTotal) * (orderRate / 100);
+      }
+
+      // Tax service charges per-charge: respect taxable flag + optional taxCodeId override
+      const scTaxCodeIds = [...new Set(serviceCharges.map((c: any) => c.taxCodeId).filter(Boolean))];
+      const scTaxCodes = scTaxCodeIds.length > 0
+        ? await db.select().from(taxCodes).where(inArray(taxCodes.id, scTaxCodeIds))
+        : [];
+      const scTaxCodeMap = new Map(scTaxCodes.map(tc => [tc.id, tc]));
+
+      for (const sc of serviceCharges) {
+        if ((sc as any).displayToClient === false) continue; // non-client charges not in subtotal
+        if (!(sc as any).taxable) continue; // not taxable → skip
+
+        const qty = (sc as any).quantity || 1;
+        const price = parseFloat((sc as any).unitPrice || "0");
+        const chargeAmount = qty * price;
+        if (chargeAmount <= 0) continue;
+
+        const chargeTaxCode = (sc as any).taxCodeId ? scTaxCodeMap.get((sc as any).taxCodeId) : null;
+        if (chargeTaxCode?.isExempt === true) continue; // charge tax code is exempt
+
+        const rate = chargeTaxCode ? parseFloat(chargeTaxCode.rate || "0") : orderRate;
+        if (rate > 0) {
+          manualTax += chargeAmount * (rate / 100);
+        }
       }
 
       if (manualTax > 0) {

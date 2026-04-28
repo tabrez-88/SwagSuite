@@ -337,12 +337,16 @@ export function PurchaseOrderPdf({
         )}
         {/* ── Shipping instructions (account type + method) ───── */}
         {(() => {
-          const shippingItem = vendorItems.find(
-            (i: any) => i.shippingAccountType,
-          );
+          const shippingItem = isDecoratorPO
+            ? vendorItems.find((i: any) => i.leg2ShippingAccountType || i.shippingAccountType)
+            : vendorItems.find((i: any) => i.shippingAccountType);
           if (!shippingItem) return null;
-          const acctType = shippingItem.shippingAccountType;
-          const method = shippingItem.shippingMethodOverride;
+          const acctType = isDecoratorPO
+            ? (shippingItem.leg2ShippingAccountType || shippingItem.shippingAccountType)
+            : shippingItem.shippingAccountType;
+          const method = isDecoratorPO
+            ? (shippingItem.leg2ShippingMethod || shippingItem.shippingMethodOverride)
+            : shippingItem.shippingMethodOverride;
           const acctLabels: Record<string, string> = {
             supplier:
               "SUPPLIER ACCOUNT — Ship on your account, include freight on invoice",
