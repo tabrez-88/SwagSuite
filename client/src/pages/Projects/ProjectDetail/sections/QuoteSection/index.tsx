@@ -16,6 +16,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { ArrowRight, Info } from "lucide-react";
+import { format } from "date-fns";
 import LockBanner from "@/components/shared/LockBanner";
 import ProjectInfoBar from "@/components/layout/ProjectInfoBar";
 import StageConversionDialog from "../../components/StageConversionDialog";
@@ -83,29 +84,36 @@ export default function QuoteSection(props: QuoteSectionProps) {
 
       <ProjectInfoBar companyName={companyName} primaryContact={primaryContact} />
 
-      <div className="flex items-center justify-between">
-        <div>
-          <label className="text-xs font-medium text-gray-500 block mb-1">Status</label>
-          <Select value={currentStatus} onValueChange={(val) => updateStatusMutation.mutate(val)} disabled={isLocked}>
-            <SelectTrigger className="w-[180px] h-9">
-              <SelectValue>
-                <span className="flex items-center gap-2">
-                  <span className={`inline-block w-2 h-2 rounded-full ${statusInfo.color.split(" ")[0]}`} />
-                  {statusInfo.label}
-                </span>
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              {quoteStatuses.map((s) => (
-                <SelectItem key={s.value} value={s.value}>
+      <div className="flex items-center justify-between flex-wrap gap-4">
+        <div className="flex items-center gap-6 flex-wrap">
+          <div>
+            <label className="text-xs font-medium text-gray-500 block mb-1">Status</label>
+            <Select value={currentStatus} onValueChange={(val) => updateStatusMutation.mutate(val)} disabled={isLocked}>
+              <SelectTrigger className="w-[180px] h-9">
+                <SelectValue>
                   <span className="flex items-center gap-2">
-                    <span className={`inline-block w-2 h-2 rounded-full ${s.color.split(" ")[0]}`} />
-                    {s.label}
+                    <span className={`inline-block w-2 h-2 rounded-full ${statusInfo.color.split(" ")[0]}`} />
+                    {statusInfo.label}
                   </span>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {quoteStatuses.map((s) => (
+                  <SelectItem key={s.value} value={s.value}>
+                    <span className="flex items-center gap-2">
+                      <span className={`inline-block w-2 h-2 rounded-full ${s.color.split(" ")[0]}`} />
+                      {s.label}
+                    </span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div>
+            <label className="text-xs font-medium text-gray-500 block mb-1">Quote Date</label>
+            <span className="text-sm font-medium">{order.createdAt ? format(new Date(String(order.createdAt)), "MMM d, yyyy") : "—"}</span>
+          </div>
         </div>
 
         {!isLocked && (

@@ -1,10 +1,14 @@
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import {
-  CheckCircle2, XCircle, Clock, AlertCircle, Package, FileText, Mail,
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  CheckCircle2, XCircle, Clock, AlertCircle, Package, FileText, Mail, Send,
   ZoomIn, ZoomOut, RotateCw, Maximize2, Minimize2, Palette, History, Image,
 } from "lucide-react";
 import { useApproval } from "./hooks";
@@ -41,6 +45,19 @@ function ApprovalPage() {
     toggleFullscreen,
   } = useApproval();
 
+  const [supportOpen, setSupportOpen] = useState(false);
+  const [supportMessage, setSupportMessage] = useState("");
+
+  const handleSendSupport = () => {
+    const orderNum = approval?.order?.orderNumber || "N/A";
+    const product = approval?.orderItem?.productName || "";
+    const subject = encodeURIComponent(`Artwork Question - Order #${orderNum}${product ? ` - ${product}` : ""}`);
+    const body = encodeURIComponent(supportMessage);
+    window.open(`mailto:orders@liquidscreendesign.com?subject=${subject}&body=${body}`, "_self");
+    setSupportOpen(false);
+    setSupportMessage("");
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex items-center justify-center">
@@ -64,11 +81,18 @@ function ApprovalPage() {
             <p className="text-gray-600 mb-4">
               This approval link is invalid or has expired. Please contact support if you believe this is an error.
             </p>
-            <a href="mailto:orders@liquidscreendesign.com">
-              <Button variant="outline"><Mail className="w-4 h-4 mr-2" /> Contact Support</Button>
-            </a>
+            <Button variant="outline" onClick={() => setSupportOpen(true)}>
+              <Mail className="w-4 h-4 mr-2" /> Contact Support
+            </Button>
           </CardContent>
         </Card>
+        <ContactSupportDialog
+          open={supportOpen}
+          onOpenChange={setSupportOpen}
+          message={supportMessage}
+          onMessageChange={setSupportMessage}
+          onSend={handleSendSupport}
+        />
       </div>
     );
   }
@@ -397,17 +421,61 @@ function ApprovalPage() {
                 <p className="text-xs text-blue-700 mb-2">
                   Questions about the artwork? Contact our team.
                 </p>
-                <Button variant="outline" size="sm" asChild>
-                  <a href="mailto:orders@liquidscreendesign.com">
-                    <Mail className="w-3 h-3 mr-1.5" /> Contact Support
-                  </a>
+                <Button variant="outline" size="sm" onClick={() => setSupportOpen(true)}>
+                  <Mail className="w-3 h-3 mr-1.5" /> Contact Support
                 </Button>
               </CardContent>
             </Card>
           </div>
         </div>
       </div>
+      <ContactSupportDialog
+        open={supportOpen}
+        onOpenChange={setSupportOpen}
+        message={supportMessage}
+        onMessageChange={setSupportMessage}
+        onSend={handleSendSupport}
+      />
     </div>
+  );
+}
+
+function ContactSupportDialog({
+  open, onOpenChange, message, onMessageChange, onSend,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  message: string;
+  onMessageChange: (msg: string) => void;
+  onSend: () => void;
+}) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Mail className="w-4 h-4" /> Contact Support
+          </DialogTitle>
+          <DialogDescription>
+            Describe your question or issue and we'll get back to you as soon as possible.
+          </DialogDescription>
+        </DialogHeader>
+        <Textarea
+          placeholder="What do you need help with? (e.g., artwork looks different than expected, need color changes, file format questions...)"
+          value={message}
+          onChange={(e) => onMessageChange(e.target.value)}
+          rows={4}
+        />
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button onClick={onSend} disabled={!message.trim()}>
+            <Send className="w-4 h-4 mr-1.5" /> Open Email
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 

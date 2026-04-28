@@ -1,7 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
 import EditableAddress from "@/components/shared/EditableAddress";
 import { Calculator, ClipboardList, Loader2, MapPin, Pencil } from "lucide-react";
 import { format } from "date-fns";
@@ -55,16 +54,15 @@ export default function QuoteDetailsCard({
             )}
           </div>
         </CardHeader>
-        <CardContent className="space-y-3">
+        <CardContent className="space-y-4">
+          {/* Introduction */}
+          <div>
+            <p className="text-xs font-medium text-gray-500 mb-1">Introduction</p>
+            <p className="text-sm text-gray-700 whitespace-pre-wrap">{order?.quoteIntroduction || <span className="text-gray-400 italic">No introduction</span>}</p>
+          </div>
+
+          {/* Dates, Business, Tax fields */}
           <div className="grid grid-cols-2 gap-x-8 gap-y-2">
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-muted-foreground">Quote Date</span>
-              <span className="text-sm font-medium">
-                {order?.createdAt
-                  ? format(new Date(String(order.createdAt)), "MMM d, yyyy")
-                  : "—"}
-              </span>
-            </div>
             <div className="flex justify-between items-center">
               <span className="text-sm text-muted-foreground">In-Hands Date</span>
               <span className="text-sm font-medium">
@@ -130,12 +128,9 @@ export default function QuoteDetailsCard({
               </div>
             </div>
           </div>
-          <Separator className="my-2" />
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
-            <div className="col-span-2">
-              <p className="text-xs font-medium text-gray-500 mb-1">Introduction</p>
-              <p className="text-sm text-gray-700 whitespace-pre-wrap">{order?.quoteIntroduction || <span className="text-gray-400 italic">No introduction</span>}</p>
-            </div>
+
+          {/* Supplier Notes & Additional Info */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
             <div>
               <p className="text-xs font-medium text-gray-500 mb-1">Supplier Notes</p>
               <p className="text-sm text-gray-700 whitespace-pre-wrap">{order?.supplierNotes || <span className="text-gray-400 italic">No supplier notes</span>}</p>

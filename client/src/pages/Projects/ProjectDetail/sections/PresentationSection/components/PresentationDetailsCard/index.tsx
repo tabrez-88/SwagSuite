@@ -32,25 +32,28 @@ export default function PresentationDetailsCard({
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
+        {/* Introduction */}
         <div>
-          <label className="text-xs font-medium text-gray-500 block mb-1">Introduction</label>
+          <p className="text-xs font-medium text-gray-500 mb-1">Introduction</p>
           <p className="text-sm text-gray-700 whitespace-pre-wrap">{introduction || <span className="text-gray-400 italic">No introduction</span>}</p>
         </div>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-2">
-          <div>
-            <label className="text-xs font-medium text-gray-500 block mb-0.5">Client Contact</label>
-            <span className="text-sm font-medium">{selectedContactName || "—"}</span>
-          </div>
-          <div>
-            <label className="text-xs font-medium text-gray-500 block mb-0.5">Expiry Date</label>
+
+        {/* Dates, Business, Flags */}
+        <div className="grid grid-cols-2 gap-x-8 gap-y-2">
+          <div className="flex justify-between items-center">
+            <span className="text-sm text-muted-foreground">Expiry Date</span>
             <span className="text-sm font-medium">{expiryDate ? format(new Date(expiryDate + "T00:00:00"), "MMM d, yyyy") : "—"}</span>
           </div>
-          <div>
-            <label className="text-xs font-medium text-gray-500 block mb-0.5">Currency</label>
+          <div className="flex justify-between items-center">
+            <span className="text-sm text-muted-foreground">Client Contact</span>
+            <span className="text-sm font-medium">{selectedContactName || "—"}</span>
+          </div>
+          <div className="flex justify-between items-center">
+            <span className="text-sm text-muted-foreground">Currency</span>
             <span className="text-sm font-medium">{currency || "USD"}</span>
           </div>
-          <div>
-            <label className="text-xs font-medium text-gray-500 block mb-0.5">Hide Pricing</label>
+          <div className="flex justify-between items-center">
+            <span className="text-sm text-muted-foreground">Hide Pricing</span>
             <span className="text-sm font-medium">{hidePricing ? "Yes" : "No"}</span>
           </div>
         </div>

@@ -52,15 +52,40 @@ export default function OrderInfoCard({
             <p className="text-sm text-gray-700 whitespace-pre-wrap">{order.notes || <span className="text-gray-400 italic">No introduction</span>}</p>
           </div>
 
-          {/* Terms, Dates, Firm */}
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-x-8 gap-y-3">
+          {/* Dates, Business, Tax */}
+          <div className="grid grid-cols-2 gap-x-8 gap-y-2">
+            {/* Dates group */}
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-muted-foreground">In-Hands Date</span>
+              <span className="text-sm font-medium">
+                {order.inHandsDate ? format(new Date(String(order.inHandsDate)), "MMM d, yyyy") : "—"}
+              </span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-muted-foreground">Event Date</span>
+              <span className="text-sm font-medium">
+                {order.eventDate ? format(new Date(String(order.eventDate)), "MMM d, yyyy") : "—"}
+              </span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-muted-foreground">Supplier In-Hands</span>
+              <span className="text-sm font-medium">
+                {order.supplierInHandsDate ? format(new Date(String(order.supplierInHandsDate)), "MMM d, yyyy") : "—"}
+              </span>
+            </div>
+
+            {/* Business group */}
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-muted-foreground">Customer PO</span>
+              <span className="text-sm font-medium">{order.customerPo || "—"}</span>
+            </div>
             <div className="flex justify-between items-center">
               <span className="text-sm text-muted-foreground">Payment Terms</span>
               <span className="text-sm font-medium">{order.paymentTerms || "—"}</span>
             </div>
             <div className="flex justify-between items-center">
-              <span className="text-sm text-muted-foreground">Customer PO</span>
-              <span className="text-sm font-medium">{order.customerPo || "—"}</span>
+              <span className="text-sm text-muted-foreground">Currency</span>
+              <span className="text-sm font-medium">{order.currency || "USD"}</span>
             </div>
             <div className="flex justify-between items-center">
               <span className="text-sm text-muted-foreground">Default Margin</span>
@@ -78,6 +103,8 @@ export default function OrderInfoCard({
                 </span>
               </div>
             )}
+
+            {/* Tax group */}
             <div className="flex justify-between items-center">
               <span className="text-sm text-muted-foreground">Tax Code</span>
               <span className="text-sm font-medium">
@@ -125,24 +152,6 @@ export default function OrderInfoCard({
                   </Button>
                 )}
               </div>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-muted-foreground">In-Hands Date</span>
-              <span className="text-sm font-medium">
-                {order.inHandsDate ? format(new Date(String(order.inHandsDate)), "MMM d, yyyy") : "—"}
-              </span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-muted-foreground">Event Date</span>
-              <span className="text-sm font-medium">
-                {order.eventDate ? format(new Date(String(order.eventDate)), "MMM d, yyyy") : "—"}
-              </span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-muted-foreground">Supplier In-Hands</span>
-              <span className="text-sm font-medium">
-                {order.supplierInHandsDate ? format(new Date(String(order.supplierInHandsDate)), "MMM d, yyyy") : "—"}
-              </span>
             </div>
           </div>
 
