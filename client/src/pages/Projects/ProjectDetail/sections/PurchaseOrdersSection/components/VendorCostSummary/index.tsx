@@ -8,13 +8,11 @@ export interface VendorCostSummaryProps {
   allArtworkCharges: Record<string, Array<Record<string, unknown>>>;
   lines: Record<string, OrderItemLine[]>;
   isDecorator?: boolean;
-  serviceCharges?: Array<Record<string, unknown>>;
-  vendorId?: string;
 }
 
 export default function VendorCostSummary({
   items, allItemCharges, allArtworkItems, allArtworkCharges, lines,
-  isDecorator = false, serviceCharges = [], vendorId,
+  isDecorator = false,
 }: VendorCostSummaryProps) {
   let productSubtotal = 0;
   let runChargesTotal = 0;
@@ -54,18 +52,8 @@ export default function VendorCostSummary({
     });
   });
 
-  // Service charges (shipping, etc.) filtered by vendorId
-  const vendorServiceCharges = serviceCharges.filter((c) =>
-    c.displayToVendor !== false && (c.vendorId === vendorId || c.vendorId == null),
-  );
-  const serviceChargesTotal = vendorServiceCharges.reduce((sum, c) => {
-    const qty = parseFloat(String(c.quantity || "1")) || 1;
-    const cost = parseFloat(String(c.unitCost || "0"));
-    return sum + qty * cost;
-  }, 0);
-
-  const vendorTotal = productSubtotal + runChargesTotal + fixedChargesTotal + artworkChargesTotal + serviceChargesTotal;
-  const hasCharges = runChargesTotal > 0 || fixedChargesTotal > 0 || artworkChargesTotal > 0 || serviceChargesTotal > 0;
+  const vendorTotal = productSubtotal + runChargesTotal + fixedChargesTotal + artworkChargesTotal;
+  const hasCharges = runChargesTotal > 0 || fixedChargesTotal > 0 || artworkChargesTotal > 0;
 
   if (!hasCharges && !isDecorator) return null;
 
@@ -94,12 +82,6 @@ export default function VendorCostSummary({
           <div className="flex justify-between">
             <span className="text-amber-600">Artwork Charges</span>
             <span className="font-bold text-amber-600">${artworkChargesTotal.toFixed(2)}</span>
-          </div>
-        )}
-        {serviceChargesTotal > 0 && (
-          <div className="flex justify-between">
-            <span className="text-green-600">Shipping / Services</span>
-            <span className="font-bold text-green-600">${serviceChargesTotal.toFixed(2)}</span>
           </div>
         )}
         <div className="flex justify-between pt-1 border-t border-gray-200">

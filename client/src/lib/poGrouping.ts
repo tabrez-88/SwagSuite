@@ -93,7 +93,6 @@ export function computePOGroups(
   allArtworkCharges?: Record<string, unknown[]>,
   order?: { isFirm?: boolean | null } | null,
   allItemCharges?: Record<string, Array<Record<string, unknown>>>,
-  serviceCharges?: Array<Record<string, unknown>>,
 ): POGroup[] {
   const groupMap = new Map<string, POGroup>();
 
@@ -211,21 +210,6 @@ export function computePOGroups(
             }
           }
         }
-      }
-    }
-  }
-
-  // Add service charges (shipping, etc.) to each group by vendorId match
-  if (serviceCharges && serviceCharges.length > 0) {
-    for (const group of groupMap.values()) {
-      const vendorId = group.vendor.id;
-      const matchingCharges = serviceCharges.filter((c) =>
-        c.displayToVendor !== false && (c.vendorId === vendorId || c.vendorId == null),
-      );
-      for (const c of matchingCharges) {
-        const qty = parseFloat(String(c.quantity || "1")) || 1;
-        const cost = parseFloat(String(c.unitCost || "0"));
-        group.totalCost += qty * cost;
       }
     }
   }

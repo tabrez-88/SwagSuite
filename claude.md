@@ -64,3 +64,4 @@ For detailed system docs (media library, PO system, SO/approval, image proxy, lo
 ## Session Rules
 - Always use /caveman when we start a new claude session
 - Before editing any file, read it first. Before modifying a function, grep for all callers. Research before you edit.
+- Always to look .claude/rules because we want anything proper following these rules

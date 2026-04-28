@@ -75,7 +75,7 @@ export function usePurchaseOrdersSection({ projectId, data, isLocked }: Purchase
 
   // Build PO groups (items grouped by vendor + address + dates + shipping method + account)
   const vendorPOs: VendorPO[] = useMemo(() => {
-    return computePOGroups(orderItems, orderVendors, allItemLines, allArtworkItems, data.allArtworkCharges, order, allItemCharges, data.serviceCharges);
+    return computePOGroups(orderItems, orderVendors, allItemLines, allArtworkItems, data.allArtworkCharges, order, allItemCharges);
   }, [orderItems, orderVendors, allItemLines, allArtworkItems, data, order, allItemCharges]);
 
   const grandTotalCost = vendorPOs.reduce((s, po) => s + po.totalCost, 0);
@@ -151,11 +151,13 @@ export function usePurchaseOrdersSection({ projectId, data, isLocked }: Purchase
     const { vendor, items } = group;
     const isDecorator = vendor.role === "decorator";
     const vendorId = vendor.id || groupKey;
-    const suffix = isDecorator ? `DEC-${vendorId.substring(0, 4).toUpperCase()}` : vendorId.substring(0, 4).toUpperCase();
-    const poNumber = `${order?.orderNumber || projectId}-${suffix}`;
     const vendorDoc = getVendorDoc(groupKey);
     const docMeta = vendorDoc?.metadata as Record<string, unknown> | null;
     const poEntityForGroup = getPOEntity(groupKey);
+    // Use PO entity number (from DB) if available, otherwise build fallback
+    const poNumber = poEntityForGroup?.poNumber
+      || (vendorDoc?.documentNumber as string)
+      || `${order?.orderNumber || projectId}-${isDecorator ? `DEC-${(vendor.id || groupKey).substring(0, 4).toUpperCase()}` : (vendor.id || groupKey).substring(0, 4).toUpperCase()}`;
     return buildPurchaseOrderPdf({
       order,
       vendor,
@@ -165,7 +167,6 @@ export function usePurchaseOrdersSection({ projectId, data, isLocked }: Purchase
       allArtworkCharges: data.allArtworkCharges || {},
       allItemCharges: data.allItemCharges || {},
       allItemLines: group.lines,
-      serviceCharges: data.serviceCharges || [],
       vendorIHD: (docMeta?.supplierIHD as string) || group.shipInHandsDate || null,
       vendorFirm: group.shipFirm ?? null,
       shippingAccountName: (docMeta?.shippingAccountName as string) || null,
@@ -178,7 +179,7 @@ export function usePurchaseOrdersSection({ projectId, data, isLocked }: Purchase
       blindShip: !!(docMeta?.blindShip) || !!(_pendingBlindShip.current[groupKey]),
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [vendorPOs, order, data, branding]);
+  }, [vendorPOs, order, data, branding, poEntities, poDocuments]);
 
   const handleGeneratePO = async (groupKey: string, vendorNameStr: string) => {
     const group = vendorPOs.find((g) => g.groupKey === groupKey);
@@ -344,7 +345,6 @@ export function usePurchaseOrdersSection({ projectId, data, isLocked }: Purchase
     allItemCharges,
     allArtworkItems,
     allArtworkCharges: data.allArtworkCharges || {},
-    serviceCharges: data.serviceCharges || [],
     suppliers,
     data,
     isLocked,

@@ -92,7 +92,6 @@ export default function DevPdfPreview() {
           artworkItems={Object.values(pdfData.allArtworkItems).flat()}
           allArtworkCharges={pdfData.allArtworkCharges}
           allItemCharges={pdfData.allItemCharges}
-          serviceCharges={pdfData.serviceCharges}
           poType="supplier"
           sellerName={pdfData.sellerName}
         />

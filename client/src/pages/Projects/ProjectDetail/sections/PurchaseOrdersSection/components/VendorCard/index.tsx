@@ -76,7 +76,6 @@ export interface VendorCardContext {
   allItemCharges: Record<string, Array<Record<string, unknown>>>;
   allArtworkItems: Record<string, Array<Record<string, unknown>>>;
   allArtworkCharges: Record<string, Array<Record<string, unknown>>>;
-  serviceCharges: Array<Record<string, unknown>>;
   hasSupplierIHD: boolean;
   getVendorDefaultAddress: (id: string) => Record<string, unknown> | null;
 }
@@ -699,8 +698,6 @@ export default function VendorCard({
               allArtworkCharges={context.allArtworkCharges}
               lines={po.lines}
               isDecorator={isDecorator}
-              serviceCharges={context.serviceCharges}
-              vendorId={po.vendor.id}
             />
 
             {/* Proofing Section */}

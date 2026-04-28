@@ -111,12 +111,11 @@ export default function PurchaseOrdersSection({ projectId, data, isLocked }: Pur
     allItemCharges: hook.allItemCharges,
     allArtworkItems: hook.allArtworkItems,
     allArtworkCharges: hook.allArtworkCharges,
-    serviceCharges: hook.serviceCharges,
     hasSupplierIHD: hook.hasSupplierIHD,
     getVendorDefaultAddress: hook.getVendorDefaultAddress,
   }), [hook.order, hook.projectId, hook.data,
     hook.allItemCharges, hook.allArtworkItems, hook.allArtworkCharges,
-    hook.serviceCharges, hook.hasSupplierIHD, hook.getVendorDefaultAddress]);
+    hook.hasSupplierIHD, hook.getVendorDefaultAddress]);
 
   // Shared actions for all VendorCards
   const vendorCardActions: VendorCardActions = useMemo(() => ({
