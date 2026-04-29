@@ -2,12 +2,13 @@ import { useState, useEffect, useRef } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { aiSearch } from "@/services/products/requests";
 import { useLocation } from "@/lib/wouter-compat";
-import type { SearchResult, SearchResponse } from "./types";
+import type { SearchResult, SearchResponse, AggregationResult } from "./types";
 
 export function useGlobalSearch() {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
   const [answer, setAnswer] = useState<string | undefined>();
+  const [aggregation, setAggregation] = useState<AggregationResult | undefined>();
   const [isOpen, setIsOpen] = useState(false);
   const [, setLocation] = useLocation();
   const searchRef = useRef<HTMLDivElement>(null);
@@ -38,12 +39,14 @@ export function useGlobalSearch() {
     onSuccess: (data: SearchResponse) => {
       setResults(data?.results || []);
       setAnswer(data?.answer);
+      setAggregation(data?.aggregation);
       setIsOpen(true);
     },
     onError: (error) => {
       console.error("Search error:", error);
       setResults([]);
       setAnswer(undefined);
+      setAggregation(undefined);
     },
   });
 
@@ -143,6 +146,7 @@ export function useGlobalSearch() {
     setQuery,
     results,
     answer,
+    aggregation,
     isOpen,
     searchRef,
     inputRef,

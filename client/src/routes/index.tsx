@@ -54,6 +54,7 @@ const importers = {
   notifications: () => import("@/pages/Notifications"),
   notFound: () => import("@/pages/NotFound"),
   mediaLibrary: () => import("@/pages/MediaLibrary"),
+  search: () => import("@/pages/Search"),
 } as const;
 
 // ---- Lazy components ----
@@ -93,6 +94,7 @@ const VendorApprovals = lazy(importers.vendorApprovals);
 const NotificationsPage = lazy(importers.notifications);
 const NotFound = lazy(importers.notFound);
 const MediaLibraryPage = lazy(importers.mediaLibrary);
+const SearchPage = lazy(importers.search);
 
 /**
  * Map of URL path → list of importer keys to warm.
@@ -128,6 +130,7 @@ const pathPrefetchMap: Array<{ test: (path: string) => boolean; keys: Array<keyo
   { test: (p) => p === "/settings/users", keys: ["settingsUsers"] },
   { test: (p) => p.startsWith("/settings"), keys: ["settings"] },
   { test: (p) => p === "/profile", keys: ["profile"] },
+  { test: (p) => p === "/search" || p.startsWith("/search?"), keys: ["search"] },
 ];
 
 /**
@@ -222,6 +225,7 @@ export const router = createBrowserRouter([
           { path: ROUTES.SETTINGS, element: withSuspense(Settings) },
           { path: ROUTES.SETTINGS_USERS, element: withSuspense(UsersPage) },
           { path: ROUTES.PROFILE, element: withSuspense(ProfilePage) },
+          { path: ROUTES.SEARCH, element: withSuspense(SearchPage) },
 
           // Legacy redirects
           { path: ROUTES.ORDERS_LEGACY, element: <Navigate to={ROUTES.PROJECTS} replace /> },

@@ -18,5 +18,6 @@ router.get("/api/dashboard/shipping-margins", isAuthenticated, asyncHandler(Dash
 
 // Search
 router.post("/api/search/ai", isAuthenticated, asyncHandler(SearchController.aiSearch));
+router.get("/api/search/advanced", isAuthenticated, asyncHandler(SearchController.advancedSearch));
 
 export default router;

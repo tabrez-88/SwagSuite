@@ -1,6 +1,6 @@
 export interface SearchResult {
   id: string;
-  type: "order" | "product" | "company" | "contact" | "vendor" | "file" | "other";
+  type: "order" | "product" | "company" | "contact" | "vendor" | "purchase_order" | "shipment" | "activity" | "file" | "other";
   title: string;
   description: string;
   metadata?: {
@@ -13,7 +13,14 @@ export interface SearchResult {
   url?: string;
 }
 
+export interface AggregationResult {
+  value: number;
+  label: string;
+  breakdown?: Array<{ key: string; value: number }>;
+}
+
 export interface SearchResponse {
   results: SearchResult[];
   answer?: string;
+  aggregation?: AggregationResult;
 }

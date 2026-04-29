@@ -49,6 +49,9 @@ export const ROUTES = {
   SS_ACTIVEWEAR: '/ss-activewear',
   VENDOR_APPROVALS: '/vendor-approvals',
 
+  // Search
+  SEARCH: '/search',
+
   // Tools
   ARTWORK: '/artwork',
   MOCKUP_BUILDER: '/mockup-builder',
