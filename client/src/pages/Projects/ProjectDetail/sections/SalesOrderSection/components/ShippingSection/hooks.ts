@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useCreateShipment, useUpdateShipment, useDeleteShipment } from "@/services/shipments";
 import { useUpdateItemShipping } from "@/services/project-items/mutations";
 import { useCompanyAddresses } from "@/services/company-addresses";
@@ -8,6 +8,9 @@ import { useShippingAccounts, useCompanyShippingAccounts } from "@/services/ship
 import { useShippingMethods } from "@/services/shipping-methods";
 import { useToast } from "@/hooks/use-toast";
 import { hasTimelineConflict } from "@/lib/dateUtils";
+import { useIntegrationSettingsList } from "@/services/integrations/settings/queries";
+import { apiRequest } from "@/lib/queryClient";
+import { shipmentKeys } from "@/services/shipments/keys";
 import type { OrderShipment } from "@shared/schema";
 import type { ProjectData, EnrichedOrderItem } from "@/types/project-types";
 import { EMPTY_FORM, EMPTY_BULK, EMPTY_ITEM_SHIPPING } from "./types";
@@ -570,6 +573,33 @@ export function useShippingSection(projectId: string, data: ProjectData) {
   const deliveredCount = shipments.filter(s => s.status === "delivered").length;
   const timelineConflicts = hasTimelineConflict(order, shipments, orderItems);
 
+  // ShipStation sync
+  const { data: integrationSettings } = useIntegrationSettingsList();
+  const isShipStationConnected = !!(integrationSettings as any)?.shipstationConnected;
+
+  const syncShipStationMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/shipstation/shipments/sync", {
+        orderNumber: order?.orderNumber,
+      });
+      return res.json();
+    },
+    onSuccess: (data: { synced: number; total: number }) => {
+      queryClient.invalidateQueries({ queryKey: shipmentKeys.byOrder(projectId) });
+      toast({
+        title: "ShipStation Sync Complete",
+        description: data.synced > 0
+          ? `Updated ${data.synced} of ${data.total} shipment(s)`
+          : data.total > 0
+            ? `${data.total} shipment(s) already up to date`
+            : "No shipments found in ShipStation",
+      });
+    },
+    onError: (err: Error) => {
+      toast({ title: "ShipStation Sync Failed", description: err.message, variant: "destructive" });
+    },
+  });
+
   return {
     // Data
     order, orderItems, shipments, shipmentsLoading,
@@ -619,6 +649,11 @@ export function useShippingSection(projectId: string, data: ProjectData) {
     // Shipping accounts & methods
     allShippingAccounts,
     filteredMethods,
+
+    // ShipStation sync
+    isShipStationConnected,
+    syncShipStation: () => syncShipStationMutation.mutate(),
+    isSyncingShipStation: syncShipStationMutation.isPending,
 
     // Query client for invalidation
     queryClient,

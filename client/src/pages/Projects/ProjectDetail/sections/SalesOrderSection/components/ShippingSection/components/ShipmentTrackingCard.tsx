@@ -1,9 +1,10 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardTitle } from "@/components/ui/card";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   Calendar, CheckCircle2, Clock, Edit2, ExternalLink,
-  Loader2, MapPin, Plus, Send, Trash2, Truck,
+  Loader2, MapPin, Plus, RefreshCw, Send, Ship, Trash2, Truck,
 } from "lucide-react";
 import type { OrderShipment } from "@shared/schema";
 import { STATUS_OPTIONS } from "../types";
@@ -28,6 +29,9 @@ interface ShipmentTrackingCardProps {
   openEdit: (s: OrderShipment) => void;
   setDeleteTarget: (s: OrderShipment | null) => void;
   setNotifyShipment: (s: OrderShipment | null) => void;
+  isShipStationConnected?: boolean;
+  onSyncShipStation?: () => void;
+  isSyncingShipStation?: boolean;
 }
 
 export function ShipmentTrackingCard({
@@ -42,6 +46,9 @@ export function ShipmentTrackingCard({
   openEdit,
   setDeleteTarget,
   setNotifyShipment,
+  isShipStationConnected,
+  onSyncShipStation,
+  isSyncingShipStation,
 }: ShipmentTrackingCardProps) {
   return (
     <Card>
@@ -57,6 +64,25 @@ export function ShipmentTrackingCard({
             </Badge>
           </div>
           <div className="flex items-center gap-2">
+            {isShipStationConnected && onSyncShipStation && (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button variant="outline" size="sm" onClick={onSyncShipStation} disabled={isSyncingShipStation}>
+                      {isSyncingShipStation ? (
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      ) : (
+                        <RefreshCw className="w-4 h-4 mr-2" />
+                      )}
+                      Sync ShipStation
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p className="text-xs">Pull latest tracking data from ShipStation</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
             <Button size="sm" onClick={openNew} disabled={isLocked}>
               <Plus className="w-4 h-4 mr-2" /> Add Shipment
             </Button>
@@ -88,6 +114,11 @@ export function ShipmentTrackingCard({
                                 {getStatusBadge(s.status)}
                                 {s.carrier && <span className="text-sm font-medium">{s.carrier}</span>}
                                 {s.shippingMethod && <span className="text-xs text-gray-500">{s.shippingMethod}</span>}
+                                {s.shipstationShipmentId && (
+                                  <Badge variant="outline" className="text-[10px] gap-1 text-indigo-600 border-indigo-200 bg-indigo-50">
+                                    <Ship className="w-2.5 h-2.5" /> ShipStation
+                                  </Badge>
+                                )}
                               </div>
                               {s.trackingNumber && (
                                 <div className="flex items-center gap-2 mb-2">

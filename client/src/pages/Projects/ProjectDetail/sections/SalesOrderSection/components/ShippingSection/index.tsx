@@ -293,6 +293,9 @@ export default function ShippingSection({ projectId, data, isLocked }: ShippingS
             openEdit={hook.openEdit}
             setDeleteTarget={hook.setDeleteTarget}
             setNotifyShipment={hook.setNotifyShipment}
+            isShipStationConnected={hook.isShipStationConnected}
+            onSyncShipStation={hook.syncShipStation}
+            isSyncingShipStation={hook.isSyncingShipStation}
           />
         </CardContent>
       </Card>

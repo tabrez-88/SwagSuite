@@ -244,14 +244,15 @@ export class ShipStationService {
   static mapToShipStationOrder(
     order: any,
     items: any[],
-    shipToAddress: any
+    shipToAddress: any,
+    customerEmail?: string,
   ): ShipStationOrder {
     return {
       orderNumber: order.orderNumber,
       orderKey: `swag_${order.id}`,
       orderDate: new Date(order.createdAt).toISOString(),
       orderStatus: "awaiting_shipment",
-      customerEmail: order.contactEmail || undefined,
+      customerEmail: customerEmail || undefined,
       billTo: ShipStationService.mapAddress(
         order.billingAddress ? JSON.parse(order.billingAddress) : shipToAddress
       ),

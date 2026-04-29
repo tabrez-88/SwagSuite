@@ -1678,16 +1678,29 @@ export class IntegrationController {
     }
 
     const { orderId } = req.params;
+    const isDryRun = process.env.SHIPSTATION_DRY_RUN === 'true';
+    const isDevelopment = process.env.NODE_ENV !== 'production';
 
     try {
       const { db } = await import("../db");
-      const { orders, orderItems, products } = await import("@shared/schema");
+      const { orders, orderItems, products, contacts } = await import("@shared/schema");
       const { eq } = await import("drizzle-orm");
 
       // Fetch order
       const [order] = await db.select().from(orders).where(eq(orders.id, orderId)).limit(1);
       if (!order) {
         return res.status(404).json({ message: "Order not found" });
+      }
+
+      // Fetch contact email if order has contactId
+      let contactEmail: string | undefined;
+      if (order.contactId) {
+        const [contact] = await db
+          .select({ email: contacts.email })
+          .from(contacts)
+          .where(eq(contacts.id, order.contactId))
+          .limit(1);
+        contactEmail = contact?.email || undefined;
       }
 
       // Fetch items with product info
@@ -1711,9 +1724,48 @@ export class IntegrationController {
         || (order.shippingAddress ? JSON.parse(order.shippingAddress) : null)
         || {};
 
-      const ssOrder = ShipStationService.mapToShipStationOrder(order, items, shipToAddress);
+      // Resolve customer email: contact → shipToAddress → undefined
+      const customerEmail = contactEmail
+        || (shipToAddress as any)?.email
+        || undefined;
+
+      const ssOrder = ShipStationService.mapToShipStationOrder(order, items, shipToAddress, customerEmail);
+
+      // Safety: Add test marker in development
+      if (isDevelopment) {
+        const testMarker = '[TEST ORDER - DO NOT SHIP]';
+        ssOrder.internalNotes = ssOrder.internalNotes
+          ? `${testMarker} ${ssOrder.internalNotes}`
+          : testMarker;
+      }
+
+      // Dry run mode: Log and return mock response
+      if (isDryRun) {
+        console.log('🔵 DRY RUN - ShipStation order export (no API call):', {
+          orderNumber: ssOrder.orderNumber,
+          customerEmail: ssOrder.customerEmail,
+          items: ssOrder.items.length,
+          shipTo: ssOrder.shipTo.city,
+          internalNotes: ssOrder.internalNotes,
+        });
+
+        return res.json({
+          success: true,
+          shipstationOrderId: 999999,
+          message: "DRY RUN - Order would be pushed to ShipStation",
+          dryRun: true,
+        });
+      }
+
+      // Real API call
       const service = new ShipStationService(credentials);
       const created = await service.createOrUpdateOrder(ssOrder);
+
+      console.log('✅ ShipStation order export successful:', {
+        orderNumber: order.orderNumber,
+        shipstationOrderId: created.orderId,
+        isDevelopment,
+      });
 
       res.json({
         success: true,
@@ -1721,7 +1773,7 @@ export class IntegrationController {
         message: "Order pushed to ShipStation",
       });
     } catch (error) {
-      console.error("Error pushing order to ShipStation:", error);
+      console.error("❌ Error pushing order to ShipStation:", error);
       res.status(500).json({ message: "Failed to push order to ShipStation" });
     }
   }
@@ -1746,6 +1798,12 @@ export class IntegrationController {
       if (payload.resource_type === "SHIP_NOTIFY") {
         // Fetch the shipment data from the resource URL
         const shipmentData = await service.fetchWebhookResource<any>(payload.resource_url);
+
+        // Skip test orders in development
+        if (shipmentData?.internalNotes?.includes('[TEST ORDER')) {
+          console.log('⏭️  Skipping test order webhook:', shipmentData.orderNumber);
+          return res.status(200).json({ message: "Test order ignored" });
+        }
 
         if (shipmentData?.shipments) {
           const { db } = await import("../db");
