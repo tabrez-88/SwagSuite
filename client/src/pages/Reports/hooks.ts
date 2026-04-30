@@ -1,19 +1,11 @@
 import { useState } from "react";
 import {
-  useDashboardStats,
   useArAging,
   useCommissionReport,
   useShippingMargins,
+  useLeadSourceReport,
 } from "@/services/reports";
-import { useProjects } from "@/services/projects";
-import { useCompanies } from "@/services/companies";
-import { useProducts } from "@/services/products";
-import {
-  DollarSign,
-  ShoppingCart,
-  Users,
-  Package,
-} from "lucide-react";
+import type { LeadSourceReport } from "@/services/reports";
 
 export type ArAgingBucket = "current" | "1-30" | "31-60" | "61-90" | "90+";
 
@@ -91,9 +83,6 @@ export interface ShippingMarginReport {
 }
 
 export function useReports() {
-  const [dateRange, setDateRange] = useState("ytd");
-  const [reportType, setReportType] = useState("revenue");
-  const [isCustomReportOpen, setIsCustomReportOpen] = useState(false);
   const [commissionFrom, setCommissionFrom] = useState(() => {
     const d = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
     return d.toISOString().split("T")[0];
@@ -102,112 +91,16 @@ export function useReports() {
     () => new Date().toISOString().split("T")[0],
   );
   const [shippingMarginPeriod, setShippingMarginPeriod] = useState("all");
-  const [customReport, setCustomReport] = useState({
-    name: "",
-    description: "",
-    query: "",
-  });
-
-  const { data: stats, isLoading: statsLoading } = useDashboardStats<any>();
-  const { data: orders } = useProjects<any>();
-  const { data: companies } = useCompanies() as unknown as { data: any };
-  const { data: products } = useProducts<any>();
 
   const { data: arAging } = useArAging<ArAgingReport>();
   const { data: commissionReport, isLoading: commissionLoading } = useCommissionReport<
     CommissionReport
   >(commissionFrom, commissionTo);
-
   const { data: shippingMargins, isLoading: shippingMarginsLoading } =
     useShippingMargins<ShippingMarginReport>(shippingMarginPeriod);
-
-  const getDateRangeLabel = (range: string) => {
-    switch (range) {
-      case "ytd": return "Year to Date";
-      case "mtd": return "Month to Date";
-      case "wtd": return "Week to Date";
-      case "last30": return "Last 30 Days";
-      case "last90": return "Last 90 Days";
-      default: return "Year to Date";
-    }
-  };
-
-  const quickReports = [
-    {
-      title: "Revenue Analysis",
-      description: "Detailed revenue breakdown by period",
-      icon: DollarSign,
-      color: "bg-green-100 text-green-600",
-      value: stats?.totalRevenue ? `$${(stats.totalRevenue / 1000000).toFixed(1)}M` : "$0",
-    },
-    {
-      title: "Order Performance",
-      description: "Order volume and conversion metrics",
-      icon: ShoppingCart,
-      color: "bg-blue-100 text-blue-600",
-      value: orders?.length || 0,
-    },
-    {
-      title: "Customer Analytics",
-      description: "Customer growth and retention stats",
-      icon: Users,
-      color: "bg-purple-100 text-purple-600",
-      value: companies?.length || 0,
-    },
-    {
-      title: "Product Performance",
-      description: "Top selling products and categories",
-      icon: Package,
-      color: "bg-orange-100 text-orange-600",
-      value: products?.length || 0,
-    },
-  ];
-
-  const savedReports = [
-    {
-      id: "1",
-      name: "Monthly Sales Summary",
-      description: "Comprehensive monthly sales report",
-      lastRun: "2024-01-15",
-      schedule: "Monthly",
-    },
-    {
-      id: "2",
-      name: "Top Customers by Revenue",
-      description: "Customer ranking by total spend",
-      lastRun: "2024-01-14",
-      schedule: "Weekly",
-    },
-    {
-      id: "3",
-      name: "Supplier Performance Report",
-      description: "Analysis of supplier delivery and quality",
-      lastRun: "2024-01-13",
-      schedule: "Quarterly",
-    },
-  ];
-
-  const handleGenerateReport = (reportTitle: string) => {
-    alert(`Generating ${reportTitle} for ${getDateRangeLabel(dateRange)}`);
-  };
-
-  const handleCreateCustomReport = () => {
-    alert("Custom report creation would be implemented with AI integration");
-    setIsCustomReportOpen(false);
-  };
+  const { data: leadSourceReport, isLoading: leadSourceLoading } = useLeadSourceReport();
 
   return {
-    dateRange,
-    setDateRange,
-    reportType,
-    setReportType,
-    isCustomReportOpen,
-    setIsCustomReportOpen,
-    customReport,
-    setCustomReport,
-    statsLoading,
-    quickReports,
-    savedReports,
     arAging,
     commissionReport,
     commissionLoading,
@@ -219,8 +112,7 @@ export function useReports() {
     shippingMarginsLoading,
     shippingMarginPeriod,
     setShippingMarginPeriod,
-    getDateRangeLabel,
-    handleGenerateReport,
-    handleCreateCustomReport,
+    leadSourceReport,
+    leadSourceLoading,
   };
 }

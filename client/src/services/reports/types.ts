@@ -7,21 +7,20 @@ export interface LeadSourceReport {
   [key: string]: unknown;
 }
 
-export interface ReportTemplate {
+export interface GeneratedReport {
   id: string;
+  reportId: string;
   name: string;
-  description?: string;
-  [key: string]: unknown;
+  query: string;
+  data: Record<string, unknown>[];
+  summary: string;
+  generatedAt: string;
+  exportFormats: string[];
 }
 
 export interface ReportSuggestion {
-  id: string;
   title: string;
-  [key: string]: unknown;
-}
-
-export interface GeneratedReport {
-  id: string;
-  content: string;
-  [key: string]: unknown;
+  description: string;
+  query: string;
+  category: "sales" | "operations" | "customers" | "vendors" | "finance";
 }

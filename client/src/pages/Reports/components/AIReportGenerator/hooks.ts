@@ -1,28 +1,22 @@
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import {
-  useReportTemplates,
   useReportSuggestions,
-  useRecentReports,
   useGenerateReport,
-  useSaveReportTemplate,
-  useRunReportTemplate,
 } from "@/services/reports";
-import type { ReportTemplate, GeneratedReport, ReportSuggestion } from "./types";
+import type { GeneratedReport, ReportSuggestion } from "./types";
 
 export function useAIReportGenerator() {
   const { toast } = useToast();
   const [naturalLanguageQuery, setNaturalLanguageQuery] = useState("");
-  const [selectedTemplate, setSelectedTemplate] = useState<string>("");
-  const [isGenerating, setIsGenerating] = useState(false);
+  const [generatedReport, setGeneratedReport] = useState<GeneratedReport | null>(null);
 
-  const { data: templates } = useReportTemplates() as unknown as { data: ReportTemplate[] | undefined };
-  const { data: suggestions } = useReportSuggestions() as unknown as { data: ReportSuggestion[] | undefined };
-  const { data: recentReports } = useRecentReports() as unknown as { data: GeneratedReport[] | undefined };
+  const { data: suggestions } = useReportSuggestions() as unknown as {
+    data: ReportSuggestion[] | undefined;
+  };
 
-  const _generate = useGenerateReport();
-  const _saveTemplate = useSaveReportTemplate();
-  const runTemplateMutation = useRunReportTemplate();
+  const generateMutation = useGenerateReport();
+  const isGenerating = generateMutation.isPending;
 
   const handleGenerateReport = () => {
     if (!naturalLanguageQuery.trim()) {
@@ -34,49 +28,37 @@ export function useAIReportGenerator() {
       return;
     }
 
-    setIsGenerating(true);
-    _generate.mutate(naturalLanguageQuery, {
-      onSuccess: () => {
+    generateMutation.mutate(naturalLanguageQuery, {
+      onSuccess: (data) => {
+        setGeneratedReport(data as unknown as GeneratedReport);
         toast({
           title: "Report Generated",
           description: "Your AI-powered report has been created successfully.",
         });
-        setNaturalLanguageQuery("");
       },
       onError: (error: Error) =>
-        toast({ title: "Generation Failed", description: error.message, variant: "destructive" }),
-      onSettled: () => setIsGenerating(false),
+        toast({
+          title: "Generation Failed",
+          description: error.message,
+          variant: "destructive",
+        }),
     });
-  };
-
-  const handleSaveAsTemplate = () => {
-    if (!naturalLanguageQuery.trim()) return;
-
-    const templateName = prompt("Enter a name for this report template:");
-    if (templateName) {
-      _saveTemplate.mutate(
-        {
-          name: templateName,
-          description: `Generated from: "${naturalLanguageQuery}"`,
-          query: naturalLanguageQuery,
-          isActive: true,
-        } as Partial<ReportTemplate>,
-        {
-          onSuccess: () =>
-            toast({ title: "Template Saved", description: "Report template has been saved for future use." }),
-        },
-      );
-    }
   };
 
   const getCategoryColor = (category: string) => {
     switch (category) {
-      case "sales": return "bg-green-100 text-green-800";
-      case "operations": return "bg-blue-100 text-blue-800";
-      case "customers": return "bg-purple-100 text-purple-800";
-      case "vendors": return "bg-orange-100 text-orange-800";
-      case "finance": return "bg-yellow-100 text-yellow-800";
-      default: return "bg-gray-100 text-gray-800";
+      case "sales":
+        return "bg-green-100 text-green-800";
+      case "operations":
+        return "bg-blue-100 text-blue-800";
+      case "customers":
+        return "bg-purple-100 text-purple-800";
+      case "vendors":
+        return "bg-orange-100 text-orange-800";
+      case "finance":
+        return "bg-yellow-100 text-yellow-800";
+      default:
+        return "bg-gray-100 text-gray-800";
     }
   };
 
@@ -91,19 +73,37 @@ export function useAIReportGenerator() {
     "Show me customers who haven't ordered in the last 90 days",
   ];
 
+  const handleExportCsv = () => {
+    if (!generatedReport?.data?.length) return;
+    const headers = Object.keys(generatedReport.data[0]);
+    const rows = generatedReport.data.map((row) =>
+      headers.map((h) => {
+        const val = row[h];
+        const str = val == null ? "" : String(val);
+        return str.includes(",") || str.includes('"')
+          ? `"${str.replace(/"/g, '""')}"`
+          : str;
+      }).join(","),
+    );
+    const csv = [headers.join(","), ...rows].join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${generatedReport.name || "report"}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   return {
     naturalLanguageQuery,
     setNaturalLanguageQuery,
-    selectedTemplate,
-    setSelectedTemplate,
     isGenerating,
-    templates,
     suggestions,
-    recentReports,
-    runTemplateMutation,
+    generatedReport,
     handleGenerateReport,
-    handleSaveAsTemplate,
     getCategoryColor,
     exampleQueries,
+    handleExportCsv,
   };
 }
