@@ -61,9 +61,9 @@ steps:
       - '--timeout'
       - '300'
       - '--update-env-vars'
-      - 'NODE_ENV=production,QB_ENVIRONMENT=sandbox,DEFAULT_USER_ROLE=admin'
+      - 'NODE_ENV=production,QB_ENVIRONMENT=sandbox,DEFAULT_USER_ROLE=admin,SHIPSTATION_DRY_RUN=false,SHIPSTATION_ENABLE_LABEL_PURCHASE=false'
       - '--update-secrets'
-      - 'TWO_FACTOR_ENCRYPTION_KEY=TWO_FACTOR_ENCRYPTION_KEY:latest'
+      - 'TWO_FACTOR_ENCRYPTION_KEY=TWO_FACTOR_ENCRYPTION_KEY:latest,SHIPSTATION_API_KEY=SHIPSTATION_API_KEY:latest,SHIPSTATION_API_SECRET=SHIPSTATION_API_SECRET:latest'
     id: 'deploy-cloud-run'
     waitFor: ['push-image']
 
