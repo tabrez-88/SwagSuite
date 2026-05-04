@@ -16,6 +16,7 @@ import PaymentCard from "./components/PaymentCard";
 import PaymentReminderCard from "./components/PaymentReminderCard";
 import ManualPaymentDialog from "./components/ManualPaymentDialog";
 import CreateInvoiceButton from "./components/CreateInvoiceButton";
+import DepositInvoiceSummary from "./components/DepositInvoiceSummary";
 
 export default function InvoiceSection(props: InvoiceSectionProps) {
   const { projectId, lockStatus } = props;
@@ -57,12 +58,16 @@ export default function InvoiceSection(props: InvoiceSectionProps) {
             Customer invoices and payment tracking
           </p>
         </div>
-        {!hook.invoice && (
+        {hook.showCreateButton && (
           <div className="flex items-center gap-2">
             <CreateInvoiceButton {...createButtonProps} />
           </div>
         )}
       </div>
+
+      {hook.depositInvoice?.status === "paid" && !hook.finalInvoice && (
+        <DepositInvoiceSummary invoice={hook.depositInvoice} />
+      )}
 
       {hook.invoiceLoading ? (
         <Card>

@@ -212,6 +212,86 @@ export class InvoiceController {
     }
   }
 
+  static async convertInvoiceType(req: Request, res: Response) {
+    try {
+      const { targetType } = req.body;
+      if (!targetType || !["deposit", "standard"].includes(targetType)) {
+        return res.status(400).json({ message: "targetType must be 'deposit' or 'standard'" });
+      }
+
+      const order = await projectRepository.getOrder(req.params.id);
+      if (!order) return res.status(404).json({ message: "Order not found" });
+
+      const allInvoices = await invoiceRepository.getInvoicesByOrderId(order.id);
+      // Find the pending invoice of the opposite type
+      const sourceType = targetType === "deposit" ? "standard" : "deposit";
+      const invoice = allInvoices.find(
+        (inv) => (inv.invoiceType === sourceType || (!inv.invoiceType && sourceType === "standard")) && inv.status !== "cancelled"
+      );
+
+      if (!invoice) {
+        return res.status(404).json({ message: `No ${sourceType} invoice found to convert` });
+      }
+
+      if (invoice.status === "paid") {
+        return res.status(400).json({ message: "Cannot convert a paid invoice. Void it first or create a new one." });
+      }
+
+      if (invoice.stripeInvoiceId) {
+        return res.status(400).json({ message: "Cannot convert an invoice linked to Stripe. Void the Stripe invoice first." });
+      }
+
+      let updates: Record<string, any>;
+
+      if (targetType === "deposit") {
+        const depositPercent = Number(order.depositPercent);
+        if (!depositPercent || depositPercent <= 0) {
+          return res.status(400).json({ message: "Deposit percentage not set on this order" });
+        }
+        const orderTotal = Number(order.total || 0);
+        const depositAmount = orderTotal * depositPercent / 100;
+
+        updates = {
+          invoiceType: "deposit",
+          subtotal: depositAmount.toFixed(2),
+          taxAmount: "0",
+          totalAmount: depositAmount.toFixed(2),
+          depositDeduction: null,
+        };
+
+        // Update order deposit fields
+        await projectRepository.updateOrder(order.id, {
+          depositAmount: depositAmount.toFixed(2),
+          depositStatus: "pending",
+        } as any);
+      } else {
+        // Converting back to standard
+        const taxAmount = Number(order.tax || 0);
+        const totalAmount = Number(order.subtotal) + taxAmount + Number(order.shipping || 0);
+
+        updates = {
+          invoiceType: "standard",
+          subtotal: order.subtotal ?? "0",
+          taxAmount: taxAmount.toString(),
+          totalAmount: totalAmount.toString(),
+          depositDeduction: null,
+        };
+
+        // Clear deposit fields on order
+        await projectRepository.updateOrder(order.id, {
+          depositAmount: null,
+          depositStatus: null,
+        } as any);
+      }
+
+      const updated = await invoiceRepository.updateInvoice(invoice.id, updates);
+      res.json(updated);
+    } catch (error) {
+      console.error("Invoice type conversion error:", error);
+      res.status(500).json({ message: String(error) });
+    }
+  }
+
   static async getInvoice(req: Request, res: Response) {
     try {
       // Return all invoices for this order (supports deposit + final)

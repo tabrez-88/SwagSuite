@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useBranding } from "@/services/settings";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -9,6 +10,7 @@ import {
   useCreateStripePayment,
   useCreateDepositInvoice,
   useCreateFinalInvoice,
+  invoiceKeys,
 } from "@/services/invoices";
 import { differenceInDays } from "date-fns";
 import { useDocumentGeneration, buildItemsHash } from "@/hooks/useDocumentGeneration";
@@ -88,6 +90,22 @@ export function useInvoiceSection({ projectId, data }: InvoiceSectionProps) {
   // Deposit helpers
   const hasDeposit = !!order?.depositPercent && Number(order.depositPercent) > 0;
   const depositReceived = order?.depositStatus === "received";
+
+  // Multi-invoice awareness
+  const { data: allInvoices } = useQuery<any[]>({
+    queryKey: invoiceKeys.allByOrder(projectId),
+    staleTime: Infinity,
+  });
+
+  const depositInvoice = useMemo(() => allInvoices?.find((inv) => inv.invoiceType === "deposit"), [allInvoices]);
+  const finalInvoice = useMemo(() => allInvoices?.find((inv) => inv.invoiceType === "final"), [allInvoices]);
+  const standardInvoice = useMemo(() => allInvoices?.find((inv) => inv.invoiceType === "standard" || !inv.invoiceType), [allInvoices]);
+
+  // Active invoice: prefer final > deposit > standard > legacy single invoice
+  const activeInvoice = finalInvoice ?? depositInvoice ?? standardInvoice ?? invoice;
+
+  // Show create button when: no invoice at all, OR deposit is paid but no final invoice yet
+  const showCreateButton = !activeInvoice || (depositInvoice?.status === "paid" && !finalInvoice);
 
   const buildInvoiceDoc = () =>
     buildInvoicePdf({
@@ -271,6 +289,10 @@ export function useInvoiceSection({ projectId, data }: InvoiceSectionProps) {
     // Deposit
     hasDeposit,
     depositReceived,
+    depositInvoice,
+    finalInvoice,
+    allInvoices,
+    showCreateButton,
 
     // Handlers
     handleGeneratePdf,

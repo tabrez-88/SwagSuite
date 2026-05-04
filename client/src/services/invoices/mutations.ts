@@ -8,6 +8,7 @@ function useInvalidateInvoice(projectId: string | number) {
   const queryClient = useQueryClient();
   return () => {
     queryClient.invalidateQueries({ queryKey: invoiceKeys.byOrder(projectId) });
+    queryClient.invalidateQueries({ queryKey: invoiceKeys.allByOrder(projectId) });
     queryClient.invalidateQueries({ queryKey: projectKeys.detail(projectId) });
   };
 }
@@ -80,5 +81,21 @@ export function useCreateFinalInvoice(projectId: string | number) {
     mutationFn: () => requests.createFinalInvoice(projectId),
     onSuccess: () => { invalidate(); toast({ title: "Final invoice created" }); },
     onError: () => toast({ title: "Failed to create final invoice", variant: "destructive" }),
+  });
+}
+
+export function useConvertInvoiceType(projectId: string | number) {
+  const { toast } = useToast();
+  const invalidate = useInvalidateInvoice(projectId);
+  return useMutation({
+    mutationFn: (targetType: "deposit" | "standard") => requests.convertInvoiceType(projectId, targetType),
+    onSuccess: (_data, targetType) => {
+      invalidate();
+      toast({ title: targetType === "deposit" ? "Invoice converted to deposit" : "Invoice converted to standard" });
+    },
+    onError: (error: Error) => {
+      const msg = error.message?.replace(/^\d+:\s*/, "") || "Failed to convert invoice type";
+      toast({ title: msg, variant: "destructive" });
+    },
   });
 }

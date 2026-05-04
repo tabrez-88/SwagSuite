@@ -24,6 +24,7 @@ router.get("/api/projects/:id/invoices", isAuthenticated, asyncHandler(InvoiceCo
 router.patch("/api/projects/:id/invoice", isAuthenticated, asyncHandler(InvoiceController.updateInvoice));
 router.post("/api/projects/:id/deposit-invoice", isAuthenticated, asyncHandler(InvoiceController.createDepositInvoice));
 router.post("/api/projects/:id/final-invoice", isAuthenticated, asyncHandler(InvoiceController.createFinalInvoice));
+router.patch("/api/projects/:id/invoice/convert-type", isAuthenticated, asyncHandler(InvoiceController.convertInvoiceType));
 
 // =====================================================
 // STRIPE PAYMENTS

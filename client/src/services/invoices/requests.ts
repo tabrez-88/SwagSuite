@@ -34,3 +34,8 @@ export async function getInvoices(projectId: string | number) {
   const res = await apiRequest("GET", `/api/projects/${projectId}/invoices`);
   return res.json();
 }
+
+export async function convertInvoiceType(projectId: string | number, targetType: "deposit" | "standard") {
+  const res = await apiRequest("PATCH", `/api/projects/${projectId}/invoice/convert-type`, { targetType });
+  return res.json();
+}

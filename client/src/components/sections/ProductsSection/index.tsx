@@ -29,6 +29,10 @@ import { ImprintOptionSelect } from "@/components/shared/ImprintOptionSelect";
 import { Checkbox } from "@/components/ui/checkbox";
 import { isBelowMinimum } from "@/hooks/useMarginSettings";
 import { useUpdateProject } from "@/services/projects/mutations";
+import { useConvertInvoiceType } from "@/services/invoices/mutations";
+import { invoiceKeys } from "@/services/invoices/keys";
+import { useQuery } from "@tanstack/react-query";
+import { useToast } from "@/hooks/use-toast";
 import {
   AlertTriangle,
   Edit2,
@@ -71,6 +75,7 @@ export default function ProductsSection({ projectId, data, isLocked }: ProductsS
   const productSection = useProductsSection({ projectId, data, isLocked });
   const addServiceRef = useRef<(() => void) | null>(null);
   const updateProjectMutation = useUpdateProject(projectId);
+  const { toast } = useToast();
 
   // Deposit state
   const order = data?.order;
@@ -78,6 +83,13 @@ export default function ProductsSection({ projectId, data, isLocked }: ProductsS
   const [depositPercent, setDepositPercent] = useState<string>(order?.depositPercent || "50");
   const [depositEnabled, setDepositEnabled] = useState(hasDeposit);
   const onRegisterAdd = useCallback((fn: () => void) => { addServiceRef.current = fn; }, []);
+
+  // Invoice awareness for deposit toggle
+  const { data: allInvoices } = useQuery<any[]>({
+    queryKey: invoiceKeys.allByOrder(projectId),
+    staleTime: Infinity,
+  });
+  const convertInvoiceTypeMutation = useConvertInvoiceType(projectId);
 
   const handleDragEnd = (result: DropResult) => {
     if (!result.destination) return;
@@ -249,11 +261,39 @@ export default function ProductsSection({ projectId, data, isLocked }: ProductsS
                       checked={depositEnabled}
                       onCheckedChange={(checked) => {
                         const enabled = !!checked;
+
+                        // Check if a paid invoice exists — block toggle
+                        const paidInvoice = allInvoices?.find((inv: any) => inv.status === "paid");
+                        if (paidInvoice) {
+                          toast({ title: "Cannot change deposit", description: "Invoice already paid", variant: "destructive" });
+                          return;
+                        }
+
                         setDepositEnabled(enabled);
                         if (enabled) {
-                          updateProjectMutation.mutate({ depositPercent: depositPercent || "50" });
+                          updateProjectMutation.mutate({ depositPercent: depositPercent || "50" }, {
+                            onSuccess: () => {
+                              // If a pending standard invoice exists, convert it to deposit
+                              const pendingStandard = allInvoices?.find(
+                                (inv: any) => (inv.invoiceType === "standard" || !inv.invoiceType) && inv.status !== "cancelled" && inv.status !== "paid"
+                              );
+                              if (pendingStandard) {
+                                convertInvoiceTypeMutation.mutate("deposit");
+                              }
+                            },
+                          });
                         } else {
-                          updateProjectMutation.mutate({ depositPercent: null, depositAmount: null, depositStatus: null });
+                          updateProjectMutation.mutate({ depositPercent: null, depositAmount: null, depositStatus: null }, {
+                            onSuccess: () => {
+                              // If a pending deposit invoice exists, convert it back to standard
+                              const pendingDeposit = allInvoices?.find(
+                                (inv: any) => inv.invoiceType === "deposit" && inv.status !== "cancelled" && inv.status !== "paid"
+                              );
+                              if (pendingDeposit) {
+                                convertInvoiceTypeMutation.mutate("standard");
+                              }
+                            },
+                          });
                         }
                       }}
                     />
