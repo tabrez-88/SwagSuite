@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -9,15 +9,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Save, Settings as SettingsIcon } from "lucide-react";
+import { Database, Loader2, Save, Settings as SettingsIcon } from "lucide-react";
 import { useGeneralTab } from "./hooks";
+import { useSyncYtdSpending } from "./hooks";
 import type { GeneralTabProps } from "./types";
 
 export function GeneralTab({ adminSettings }: GeneralTabProps) {
   const { generalSettings, updateField, saveSettings } =
     useGeneralTab(adminSettings);
+  const { syncYtd, isSyncing } = useSyncYtdSpending();
 
   return (
+    <div className="space-y-6">
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
@@ -119,5 +122,24 @@ export function GeneralTab({ adminSettings }: GeneralTabProps) {
         </Button>
       </CardContent>
     </Card>
+
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Database className="w-5 h-5" />
+          Data Sync
+        </CardTitle>
+        <CardDescription>
+          Recalculate YTD spending for all companies and suppliers based on committed orders.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <Button onClick={syncYtd} disabled={isSyncing} variant="outline">
+          {isSyncing && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+          Sync YTD Spending
+        </Button>
+      </CardContent>
+    </Card>
+    </div>
   );
 }

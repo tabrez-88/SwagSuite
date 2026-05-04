@@ -6,14 +6,14 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Link } from "@/lib/wouter-compat";
+import { useLocation } from "wouter";
 import type { ArAgingBucket } from "@/pages/Reports/hooks";
 import {
   Activity,
   AlertCircle,
   BarChart3,
-  Database,
   DollarSign,
-  MessageSquare,
+  Factory,
   Newspaper,
   Package,
   Target,
@@ -22,6 +22,20 @@ import {
   Users,
   Zap,
 } from "lucide-react";
+
+function formatTimeAgo(dateStr: string): string {
+  const now = new Date();
+  const date = new Date(dateStr);
+  const diffMs = now.getTime() - date.getTime();
+  const diffMin = Math.floor(diffMs / 60000);
+  if (diffMin < 1) return "just now";
+  if (diffMin < 60) return `${diffMin}m ago`;
+  const diffHr = Math.floor(diffMin / 60);
+  if (diffHr < 24) return `${diffHr}h ago`;
+  const diffDays = Math.floor(diffHr / 24);
+  if (diffDays < 7) return `${diffDays}d ago`;
+  return date.toLocaleDateString();
+}
 import { useEnhancedDashboard } from "./hooks";
 
 const AR_BUCKET_ORDER: ArAgingBucket[] = ["current", "1-30", "31-60", "61-90", "90+"];
@@ -48,6 +62,7 @@ export function EnhancedDashboard() {
     setActiveTab,
     metrics,
     leaderboard,
+    recentActivities,
     automationTasks,
     newsAlerts,
     arAging,
@@ -58,6 +73,7 @@ export function EnhancedDashboard() {
     getSentimentColor,
     seedDataMutation,
   } = useEnhancedDashboard();
+  const [, navigate] = useLocation();
 
   return (
     <div className="space-y-6">
@@ -215,28 +231,35 @@ export function EnhancedDashboard() {
               <CardContent>
                 <ScrollArea className="h-64 w-full">
                   <div className="space-y-3">
-                    {/* Recent activities would be loaded here */}
-                    <div className="flex items-center gap-3 p-2 rounded bg-gray-50">
-                      <div className="w-2 h-2 rounded-full bg-green-500" />
-                      <div className="flex-1">
-                        <p className="text-sm">New order from ABC Corp</p>
-                        <p className="text-xs text-muted-foreground">2 minutes ago</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3 p-2 rounded bg-gray-50">
-                      <div className="w-2 h-2 rounded-full bg-blue-500" />
-                      <div className="flex-1">
-                        <p className="text-sm">HubSpot sync completed</p>
-                        <p className="text-xs text-muted-foreground">5 minutes ago</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3 p-2 rounded bg-gray-50">
-                      <div className="w-2 h-2 rounded-full bg-yellow-500" />
-                      <div className="flex-1">
-                        <p className="text-sm">AI draft ready for review</p>
-                        <p className="text-xs text-muted-foreground">12 minutes ago</p>
-                      </div>
-                    </div>
+                    {recentActivities && recentActivities.length > 0 ? (
+                      recentActivities.map((activity) => {
+                        const dotColor =
+                          activity.activityType === "status_change" ? "bg-green-500" :
+                          activity.activityType === "comment" ? "bg-blue-500" :
+                          activity.activityType === "file_upload" ? "bg-purple-500" :
+                          "bg-yellow-500";
+                        return (
+                          <div key={activity.id} className="flex items-center gap-3 p-2 rounded bg-gray-50">
+                            <div className={`w-2 h-2 rounded-full ${dotColor}`} />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm truncate">
+                                {activity.content}
+                                {activity.orderNumber && (
+                                  <span className="text-muted-foreground"> — #{activity.orderNumber}</span>
+                                )}
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                {activity.userName} · {formatTimeAgo(activity.createdAt)}
+                              </p>
+                            </div>
+                          </div>
+                        );
+                      })
+                    ) : (
+                      <p className="text-sm text-muted-foreground text-center py-8">
+                        No recent activity
+                      </p>
+                    )}
                   </div>
                 </ScrollArea>
               </CardContent>
@@ -250,21 +273,21 @@ export function EnhancedDashboard() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
-                <Button className="w-full justify-start" variant="outline">
+                <Button className="w-full justify-start" variant="outline" onClick={() => navigate("/projects/new")}>
                   <Package className="h-4 w-4 mr-2" />
                   Create New Order
                 </Button>
-                <Button className="w-full justify-start" variant="outline">
+                <Button className="w-full justify-start" variant="outline" onClick={() => navigate("/crm/companies")}>
                   <Users className="h-4 w-4 mr-2" />
                   Add Customer
                 </Button>
-                <Button className="w-full justify-start" variant="outline">
+                <Button className="w-full justify-start" variant="outline" onClick={() => navigate("/reports")}>
                   <BarChart3 className="h-4 w-4 mr-2" />
                   Generate Report
                 </Button>
-                <Button className="w-full justify-start" variant="outline">
-                  <MessageSquare className="h-4 w-4 mr-2" />
-                  Send Team Message
+                <Button className="w-full justify-start" variant="outline" onClick={() => navigate("/production-report")}>
+                  <Factory className="h-4 w-4 mr-2" />
+                  Production Report
                 </Button>
               </CardContent>
             </Card>

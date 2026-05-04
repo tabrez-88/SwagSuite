@@ -56,10 +56,20 @@ export class DashboardExtendedController {
     console.log('Starting YTD and product sync...');
     const { db } = await import("../db");
     const { companies, suppliers, orders, products } = await import("@shared/schema");
-    const { eq, and, gte, sql } = await import("drizzle-orm");
+    const { eq, and, gte, or, inArray, sql } = await import("drizzle-orm");
 
     const currentYear = new Date().getFullYear();
     const yearStart = new Date(currentYear, 0, 1);
+
+    // Only count committed orders (sales_order / invoice stage)
+    const isCommittedOrder = or(
+      eq(orders.salesOrderStatus, "ready_to_invoice"),
+      inArray(orders.orderType, ["sales_order", "rush_order"]),
+      and(
+        sql`${orders.salesOrderStatus} IS NOT NULL`,
+        sql`${orders.salesOrderStatus} != 'new'`,
+      ),
+    );
 
     let companiesUpdated = 0;
     let suppliersUpdated = 0;
@@ -69,7 +79,7 @@ export class DashboardExtendedController {
     const allCompanies = await companyRepository.getAll();
     console.log(`Found ${allCompanies.length} companies to sync`);
 
-    // Update YTD for each company
+    // Update YTD for each company (committed orders only)
     for (const company of allCompanies) {
       try {
         const [ytdResult] = await db
@@ -78,7 +88,8 @@ export class DashboardExtendedController {
           .where(
             and(
               eq(orders.companyId, company.id),
-              gte(orders.createdAt, yearStart)
+              gte(orders.createdAt, yearStart),
+              isCommittedOrder,
             )
           );
 
@@ -151,6 +162,23 @@ export class DashboardExtendedController {
       productCountsUpdated,
       timestamp: new Date().toISOString()
     });
+  }
+
+  /**
+   * GET /api/dashboard/recent-activities — Real project activities for dashboard feed
+   */
+  static async getRecentActivities(req: Request, res: Response) {
+    const limit = Math.min(Number(req.query.limit) || 10, 50);
+    const activities = await dashboardRepository.getRecentActivities(limit);
+    res.json(activities);
+  }
+
+  /**
+   * GET /api/dashboard/team-leaderboard — Real team leaderboard from order data
+   */
+  static async getTeamLeaderboard(req: Request, res: Response) {
+    const leaderboard = await dashboardRepository.getTeamLeaderboard();
+    res.json(leaderboard);
   }
 
   /**

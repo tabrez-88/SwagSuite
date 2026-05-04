@@ -3,12 +3,13 @@ import { useToast } from "@/hooks/use-toast";
 import {
   useEnhancedStats,
   useTeamLeaderboard,
+  useRecentActivities,
   useAutomationTasks,
   useNewsAlerts,
   useSeedDummyData,
 } from "@/services/dashboard";
 import { useArAging } from "@/services/reports";
-import type { DashboardMetrics, TeamLeaderboard, AIAutomationTask, NewsAlert } from "./types";
+import type { DashboardMetrics, TeamLeaderboard, RecentActivity, AIAutomationTask, NewsAlert } from "./types";
 import type { ArAgingReport } from "@/pages/Reports/hooks";
 
 export function useEnhancedDashboard() {
@@ -18,6 +19,7 @@ export function useEnhancedDashboard() {
 
   const { data: metrics } = useEnhancedStats(dateRange);
   const { data: leaderboard } = useTeamLeaderboard(dateRange);
+  const { data: recentActivities } = useRecentActivities();
   const { data: automationTasks } = useAutomationTasks();
   const { data: newsAlerts } = useNewsAlerts();
   const { data: arAging } = useArAging<ArAgingReport>();
@@ -89,6 +91,7 @@ export function useEnhancedDashboard() {
     setActiveTab,
     metrics,
     leaderboard,
+    recentActivities,
     automationTasks,
     newsAlerts,
     arAging,

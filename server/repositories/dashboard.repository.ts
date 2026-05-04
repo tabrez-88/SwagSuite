@@ -1,6 +1,6 @@
 import { and, desc, eq, gte, inArray, lte, or, sql } from "drizzle-orm";
 import { db } from "../db";
-import { companies, orders, orderServiceCharges, orderAdditionalCharges, orderShipments, type Order } from "@shared/schema";
+import { companies, orders, orderServiceCharges, orderAdditionalCharges, orderShipments, projectActivities, users, type Order } from "@shared/schema";
 
 const COMMITTED_STAGES = ["sales_order", "invoice"];
 const PIPELINE_STAGES = ["presentation", "quote"];
@@ -72,7 +72,7 @@ export class DashboardRepository {
     const activeOrdersResult = await db
       .select({ count: sql`count(*)` })
       .from(orders)
-      .where(eq(orders.status, 'in_production' as any));
+      .where(isCommittedOrder);
 
     const customerCountResult = await db
       .select({ count: sql`count(*)` })
@@ -362,8 +362,79 @@ export class DashboardRepository {
       .limit(limit);
   }
 
+  async getRecentActivities(limit = 10) {
+    const rows = await db
+      .select({
+        id: projectActivities.id,
+        activityType: projectActivities.activityType,
+        content: projectActivities.content,
+        createdAt: projectActivities.createdAt,
+        isSystemGenerated: projectActivities.isSystemGenerated,
+        userName: sql<string>`COALESCE(${users.firstName} || ' ' || ${users.lastName}, ${users.email})`,
+        orderId: projectActivities.orderId,
+        orderNumber: orders.orderNumber,
+      })
+      .from(projectActivities)
+      .innerJoin(users, eq(projectActivities.userId, users.id))
+      .leftJoin(orders, eq(projectActivities.orderId, orders.id))
+      .orderBy(desc(projectActivities.createdAt))
+      .limit(limit);
+
+    return rows;
+  }
+
   async getTeamLeaderboard(): Promise<any[]> {
-    return [];
+    const currentYear = new Date().getFullYear();
+    const yearStart = new Date(currentYear, 0, 1);
+
+    const rows = await db
+      .select({
+        userId: users.id,
+        firstName: users.firstName,
+        lastName: users.lastName,
+        email: users.email,
+        profileImageUrl: users.profileImageUrl,
+        ordersCount: sql<number>`COUNT(DISTINCT ${orders.id})::int`,
+        ytdRevenue: sql<string>`COALESCE(SUM(CASE WHEN (
+          ${orders.salesOrderStatus} = 'ready_to_invoice'
+          OR ${orders.orderType} IN ('sales_order', 'rush_order')
+          OR (${orders.salesOrderStatus} IS NOT NULL AND ${orders.salesOrderStatus} != 'new')
+        ) THEN ${orders.total} ELSE 0 END), 0)`,
+        contactsReached: sql<number>`COUNT(DISTINCT ${orders.companyId})::int`,
+      })
+      .from(users)
+      .leftJoin(
+        orders,
+        and(
+          eq(orders.assignedUserId, users.id),
+          gte(orders.createdAt, yearStart),
+        ),
+      )
+      .where(inArray(users.role, ["admin", "manager", "sales"]))
+      .groupBy(users.id, users.firstName, users.lastName, users.email, users.profileImageUrl)
+      .orderBy(sql`COALESCE(SUM(CASE WHEN (
+        ${orders.salesOrderStatus} = 'ready_to_invoice'
+        OR ${orders.orderType} IN ('sales_order', 'rush_order')
+        OR (${orders.salesOrderStatus} IS NOT NULL AND ${orders.salesOrderStatus} != 'new')
+      ) THEN ${orders.total} ELSE 0 END), 0) DESC`);
+
+    return rows.map((r, i) => {
+      const totalOrders = r.ordersCount || 0;
+      const ytdRevenue = parseFloat(r.ytdRevenue || "0");
+      return {
+        userId: r.userId,
+        name: [r.firstName, r.lastName].filter(Boolean).join(" ") || r.email || "Unknown",
+        avatar: r.profileImageUrl || "",
+        ytdRevenue,
+        mtdRevenue: 0,
+        wtdRevenue: 0,
+        ordersCount: totalOrders,
+        conversionRate: 0,
+        contactsReached: r.contactsReached || 0,
+        meetingsHeld: 0,
+        rank: i + 1,
+      };
+    });
   }
 }
 

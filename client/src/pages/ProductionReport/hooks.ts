@@ -24,6 +24,8 @@ export function useProductionReport() {
   const [filterDateFrom, setFilterDateFrom] = useState("");
   const [filterDateTo, setFilterDateTo] = useState("");
   const [alertFilter, setAlertFilter] = useState("");
+  const [filterFirm, setFilterFirm] = useState(false);
+  const [filterRush, setFilterRush] = useState(false);
 
   // Sorting & pagination
   const [sortBy, setSortBy] = useState("created_at");
@@ -52,8 +54,10 @@ export function useProductionReport() {
     if (filterDateTo) params.set("dateTo", filterDateTo);
     if (filterDateType) params.set("dateType", filterDateType);
     if (alertFilter) params.set("alertFilter", alertFilter);
+    if (filterFirm) params.set("isFirm", "true");
+    if (filterRush) params.set("isRush", "true");
     return params.toString();
-  }, [page, limit, sortBy, sortOrder, searchQuery, filterStage, filterStatus, filterVendor, filterAssignee, filterProofStatus, filterDateFrom, filterDateTo, filterDateType, alertFilter]);
+  }, [page, limit, sortBy, sortOrder, searchQuery, filterStage, filterStatus, filterVendor, filterAssignee, filterProofStatus, filterDateFrom, filterDateTo, filterDateType, alertFilter, filterFirm, filterRush]);
 
   // Main data query
   const { data: reportData, isLoading } = usePoReport<POReportResponse>(queryParams);
@@ -97,6 +101,8 @@ export function useProductionReport() {
     setFilterDateFrom("");
     setFilterDateTo("");
     setAlertFilter("");
+    setFilterFirm(false);
+    setFilterRush(false);
     setPage(1);
   };
 
@@ -104,7 +110,8 @@ export function useProductionReport() {
     searchQuery || filterStage !== "all" || filterStatus !== "all" ||
     filterVendor !== "all" || filterAssignee !== "all" ||
     filterProofStatus !== "all" ||
-    filterDateFrom || filterDateTo || alertFilter
+    filterDateFrom || filterDateTo || alertFilter ||
+    filterFirm || filterRush
   );
 
   // Quick date presets
@@ -164,6 +171,10 @@ export function useProductionReport() {
     setFilterDateTo,
     alertFilter,
     setAlertFilter,
+    filterFirm,
+    setFilterFirm,
+    filterRush,
+    setFilterRush,
 
     // Sorting
     sortBy,

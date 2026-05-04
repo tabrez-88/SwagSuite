@@ -3,6 +3,7 @@ export { seedDummyData } from "./requests";
 export {
   useEnhancedStats,
   useTeamLeaderboard,
+  useRecentActivities,
   useAutomationTasks,
   useNewsAlerts,
 } from "./queries";

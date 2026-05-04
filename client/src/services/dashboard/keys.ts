@@ -8,6 +8,7 @@ export const dashboardKeys = {
     range
       ? (["/api/dashboard/team-leaderboard", { range }] as const)
       : (["/api/dashboard/team-leaderboard"] as const),
+  recentActivities: ["/api/dashboard/recent-activities"] as const,
   automationTasks: ["/api/dashboard/automation-tasks"] as const,
   newsAlerts: ["/api/dashboard/news-alerts"] as const,
 };

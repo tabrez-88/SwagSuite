@@ -436,7 +436,23 @@ export class ProductionController {
       conditions.push(`gd.metadata->>'poStatus' = 'problem'`);
     } else if (alertFilter === 'follow_up') {
       conditions.push(`gd.metadata->>'poStatus' = 'follow_up'`);
+    } else if (alertFilter === 'overdue_proofs') {
+      conditions.push(`EXISTS (
+        SELECT 1 FROM order_items oi
+        INNER JOIN artwork_items ai ON ai.order_item_id = oi.id
+        WHERE oi.order_id = o.id
+        AND (oi.supplier_id = gd.vendor_id OR gd.vendor_id IS NULL)
+        AND ai.status IN ('awaiting_proof','proof_received','pending_approval','change_requested')
+        AND o.in_hands_date < NOW()
+      )`);
     }
+
+    // FIRM / RUSH filters
+    const isFirm = req.query.isFirm as string;
+    const isRush = req.query.isRush as string;
+    if (isFirm === 'true') conditions.push(`o.is_firm = true`);
+    if (isRush === 'true') conditions.push(`o.is_rush = true`);
+
     if (productionStage) {
       conditions.push(`o.current_stage = '${productionStage}'`);
     }
@@ -449,6 +465,93 @@ export class ProductionController {
         AND (oi.supplier_id = gd.vendor_id OR gd.vendor_id IS NULL)
         AND ai.status = '${proofStatus}'
       )`);
+    }
+
+    // Special case: sos_without_po returns orders (not POs) since these orders have no PO
+    if (alertFilter === 'sos_without_po') {
+      const soResult = await database.execute(sql.raw(`
+        SELECT
+          NULL as "documentId",
+          NULL as "documentNumber",
+          o.id as "orderId",
+          NULL as "vendorId",
+          NULL as "vendorName",
+          NULL as "fileUrl",
+          NULL as "documentStatus",
+          NULL as "sentAt",
+          NULL as metadata,
+          o.created_at as "createdAt",
+          o.order_number as "orderNumber",
+          o.in_hands_date as "inHandsDate",
+          o.supplier_in_hands_date as "supplierInHandsDate",
+          o.event_date as "eventDate",
+          o.next_action_date as "nextActionDate",
+          o.next_action_type as "nextActionType",
+          o.next_action_notes as "nextActionNotes",
+          o.is_firm as "isFirm",
+          o.is_rush as "isRush",
+          o.sales_order_status as "salesOrderStatus",
+          o.assigned_user_id as "assignedUserId",
+          o.csr_user_id as "csrUserId",
+          o.current_stage as "currentStage",
+          o.stages_completed as "stagesCompleted",
+          c.name as "companyName",
+          c.id as "companyId",
+          COALESCE(u_assigned.first_name || ' ' || u_assigned.last_name, u_assigned.username) as "assignedUserName",
+          u_assigned.profile_image_url as "assignedUserImage",
+          COALESCE(u_csr.first_name || ' ' || u_csr.last_name, u_csr.username) as "csrUserName",
+          u_csr.profile_image_url as "csrUserImage",
+          0 as "poTotalCost"
+        FROM orders o
+        LEFT JOIN companies c ON o.company_id = c.id
+        LEFT JOIN users u_assigned ON o.assigned_user_id = u_assigned.id
+        LEFT JOIN users u_csr ON o.csr_user_id = u_csr.id
+        WHERE o.sales_order_status = 'client_approved'
+        AND NOT EXISTS (
+          SELECT 1 FROM generated_documents gd2
+          WHERE gd2.order_id = o.id AND gd2.document_type = 'purchase_order'
+        )
+        ${isFirm === 'true' ? 'AND o.is_firm = true' : ''}
+        ${isRush === 'true' ? 'AND o.is_rush = true' : ''}
+        ORDER BY o.in_hands_date ASC NULLS LAST
+        LIMIT ${parseInt(limit)}
+        OFFSET ${offset}
+      `));
+
+      const soCountResult = await database.execute(sql.raw(`
+        SELECT COUNT(*)::int as total FROM orders o
+        WHERE o.sales_order_status = 'client_approved'
+        AND NOT EXISTS (
+          SELECT 1 FROM generated_documents gd2
+          WHERE gd2.order_id = o.id AND gd2.document_type = 'purchase_order'
+        )
+        ${isFirm === 'true' ? 'AND o.is_firm = true' : ''}
+        ${isRush === 'true' ? 'AND o.is_rush = true' : ''}
+      `));
+
+      const soRows = (soResult as any).rows ?? soResult;
+      const soTotal = (soCountResult as any).rows?.[0]?.total ?? (soCountResult as any)[0]?.total ?? 0;
+
+      const enrichedSoRows = soRows.map((row: any) => ({
+        ...row,
+        poStage: null,
+        poStatus: null,
+        totalCost: 0,
+        itemCount: 0,
+        proofItems: [],
+        shipments: [],
+        isAwaitingPO: true,
+      }));
+
+      return res.json({
+        data: enrichedSoRows,
+        pagination: {
+          page: parseInt(page),
+          limit: parseInt(limit),
+          total: soTotal,
+          totalPages: Math.ceil(soTotal / parseInt(limit)),
+        }
+      });
     }
 
     const whereClause = conditions.join(' AND ');

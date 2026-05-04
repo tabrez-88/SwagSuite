@@ -14,6 +14,12 @@ router.get("/api/dashboard/enhanced-stats", isAuthenticated, asyncHandler(Dashbo
 // Manual YTD sync
 router.post("/api/sync/ytd-spending", isAuthenticated, asyncHandler(DashboardExtendedController.syncYtdSpending));
 
+// Recent activities feed
+router.get("/api/dashboard/recent-activities", isAuthenticated, asyncHandler(DashboardExtendedController.getRecentActivities));
+
+// Team leaderboard (real data)
+router.get("/api/dashboard/team-leaderboard", isAuthenticated, asyncHandler(DashboardExtendedController.getTeamLeaderboard));
+
 // Team performance
 router.get("/api/dashboard/team-performance", isAuthenticated, asyncHandler(DashboardExtendedController.getTeamPerformance));
 

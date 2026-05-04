@@ -30,6 +30,17 @@ export interface TeamLeaderboard {
   rank: number;
 }
 
+export interface RecentActivity {
+  id: string;
+  activityType: string;
+  content: string;
+  createdAt: string;
+  isSystemGenerated: boolean;
+  userName: string;
+  orderId: string;
+  orderNumber: string | null;
+}
+
 export interface AIAutomationTask {
   id: string;
   type: 'vendor_followup' | 'customer_outreach' | 'order_reminder' | 'sample_suggestion';

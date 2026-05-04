@@ -7,10 +7,20 @@ export async function updateCompanyYtdSpending(companyId: string) {
   try {
     const { db } = await import("../db");
     const { companies, orders } = await import("@shared/schema");
-    const { eq, and, gte, sql } = await import("drizzle-orm");
+    const { eq, and, gte, or, inArray, sql } = await import("drizzle-orm");
 
     const currentYear = new Date().getFullYear();
     const yearStart = new Date(currentYear, 0, 1);
+
+    // Only count committed orders (sales_order / invoice stage)
+    const isCommittedOrder = or(
+      eq(orders.salesOrderStatus, "ready_to_invoice"),
+      inArray(orders.orderType, ["sales_order", "rush_order"]),
+      and(
+        sql`${orders.salesOrderStatus} IS NOT NULL`,
+        sql`${orders.salesOrderStatus} != 'new'`,
+      ),
+    );
 
     const [ytdResult] = await db
       .select({ total: sql<string>`COALESCE(SUM(${orders.total}), 0)` })
@@ -18,7 +28,8 @@ export async function updateCompanyYtdSpending(companyId: string) {
       .where(
         and(
           eq(orders.companyId, companyId),
-          gte(orders.createdAt, yearStart)
+          gte(orders.createdAt, yearStart),
+          isCommittedOrder,
         )
       );
 

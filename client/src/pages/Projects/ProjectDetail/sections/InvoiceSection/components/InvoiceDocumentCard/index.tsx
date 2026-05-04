@@ -59,11 +59,22 @@ export default function InvoiceDocumentCard({
             <FileText className="w-4 h-4" />
             Invoice Document
           </CardTitle>
-          {sendableDocument && invoice.status !== "paid" && (
-            <Button size="sm" onClick={onSendClick}>
-              <Send className="w-4 h-4 mr-1" />
-              Send Invoice
-            </Button>
+          {invoice.status !== "paid" && (
+            sendableDocument ? (
+              <Button size="sm" onClick={onSendClick}>
+                <Send className="w-4 h-4 mr-1" />
+                Send Invoice
+              </Button>
+            ) : hasLocalPdf ? null : (
+              <Button size="sm" variant="outline" onClick={onGeneratePdf} disabled={isGenerating || orderItems.length === 0}>
+                {isGenerating ? (
+                  <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                ) : (
+                  <FileText className="w-4 h-4 mr-1" />
+                )}
+                Generate PDF to Send
+              </Button>
+            )
           )}
         </div>
       </CardHeader>

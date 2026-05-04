@@ -259,30 +259,44 @@ export class CommunicationService {
     return attachments;
   }
 
-  private async fetchDocumentAttachment(doc: { fileUrl: string; fileName?: string }) {
-    try {
-      const axios = (await import('axios')).default;
-      const response = await axios.get(doc.fileUrl, { responseType: 'arraybuffer' });
-      // Infer content type from file extension or response headers
-      const ext = (doc.fileName || doc.fileUrl).split('.').pop()?.toLowerCase();
-      const contentTypeMap: Record<string, string> = {
-        pdf: 'application/pdf', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg',
-        gif: 'image/gif', webp: 'image/webp', svg: 'image/svg+xml', ai: 'application/postscript',
-        eps: 'application/postscript', psd: 'image/vnd.adobe.photoshop',
-        doc: 'application/msword', docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-        xls: 'application/vnd.ms-excel', xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        csv: 'text/csv',
-      };
-      const contentType = contentTypeMap[ext || ''] || response.headers['content-type'] || 'application/octet-stream';
-      return {
-        filename: doc.fileName || 'attachment',
-        content: Buffer.from(response.data),
-        contentType,
-      };
-    } catch (error) {
-      console.error('Warning: Failed to auto-attach document:', error instanceof Error ? error.message : JSON.stringify(error));
-      return null;
+  private async fetchDocumentAttachment(doc: { fileUrl: string; fileName?: string }, retries = 1) {
+    const axios = (await import('axios')).default;
+    const ext = (doc.fileName || doc.fileUrl).split('.').pop()?.toLowerCase();
+    const contentTypeMap: Record<string, string> = {
+      pdf: 'application/pdf', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg',
+      gif: 'image/gif', webp: 'image/webp', svg: 'image/svg+xml', ai: 'application/postscript',
+      eps: 'application/postscript', psd: 'image/vnd.adobe.photoshop',
+      doc: 'application/msword', docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      xls: 'application/vnd.ms-excel', xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      csv: 'text/csv',
+    };
+
+    for (let attempt = 0; attempt <= retries; attempt++) {
+      try {
+        const response = await axios.get(doc.fileUrl, {
+          responseType: 'arraybuffer',
+          timeout: 30000,
+        });
+        const contentType = contentTypeMap[ext || ''] || response.headers['content-type'] || 'application/octet-stream';
+        return {
+          filename: doc.fileName || 'attachment',
+          content: Buffer.from(response.data),
+          contentType,
+        };
+      } catch (error: any) {
+        const statusCode = error?.response?.status;
+        const errMsg = error instanceof Error ? error.message : JSON.stringify(error);
+        console.error(
+          `Failed to fetch document attachment (attempt ${attempt + 1}/${retries + 1}):`,
+          `URL: ${doc.fileUrl}, Status: ${statusCode || 'N/A'}, Error: ${errMsg}`
+        );
+        if (attempt < retries) {
+          await new Promise(resolve => setTimeout(resolve, 2000));
+        }
+      }
     }
+    console.error(`All ${retries + 1} attempts failed for document attachment: ${doc.fileUrl}`);
+    return null;
   }
 
   private async trackPOSending(orderId: string, userId: string, subject: string, recipientName?: string, recipientEmail?: string, order?: any) {

@@ -1,5 +1,7 @@
 import { useToast } from "@/hooks/use-toast";
 import { useState, useEffect } from "react";
+import { useMutation } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
 import {
   useBranding,
   useUpdateBranding,
@@ -125,5 +127,32 @@ export function useGeneralTab(adminSettings: any) {
     generalSettings,
     updateField,
     saveSettings,
+  };
+}
+
+export function useSyncYtdSpending() {
+  const { toast } = useToast();
+
+  const mutation = useMutation({
+    mutationFn: () => apiRequest("POST", "/api/sync/ytd-spending"),
+    onSuccess: async (res) => {
+      const data = await res.json();
+      toast({
+        title: "YTD Sync Complete",
+        description: `Updated ${data.companiesUpdated} companies and ${data.suppliersUpdated} suppliers.`,
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        variant: "destructive",
+        title: "Sync Failed",
+        description: error.message || "Failed to sync YTD spending.",
+      });
+    },
+  });
+
+  return {
+    syncYtd: () => mutation.mutate(),
+    isSyncing: mutation.isPending,
   };
 }

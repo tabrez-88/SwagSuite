@@ -69,6 +69,8 @@ export default function ProductionReport() {
     filterDateFrom, setFilterDateFrom,
     filterDateTo, setFilterDateTo,
     alertFilter, setAlertFilter,
+    filterFirm, setFilterFirm,
+    filterRush, setFilterRush,
     sortBy, sortOrder, handleSort,
     page, setPage, pagination,
     selectedPOId, panelOpen, setPanelOpen,
@@ -238,6 +240,24 @@ export default function ProductionReport() {
               </Button>
               <Button size="sm" variant="outline" className="h-7 text-xs px-2" onClick={() => applyDatePreset("thisMonth")}>
                 This Month
+              </Button>
+            </div>
+            <div className="flex gap-1.5 ml-auto">
+              <Button
+                size="sm"
+                variant={filterFirm ? "default" : "outline"}
+                className={`h-7 text-xs px-2 ${filterFirm ? "bg-blue-600 hover:bg-blue-700" : ""}`}
+                onClick={() => { setFilterFirm(!filterFirm); setPage(1); }}
+              >
+                FIRM
+              </Button>
+              <Button
+                size="sm"
+                variant={filterRush ? "default" : "outline"}
+                className={`h-7 text-xs px-2 ${filterRush ? "bg-red-600 hover:bg-red-700" : ""}`}
+                onClick={() => { setFilterRush(!filterRush); setPage(1); }}
+              >
+                RUSH
               </Button>
             </div>
           </div>

@@ -3,6 +3,7 @@ import { dashboardKeys } from "./keys";
 import type {
   DashboardMetrics,
   TeamLeaderboard,
+  RecentActivity,
   AIAutomationTask,
   NewsAlert,
 } from "@/pages/Home/components/EnhancedDashboard/types";
@@ -18,6 +19,13 @@ export function useTeamLeaderboard(range?: string) {
   return useQuery<TeamLeaderboard[]>({
     queryKey: dashboardKeys.teamLeaderboard(range),
     refetchInterval: 300_000,
+  });
+}
+
+export function useRecentActivities() {
+  return useQuery<RecentActivity[]>({
+    queryKey: dashboardKeys.recentActivities,
+    refetchInterval: 30_000,
   });
 }
 
