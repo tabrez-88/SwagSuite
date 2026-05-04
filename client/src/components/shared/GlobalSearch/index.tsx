@@ -7,6 +7,7 @@ import { ProductDetailModal } from "@/components/modals/ProductDetailModal";
 import { useLocation } from "@/lib/wouter-compat";
 import type { SearchResult } from "./types";
 import { useGlobalSearch } from "./hooks";
+import { formatLabel } from "@/lib/utils";
 
 const typeIcons: Record<string, any> = {
   order: TrendingUp,
@@ -179,12 +180,12 @@ export default function GlobalSearch() {
                           {typeLabels[result.type] || result.type}
                         </Badge>
                       </div>
-                      <p className="text-xs text-gray-500 mb-1">{result.description}</p>
+                      <p className="text-xs text-gray-500 mb-1">{formatLabel(result.description)}</p>
                       {meta.length > 0 && (
                         <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-gray-400">
                           {meta.map((m) => (
                             <span key={m.label}>
-                              <span className="text-gray-500">{m.label}:</span> {m.value}
+                              <span className="text-gray-500">{m.label}:</span> {formatLabel(m.value)}
                             </span>
                           ))}
                         </div>
