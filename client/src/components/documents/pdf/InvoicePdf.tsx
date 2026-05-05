@@ -64,7 +64,7 @@ export function InvoicePdf({
   // Additional charges per item (displayToClient only, excluding includeInUnitPrice)
   const additionalChargesTotal = orderItems.reduce((sum: number, item: any) => {
     const charges = (allItemCharges[item.id] || []).filter(
-      (c: any) => c.displayToClient && !c.includeInUnitPrice,
+      (c: any) => c.displayToClient !== false && !c.includeInUnitPrice,
     );
     return (
       sum +
@@ -110,12 +110,22 @@ export function InvoicePdf({
       sum + (c.quantity || 1) * parseFloat(c.unitPrice || "0"),
     0,
   );
-  const subtotal =
+  const computedSubtotal =
     itemsSubtotal +
     additionalChargesTotal +
     artworkChargesTotal +
     serviceChargesTotal;
-  const total = parseFloat(invoice?.totalAmount) || subtotal + shipping + tax;
+
+  // For final invoices, use stored DB values (snapshot at creation) — the PDF's
+  // recomputed subtotal can drift if charges have null displayToClient or items changed.
+  // invoice.totalAmount = balance due, invoice.depositDeduction = deposit paid,
+  // so real order total = totalAmount + depositDeduction.
+  const subtotal = isFinal && invoice?.subtotal
+    ? parseFloat(invoice.subtotal)
+    : computedSubtotal;
+  const total = isFinal
+    ? parseFloat(invoice?.totalAmount || "0") + depositDeduction
+    : parseFloat(invoice?.totalAmount) || computedSubtotal + shipping + tax;
 
   const isOverdue = invoice?.status === "overdue";
   const isPaid = invoice?.status === "paid";
@@ -441,7 +451,7 @@ export function InvoicePdf({
           const itemTotal = parseFloat(item.totalPrice) || unitPrice * quantity;
           const itemArtworks = allArtworkItems[item.id] || [];
           const itemCharges = (allItemCharges[item.id] || []).filter(
-            (c: any) => c.displayToClient && !c.includeInUnitPrice,
+            (c: any) => c.displayToClient !== false && !c.includeInUnitPrice,
           );
 
           return (

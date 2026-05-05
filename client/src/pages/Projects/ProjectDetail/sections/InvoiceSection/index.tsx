@@ -16,7 +16,7 @@ import PaymentCard from "./components/PaymentCard";
 import PaymentReminderCard from "./components/PaymentReminderCard";
 import ManualPaymentDialog from "./components/ManualPaymentDialog";
 import CreateInvoiceButton from "./components/CreateInvoiceButton";
-import DepositInvoiceSummary from "./components/DepositInvoiceSummary";
+import InvoiceListCard from "./components/InvoiceListCard";
 
 export default function InvoiceSection(props: InvoiceSectionProps) {
   const { projectId, lockStatus } = props;
@@ -65,8 +65,12 @@ export default function InvoiceSection(props: InvoiceSectionProps) {
         )}
       </div>
 
-      {hook.depositInvoice?.status === "paid" && !hook.finalInvoice && (
-        <DepositInvoiceSummary invoice={hook.depositInvoice} />
+      {hook.allInvoices && hook.allInvoices.length > 0 && (
+        <InvoiceListCard
+          invoices={hook.allInvoices}
+          selectedInvoiceId={hook.selectedInvoiceId}
+          onSelect={hook.handleSelectInvoice}
+        />
       )}
 
       {hook.invoiceLoading ? (
@@ -115,6 +119,8 @@ export default function InvoiceSection(props: InvoiceSectionProps) {
             invoice={hook.invoice}
             onCopyPaymentLink={hook.handleCopyPaymentLink}
             onOpenPaymentDialog={hook.handleOpenPaymentDialog}
+            onVoidStripe={hook.hasStripeInvoice ? hook.handleVoidStripe : undefined}
+            voidStripePending={hook.voidStripeMutation.isPending}
           />
 
           <PaymentReminderCard invoice={hook.invoice} />

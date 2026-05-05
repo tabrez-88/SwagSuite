@@ -1,3 +1,5 @@
+import { useState } from "react";
+import NewProjectWizard from "@/components/modals/NewProjectWizard";
 import { PopularProducts } from "@/components/shared/PopularProducts";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -6,7 +8,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Link } from "@/lib/wouter-compat";
-import { useLocation } from "wouter";
+import { useLocation } from "@/lib/wouter-compat";
 import type { ArAgingBucket } from "@/pages/Reports/hooks";
 import {
   Activity,
@@ -68,12 +70,20 @@ export function EnhancedDashboard() {
     arAging,
     getMetricByRange,
     getComparisonMetric,
+    getMarginByRange,
+    getComparisonMargin,
+    getAvgOrderValueByRange,
+    getComparisonAvgOrderValue,
+    getOrderQuantityByRange,
+    getComparisonOrderQuantity,
+    comparisonLabel,
     calculateGrowth,
     getPriorityColor,
     getSentimentColor,
     seedDataMutation,
   } = useEnhancedDashboard();
   const [, navigate] = useLocation();
+  const [showNewProject, setShowNewProject] = useState(false);
 
   return (
     <div className="space-y-6">
@@ -110,71 +120,117 @@ export function EnhancedDashboard() {
         </TabsList>
 
         <TabsContent value="overview" className="space-y-6">
-          {/* KPI Cards */}
+          {/* KPI Cards — all responsive to date range */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* 1. Revenue */}
             <Card className="border-l-4 border-l-swag-blue">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Revenue ({dateRange.toUpperCase()})</CardTitle>
+                <CardTitle className="text-sm font-medium">Revenue</CardTitle>
                 <DollarSign className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold text-swag-blue">
                   ${getMetricByRange(dateRange).toLocaleString()}
                 </div>
-                {getComparisonMetric(dateRange) > 0 && (
-                  <div className="flex items-center gap-1 text-xs">
-                    <TrendingUp className="h-3 w-3 text-green-600" />
-                    <span className="text-green-600">
-                      +{calculateGrowth(getMetricByRange(dateRange), getComparisonMetric(dateRange)).toFixed(1)}%
-                    </span>
-                    <span className="text-muted-foreground">vs last period</span>
-                  </div>
-                )}
+                {(() => {
+                  const prev = getComparisonMetric(dateRange);
+                  const growth = calculateGrowth(getMetricByRange(dateRange), prev);
+                  if (prev === 0) return null;
+                  const isUp = growth >= 0;
+                  return (
+                    <div className="flex items-center gap-1 text-xs">
+                      <TrendingUp className={`h-3 w-3 ${isUp ? "text-green-600" : "text-red-500 rotate-180"}`} />
+                      <span className={isUp ? "text-green-600" : "text-red-500"}>
+                        {isUp ? "+" : ""}{growth.toFixed(1)}%
+                      </span>
+                      <span className="text-muted-foreground">{comparisonLabel(dateRange)}</span>
+                    </div>
+                  );
+                })()}
               </CardContent>
             </Card>
 
-            <Card className="border-l-4 border-l-swag-yellow">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Active Orders</CardTitle>
-                <Package className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-swag-yellow">
-                  {metrics?.activeOrders || 0}
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  Avg order value: ${metrics?.avgOrderValue?.toLocaleString() || 0}
-                </p>
-              </CardContent>
-            </Card>
-
+            {/* 2. Margin % */}
             <Card className="border-l-4 border-l-swag-teal">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Gross Margin</CardTitle>
+                <CardTitle className="text-sm font-medium">Margin %</CardTitle>
                 <Target className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold text-swag-teal">
-                  {metrics?.grossMargin?.toFixed(1) || 0}%
+                  {getMarginByRange(dateRange).toFixed(1)}%
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  Order quantity: {metrics?.orderQuantity || 0}
-                </p>
+                {(() => {
+                  const prev = getComparisonMargin(dateRange);
+                  if (prev === 0) return null;
+                  const diff = getMarginByRange(dateRange) - prev;
+                  const isUp = diff >= 0;
+                  return (
+                    <div className="flex items-center gap-1 text-xs">
+                      <TrendingUp className={`h-3 w-3 ${isUp ? "text-green-600" : "text-red-500 rotate-180"}`} />
+                      <span className={isUp ? "text-green-600" : "text-red-500"}>
+                        {isUp ? "+" : ""}{diff.toFixed(1)}pp
+                      </span>
+                      <span className="text-muted-foreground">{comparisonLabel(dateRange)}</span>
+                    </div>
+                  );
+                })()}
               </CardContent>
             </Card>
 
+            {/* 3. Avg Order Value */}
+            <Card className="border-l-4 border-l-swag-yellow">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Avg Order Value</CardTitle>
+                <DollarSign className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-swag-yellow">
+                  ${getAvgOrderValueByRange(dateRange).toLocaleString()}
+                </div>
+                {(() => {
+                  const prev = getComparisonAvgOrderValue(dateRange);
+                  const growth = calculateGrowth(getAvgOrderValueByRange(dateRange), prev);
+                  if (prev === 0) return null;
+                  const isUp = growth >= 0;
+                  return (
+                    <div className="flex items-center gap-1 text-xs">
+                      <TrendingUp className={`h-3 w-3 ${isUp ? "text-green-600" : "text-red-500 rotate-180"}`} />
+                      <span className={isUp ? "text-green-600" : "text-red-500"}>
+                        {isUp ? "+" : ""}{growth.toFixed(1)}%
+                      </span>
+                      <span className="text-muted-foreground">{comparisonLabel(dateRange)}</span>
+                    </div>
+                  );
+                })()}
+              </CardContent>
+            </Card>
+
+            {/* 4. Order Quantity */}
             <Card className="border-l-4 border-l-swag-navy">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Pipeline Value</CardTitle>
-                <TrendingUp className="h-4 w-4 text-muted-foreground" />
+                <CardTitle className="text-sm font-medium">Order Quantity</CardTitle>
+                <Package className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold text-swag-navy">
-                  ${metrics?.pipelineValue?.toLocaleString() || 0}
+                  {getOrderQuantityByRange(dateRange)}
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  Conversion rate: {metrics?.conversionRate?.toFixed(1) || 0}%
-                </p>
+                {(() => {
+                  const prev = getComparisonOrderQuantity(dateRange);
+                  const growth = calculateGrowth(getOrderQuantityByRange(dateRange), prev);
+                  if (prev === 0) return null;
+                  const isUp = growth >= 0;
+                  return (
+                    <div className="flex items-center gap-1 text-xs">
+                      <TrendingUp className={`h-3 w-3 ${isUp ? "text-green-600" : "text-red-500 rotate-180"}`} />
+                      <span className={isUp ? "text-green-600" : "text-red-500"}>
+                        {isUp ? "+" : ""}{growth.toFixed(1)}%
+                      </span>
+                      <span className="text-muted-foreground">{comparisonLabel(dateRange)}</span>
+                    </div>
+                  );
+                })()}
               </CardContent>
             </Card>
           </div>
@@ -273,13 +329,13 @@ export function EnhancedDashboard() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
-                <Button className="w-full justify-start" variant="outline" onClick={() => navigate("/projects/new")}>
+                <Button className="w-full justify-start" variant="outline" onClick={() => setShowNewProject(true)}>
                   <Package className="h-4 w-4 mr-2" />
                   Create New Order
                 </Button>
-                <Button className="w-full justify-start" variant="outline" onClick={() => navigate("/crm/companies")}>
+                <Button className="w-full justify-start" variant="outline" onClick={() => navigate("/crm")}>
                   <Users className="h-4 w-4 mr-2" />
-                  Add Customer
+                  View Customers
                 </Button>
                 <Button className="w-full justify-start" variant="outline" onClick={() => navigate("/reports")}>
                   <BarChart3 className="h-4 w-4 mr-2" />
@@ -318,8 +374,11 @@ export function EnhancedDashboard() {
                       </div>
                       <div>
                         <p className="font-medium">{member.name}</p>
+                        {member.email && (
+                          <p className="text-xs text-muted-foreground">{member.email}</p>
+                        )}
                         <p className="text-sm text-muted-foreground">
-                          {member.ordersCount} orders • {member.contactsReached} contacts
+                          {member.ordersCount} orders · {member.contactsReached} companies
                         </p>
                       </div>
                     </div>
@@ -452,6 +511,7 @@ export function EnhancedDashboard() {
           </Card>
         </TabsContent>
       </Tabs>
+      <NewProjectWizard open={showNewProject} onOpenChange={setShowNewProject} />
     </div>
   );
 }

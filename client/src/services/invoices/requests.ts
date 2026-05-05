@@ -35,6 +35,11 @@ export async function getInvoices(projectId: string | number) {
   return res.json();
 }
 
+export async function voidStripeInvoice(invoiceId: string | number) {
+  const res = await apiRequest("POST", `/api/invoices/${invoiceId}/void-stripe`);
+  return res.json();
+}
+
 export async function convertInvoiceType(projectId: string | number, targetType: "deposit" | "standard") {
   const res = await apiRequest("PATCH", `/api/projects/${projectId}/invoice/convert-type`, { targetType });
   return res.json();

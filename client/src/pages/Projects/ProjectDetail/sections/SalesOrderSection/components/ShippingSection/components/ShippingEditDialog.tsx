@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { Loader2, Package, Save } from "lucide-react";
+import { AlertTriangle, Loader2, Package, Save } from "lucide-react";
 import type { ItemShippingFormData, ShippingAddressData } from "../types";
 import {
   ACCOUNT_TYPE_OPTIONS,
@@ -40,6 +40,7 @@ interface ShippingEditDialogProps {
   handleLeg2ShipToChange: (shipTo: string) => void;
   allShippingAccounts?: ShippingAccountWithSource[];
   filteredMethods?: ShippingMethod[];
+  hasThirdPartyDecorator?: boolean;
 }
 
 export function ShippingEditDialog({
@@ -58,6 +59,7 @@ export function ShippingEditDialog({
   handleLeg2ShipToChange,
   allShippingAccounts = [],
   filteredMethods = [],
+  hasThirdPartyDecorator = false,
 }: ShippingEditDialogProps) {
   const showAccountPicker = form.shippingAccountType === "ours";
   const showLeg2AccountPicker = form.leg2ShippingAccountType === "ours";
@@ -100,6 +102,17 @@ export function ShippingEditDialog({
                 </Select>
               </div>
             </div>
+
+            {/* Warning: third-party decorator but not shipping through decorator */}
+            {hasThirdPartyDecorator && form.shippingDestination && form.shippingDestination !== "decorator" && (
+              <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-md p-2.5 text-xs text-amber-800">
+                <AlertTriangle className="w-4 h-4 flex-shrink-0 text-amber-500 mt-0.5" />
+                <span>
+                  This item has a third-party decorator assigned. Shipping should typically go through the decorator first.
+                  Select <strong>"Decorator"</strong> as destination to create proper 2-leg shipping (Supplier → Decorator → Client).
+                </span>
+              </div>
+            )}
 
             {/* Shipping Account picker (when account type = ours or client) */}
             {showAccountPicker && allShippingAccounts.length > 0 && (

@@ -173,7 +173,7 @@ export default function VendorCard({
   const { data: integrationSettings } = useIntegrationSettingsList();
   const isShipStationConnected = !!(integrationSettings as any)?.shipstationConnected;
   const pushToShipStationMutation = useMutation({
-    mutationFn: () => pushOrderToShipStation(context.order?.id as string),
+    mutationFn: () => pushOrderToShipStation(context.order?.id as string, po.vendor.id),
     onSuccess: (data) => {
       toast({ title: "Exported to ShipStation", description: data.message });
     },
@@ -244,6 +244,7 @@ export default function VendorCard({
                       if (!shipTo) return null;
                       const dest =
                         shipTo.companyName ||
+                        context.companyName ||
                         [shipTo.city, shipTo.state].filter(Boolean).join(", ");
                       return dest ? <span className="">{dest}</span> : null;
                     })()}

@@ -277,7 +277,7 @@ export class CompanyService {
   async getSpendingReport(companyId: string, from?: string, to?: string) {
     const { db } = await import("../db");
     const { orders } = await import("@shared/schema");
-    const { eq, and, gte, lte, inArray, desc, sql } = await import("drizzle-orm");
+    const { eq, and, gte, lte, or, inArray, desc, sql } = await import("drizzle-orm");
 
     const fromDate = from ? new Date(from) : new Date(new Date().getFullYear(), 0, 1);
     const toDate = to ? new Date(to) : new Date();
@@ -285,12 +285,19 @@ export class CompanyService {
     const toEnd = new Date(toDate);
     toEnd.setHours(23, 59, 59, 999);
 
-    // Only count revenue from orders that have actually been committed (SO or later)
-    const committedStages = ["sales_order", "invoice"];
+    // Match ytdHelpers committed order filter — salesOrderStatus or orderType based
+    const isCommittedOrder = or(
+      eq(orders.salesOrderStatus, "ready_to_invoice"),
+      inArray(orders.orderType, ["sales_order", "rush_order"]),
+      and(
+        sql`${orders.salesOrderStatus} IS NOT NULL`,
+        sql`${orders.salesOrderStatus} != 'new'`,
+      ),
+    );
 
     const whereClauses = and(
       eq(orders.companyId, companyId),
-      inArray(orders.currentStage, committedStages),
+      isCommittedOrder,
       gte(orders.createdAt, fromDate),
       lte(orders.createdAt, toEnd),
     );

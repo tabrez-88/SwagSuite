@@ -35,18 +35,53 @@ const isCommittedOrder = or(
 );
 
 export interface FinanceStats {
+  // Per-range revenue
   ytdRevenue: number;
-  lastYearYtdRevenue: number;
   mtdRevenue: number;
-  lastMonthRevenue: number;
   wtdRevenue: number;
   todayRevenue: number;
-  pipelineValue: number;
-  pipelineOrderCount: number;
-  conversionRate: number;
+  // Comparison revenue
+  lastYearYtdRevenue: number;
+  lastMonthRevenue: number;
+  lastWeekRevenue: number;
+  yesterdayRevenue: number;
+  // Per-range margin
+  ytdMargin: number;
+  mtdMargin: number;
+  wtdMargin: number;
+  todayMargin: number;
+  // Comparison margin
+  lastYearYtdMargin: number;
+  lastMonthMargin: number;
+  lastWeekMargin: number;
+  yesterdayMargin: number;
+  // Per-range avg order value
+  ytdAvgOrderValue: number;
+  mtdAvgOrderValue: number;
+  wtdAvgOrderValue: number;
+  todayAvgOrderValue: number;
+  // Comparison avg order value
+  lastYearYtdAvgOrderValue: number;
+  lastMonthAvgOrderValue: number;
+  lastWeekAvgOrderValue: number;
+  yesterdayAvgOrderValue: number;
+  // Per-range order quantity
+  ytdOrderQuantity: number;
+  mtdOrderQuantity: number;
+  wtdOrderQuantity: number;
+  todayOrderQuantity: number;
+  // Comparison order quantity
+  lastYearYtdOrderQuantity: number;
+  lastMonthOrderQuantity: number;
+  lastWeekOrderQuantity: number;
+  yesterdayOrderQuantity: number;
+  // Legacy
+  grossMargin: number;
   avgOrderValue: number;
   orderQuantity: number;
-  grossMargin: number;
+  conversionRate: number;
+  pipelineValue: number;
+  pipelineOrderCount: number;
 }
 
 export class DashboardRepository {
@@ -65,7 +100,7 @@ export class DashboardRepository {
       .where(
         and(
           gte(orders.createdAt, yearStart),
-          eq(orders.status, 'approved' as any)
+          isCommittedOrder,
         )
       );
 
@@ -84,7 +119,7 @@ export class DashboardRepository {
       .where(
         and(
           gte(orders.createdAt, yearStart),
-          eq(orders.status, 'approved' as any)
+          isCommittedOrder,
         )
       );
 
@@ -129,14 +164,29 @@ export class DashboardRepository {
         .select({
           total: sql<string>`COALESCE(SUM(${orders.total}), 0)`,
           count: sql<number>`COUNT(*)::int`,
+          weightedMargin: sql<string>`COALESCE(SUM(${orders.margin} * ${orders.total}) / NULLIF(SUM(${orders.total}), 0), 0)`,
         })
         .from(orders)
         .where(and(...conditions));
+      const total = parseFloat(row?.total || "0");
+      const count = Number(row?.count || 0);
       return {
-        total: parseFloat(row?.total || "0"),
-        count: Number(row?.count || 0),
+        total,
+        count,
+        margin: Math.round(parseFloat(row?.weightedMargin || "0") * 10) / 10,
+        avgOrderValue: count > 0 ? Math.round((total / count) * 100) / 100 : 0,
       };
     };
+
+    // Last week (same weekday range, 7 days back)
+    const lastWeekStart = new Date(weekStart);
+    lastWeekStart.setDate(lastWeekStart.getDate() - 7);
+    const lastWeekEnd = new Date(todayStart);
+    lastWeekEnd.setDate(lastWeekEnd.getDate() - 7);
+
+    // Yesterday
+    const yesterdayStart = new Date(todayStart);
+    yesterdayStart.setDate(yesterdayStart.getDate() - 1);
 
     const [
       ytd,
@@ -144,66 +194,68 @@ export class DashboardRepository {
       mtd,
       lastMonth,
       wtd,
+      lastWeek,
       today,
-      pipeline,
-      allYtdCount,
-      marginRow,
+      yesterday,
     ] = await Promise.all([
       committedRevenue(yearStart),
       committedRevenue(lastYearStart, lastYearSameDay),
       committedRevenue(monthStart),
       committedRevenue(lastMonthStart, monthStart),
       committedRevenue(weekStart),
+      committedRevenue(lastWeekStart, lastWeekEnd),
       committedRevenue(todayStart),
-      // Pipeline: quotes + presentations not yet converted
-      db
-        .select({
-          total: sql<string>`COALESCE(SUM(${orders.total}), 0)`,
-          count: sql<number>`COUNT(*)::int`,
-        })
-        .from(orders)
-        .where(isPipelineOrder)
-        .then(([r]) => ({
-          total: parseFloat(r?.total || "0"),
-          count: Number(r?.count || 0),
-        })),
-      // Conversion rate denominator: all orders created YTD (any stage)
-      db
-        .select({ count: sql<number>`COUNT(*)::int` })
-        .from(orders)
-        .where(gte(orders.createdAt, yearStart))
-        .then(([r]) => Number(r?.count || 0)),
-      // Weighted gross margin across committed YTD orders
-      db
-        .select({
-          weightedMargin: sql<string>`COALESCE(SUM(${orders.margin} * ${orders.total}) / NULLIF(SUM(${orders.total}), 0), 0)`,
-        })
-        .from(orders)
-        .where(
-          and(
-            isCommittedOrder,
-            gte(orders.createdAt, yearStart),
-          ),
-        )
-        .then(([r]) => parseFloat(r?.weightedMargin || "0")),
+      committedRevenue(yesterdayStart, todayStart),
     ]);
 
-    const conversionRate = allYtdCount > 0 ? (ytd.count / allYtdCount) * 100 : 0;
-    const avgOrderValue = ytd.count > 0 ? ytd.total / ytd.count : 0;
-
     return {
+      // Per-range revenue
       ytdRevenue: ytd.total,
-      lastYearYtdRevenue: lastYearYtd.total,
       mtdRevenue: mtd.total,
-      lastMonthRevenue: lastMonth.total,
       wtdRevenue: wtd.total,
       todayRevenue: today.total,
-      pipelineValue: pipeline.total,
-      pipelineOrderCount: pipeline.count,
-      conversionRate: Math.round(conversionRate * 10) / 10,
-      avgOrderValue: Math.round(avgOrderValue * 100) / 100,
+      // Comparison revenue
+      lastYearYtdRevenue: lastYearYtd.total,
+      lastMonthRevenue: lastMonth.total,
+      lastWeekRevenue: lastWeek.total,
+      yesterdayRevenue: yesterday.total,
+      // Per-range margin
+      ytdMargin: ytd.margin,
+      mtdMargin: mtd.margin,
+      wtdMargin: wtd.margin,
+      todayMargin: today.margin,
+      // Comparison margin
+      lastYearYtdMargin: lastYearYtd.margin,
+      lastMonthMargin: lastMonth.margin,
+      lastWeekMargin: lastWeek.margin,
+      yesterdayMargin: yesterday.margin,
+      // Per-range avg order value
+      ytdAvgOrderValue: ytd.avgOrderValue,
+      mtdAvgOrderValue: mtd.avgOrderValue,
+      wtdAvgOrderValue: wtd.avgOrderValue,
+      todayAvgOrderValue: today.avgOrderValue,
+      // Comparison avg order value
+      lastYearYtdAvgOrderValue: lastYearYtd.avgOrderValue,
+      lastMonthAvgOrderValue: lastMonth.avgOrderValue,
+      lastWeekAvgOrderValue: lastWeek.avgOrderValue,
+      yesterdayAvgOrderValue: yesterday.avgOrderValue,
+      // Per-range order quantity
+      ytdOrderQuantity: ytd.count,
+      mtdOrderQuantity: mtd.count,
+      wtdOrderQuantity: wtd.count,
+      todayOrderQuantity: today.count,
+      // Comparison order quantity
+      lastYearYtdOrderQuantity: lastYearYtd.count,
+      lastMonthOrderQuantity: lastMonth.count,
+      lastWeekOrderQuantity: lastWeek.count,
+      yesterdayOrderQuantity: yesterday.count,
+      // Legacy fields for backward compat
+      grossMargin: ytd.margin,
+      avgOrderValue: ytd.avgOrderValue,
       orderQuantity: ytd.count,
-      grossMargin: Math.round(marginRow * 10) / 10,
+      conversionRate: 0,
+      pipelineValue: 0,
+      pipelineOrderCount: 0,
     };
   }
 
@@ -387,54 +439,54 @@ export class DashboardRepository {
     const currentYear = new Date().getFullYear();
     const yearStart = new Date(currentYear, 0, 1);
 
-    const rows = await db
-      .select({
-        userId: users.id,
-        firstName: users.firstName,
-        lastName: users.lastName,
-        email: users.email,
-        profileImageUrl: users.profileImageUrl,
-        ordersCount: sql<number>`COUNT(DISTINCT ${orders.id})::int`,
-        ytdRevenue: sql<string>`COALESCE(SUM(CASE WHEN (
-          ${orders.salesOrderStatus} = 'ready_to_invoice'
-          OR ${orders.orderType} IN ('sales_order', 'rush_order')
-          OR (${orders.salesOrderStatus} IS NOT NULL AND ${orders.salesOrderStatus} != 'new')
-        ) THEN ${orders.total} ELSE 0 END), 0)`,
-        contactsReached: sql<number>`COUNT(DISTINCT ${orders.companyId})::int`,
-      })
-      .from(users)
-      .leftJoin(
-        orders,
-        and(
-          eq(orders.assignedUserId, users.id),
-          gte(orders.createdAt, yearStart),
-        ),
-      )
-      .where(inArray(users.role, ["admin", "manager", "sales"]))
-      .groupBy(users.id, users.firstName, users.lastName, users.email, users.profileImageUrl)
-      .orderBy(sql`COALESCE(SUM(CASE WHEN (
-        ${orders.salesOrderStatus} = 'ready_to_invoice'
-        OR ${orders.orderType} IN ('sales_order', 'rush_order')
-        OR (${orders.salesOrderStatus} IS NOT NULL AND ${orders.salesOrderStatus} != 'new')
-      ) THEN ${orders.total} ELSE 0 END), 0) DESC`);
+    // Use raw SQL to avoid Drizzle interpolation issues in CASE WHEN
+    const result = await db.execute<{
+      user_id: string;
+      first_name: string | null;
+      last_name: string | null;
+      email: string | null;
+      profile_image_url: string | null;
+      orders_count: string;
+      ytd_revenue: string;
+      contacts_reached: string;
+    }>(sql`
+      SELECT
+        u.id as user_id,
+        u.first_name,
+        u.last_name,
+        u.email,
+        u.profile_image_url,
+        COUNT(DISTINCT o.id)::int as orders_count,
+        COALESCE(SUM(o.total::numeric), 0) as ytd_revenue,
+        COUNT(DISTINCT o.company_id)::int as contacts_reached
+      FROM users u
+      LEFT JOIN orders o ON o.assigned_user_id = u.id
+        AND o.created_at >= ${yearStart}
+        AND (
+          o.sales_order_status = 'ready_to_invoice'
+          OR o.order_type IN ('sales_order', 'rush_order')
+          OR (o.sales_order_status IS NOT NULL AND o.sales_order_status != 'new')
+        )
+      WHERE u.role IN ('admin', 'manager', 'user')
+      GROUP BY u.id, u.first_name, u.last_name, u.email, u.profile_image_url
+      ORDER BY COALESCE(SUM(o.total::numeric), 0) DESC
+    `);
 
-    return rows.map((r, i) => {
-      const totalOrders = r.ordersCount || 0;
-      const ytdRevenue = parseFloat(r.ytdRevenue || "0");
-      return {
-        userId: r.userId,
-        name: [r.firstName, r.lastName].filter(Boolean).join(" ") || r.email || "Unknown",
-        avatar: r.profileImageUrl || "",
-        ytdRevenue,
-        mtdRevenue: 0,
-        wtdRevenue: 0,
-        ordersCount: totalOrders,
-        conversionRate: 0,
-        contactsReached: r.contactsReached || 0,
-        meetingsHeld: 0,
-        rank: i + 1,
-      };
-    });
+    const rows = result.rows || [];
+    return rows.map((r, i) => ({
+      userId: r.user_id,
+      name: [r.first_name, r.last_name].filter(Boolean).join(" ") || r.email || "Unknown",
+      email: r.email || "",
+      avatar: r.profile_image_url || "",
+      ytdRevenue: parseFloat(r.ytd_revenue || "0"),
+      mtdRevenue: 0,
+      wtdRevenue: 0,
+      ordersCount: Number(r.orders_count) || 0,
+      conversionRate: 0,
+      contactsReached: Number(r.contacts_reached) || 0,
+      meetingsHeld: 0,
+      rank: i + 1,
+    }));
   }
 }
 

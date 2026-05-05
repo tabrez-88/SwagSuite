@@ -61,8 +61,8 @@ export async function testShipStationConnection(data: { apiKey: string; apiSecre
   return res.json();
 }
 
-export async function pushOrderToShipStation(orderId: string): Promise<{ success: boolean; shipstationOrderId?: number; message: string }> {
-  const res = await apiRequest("POST", `/api/shipstation/orders/${orderId}/push`);
+export async function pushOrderToShipStation(orderId: string, vendorId?: string): Promise<{ success: boolean; shipstationOrderId?: number; message: string }> {
+  const res = await apiRequest("POST", `/api/shipstation/orders/${orderId}/push`, vendorId ? { vendorId } : undefined);
   return res.json();
 }
 

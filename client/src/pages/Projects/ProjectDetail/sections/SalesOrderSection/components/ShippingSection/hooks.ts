@@ -258,7 +258,16 @@ export function useShippingSection(projectId: string, data: ProjectData) {
         updated.shippingAccountType = "supplier_account";
       }
 
-      if (destination === "client" && !f.shipToAddress?.street) {
+      // When switching destination type, always clear stale address from previous destination
+      const isDestinationChange = destination !== f.shippingDestination;
+      if (isDestinationChange) {
+        updated.shipToAddress = null;
+        updated.shipToAddressId = "";
+      }
+
+      const needsAutoFill = !updated.shipToAddress?.street;
+
+      if (destination === "client" && needsAutoFill) {
         // Auto-fill from order shipping address or default company address
         if (parsedAddress?.street) {
           updated.shipToAddress = {
@@ -296,7 +305,7 @@ export function useShippingSection(projectId: string, data: ProjectData) {
             updated.shipToAddressId = da.id || "";
           }
         }
-      } else if (destination === "decorator" && !f.shipToAddress?.street) {
+      } else if (destination === "decorator" && needsAutoFill) {
         // Auto-fill from decorator's saved addresses (supplierAddresses updates via hook)
         // Use the decorator's vendor name as companyName fallback (not the address label)
         const decoratorVendor = orderVendors.find((v) => v.id === editingItem?.decoratorId);
@@ -346,10 +355,6 @@ export function useShippingSection(projectId: string, data: ProjectData) {
             updated.leg2InHandsDate = sihd.toISOString().slice(0, 10);
           }
         }
-      } else if (destination !== f.shippingDestination) {
-        // Switching destination — clear address so new auto-fill can work
-        updated.shipToAddress = null;
-        updated.shipToAddressId = "";
       }
       return updated;
     });

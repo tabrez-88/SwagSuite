@@ -1678,13 +1678,14 @@ export class IntegrationController {
     }
 
     const { orderId } = req.params;
+    const { vendorId } = req.body || {};
     const isDryRun = process.env.SHIPSTATION_DRY_RUN === 'true';
     const isDevelopment = process.env.NODE_ENV !== 'production';
 
     try {
       const { db } = await import("../db");
       const { orders, orderItems, products, contacts } = await import("@shared/schema");
-      const { eq } = await import("drizzle-orm");
+      const { eq, and } = await import("drizzle-orm");
 
       // Fetch order
       const [order] = await db.select().from(orders).where(eq(orders.id, orderId)).limit(1);
@@ -1703,7 +1704,11 @@ export class IntegrationController {
         contactEmail = contact?.email || undefined;
       }
 
-      // Fetch items with product info
+      // Fetch items with product info (filter by vendor if provided)
+      const itemsWhereCondition = vendorId
+        ? and(eq(orderItems.orderId, orderId), eq(orderItems.supplierId, vendorId))
+        : eq(orderItems.orderId, orderId);
+
       const items = await db
         .select({
           id: orderItems.id,
@@ -1717,7 +1722,7 @@ export class IntegrationController {
         })
         .from(orderItems)
         .leftJoin(products, eq(orderItems.productId, products.id))
-        .where(eq(orderItems.orderId, orderId));
+        .where(itemsWhereCondition);
 
       // Use first item's ship-to address or order-level address
       const shipToAddress = items[0]?.shipToAddress

@@ -10,6 +10,8 @@ interface POGroupKey {
   shipFirm: boolean | null;
   shippingMethod: string | null;
   shippingAccountId: string | null;
+  /** For decorator POs: split by source supplier so each gets its own PO */
+  supplierId: string | null;
 }
 
 export interface POGroup {
@@ -46,7 +48,7 @@ function hashAddress(addr: unknown): string {
 
 /** Build a deterministic group key from shipping-relevant fields */
 function buildGroupKey(key: POGroupKey): string {
-  return [
+  const parts = [
     key.vendorId,
     key.vendorRole,
     key.addressHash,
@@ -54,7 +56,12 @@ function buildGroupKey(key: POGroupKey): string {
     String(key.shipFirm),
     key.shippingMethod ?? "null",
     key.shippingAccountId ?? "null",
-  ].join(":::");
+  ];
+  // Decorator POs include supplierId so each supplier's items get a separate PO
+  if (key.supplierId) {
+    parts.push(key.supplierId);
+  }
+  return parts.join(":::");
 }
 
 /** Format a date string for display (MM/DD) */
@@ -132,6 +139,7 @@ export function computePOGroups(
         shipFirm: effectiveFirm,
         shippingMethod: effectiveMethod,
         shippingAccountId: effectiveAccountId,
+        supplierId: isDecorator ? (item.supplierId as string) || null : null,
       });
 
       if (!groupMap.has(key)) {

@@ -238,7 +238,12 @@ export class InvoiceController {
       }
 
       if (invoice.stripeInvoiceId) {
-        return res.status(400).json({ message: "Cannot convert an invoice linked to Stripe. Void the Stripe invoice first." });
+        // Auto-void the Stripe invoice before converting
+        const { voidStripeInvoice } = await import("../utils/stripeInvoice");
+        const voidResult = await voidStripeInvoice(invoice.id);
+        if (!voidResult.success) {
+          return res.status(400).json({ message: `Cannot convert: ${voidResult.message}` });
+        }
       }
 
       let updates: Record<string, any>;
@@ -342,6 +347,20 @@ export class InvoiceController {
   // =====================================================
   // STRIPE PAYMENT LINK
   // =====================================================
+
+  static async voidStripeInvoice(req: Request, res: Response) {
+    try {
+      const { voidStripeInvoice } = await import("../utils/stripeInvoice");
+      const result = await voidStripeInvoice(req.params.id);
+      if (!result.success) {
+        return res.status(400).json({ message: result.message });
+      }
+      res.json({ message: result.message });
+    } catch (error) {
+      console.error("Void Stripe invoice error:", error);
+      res.status(500).json({ message: String(error) });
+    }
+  }
 
   static async createPaymentLink(req: Request, res: Response) {
     try {

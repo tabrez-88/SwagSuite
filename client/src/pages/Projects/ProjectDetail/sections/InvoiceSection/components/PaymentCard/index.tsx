@@ -1,20 +1,25 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Banknote, CheckCircle, CreditCard, ExternalLink } from "lucide-react";
+import { Banknote, CheckCircle, CreditCard, ExternalLink, XCircle, Loader2 } from "lucide-react";
 import { format } from "date-fns";
 import type { Invoice } from "@shared/schema";
+import { formatLabel } from "@/lib/utils";
 
 interface PaymentCardProps {
   invoice: Invoice;
   onCopyPaymentLink: () => void;
   onOpenPaymentDialog: () => void;
+  onVoidStripe?: () => void;
+  voidStripePending?: boolean;
 }
 
 export default function PaymentCard({
   invoice,
   onCopyPaymentLink,
   onOpenPaymentDialog,
+  onVoidStripe,
+  voidStripePending,
 }: PaymentCardProps) {
   return (
     <Card>
@@ -38,7 +43,7 @@ export default function PaymentCard({
             </div>
             {invoice.paymentMethod && (
               <p className="text-sm text-gray-500">
-                Method: {invoice.paymentMethod}
+                Method: {formatLabel(invoice.paymentMethod)}
                 {invoice.paymentReference &&
                   ` (Ref: ${invoice.paymentReference})`}
               </p>
@@ -61,7 +66,7 @@ export default function PaymentCard({
 
             {/* Stripe payment link */}
             {invoice.stripeInvoiceUrl && (
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <Button variant="outline" size="sm" onClick={onCopyPaymentLink}>
                   <ExternalLink className="w-4 h-4 mr-1" />
                   Copy Payment Link
@@ -75,6 +80,21 @@ export default function PaymentCard({
                     Open in Stripe
                   </a>
                 </Button>
+                {onVoidStripe && (
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={onVoidStripe}
+                    disabled={voidStripePending}
+                  >
+                    {voidStripePending ? (
+                      <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                    ) : (
+                      <XCircle className="w-4 h-4 mr-1" />
+                    )}
+                    Void Stripe Invoice
+                  </Button>
+                )}
               </div>
             )}
 

@@ -1,24 +1,61 @@
 export interface DashboardMetrics {
+  // Legacy from getStats()
   totalRevenue: number;
   activeOrders: number;
-  grossMargin: number;
   customerCount: number;
+  // Per-range revenue
   ytdRevenue: number;
-  lastYearYtdRevenue: number;
   mtdRevenue: number;
-  lastMonthRevenue: number;
   wtdRevenue: number;
   todayRevenue: number;
-  pipelineValue: number;
-  pipelineOrderCount: number;
-  conversionRate: number;
+  // Comparison revenue
+  lastYearYtdRevenue: number;
+  lastMonthRevenue: number;
+  lastWeekRevenue: number;
+  yesterdayRevenue: number;
+  // Per-range margin
+  ytdMargin: number;
+  mtdMargin: number;
+  wtdMargin: number;
+  todayMargin: number;
+  // Comparison margin
+  lastYearYtdMargin: number;
+  lastMonthMargin: number;
+  lastWeekMargin: number;
+  yesterdayMargin: number;
+  // Per-range avg order value
+  ytdAvgOrderValue: number;
+  mtdAvgOrderValue: number;
+  wtdAvgOrderValue: number;
+  todayAvgOrderValue: number;
+  // Comparison avg order value
+  lastYearYtdAvgOrderValue: number;
+  lastMonthAvgOrderValue: number;
+  lastWeekAvgOrderValue: number;
+  yesterdayAvgOrderValue: number;
+  // Per-range order quantity
+  ytdOrderQuantity: number;
+  mtdOrderQuantity: number;
+  wtdOrderQuantity: number;
+  todayOrderQuantity: number;
+  // Comparison order quantity
+  lastYearYtdOrderQuantity: number;
+  lastMonthOrderQuantity: number;
+  lastWeekOrderQuantity: number;
+  yesterdayOrderQuantity: number;
+  // Legacy
+  grossMargin: number;
   avgOrderValue: number;
   orderQuantity: number;
+  conversionRate: number;
+  pipelineValue: number;
+  pipelineOrderCount: number;
 }
 
 export interface TeamLeaderboard {
   userId: string;
   name: string;
+  email: string;
   avatar: string;
   ytdRevenue: number;
   mtdRevenue: number;

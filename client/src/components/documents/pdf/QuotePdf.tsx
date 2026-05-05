@@ -205,7 +205,7 @@ export function QuotePdf({
           const itemTotal = parseFloat(item.totalPrice) || unitPrice * quantity;
           const itemArtworks = allArtworkItems[item.id] || [];
           const itemCharges = (allItemCharges[item.id] || []).filter(
-            (c: any) => c.displayToClient && !c.includeInUnitPrice
+            (c: any) => c.displayToClient !== false && !c.includeInUnitPrice
           );
           const productImgSrc = resolvePdfImage(item.imageUrl || item.productImageUrl);
 

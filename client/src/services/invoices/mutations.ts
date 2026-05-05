@@ -84,6 +84,19 @@ export function useCreateFinalInvoice(projectId: string | number) {
   });
 }
 
+export function useVoidStripeInvoice(projectId: string | number) {
+  const { toast } = useToast();
+  const invalidate = useInvalidateInvoice(projectId);
+  return useMutation({
+    mutationFn: (invoiceId: string | number) => requests.voidStripeInvoice(invoiceId),
+    onSuccess: () => { invalidate(); toast({ title: "Stripe invoice voided" }); },
+    onError: (error: Error) => {
+      const msg = error.message?.replace(/^\d+:\s*/, "") || "Failed to void Stripe invoice";
+      toast({ title: msg, variant: "destructive" });
+    },
+  });
+}
+
 export function useConvertInvoiceType(projectId: string | number) {
   const { toast } = useToast();
   const invalidate = useInvalidateInvoice(projectId);

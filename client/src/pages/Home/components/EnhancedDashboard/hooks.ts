@@ -24,23 +24,47 @@ export function useEnhancedDashboard() {
   const { data: newsAlerts } = useNewsAlerts();
   const { data: arAging } = useArAging<ArAgingReport>();
 
-  const getMetricByRange = (range: string) => {
+  const pick = (prefix: string, range: string): number => {
+    if (!metrics) return 0;
+    const key =
+      range === "ytd" ? `ytd${prefix}` :
+      range === "mtd" ? `mtd${prefix}` :
+      range === "wtd" ? `wtd${prefix}` :
+      `today${prefix}`;
+    return (metrics as any)[key] || 0;
+  };
+
+  const pickComparison = (prefix: string, range: string): number => {
+    if (!metrics) return 0;
+    const key =
+      range === "ytd" ? `lastYearYtd${prefix}` :
+      range === "mtd" ? `lastMonth${prefix}` :
+      range === "wtd" ? `lastWeek${prefix}` :
+      `yesterday${prefix}`;
+    return (metrics as any)[key] || 0;
+  };
+
+  const comparisonLabel = (range: string): string => {
     switch (range) {
-      case "ytd": return metrics?.ytdRevenue || 0;
-      case "mtd": return metrics?.mtdRevenue || 0;
-      case "wtd": return metrics?.wtdRevenue || 0;
-      case "today": return metrics?.todayRevenue || 0;
-      default: return metrics?.ytdRevenue || 0;
+      case "ytd": return "vs LYTD";
+      case "mtd": return "vs last month";
+      case "wtd": return "vs last week";
+      case "today": return "vs yesterday";
+      default: return "";
     }
   };
 
-  const getComparisonMetric = (range: string) => {
-    switch (range) {
-      case "ytd": return metrics?.lastYearYtdRevenue || 0;
-      case "mtd": return metrics?.lastMonthRevenue || 0;
-      default: return 0;
-    }
-  };
+  const getMetricByRange = (range: string) => pick("Revenue", range);
+  const getComparisonMetric = (range: string) => pickComparison("Revenue", range);
+
+  const getMarginByRange = (range: string) => pick("Margin", range);
+  const getComparisonMargin = (range: string) => pickComparison("Margin", range);
+
+  const getAvgOrderValueByRange = (range: string) => pick("AvgOrderValue", range);
+  const getComparisonAvgOrderValue = (range: string) => pickComparison("AvgOrderValue", range);
+
+  const getOrderQuantityByRange = (range: string) => pick("OrderQuantity", range);
+  const getComparisonOrderQuantity = (range: string) => pickComparison("OrderQuantity", range);
 
   const calculateGrowth = (current: number, previous: number) => {
     if (previous === 0) return 0;
@@ -97,6 +121,13 @@ export function useEnhancedDashboard() {
     arAging,
     getMetricByRange,
     getComparisonMetric,
+    getMarginByRange,
+    getComparisonMargin,
+    getAvgOrderValueByRange,
+    getComparisonAvgOrderValue,
+    getOrderQuantityByRange,
+    getComparisonOrderQuantity,
+    comparisonLabel,
     calculateGrowth,
     getPriorityColor,
     getSentimentColor,

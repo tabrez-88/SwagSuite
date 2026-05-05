@@ -249,7 +249,7 @@ export function SalesOrderPdf({
           const hasMultipleLines = realLines.length > 1;
           const itemArtworks = allArtworkItems[item.id] || [];
           const itemCharges = (allItemCharges[item.id] || []).filter(
-            (c: any) => c.displayToClient && !c.includeInUnitPrice,
+            (c: any) => c.displayToClient !== false && !c.includeInUnitPrice,
           );
 
           // Use getItemPricing for accurate total including charges

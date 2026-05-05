@@ -30,6 +30,7 @@ router.patch("/api/projects/:id/invoice/convert-type", isAuthenticated, asyncHan
 // STRIPE PAYMENTS
 // =====================================================
 
+router.post("/api/invoices/:id/void-stripe", isAuthenticated, asyncHandler(InvoiceController.voidStripeInvoice));
 router.post("/api/invoices/:id/payment-link", isAuthenticated, asyncHandler(InvoiceController.createPaymentLink));
 router.post("/api/invoices/:id/manual-payment", isAuthenticated, asyncHandler(InvoiceController.recordManualPayment));
 router.post("/api/integrations/stripe/payment-intent", isAuthenticated, asyncHandler(InvoiceController.createPaymentIntent));

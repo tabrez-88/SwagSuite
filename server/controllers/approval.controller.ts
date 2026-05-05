@@ -737,9 +737,11 @@ export class ApprovalController {
           if (!existing) {
             const taxAmount = Number(order.tax || 0);
             const totalAmount = Number(order.subtotal || 0) + taxAmount + Number(order.shipping || 0);
+            const nextSeq = await invoiceRepository.getNextInvoiceSequence(order.id);
+            const invoiceNumber = `${order.orderNumber}-INV-${String(nextSeq).padStart(2, "0")}`;
             const newInvoice = await invoiceRepository.createInvoice({
               orderId: order.id,
-              invoiceNumber: `INV-${Date.now()}`,
+              invoiceNumber,
               subtotal: order.subtotal ?? "0",
               taxAmount: taxAmount.toString(),
               totalAmount: totalAmount.toString(),
@@ -787,9 +789,11 @@ export class ApprovalController {
             if (!existing) {
               const taxAmount = Number(order.tax || 0);
               const totalAmount = Number(order.subtotal || 0) + taxAmount + Number(order.shipping || 0);
+              const nextSeq = await invoiceRepository.getNextInvoiceSequence(order.id);
+              const invoiceNumber = `${order.orderNumber}-INV-${String(nextSeq).padStart(2, "0")}`;
               const newInvoice = await invoiceRepository.createInvoice({
                 orderId: order.id,
-                invoiceNumber: `INV-${Date.now()}`,
+                invoiceNumber,
                 subtotal: order.subtotal ?? "0",
                 taxAmount: taxAmount.toString(),
                 totalAmount: totalAmount.toString(),

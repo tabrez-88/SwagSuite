@@ -4,6 +4,50 @@ import { companyRepository } from "../repositories/company.repository";
 import { getStripeCredentials } from "../services/stripe.service";
 
 /**
+ * Void a Stripe invoice and clear the Stripe fields on the local invoice.
+ * Used before converting invoice type (standard ↔ deposit ↔ final).
+ */
+export async function voidStripeInvoice(invoiceId: string): Promise<{ success: boolean; message: string }> {
+  const invoice = await invoiceRepository.getInvoice(invoiceId);
+  if (!invoice) {
+    return { success: false, message: "Invoice not found" };
+  }
+  if (!invoice.stripeInvoiceId) {
+    return { success: true, message: "No Stripe invoice linked" };
+  }
+
+  const stripeService = await getStripeCredentials();
+  if (!stripeService) {
+    return { success: false, message: "Stripe not configured" };
+  }
+
+  try {
+    // Check Stripe invoice status before voiding
+    const stripeInvoice = await stripeService.getInvoice(invoice.stripeInvoiceId);
+    if (stripeInvoice.status === "paid") {
+      return { success: false, message: "Cannot void a paid Stripe invoice. Issue a refund in the Stripe dashboard." };
+    }
+    if (stripeInvoice.status !== "void") {
+      await stripeService.voidInvoice(invoice.stripeInvoiceId);
+    }
+  } catch (error: any) {
+    console.error("Failed to void Stripe invoice:", error);
+    return { success: false, message: `Stripe error: ${error.message || "Unknown error"}` };
+  }
+
+  // Clear Stripe fields on local invoice
+  await invoiceRepository.updateInvoice(invoiceId, {
+    stripeInvoiceId: null,
+    stripePaymentIntentId: null,
+    stripeInvoiceUrl: null,
+    stripeInvoicePdfUrl: null,
+  });
+
+  console.log(`Voided Stripe invoice for local invoice ${invoice.invoiceNumber}`);
+  return { success: true, message: "Stripe invoice voided successfully" };
+}
+
+/**
  * Auto-create a Stripe invoice + payment link for a local invoice.
  * Idempotent: skips if invoice already has a stripeInvoiceId.
  * Fails silently (logs error) so it never blocks the main flow.

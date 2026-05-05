@@ -878,9 +878,11 @@ export class ProjectController {
               if (!existing) {
                 const taxAmount = Number((order as any).tax || 0);
                 const totalAmount = Number((order as any).subtotal || 0) + taxAmount + Number((order as any).shipping || 0);
+                const nextSeq = await invoiceRepository.getNextInvoiceSequence(order.id);
+                const invoiceNumber = `${order.orderNumber}-INV-${String(nextSeq).padStart(2, "0")}`;
                 const newInvoice = await invoiceRepository.createInvoice({
                   orderId: order.id,
-                  invoiceNumber: `INV-${Date.now()}`,
+                  invoiceNumber,
                   subtotal: (order as any).subtotal ?? "0",
                   taxAmount: taxAmount.toString(),
                   totalAmount: totalAmount.toString(),

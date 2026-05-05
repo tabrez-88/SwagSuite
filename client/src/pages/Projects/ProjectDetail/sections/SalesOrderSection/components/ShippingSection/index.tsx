@@ -215,10 +215,15 @@ export default function ShippingSection({ projectId, data, isLocked }: ShippingS
                           </td>
                           <td className="p-2.5">
                             {item.shippingDestination ? (
-                              <Badge variant="outline" className="text-[10px]">
-                                {getShipToLabel(item.shippingDestination)}
-                                {item.shippingDestination === "decorator" && " → Client"}
-                              </Badge>
+                              <div className="flex items-center gap-1">
+                                <Badge variant="outline" className="text-[10px]">
+                                  {getShipToLabel(item.shippingDestination)}
+                                  {item.shippingDestination === "decorator" && " → Client"}
+                                </Badge>
+                                {item.decoratorType === "third_party" && item.shippingDestination !== "decorator" && (
+                                  <AlertTriangle className="w-3.5 h-3.5 text-amber-500" title="Has third-party decorator but not shipping through decorator" />
+                                )}
+                              </div>
                             ) : (
                               <span className="text-[10px] text-amber-600">Not set</span>
                             )}
@@ -317,6 +322,7 @@ export default function ShippingSection({ projectId, data, isLocked }: ShippingS
         handleLeg2ShipToChange={hook.handleLeg2ShipToChange}
         allShippingAccounts={hook.allShippingAccounts}
         filteredMethods={hook.filteredMethods}
+        hasThirdPartyDecorator={hook.editingItem?.decoratorType === "third_party"}
       />
 
       {/* BULK EDIT DIALOG */}
