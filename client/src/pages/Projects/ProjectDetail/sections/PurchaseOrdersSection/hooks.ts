@@ -91,6 +91,13 @@ export function usePurchaseOrdersSection({ projectId, data, isLocked }: Purchase
   }, [vendorPOs, order]);
 
   const getVendorDoc = (groupKey: string) => {
+    // Prefer exact match via PO entity documentId (most reliable link)
+    const entity = getPOEntity(groupKey);
+    if (entity?.documentId) {
+      const byEntity = poDocuments.find((d) => d.id === entity.documentId);
+      if (byEntity) return byEntity;
+    }
+    // Then match by groupKey in document metadata
     return poDocuments.find((d) => (d.metadata as Record<string, unknown>)?.groupKey === groupKey)
       || poDocuments.find((d) => (d.metadata as Record<string, unknown>)?.vendorKey === groupKey)
       || poDocuments.find((d) => d.vendorId === groupKey);
@@ -117,9 +124,10 @@ export function usePurchaseOrdersSection({ projectId, data, isLocked }: Purchase
     const group = vendorPOs.find((g) => g.groupKey === groupKey);
     if (!group) return [];
     const isDecoratorGroup = group.vendor.role === "decorator";
+    // Artwork should only appear on decorator POs, not blanks/supplier POs
+    if (!isDecoratorGroup) return [];
     const artworks: VendorArtwork[] = [];
     group.items.forEach((item) => {
-      if (!isDecoratorGroup && item.decoratorType === "third_party") return;
       const arts = allArtworkItems?.[item.id] || [];
       arts.forEach((art) => {
         artworks.push({

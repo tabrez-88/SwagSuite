@@ -68,7 +68,8 @@ export function useEmailVendor({
         cc: formData.cc || undefined,
         bcc: formData.bcc || undefined,
         metadata: { type: "purchase_order", documentId: doc.id, vendorId: doc.vendorId },
-        autoAttachArtworkForVendor: doc.vendorId,
+        // Only attach artwork for decorator POs, not blanks/supplier POs
+        autoAttachArtworkForVendor: (doc.metadata as Record<string, unknown>)?.poType === "decorator" ? doc.vendorId : undefined,
         autoAttachDocumentFile: doc.fileUrl ? { fileUrl: doc.fileUrl, fileName: (doc as GeneratedDocument & { fileName?: string }).fileName || `PO-${doc.documentNumber}.pdf` } : undefined,
         additionalAttachments: userAttachments,
       });
@@ -93,14 +94,17 @@ export function useEmailVendor({
     },
     onSuccess: async (_data, vars) => {
       toast({ title: "PO sent to vendor!", description: "Email sent successfully." });
-      // Auto-transition artworks to "awaiting_proof" when PO is sent
-      const vendorKey = vars.doc.vendorId || "";
-      const vendorArts = getVendorArtworks(vendorKey);
-      for (const art of vendorArts) {
-        if (art.proofRequired !== false && art.status === "pending") {
-          try {
-            await updateArtworkRequest(art.orderItemId, art.id, { name: art.name, status: "awaiting_proof" });
-          } catch { /* best effort */ }
+      // Auto-transition artworks to "awaiting_proof" only for decorator POs
+      const isDecoratorPO = (vars.doc.metadata as Record<string, unknown>)?.poType === "decorator";
+      if (isDecoratorPO) {
+        const vendorKey = vars.doc.vendorId || "";
+        const vendorArts = getVendorArtworks(vendorKey);
+        for (const art of vendorArts) {
+          if (art.proofRequired !== false && art.status === "pending") {
+            try {
+              await updateArtworkRequest(art.orderItemId, art.id, { name: art.name, status: "awaiting_proof" });
+            } catch { /* best effort */ }
+          }
         }
       }
       queryClient.invalidateQueries({ queryKey: projectKeys.itemsWithDetails(projectId) });

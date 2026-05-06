@@ -21,6 +21,7 @@ import {
   AlertTriangle,
   ChevronDown,
   ChevronRight,
+  Copy,
   DollarSign,
   Edit2,
   Eye,
@@ -130,7 +131,7 @@ export default function OrderItemCard({ item, productSection }: OrderItemCardPro
                     <Edit2 className="w-4 h-4 text-white" />
                     Edit
                   </Button>
-                  {/* <Button
+                  <Button
                     variant="outline"
                     size="sm"
                     disabled={productSection.isLocked || productSection.duplicateOrderItemMutation.isPending}
@@ -141,7 +142,7 @@ export default function OrderItemCard({ item, productSection }: OrderItemCardPro
                   >
                     <Copy className="w-4 h-4" />
                     Copy
-                  </Button> */}
+                  </Button>
                   <Button
                     variant="destructive"
                     size="sm"

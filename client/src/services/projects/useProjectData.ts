@@ -141,10 +141,12 @@ export function useProjectData(
         vendorsMap.set(item.supplierId, {
           id: item.supplierId,
           vendorKey: item.supplierId,
-          name: item.supplierName || supplierFromArray?.name || "Unknown Vendor",
-          email: item.supplierEmail || supplierFromArray?.email || "",
-          phone: item.supplierPhone || supplierFromArray?.phone || "",
-          contactPerson: item.supplierContactPerson || supplierFromArray?.contactPerson || "",
+          // Prefer supplier record name (source of truth) over item's cached supplierName
+          // which may contain the brand name instead of the actual distributor
+          name: supplierFromArray?.name || item.supplierName || "Unknown Vendor",
+          email: supplierFromArray?.email || item.supplierEmail || "",
+          phone: supplierFromArray?.phone || item.supplierPhone || "",
+          contactPerson: supplierFromArray?.contactPerson || item.supplierContactPerson || "",
           role: "supplier" as const,
           products: [],
         });
