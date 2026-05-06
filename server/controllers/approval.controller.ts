@@ -614,12 +614,51 @@ export class ApprovalController {
       return res.status(404).json({ message: "Approval not found" });
     }
 
-    // Mark as viewed if first time
+    // Mark as viewed if first time + log activity + notify sales rep
     if (!approval.viewedAt) {
       await db
         .update(quoteApprovals)
         .set({ viewedAt: new Date(), updatedAt: new Date() })
         .where(eq(quoteApprovals.approvalToken, token));
+
+      // Log activity: client opened the approval page
+      try {
+        const [viewedOrder] = await db.select().from(orders).where(eq(orders.id, approval.orderId));
+        if (viewedOrder) {
+          const { projectActivities } = await import("@shared/schema");
+          const isSO = approval.documentType === "sales_order"
+            || viewedOrder.salesOrderStatus === "pending_client_approval";
+          const docLabel = isSO ? "Sales Order" : "Quote";
+          const systemUserId = viewedOrder.assignedUserId || viewedOrder.csrUserId;
+          if (systemUserId) {
+            await db.insert(projectActivities).values({
+              orderId: viewedOrder.id,
+              userId: systemUserId,
+              activityType: "system_action",
+              content: `${docLabel} approval page opened by ${approval.clientName || approval.clientEmail}`,
+              metadata: { action: "approval_viewed", clientEmail: approval.clientEmail, clientName: approval.clientName },
+              isSystemGenerated: true,
+            });
+          }
+
+          // Notify sales rep that client opened the approval
+          const usersToNotify: string[] = [];
+          if (viewedOrder.assignedUserId) usersToNotify.push(viewedOrder.assignedUserId);
+          if (viewedOrder.csrUserId && !usersToNotify.includes(viewedOrder.csrUserId)) {
+            usersToNotify.push(viewedOrder.csrUserId);
+          }
+          if (usersToNotify.length > 0) {
+            await notificationRepository.createForMultipleUsers(usersToNotify, {
+              type: "approval_viewed",
+              title: `${docLabel} Viewed by Client`,
+              message: `${approval.clientName || approval.clientEmail} opened ${docLabel.toLowerCase()} #${viewedOrder.orderNumber} approval page.`,
+              orderId: viewedOrder.id,
+            });
+          }
+        }
+      } catch (viewErr) {
+        console.error("Failed to log approval view activity:", viewErr);
+      }
     }
 
     // Get order items for this quote
@@ -847,7 +886,11 @@ export class ApprovalController {
         });
       }
 
-      // Send email notifications
+      // Build project link for email
+      const baseUrl = `${req.protocol}://${req.get('host')}`;
+      const projectLink = `${baseUrl}/projects/${order.id}`;
+
+      // Send email notifications to sales rep / CSR (with project link)
       try {
         const { emailService } = await import("../services/email.service");
 
@@ -871,12 +914,43 @@ export class ApprovalController {
                 </ul>
                 ${notes ? `<p><strong>Client Notes:</strong> ${notes}</p>` : ''}
                 <p>${isSalesOrder ? 'The sales order has been marked as client approved.' : 'The order is now on the production kanban board waiting for PO processing.'}</p>
+                <p><a href="${projectLink}" style="display:inline-block;padding:10px 20px;background:#2563eb;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;">View Project</a></p>
               `,
             });
           }
         }
       } catch (emailError) {
         console.error("Failed to send approval emails:", emailError);
+      }
+
+      // Send thank you email to client
+      try {
+        const { emailService } = await import("../services/email.service");
+        const clientEmail = approval.clientEmail;
+        if (clientEmail) {
+          const pdfAttachment = approval.pdfPath ? `<p><a href="${baseUrl}/api/pdf-proxy?url=${encodeURIComponent(approval.pdfPath)}" style="display:inline-block;padding:8px 16px;background:#059669;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;">View Your ${docLabel}</a></p>` : '';
+          await emailService.sendEmail({
+            to: clientEmail,
+            subject: `Thank you for approving ${docLabel} #${order.orderNumber} - Liquid Screen Design`,
+            html: `
+              <h2>Thank You for Your Approval!</h2>
+              <p>Hi ${clientName || approval.clientName || 'there'},</p>
+              <p>We've received your approval for ${docLabel.toLowerCase()} <strong>#${order.orderNumber}</strong>. Thank you for your business!</p>
+              <h3>Order Summary:</h3>
+              <ul>
+                <li><strong>Order Number:</strong> ${order.orderNumber}</li>
+                <li><strong>Total:</strong> $${parseFloat(order.total || "0").toFixed(2)}</li>
+                ${order.inHandsDate ? `<li><strong>In-Hands Date:</strong> ${new Date(order.inHandsDate as unknown as string).toLocaleDateString()}</li>` : ''}
+              </ul>
+              ${notes ? `<p><strong>Your Notes:</strong> ${notes}</p>` : ''}
+              ${pdfAttachment}
+              <p>Our team will begin processing your order shortly. If you have any questions, please don't hesitate to reach out.</p>
+              <p>Best regards,<br/>Liquid Screen Design</p>
+            `,
+          });
+        }
+      } catch (thankYouErr) {
+        console.error("Failed to send thank you email to client:", thankYouErr);
       }
     }
 
@@ -991,7 +1065,11 @@ export class ApprovalController {
         });
       }
 
-      // Send email notification
+      // Build project link for email
+      const baseUrl = `${req.protocol}://${req.get('host')}`;
+      const projectLink = `${baseUrl}/projects/${order.id}`;
+
+      // Send email notification to sales rep (with project link)
       try {
         const { emailService } = await import("../services/email.service");
 
@@ -1012,12 +1090,35 @@ export class ApprovalController {
                 </ul>
                 <p><strong>Reason:</strong> ${reason}</p>
                 <p>Please review and follow up with the client.</p>
+                <p><a href="${projectLink}" style="display:inline-block;padding:10px 20px;background:#2563eb;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;">View Project</a></p>
               `,
             });
           }
         }
       } catch (emailError) {
         console.error("Failed to send decline emails:", emailError);
+      }
+
+      // Send acknowledgment email to client
+      try {
+        const { emailService } = await import("../services/email.service");
+        const clientEmail = approval.clientEmail;
+        if (clientEmail) {
+          await emailService.sendEmail({
+            to: clientEmail,
+            subject: `${docLabel} #${order.orderNumber} - We've received your feedback - Liquid Screen Design`,
+            html: `
+              <h2>We've Received Your Feedback</h2>
+              <p>Hi ${clientName || approval.clientName || 'there'},</p>
+              <p>We've noted your feedback regarding ${docLabel.toLowerCase()} <strong>#${order.orderNumber}</strong>.</p>
+              <p><strong>Your feedback:</strong> ${reason}</p>
+              <p>Our team will review your concerns and reach out to discuss next steps. We value your input and want to make sure we get this right for you.</p>
+              <p>Best regards,<br/>Liquid Screen Design</p>
+            `,
+          });
+        }
+      } catch (declineEmailErr) {
+        console.error("Failed to send decline acknowledgment to client:", declineEmailErr);
       }
     }
 
