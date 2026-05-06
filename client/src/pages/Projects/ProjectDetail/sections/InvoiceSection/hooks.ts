@@ -160,6 +160,7 @@ export function useInvoiceSection({ projectId, data }: InvoiceSectionProps) {
       serviceCharges,
       assignedUser,
       sellerName: branding?.companyName ?? undefined,
+      logoUrl: branding?.logoUrl ?? undefined,
     });
 
   // Generate local PDF

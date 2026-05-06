@@ -78,6 +78,7 @@ export function useSalesOrderSection({ projectId, data, lockStatus }: SalesOrder
       serviceCharges: data.serviceCharges,
       assignedUser: data.assignedUser,
       sellerName: branding?.companyName ?? undefined,
+      logoUrl: branding?.logoUrl ?? undefined,
     });
 
   const handleGenerateSO = async () => {

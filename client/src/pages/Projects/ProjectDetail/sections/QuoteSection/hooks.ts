@@ -73,6 +73,7 @@ export function useQuoteSection({ projectId, data, lockStatus }: QuoteSectionPro
       serviceCharges: data.serviceCharges,
       assignedUser: data.assignedUser,
       sellerName: branding?.companyName ?? undefined,
+      logoUrl: branding?.logoUrl ?? undefined,
     });
 
   const handleGenerateQuote = async () => {

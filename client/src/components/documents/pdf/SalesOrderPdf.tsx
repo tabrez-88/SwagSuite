@@ -46,6 +46,7 @@ export interface SalesOrderPdfProps {
     profileImageUrl?: string;
   } | null;
   sellerName?: string;
+  logoUrl?: string | null;
 }
 
 export function SalesOrderPdf({
@@ -60,6 +61,7 @@ export function SalesOrderPdf({
   serviceCharges = [],
   assignedUser,
   sellerName,
+  logoUrl,
 }: SalesOrderPdfProps) {
   const billingAddr = parseAddress(order?.billingAddress);
   const shippingAddr = parseAddress(order?.shippingAddress);
@@ -105,6 +107,7 @@ export function SalesOrderPdf({
   const total = subtotal + serviceChargesTotal + tax;
 
   const repProfileSrc = resolvePdfImage(assignedUser?.profileImageUrl);
+  const logoSrc = resolvePdfImage(logoUrl);
 
   return (
     <Document title={`Sales Order ${order?.orderNumber || ""}`}>
@@ -117,10 +120,15 @@ export function SalesOrderPdf({
             </Text>
             <Text style={{ fontSize: 12, fontWeight: 600 }}>
               for {companyName || "N/A"}
+              {order?.projectName ? ` — ${order.projectName}` : ""}
             </Text>
           </View>
           <View style={styles.headerRight}>
-            <Text style={styles.brandName}>{"Liquid Screen Design"}</Text>
+            {logoSrc ? (
+              <Image src={logoSrc} style={{ width: 120, height: 40, objectFit: "contain" }} />
+            ) : (
+              <Text style={styles.brandName}>{sellerName || "Liquid Screen Design"}</Text>
+            )}
             {order?.isFirm && (
               <View style={[styles.badge, styles.badgeBlue, { marginTop: 6 }]}>
                 <Text>FIRM ORDER</Text>
@@ -615,53 +623,6 @@ export function SalesOrderPdf({
           );
         })}
 
-        {/* ── Service Charges ──────────────────────────────────── */}
-        {clientServiceCharges.length > 0 && (
-          <View
-            style={{
-              marginBottom: 12,
-              padding: 12,
-              borderWidth: 1,
-              borderColor: colors.gray200,
-              borderStyle: "solid",
-              borderRadius: 2,
-            }}
-            wrap={false}
-          >
-            <Text style={styles.artworkHeader}>Services</Text>
-            <View style={styles.tableHead}>
-              <Text style={[styles.tableHeadCell, styles.colItem]}>
-                SERVICE
-              </Text>
-              <Text style={[styles.tableHeadCell, styles.colQty]}>QTY</Text>
-              <Text style={[styles.tableHeadCell, styles.colPrice]}>PRICE</Text>
-              <Text style={[styles.tableHeadCell, styles.colAmount]}>
-                AMOUNT
-              </Text>
-            </View>
-            {clientServiceCharges.map((charge: any) => {
-              const qty = charge.quantity || 1;
-              const price = parseFloat(charge.unitPrice || "0");
-              return (
-                <View key={charge.id} style={styles.tableRow}>
-                  <Text style={[styles.tableCell, styles.colItem]}>
-                    {charge.description}
-                  </Text>
-                  <Text style={[styles.tableCell, styles.colQty]}>{qty}</Text>
-                  <Text style={[styles.tableCell, styles.colPrice]}>
-                    {fmtMoney(price)}
-                  </Text>
-                  <Text
-                    style={[styles.tableCell, styles.colAmount, styles.bold]}
-                  >
-                    {fmtMoney(qty * price)}
-                  </Text>
-                </View>
-              );
-            })}
-          </View>
-        )}
-
         {/* ── Totals ───────────────────────────────────────────── */}
         <View
           style={{
@@ -686,12 +647,19 @@ export function SalesOrderPdf({
                 <Text>SUBTOTAL</Text>
                 <Text>{fmtMoney(subtotal)}</Text>
               </View>
-              {serviceChargesTotal > 0 && (
-                <View style={styles.totalsRow}>
-                  <Text>SERVICES & FEES</Text>
-                  <Text>{fmtMoney(serviceChargesTotal)}</Text>
-                </View>
-              )}
+              {clientServiceCharges.map((charge: any) => {
+                const qty = charge.quantity || 1;
+                const price = parseFloat(charge.unitPrice || "0");
+                const label = charge.chargeType === "freight" || charge.chargeType === "shipping"
+                  ? "FREIGHT"
+                  : (charge.description || "SERVICE FEE").toUpperCase();
+                return (
+                  <View key={charge.id} style={styles.totalsRow}>
+                    <Text>{label}</Text>
+                    <Text>{fmtMoney(qty * price)}</Text>
+                  </View>
+                );
+              })}
               <View style={styles.totalsRow}>
                 <Text>{tax > 0 && taxRate > 0 ? `TAX (${taxRate}%)` : "TAX"}</Text>
                 {tax > 0 ? (

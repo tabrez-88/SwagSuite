@@ -4,7 +4,7 @@
  * Shows: header with seller + client info, info grid (addresses + amount due +
  * invoice details), flat item table with charge sub-rows, and footer totals.
  */
-import { Document, Page, View, Text } from "@react-pdf/renderer";
+import { Document, Page, View, Text, Image } from "@react-pdf/renderer";
 import { getImprintLocationLabel } from "@/constants/imprintOptions";
 import { styles, colors } from "./styles";
 import {
@@ -13,6 +13,7 @@ import {
   parseAddress,
   formatCityLine,
   formatPaymentTerms,
+  resolvePdfImage,
 } from "./helpers";
 
 export interface InvoicePdfProps {
@@ -33,6 +34,7 @@ export interface InvoicePdfProps {
     profileImageUrl?: string;
   } | null;
   sellerName?: string;
+  logoUrl?: string | null;
 }
 
 export function InvoicePdf({
@@ -46,6 +48,7 @@ export function InvoicePdf({
   allArtworkCharges = {},
   serviceCharges = [],
   sellerName,
+  logoUrl,
 }: InvoicePdfProps) {
   const invoiceType: string = invoice?.invoiceType || "standard";
   const isDeposit = invoiceType === "deposit";
@@ -134,21 +137,27 @@ export function InvoicePdf({
   const taxRate = parseFloat(order?.taxRate) || 0;
   const taxExempt = tax === 0;
 
+  const logoSrc = resolvePdfImage(logoUrl);
+
   return (
     <Document title={`${isDeposit ? "Deposit Invoice" : "Invoice"} ${invoice?.invoiceNumber || ""}`}>
       <Page size="A4" style={styles.page} wrap>
         {/* ── Header: Seller Name + Invoice Title ──────────────── */}
         <View style={{ marginBottom: 16 }} fixed>
-          <Text
-            style={{
-              fontSize: 14,
-              fontFamily: "Helvetica-Bold",
-              color: colors.gray900,
-              marginBottom: 2,
-            }}
-          >
-            {"Liquid Screen Design"}
-          </Text>
+          {logoSrc ? (
+            <Image src={logoSrc} style={{ width: 120, height: 40, objectFit: "contain", marginBottom: 2 }} />
+          ) : (
+            <Text
+              style={{
+                fontSize: 14,
+                fontFamily: "Helvetica-Bold",
+                color: colors.gray900,
+                marginBottom: 2,
+              }}
+            >
+              {sellerName || "Liquid Screen Design"}
+            </Text>
+          )}
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
             <Text
               style={{

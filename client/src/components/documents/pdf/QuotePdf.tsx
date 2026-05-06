@@ -46,6 +46,7 @@ export interface QuotePdfProps {
     profileImageUrl?: string;
   } | null;
   sellerName?: string;
+  logoUrl?: string | null;
 }
 
 export function QuotePdf({
@@ -60,6 +61,7 @@ export function QuotePdf({
   serviceCharges = [],
   assignedUser,
   sellerName,
+  logoUrl,
 }: QuotePdfProps) {
   const billingAddr = parseAddress(order?.billingAddress);
   const shippingAddr = parseAddress(order?.shippingAddress);
@@ -99,6 +101,7 @@ export function QuotePdf({
   const total = subtotal + serviceChargesTotal + tax;
 
   const repProfileSrc = resolvePdfImage(assignedUser?.profileImageUrl);
+  const logoSrc = resolvePdfImage(logoUrl);
 
   return (
     <Document title={`Quote ${order?.orderNumber || ""}`}>
@@ -107,7 +110,7 @@ export function QuotePdf({
         <View style={styles.header} fixed>
           <View style={styles.headerLeft}>
             <Text style={[styles.docTitle, { color: colors.blue600 }]}>QUOTE</Text>
-            <Text style={styles.docMeta}>Quote #{order?.orderNumber || "N/A"}</Text>
+            <Text style={styles.docMeta}>Quote #{order?.orderNumber || "N/A"}{order?.projectName ? ` — ${order.projectName}` : ""}</Text>
             <Text style={styles.docMeta}>Date: {fmtDate(order?.createdAt)}</Text>
             {order?.inHandsDate && (
               <Text style={styles.docMeta}>In-Hands Date: {fmtDate(order.inHandsDate)}</Text>
@@ -117,7 +120,11 @@ export function QuotePdf({
             )}
           </View>
           <View style={styles.headerRight}>
-            <Text style={styles.brandName}>{"Liquid Screen Design"}</Text>
+            {logoSrc ? (
+              <Image src={logoSrc} style={{ width: 120, height: 40, objectFit: "contain" }} />
+            ) : (
+              <Text style={styles.brandName}>{sellerName || "Liquid Screen Design"}</Text>
+            )}
           </View>
         </View>
 
@@ -354,33 +361,6 @@ export function QuotePdf({
           );
         })}
 
-        {/* ── Service Charges ──────────────────────────────────── */}
-        {clientServiceCharges.length > 0 && (
-          <View style={{ marginBottom: 12 }} wrap={false}>
-            <Text style={styles.artworkHeader}>Services & Fees</Text>
-            <View style={styles.tableHead}>
-              <Text style={[styles.tableHeadCell, styles.colItem]}>SERVICE</Text>
-              <Text style={[styles.tableHeadCell, styles.colQty]}>QTY</Text>
-              <Text style={[styles.tableHeadCell, styles.colPrice]}>PRICE</Text>
-              <Text style={[styles.tableHeadCell, styles.colAmount]}>AMOUNT</Text>
-            </View>
-            {clientServiceCharges.map((charge: any) => {
-              const qty = charge.quantity || 1;
-              const price = parseFloat(charge.unitPrice || "0");
-              return (
-                <View key={charge.id} style={styles.tableRow}>
-                  <Text style={[styles.tableCell, styles.colItem]}>{charge.description}</Text>
-                  <Text style={[styles.tableCell, styles.colQty]}>{qty}</Text>
-                  <Text style={[styles.tableCell, styles.colPrice]}>{fmtMoney(price)}</Text>
-                  <Text style={[styles.tableCell, styles.colAmount, styles.bold]}>
-                    {fmtMoney(qty * price)}
-                  </Text>
-                </View>
-              );
-            })}
-          </View>
-        )}
-
         {/* ── Totals ───────────────────────────────────────────── */}
         <View style={styles.totalsWrap} wrap={false}>
           <View style={styles.totalsBox}>
@@ -388,12 +368,19 @@ export function QuotePdf({
               <Text>Subtotal:</Text>
               <Text>{fmtMoney(subtotal)}</Text>
             </View>
-            {serviceChargesTotal > 0 && (
-              <View style={styles.totalsRow}>
-                <Text>Services & Fees:</Text>
-                <Text>{fmtMoney(serviceChargesTotal)}</Text>
-              </View>
-            )}
+            {clientServiceCharges.map((charge: any) => {
+              const qty = charge.quantity || 1;
+              const price = parseFloat(charge.unitPrice || "0");
+              const label = charge.chargeType === "freight" || charge.chargeType === "shipping"
+                ? "Freight:"
+                : `${charge.description || "Service Fee"}:`;
+              return (
+                <View key={charge.id} style={styles.totalsRow}>
+                  <Text>{label}</Text>
+                  <Text>{fmtMoney(qty * price)}</Text>
+                </View>
+              );
+            })}
             {tax > 0 && (
               <View style={styles.totalsRow}>
                 <Text>{taxRate > 0 ? `Tax (${taxRate}%):` : "Tax:"}</Text>
