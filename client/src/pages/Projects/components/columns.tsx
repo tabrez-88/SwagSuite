@@ -20,6 +20,7 @@ import type { Order } from "@shared/schema";
 
 export type OrderWithRelations = Order & {
   companyName?: string;
+  assignedUserName?: string;
   _determinedStage?: DeterminedStage;
 };
 
@@ -140,6 +141,26 @@ export const columns: ColumnDef<OrderWithRelations>[] = [
     cell: ({ row }) => {
       const date = row.getValue("createdAt");
       return date ? format(new Date(date as string), "MMM dd, yyyy") : "-";
+    },
+  },
+  {
+    accessorKey: "assignedUserName",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Sales Rep" />
+    ),
+    cell: ({ row }) => {
+      const name = row.getValue("assignedUserName") as string;
+      if (!name) return <span className="text-muted-foreground">—</span>;
+      return (
+        <div className="flex items-center space-x-1.5">
+          <UserAvatar name={name} size="xs" />
+          <span className="text-sm truncate max-w-[100px]">{name}</span>
+        </div>
+      );
+    },
+    filterFn: (row, id, value) => {
+      if (!value || value === "all") return true;
+      return row.getValue(id) === value;
     },
   },
   {

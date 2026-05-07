@@ -1,12 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useLocation } from "@/lib/wouter-compat";
 
 import NewProjectWizard from "@/components/modals/NewProjectWizard";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import type { Order } from "@shared/schema";
-import { DollarSign, FileText, Kanban, List, PlusCircle, ShoppingCart, Receipt } from "lucide-react";
+import { CheckCircle2, Clock, DollarSign, FileText, Kanban, List, PlusCircle, ShoppingCart, Receipt } from "lucide-react";
 import { columns, OrderWithRelations } from "./components/columns";
 import { DataTable } from "./components/data-table";
 import { KanbanBoard } from "./components/kanban-board";
@@ -15,6 +15,7 @@ import { determineBusinessStage } from "@/constants/businessStages";
 export default function ProjectsPage() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [viewMode, setViewMode] = useState<"table" | "kanban">("table");
+  const [activeSOFilter, setActiveSOFilter] = useState<string | null>(null);
   const [, setLocation] = useLocation();
 
   const { data: orders = [], isLoading } = useQuery<Order[]>({
@@ -35,6 +36,7 @@ export default function ProjectsPage() {
     return {
       ...order,
       companyName: getCompanyName(order.companyId!),
+      assignedUserName: (order as any).assignedUserName || undefined,
       _determinedStage: determined,
     };
   });
@@ -44,6 +46,14 @@ export default function ProjectsPage() {
   ).length;
   const invoiceCount = ordersWithRelations.filter(
     (o) => o._determinedStage?.stage.id === "invoice"
+  ).length;
+
+  // SO approval summary counts
+  const awaitingApprovalCount = ordersWithRelations.filter(
+    (o) => o.salesOrderStatus === "pending_client_approval"
+  ).length;
+  const approvedSOCount = ordersWithRelations.filter(
+    (o) => o.salesOrderStatus === "client_approved"
   ).length;
 
   return (
@@ -87,7 +97,7 @@ export default function ProjectsPage() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center space-x-2">
@@ -106,6 +116,34 @@ export default function ProjectsPage() {
               <div>
                 <p className="text-sm text-gray-600">Active Sales Orders</p>
                 <p className="text-xl font-bold">{salesOrderCount}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card
+          className={`cursor-pointer transition-colors hover:border-yellow-400 ${activeSOFilter === "pending_client_approval" ? "border-yellow-400 bg-yellow-50/50" : ""}`}
+          onClick={() => setActiveSOFilter(activeSOFilter === "pending_client_approval" ? null : "pending_client_approval")}
+        >
+          <CardContent className="p-4">
+            <div className="flex items-center space-x-2">
+              <Clock className="text-yellow-600" size={20} />
+              <div>
+                <p className="text-sm text-gray-600">Awaiting Approval</p>
+                <p className="text-xl font-bold">{awaitingApprovalCount}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card
+          className={`cursor-pointer transition-colors hover:border-green-400 ${activeSOFilter === "client_approved" ? "border-green-400 bg-green-50/50" : ""}`}
+          onClick={() => setActiveSOFilter(activeSOFilter === "client_approved" ? null : "client_approved")}
+        >
+          <CardContent className="p-4">
+            <div className="flex items-center space-x-2">
+              <CheckCircle2 className="text-green-600" size={20} />
+              <div>
+                <p className="text-sm text-gray-600">Approved SO</p>
+                <p className="text-xl font-bold">{approvedSOCount}</p>
               </div>
             </div>
           </CardContent>
@@ -162,7 +200,10 @@ export default function ProjectsPage() {
       ) : viewMode === "table" ? (
         <DataTable
           columns={columns}
-          data={ordersWithRelations}
+          data={activeSOFilter
+            ? ordersWithRelations.filter((o) => o.salesOrderStatus === activeSOFilter)
+            : ordersWithRelations
+          }
           meta={{
             onViewOrder: (order: Order) => setLocation(`/projects/${order.id}`),
             onViewProject: (projectId: string) => setLocation(`/projects/${projectId}`),

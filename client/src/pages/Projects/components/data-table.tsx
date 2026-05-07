@@ -99,6 +99,36 @@ export function DataTable<TData, TValue>({
             <SelectItem value="invoice">Invoice</SelectItem>
           </SelectContent>
         </Select>
+        {(() => {
+          const salesReps = Array.from(
+            new Set(
+              data
+                .map((row: any) => row.assignedUserName)
+                .filter(Boolean) as string[],
+            ),
+          ).sort();
+          if (salesReps.length === 0) return null;
+          return (
+            <Select
+              value={(table.getColumn("assignedUserName")?.getFilterValue() as string) ?? "all"}
+              onValueChange={(value) =>
+                table.getColumn("assignedUserName")?.setFilterValue(value === "all" ? "" : value)
+              }
+            >
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Filter by sales rep" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Sales Reps</SelectItem>
+                {salesReps.map((rep) => (
+                  <SelectItem key={rep} value={rep}>
+                    {rep}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          );
+        })()}
         <DataTableViewOptions table={table} />
       </div>
       <div className="rounded-md border overflow-hidden">
