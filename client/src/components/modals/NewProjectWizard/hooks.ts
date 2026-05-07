@@ -1,11 +1,12 @@
 import { useState, useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "@/lib/wouter-compat";
 import type { Company } from "@shared/schema";
 import { useCompanyAddresses } from "@/services/company-addresses";
 import { usePaymentTerms, useDefaultPaymentTermName } from "@/services/payment-terms";
 import { useCreateProject } from "@/services/projects/mutations";
 import { useCreateSimpleContact } from "@/services/contacts/mutations";
+import { createCompany } from "@/services/companies/requests";
 import type { NewProjectWizardProps, StartingStage } from "./types";
 
 function normalizeCountryCode(country: string): string {
@@ -64,6 +65,10 @@ export function useNewProjectWizard({ open, onOpenChange, initialCompanyId }: Ne
   const [shippingCountry, setShippingCountry] = useState("US");
   const [sameAsBilling, setSameAsBilling] = useState(false);
 
+  // Quick-add company
+  const [showNewCompanyForm, setShowNewCompanyForm] = useState(false);
+  const [newCompanyName, setNewCompanyName] = useState("");
+
   // Sales order fields
   const [paymentTerms, setPaymentTerms] = useState("");
   const [customerPo, setCustomerPo] = useState("");
@@ -82,6 +87,19 @@ export function useNewProjectWizard({ open, onOpenChange, initialCompanyId }: Ne
   // Fetch company addresses for auto-fill
   const { data: companyAddresses = [] } = useCompanyAddresses(companyId || undefined);
 
+  // Quick-add company mutation
+  const queryClient = useQueryClient();
+  const createCompanyMutation = useMutation({
+    mutationFn: (name: string) => createCompany({ name } as any),
+    onSuccess: (newCompany: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/companies"] });
+      setCompanyId(newCompany.id);
+      setShowNewCompanyForm(false);
+      setNewCompanyName("");
+      setOpenCustomerCombo(false);
+    },
+  });
+
   // Reset on open
   useEffect(() => {
     if (open) {
@@ -94,6 +112,8 @@ export function useNewProjectWizard({ open, onOpenChange, initialCompanyId }: Ne
       setContactId("");
       setInHandsDate("");
       setEventDate("");
+      setShowNewCompanyForm(false);
+      setNewCompanyName("");
       setShowNewContactForm(false);
       setNewContactFirstName("");
       setNewContactLastName("");
@@ -359,6 +379,18 @@ export function useNewProjectWizard({ open, onOpenChange, initialCompanyId }: Ne
     // Mutations
     createIsPending: createMutation.isPending,
     createContactIsPending: createContactMutation.isPending,
+
+    // Quick-add company
+    showNewCompanyForm,
+    setShowNewCompanyForm,
+    newCompanyName,
+    setNewCompanyName,
+    handleCreateCompany: () => {
+      if (newCompanyName.trim()) {
+        createCompanyMutation.mutate(newCompanyName.trim());
+      }
+    },
+    createCompanyIsPending: createCompanyMutation.isPending,
 
     // Handlers
     handleSubmit,

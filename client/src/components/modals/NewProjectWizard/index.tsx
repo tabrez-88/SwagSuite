@@ -28,7 +28,7 @@ import {
 } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
 import { AddressAutocomplete } from "@/components/ui/address-autocomplete";
-import { ArrowLeft, ArrowRight, Check, ChevronsUpDown, DollarSign, Loader2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, ChevronsUpDown, DollarSign, Loader2, PlusCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { BUSINESS_STAGES } from "@/constants/businessStages";
 import type { NewProjectWizardProps } from "./types";
@@ -76,7 +76,46 @@ export default function NewProjectWizard(props: NewProjectWizardProps) {
                 <PopoverContent className="w-[400px] p-0">
                   <Command>
                     <CommandInput placeholder="Search client..." />
-                    <CommandEmpty>No client found.</CommandEmpty>
+                    <CommandEmpty>
+                      {h.showNewCompanyForm ? (
+                        <div className="p-2 space-y-2">
+                          <Input
+                            placeholder="Company name"
+                            value={h.newCompanyName}
+                            onChange={(e) => h.setNewCompanyName(e.target.value)}
+                            onKeyDown={(e) => { if (e.key === "Enter") h.handleCreateCompany(); }}
+                            autoFocus
+                          />
+                          <div className="flex gap-2">
+                            <Button
+                              size="sm"
+                              className="flex-1"
+                              disabled={!h.newCompanyName.trim() || h.createCompanyIsPending}
+                              onClick={h.handleCreateCompany}
+                            >
+                              {h.createCompanyIsPending ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : null}
+                              Create
+                            </Button>
+                            <Button size="sm" variant="outline" onClick={() => h.setShowNewCompanyForm(false)}>
+                              Cancel
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="p-2 text-center space-y-2">
+                          <p className="text-sm text-muted-foreground">No client found.</p>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="w-full"
+                            onClick={() => h.setShowNewCompanyForm(true)}
+                          >
+                            <PlusCircle className="w-3.5 h-3.5 mr-1.5" />
+                            Create New Client
+                          </Button>
+                        </div>
+                      )}
+                    </CommandEmpty>
                     <CommandGroup className="max-h-64 overflow-auto">
                       {h.companies.map((company) => {
                         const count = h.contacts.filter((c: any) => c.companyId === company.id).length;
