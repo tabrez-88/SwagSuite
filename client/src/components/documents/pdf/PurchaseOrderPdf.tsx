@@ -57,6 +57,8 @@ export interface PurchaseOrderPdfProps {
   vendorNotes?: string | null;
   revision?: number;
   blindShip?: boolean;
+  decoratorName?: string | null;
+  decoratorPONumber?: string | null;
 }
 
 export function PurchaseOrderPdf({
@@ -79,6 +81,8 @@ export function PurchaseOrderPdf({
   vendorNotes,
   revision,
   blindShip,
+  decoratorName,
+  decoratorPONumber,
 }: PurchaseOrderPdfProps) {
   const isDecoratorPO = poType === "decorator";
   const hasThirdPartyItems = vendorItems.some(
@@ -287,6 +291,17 @@ export function PurchaseOrderPdf({
         {shipToAddr && (
           <View style={{ marginBottom: 16 }}>
             <Text style={styles.addressLabel}>{shipToLabel}</Text>
+            {/* For blanks POs shipping to decorator, show decorator name prominently */}
+            {!isDecoratorPO && hasThirdPartyItems && decoratorName && (
+              <Text style={[styles.addressLine, styles.bold, { fontSize: 11 }]}>
+                {decoratorName}
+              </Text>
+            )}
+            {!isDecoratorPO && hasThirdPartyItems && decoratorPONumber && (
+              <Text style={[styles.addressLine, styles.bold, { color: colors.blue700 }]}>
+                Attn: Decoration PO #{decoratorPONumber}
+              </Text>
+            )}
             {(shipToAddr.contactName ||
               shipToAddr.companyNameOnDocs ||
               shipToAddr.addressName) && (
@@ -388,6 +403,50 @@ export function PurchaseOrderPdf({
             </View>
           );
         })()}
+
+        {/* ── Garment breakdown for decorator POs ────────────── */}
+        {isDecoratorPO && vendorItems.length > 0 && (
+          <View style={{ marginBottom: 12, borderWidth: 1, borderColor: colors.gray200, borderRadius: 2, padding: 10 }} wrap={false}>
+            <Text style={[styles.artworkHeader, { marginBottom: 6 }]}>
+              Garment Details — Please verify incoming shipment
+            </Text>
+            <View style={styles.tableHead}>
+              <Text style={[styles.tableHeadCell, { flex: 3 }]}>PRODUCT</Text>
+              <Text style={[styles.tableHeadCell, { flex: 1 }]}>COLOR</Text>
+              <Text style={[styles.tableHeadCell, { flex: 1 }]}>SIZE</Text>
+              <Text style={[styles.tableHeadCell, { flex: 1, textAlign: "right" as const }]}>QTY</Text>
+            </View>
+            {vendorItems.flatMap((item: any) => {
+              const lines = allItemLines[item.id] || [];
+              if (lines.length > 0) {
+                return lines.map((line: any, li: number) => (
+                  <View key={`${item.id}-${line.id || li}`} style={styles.tableRow}>
+                    <Text style={[styles.tableCell, { flex: 3 }]}>{item.productName}</Text>
+                    <Text style={[styles.tableCell, { flex: 1 }]}>{line.color || item.color || "—"}</Text>
+                    <Text style={[styles.tableCell, { flex: 1 }]}>{line.size || item.size || "—"}</Text>
+                    <Text style={[styles.tableCell, { flex: 1, textAlign: "right" as const }]}>{line.quantity || 0}</Text>
+                  </View>
+                ));
+              }
+              return [(
+                <View key={item.id} style={styles.tableRow}>
+                  <Text style={[styles.tableCell, { flex: 3 }]}>{item.productName}</Text>
+                  <Text style={[styles.tableCell, { flex: 1 }]}>{item.color || "—"}</Text>
+                  <Text style={[styles.tableCell, { flex: 1 }]}>{item.size || "—"}</Text>
+                  <Text style={[styles.tableCell, { flex: 1, textAlign: "right" as const }]}>{item.quantity || 0}</Text>
+                </View>
+              )];
+            })}
+            <View style={[styles.tableRow, { borderTopWidth: 1, borderTopColor: colors.gray300 }]}>
+              <Text style={[styles.tableCell, { flex: 3 }, styles.bold]}>TOTAL</Text>
+              <Text style={[styles.tableCell, { flex: 1 }]}> </Text>
+              <Text style={[styles.tableCell, { flex: 1 }]}> </Text>
+              <Text style={[styles.tableCell, { flex: 1, textAlign: "right" as const }, styles.bold]}>
+                {vendorItems.reduce((sum: number, item: any) => sum + (item.quantity || 0), 0)}
+              </Text>
+            </View>
+          </View>
+        )}
 
         {/* ── Items ────────────────────────────────────────────── */}
         {vendorItems.map((item: any) => {

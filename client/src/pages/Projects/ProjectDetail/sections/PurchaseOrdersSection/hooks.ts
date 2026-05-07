@@ -166,6 +166,29 @@ export function usePurchaseOrdersSection({ projectId, data, isLocked }: Purchase
     const poNumber = poEntityForGroup?.poNumber
       || (vendorDoc?.documentNumber as string)
       || `${order?.orderNumber || projectId}-${isDecorator ? `DEC-${(vendor.id || groupKey).substring(0, 4).toUpperCase()}` : (vendor.id || groupKey).substring(0, 4).toUpperCase()}`;
+    // For supplier POs shipping to decorator, find the decorator group info
+    let decName: string | null = null;
+    let decPONumber: string | null = null;
+    let decAddr: ReturnType<typeof getVendorDefaultAddress> = null;
+    if (!isDecorator) {
+      const hasThirdParty = items.some((i) => i.decoratorType === "third_party");
+      if (hasThirdParty) {
+        const decoratorId = items.find((i) => i.decoratorType === "third_party")?.decoratorId;
+        if (decoratorId) {
+          const decGroup = vendorPOs.find(
+            (g) => g.vendor.role === "decorator" && g.vendor.id === decoratorId,
+          );
+          if (decGroup) {
+            decName = decGroup.vendor.name;
+            const decEntity = getPOEntity(decGroup.groupKey);
+            const decDoc = getVendorDoc(decGroup.groupKey);
+            decPONumber = decEntity?.poNumber || (decDoc?.documentNumber as string) || null;
+          }
+          decAddr = getVendorDefaultAddress(decoratorId);
+        }
+      }
+    }
+
     return buildPurchaseOrderPdf({
       order,
       vendor,
@@ -181,10 +204,13 @@ export function usePurchaseOrdersSection({ projectId, data, isLocked }: Purchase
       shippingAccountNumber: (docMeta?.shippingAccountNumber as string) || null,
       vendorAddress: getVendorDefaultAddress(vendor.id),
       poType: isDecorator ? "decorator" : "supplier",
+      decoratorAddress: decAddr,
       sellerName: branding?.companyName ?? undefined,
       vendorNotes: poEntityForGroup?.vendorNotes || _pendingNotes.current[groupKey]?.vendorNotes || null,
       revision: (docMeta?.revision as number) || undefined,
       blindShip: !!(docMeta?.blindShip) || !!(_pendingBlindShip.current[groupKey]),
+      decoratorName: decName,
+      decoratorPONumber: decPONumber,
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [vendorPOs, order, data, branding, poEntities, poDocuments]);

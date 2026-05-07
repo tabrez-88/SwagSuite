@@ -1,6 +1,8 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Calendar as CalendarPicker } from "@/components/ui/calendar";
 import { Card } from "@/components/ui/card";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -142,6 +144,7 @@ export default function VendorCard({
   const [blindShipLocal, setBlindShipLocal] = useState(
     !!((vendorDoc?.metadata as Record<string, unknown> | null)?.blindShip),
   );
+  const [ihdPopoverOpen, setIhdPopoverOpen] = useState(false);
   const { toast } = useToast();
 
   // Sync local state when poEntity / doc changes
@@ -295,23 +298,42 @@ export default function VendorCard({
                 </p>
                 {/* Line 3: IHD + PO# + lifecycle */}
                 <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                  {effectiveIhd ? (
-                    <Badge
-                      variant="outline"
-                      className={`text-[10px] ${vendorIhdValue ? "bg-blue-50 text-blue-700 border-blue-200" : "bg-gray-50 text-gray-600 border-gray-200"}`}
-                    >
-                      <Calendar className="w-3 h-3 mr-1" />
-                      Required by:{" "}
-                      {new Date(effectiveIhd as string).toLocaleDateString()}
-                    </Badge>
-                  ) : (
-                    <Badge
-                      variant="outline"
-                      className="text-[10px] bg-red-50 text-red-600 border-red-200"
-                    >
-                      No IHD set
-                    </Badge>
-                  )}
+                  <Popover open={ihdPopoverOpen} onOpenChange={setIhdPopoverOpen}>
+                    <PopoverTrigger asChild>
+                      {effectiveIhd ? (
+                        <Badge
+                          variant="outline"
+                          className={`text-[10px] cursor-pointer hover:opacity-80 ${vendorIhdValue ? "bg-blue-50 text-blue-700 border-blue-200" : "bg-gray-50 text-gray-600 border-gray-200"}`}
+                        >
+                          <Calendar className="w-3 h-3 mr-1" />
+                          Required by:{" "}
+                          {new Date(effectiveIhd as string).toLocaleDateString()}
+                        </Badge>
+                      ) : (
+                        <Badge
+                          variant="outline"
+                          className="text-[10px] cursor-pointer hover:opacity-80 bg-red-50 text-red-600 border-red-200"
+                        >
+                          No IHD set
+                        </Badge>
+                      )}
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <CalendarPicker
+                        mode="single"
+                        selected={effectiveIhd ? new Date(effectiveIhd as string) : undefined}
+                        onSelect={(date) => {
+                          if (!date) return;
+                          const isoDate = date.toISOString().slice(0, 10);
+                          if (vendorDoc) {
+                            onUpdateDocMeta({ docId: vendorDoc.id, updates: { supplierIHD: isoDate } });
+                          }
+                          setIhdPopoverOpen(false);
+                          toast({ title: "IHD updated", description: `Supplier in-hands date set to ${date.toLocaleDateString()}` });
+                        }}
+                      />
+                    </PopoverContent>
+                  </Popover>
                   {poEntity?.poNumber && (
                     <span className="text-[10px] text-gray-400">
                       PO# {poEntity.poNumber}
