@@ -508,6 +508,18 @@ export default function ProductsSection({ projectId, data, isLocked }: ProductsS
                 </div>
               </div>
 
+              {/* Description */}
+              <div>
+                <Label>Product Description</Label>
+                <Textarea
+                  value={productSection.editItemData.description || ""}
+                  onChange={(e) => productSection.setEditItemData((d: any) => ({ ...d, description: e.target.value }))}
+                  placeholder="Product description (auto-generated from catalog, editable)"
+                  rows={2}
+                  className="mt-1 text-sm"
+                />
+              </div>
+
               {/* Imprint Info */}
               <div className="grid grid-cols-2 gap-3">
                 <div>

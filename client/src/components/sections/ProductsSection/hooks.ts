@@ -234,6 +234,7 @@ export function useProductsSection({ projectId, data, isLocked }: ProductsSectio
     setEditingItem(item);
     const itemLines: OrderItemLine[] = allItemLines[item.id] || [];
     setEditItemData({
+      description: item.description || item.productDescription || "",
       imprintMethod: item.imprintMethod || "",
       imprintLocation: item.imprintLocation || "",
       notes: item.notes || "",
@@ -333,6 +334,7 @@ export function useProductsSection({ projectId, data, isLocked }: ProductsSectio
     const avgCost = totalQty > 0 ? totalCost / totalQty : 0;
 
     await orderItemRequests.updateProjectItem(projectId, editingItem.id, {
+      description: editItemData.description || null,
       imprintMethod: editItemData.imprintMethod,
       imprintLocation: editItemData.imprintLocation,
       notes: editItemData.notes,
