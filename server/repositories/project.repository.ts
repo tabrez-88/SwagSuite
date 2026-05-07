@@ -199,10 +199,10 @@ export class ProjectRepository {
         taxCodeId: orderItems.taxCodeId,
         sortOrder: orderItems.sortOrder,
         createdAt: orderItems.createdAt,
-        // Join product info
-        productName: products.name,
+        // Join product info (order-item overrides take precedence)
+        productName: sql`COALESCE(${orderItems.productName}, ${products.name})`.as("product_name"),
         productSku: products.sku,
-        productImageUrl: products.imageUrl,
+        productImageUrl: sql`COALESCE(${orderItems.imageUrl}, ${products.imageUrl})`.as("product_image_url"),
         productColors: products.colors,
         productSizes: products.sizes,
         productBrand: products.brand,

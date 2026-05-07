@@ -143,6 +143,8 @@ export const orderItems = pgTable("order_items", {
   leg2ShippingAccountId: varchar("leg2_shipping_account_id"), // FK to shipping_accounts
   leg2ShippingQuote: decimal("leg2_shipping_quote", { precision: 10, scale: 2 }),
   taxCodeId: varchar("tax_code_id"), // Per-item tax code override
+  productName: varchar("product_name"), // Override product catalog name
+  imageUrl: varchar("image_url"), // Override product catalog image
   sortOrder: integer("sort_order").default(0),
   createdAt: timestamp("created_at").defaultNow(),
 });

@@ -56,6 +56,7 @@ import { FilePreviewDialog } from "./components/FilePreviewDialog";
 import { MarginWarningDialog } from "./components/MarginWarningDialog";
 import { PricingTiersDialog } from "./components/PricingTiersDialog";
 import { SizesColorsDialog } from "./components/SizesColorsDialog";
+import FilePickerDialog from "@/components/modals/FilePickerDialog";
 
 /** Portal dragged row to document.body so Radix Dialog transform doesn't offset it */
 function PortalAwareDrag({ provided, snapshot, children }: {
@@ -163,6 +164,7 @@ function EditProductPageBody({
   } | null;
   setMatrixPickerTarget: (v: any) => void;
 }) {
+  const [showImagePicker, setShowImagePicker] = useState(false);
   if (!editProductPage.item) return null;
   const itemSupplier = editProductPage.getItemSupplier(editProductPage.item);
   const imageUrl = editProductPage.getProductImage(editProductPage.item);
@@ -191,15 +193,25 @@ function EditProductPageBody({
         </CardHeader>
         <CardContent className="px-5 gap-2 flex flex-col">
           <div className="flex gap-4">
-            {imageUrl ? (
-              <img src={imageUrl} alt={editProductPage.item.productName ?? undefined} className="w-20 h-20 object-contain rounded-lg border bg-white" />
-            ) : (
-              <div className="w-20 h-20 bg-gray-100 rounded-lg border flex items-center justify-center">
-                <Package className="w-8 h-8 text-gray-400" />
+            <div className="relative group cursor-pointer" onClick={() => setShowImagePicker(true)}>
+              {imageUrl ? (
+                <img src={imageUrl} alt={editProductPage.editItemData.productName || editProductPage.item.productName || undefined} className="w-20 h-20 object-contain rounded-lg border bg-white" />
+              ) : (
+                <div className="w-20 h-20 bg-gray-100 rounded-lg border flex items-center justify-center">
+                  <Package className="w-8 h-8 text-gray-400" />
+                </div>
+              )}
+              <div className="absolute inset-0 bg-black/40 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                <Pencil className="w-4 h-4 text-white" />
               </div>
-            )}
+            </div>
             <div className="flex-1">
-              <h2 className="text-lg font-semibold">{editProductPage.item.productName || "Unnamed Product"}</h2>
+              <Input
+                value={editProductPage.editItemData.productName || ""}
+                onChange={(e: any) => editProductPage.setEditItemData((d: any) => ({ ...d, productName: e.target.value }))}
+                placeholder={editProductPage.item.productName || "Product name..."}
+                className="text-lg font-semibold h-auto py-1 px-2 border-transparent hover:border-gray-300 focus:border-blue-500"
+              />
               <div className="flex items-center gap-2 mt-1">
                 {editProductPage.item.productSku && (
                   <Badge variant="outline" className="text-xs">{editProductPage.item.productSku}</Badge>
@@ -210,6 +222,18 @@ function EditProductPageBody({
               </div>
             </div>
           </div>
+          <FilePickerDialog
+            open={showImagePicker}
+            onClose={() => setShowImagePicker(false)}
+            onSelect={(files: any[]) => {
+              const file = files[0];
+              if (file) {
+                editProductPage.setEditItemData((d: any) => ({ ...d, imageUrl: file.cloudinaryUrl }));
+              }
+              setShowImagePicker(false);
+            }}
+            title="Change Product Image"
+          />
           <div>
             <Label>Description</Label>
             <Textarea

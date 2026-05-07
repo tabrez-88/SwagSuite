@@ -107,6 +107,8 @@ export function useEditProductPage(projectId: string, itemId: string, data: Proj
   if (item && initializedForItem !== itemId) {
     setInitializedForItem(itemId);
     setEditItemData({
+      productName: item.productName || "",
+      imageUrl: item.productImageUrl || "",
       description: item.description || "",
       decoratorType: item.decoratorType || "supplier",
       decoratorId: item.decoratorId || "",
@@ -353,6 +355,8 @@ export function useEditProductPage(projectId: string, itemId: string, data: Proj
     if (!item) return false;
 
     // Check item-level fields
+    if ((editItemData.productName || "") !== (item.productName || "")) return true;
+    if ((editItemData.imageUrl || "") !== (item.productImageUrl || "")) return true;
     if ((editItemData.description || "") !== (item.description || "")) return true;
     if ((editItemData.decoratorType || "supplier") !== (item.decoratorType || "supplier")) return true;
     if ((editItemData.decoratorId || "") !== (item.decoratorId || "")) return true;
@@ -393,6 +397,9 @@ export function useEditProductPage(projectId: string, itemId: string, data: Proj
   };
 
   const getProductImage = (itm: any) => {
+    // Prefer order-item image override, then product catalog image
+    if (editItemData.imageUrl) return editItemData.imageUrl;
+    if (itm.productImageUrl) return itm.productImageUrl;
     const currentProduct = allProducts.find((p: any) => p.id === itm.productId);
     return currentProduct?.imageUrl || null;
   };
@@ -576,6 +583,8 @@ export function useEditProductPage(projectId: string, itemId: string, data: Proj
 
       // 1. Update item-level data
       await orderItemRequests.updateProjectItem(projectId, itemId, {
+        productName: editItemData.productName || null,
+        imageUrl: editItemData.imageUrl || null,
         description: editItemData.description || null,
         decoratorType: editItemData.decoratorType || "supplier",
         decoratorId: editItemData.decoratorId || null,
