@@ -81,6 +81,28 @@ export function useProductsSection({ projectId, data, isLocked }: ProductsSectio
   // Artwork preview state
   const [previewFile, setPreviewFile] = useState<{ name: string; url: string } | null>(null);
 
+  // Bulk artwork mode
+  const [bulkArtworkMode, setBulkArtworkMode] = useState(false);
+  const [bulkSelectedItems, setBulkSelectedItems] = useState<Set<string>>(new Set());
+
+  const toggleBulkItem = (itemId: string) => {
+    setBulkSelectedItems((prev) => {
+      const next = new Set(prev);
+      if (next.has(itemId)) next.delete(itemId);
+      else next.add(itemId);
+      return next;
+    });
+  };
+
+  const selectAllBulkItems = () => {
+    setBulkSelectedItems(new Set(orderItems.map((i) => i.id)));
+  };
+
+  const clearBulkSelection = () => {
+    setBulkSelectedItems(new Set());
+    setBulkArtworkMode(false);
+  };
+
   // Artwork upload state
   const [pickingArtworkForItem, setPickingArtworkForItem] = useState<string | null>(null);
   const [artPickedFile, setArtPickedFile] = useState<{ orderItemId: string; filePath: string; fileName: string } | null>(null);
@@ -432,6 +454,23 @@ export function useProductsSection({ projectId, data, isLocked }: ProductsSectio
     }, { onSuccess: () => setEditingLine(null) });
   };
 
+  // Handle bulk artwork file picker — assign to all selected items
+  const handleBulkArtworkFilePicked = (files: Array<{ cloudinaryUrl: string; originalName?: string; fileName?: string }>) => {
+    const file = files[0];
+    if (!file || bulkSelectedItems.size === 0) return;
+    const filePath = file.cloudinaryUrl;
+    const fileName = file.originalName || file.fileName || "";
+    for (const itemId of bulkSelectedItems) {
+      createArtworkMutation.mutate({
+        orderItemId: itemId,
+        name: fileName,
+        filePath,
+        fileName,
+      });
+    }
+    clearBulkSelection();
+  };
+
   // Handle artwork file picker selection
   const handleArtworkFilePicked = (files: Array<{ cloudinaryUrl: string; originalName?: string; fileName?: string }>) => {
     const file = files[0];
@@ -597,6 +636,14 @@ export function useProductsSection({ projectId, data, isLocked }: ProductsSectio
     // Artwork preview
     previewFile,
     setPreviewFile,
+    // Bulk artwork
+    bulkArtworkMode,
+    setBulkArtworkMode,
+    bulkSelectedItems,
+    toggleBulkItem,
+    selectAllBulkItems,
+    clearBulkSelection,
+    handleBulkArtworkFilePicked,
     // Artwork
     pickingArtworkForItem,
     setPickingArtworkForItem,

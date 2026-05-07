@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { FileText } from "lucide-react";
@@ -33,21 +34,72 @@ const statusColors: Record<string, string> = {
   void: "bg-red-50 text-red-500",
 };
 
+const STATUS_FILTERS = [
+  { value: "all", label: "All" },
+  { value: "unpaid", label: "Unpaid" },
+  { value: "paid", label: "Paid" },
+  { value: "overdue", label: "Overdue" },
+] as const;
+
+type StatusFilter = (typeof STATUS_FILTERS)[number]["value"];
+
+function matchesFilter(status: string | undefined, filter: StatusFilter): boolean {
+  if (filter === "all") return true;
+  if (filter === "paid") return status === "paid";
+  if (filter === "overdue") return status === "overdue";
+  // "unpaid" = everything except paid, cancelled, void
+  return status !== "paid" && status !== "cancelled" && status !== "void";
+}
+
 function formatAmount(amount: string | number | undefined): string {
   if (!amount) return "$0.00";
   return `$${Number(amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 export default function InvoiceListCard({ invoices, selectedInvoiceId, onSelect }: InvoiceListCardProps) {
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+
   if (!invoices || invoices.length === 0) return null;
+
+  const filtered = invoices.filter((inv) => matchesFilter(inv.status, statusFilter));
+
+  // Compute counts for each filter tab
+  const counts: Record<StatusFilter, number> = {
+    all: invoices.length,
+    unpaid: invoices.filter((i) => matchesFilter(i.status, "unpaid")).length,
+    paid: invoices.filter((i) => i.status === "paid").length,
+    overdue: invoices.filter((i) => i.status === "overdue").length,
+  };
 
   return (
     <Card>
       <CardHeader className="pb-3">
-        <CardTitle className="text-sm font-medium flex items-center gap-2">
-          <FileText className="w-4 h-4" />
-          All Invoices ({invoices.length})
-        </CardTitle>
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-sm font-medium flex items-center gap-2">
+            <FileText className="w-4 h-4" />
+            Invoices ({filtered.length}{statusFilter !== "all" ? ` of ${invoices.length}` : ""})
+          </CardTitle>
+          <div className="flex gap-1">
+            {STATUS_FILTERS.map((f) => (
+              <button
+                key={f.value}
+                onClick={() => setStatusFilter(f.value)}
+                className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors ${
+                  statusFilter === f.value
+                    ? "bg-gray-900 text-white"
+                    : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                }`}
+              >
+                {f.label}
+                {counts[f.value] > 0 && (
+                  <span className={`ml-1 ${statusFilter === f.value ? "text-gray-300" : "text-gray-400"}`}>
+                    {counts[f.value]}
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
+        </div>
       </CardHeader>
       <CardContent className="p-0">
         <table className="w-full text-sm">
@@ -61,7 +113,13 @@ export default function InvoiceListCard({ invoices, selectedInvoiceId, onSelect 
             </tr>
           </thead>
           <tbody>
-            {invoices.map((inv) => {
+            {filtered.length === 0 ? (
+              <tr>
+                <td colSpan={5} className="px-4 py-6 text-center text-gray-400 text-sm">
+                  No {statusFilter} invoices
+                </td>
+              </tr>
+            ) : filtered.map((inv) => {
               const isSelected = inv.id === selectedInvoiceId;
               const type = inv.invoiceType || "standard";
               return (

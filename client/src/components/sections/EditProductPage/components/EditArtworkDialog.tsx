@@ -141,13 +141,29 @@ export function EditArtworkDialog({
                   (for decorator matrix pricing)
                 </span>
               </Label>
-              <Input
-                type="number"
-                min={1}
-                max={20}
-                value={numberOfColors}
-                onChange={(e) => setNumberOfColors(parseInt(e.target.value) || 1)}
-              />
+              <div className="flex items-center gap-3">
+                {numberOfColors === 0 ? (
+                  <Input value="Full Color" disabled className="flex-1" />
+                ) : (
+                  <Input
+                    type="number"
+                    min={1}
+                    max={20}
+                    value={numberOfColors}
+                    onChange={(e) => setNumberOfColors(parseInt(e.target.value) || 1)}
+                    className="flex-1"
+                  />
+                )}
+                <label className="flex items-center gap-1.5 text-sm whitespace-nowrap cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={numberOfColors === 0}
+                    onChange={(e) => setNumberOfColors(e.target.checked ? 0 : 1)}
+                    className="rounded"
+                  />
+                  Full Color
+                </label>
+              </div>
             </div>
             <div>
               <Label>Notes</Label>

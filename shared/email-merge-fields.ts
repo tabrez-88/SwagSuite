@@ -10,6 +10,7 @@ export type TemplateType =
   | "sales_order"
   | "invoice"
   | "purchase_order"
+  | "blanks_po"
   | "presentation"
   | "proof"
   | "shipping_notification"
@@ -61,6 +62,18 @@ export const MERGE_FIELDS_BY_TEMPLATE: Record<TemplateType, MergeField[]> = {
     { key: "supplierInHandsDate", label: "In-Hands Date", kind: "text" },
     { key: "poConfirmationLink", label: "PO Confirmation Link", kind: "link", description: "Vendor PO confirmation page" },
   ],
+  blanks_po: [
+    { key: "companyName", label: "Company Name", kind: "text" },
+    { key: "senderName", label: "Sender Name", kind: "text" },
+    { key: "vendorName", label: "Vendor Name", kind: "text" },
+    { key: "vendorContactName", label: "Vendor Contact", kind: "text" },
+    { key: "orderNumber", label: "Order Number", kind: "text" },
+    { key: "poNumber", label: "PO Number", kind: "text" },
+    { key: "decoratorName", label: "Decorator Name", kind: "text", description: "Ship-to decorator name" },
+    { key: "decoratorPoNumber", label: "Decorator PO #", kind: "text", description: "Decorator PO reference number" },
+    { key: "supplierInHandsDate", label: "In-Hands Date", kind: "text" },
+    { key: "poConfirmationLink", label: "PO Confirmation Link", kind: "link", description: "Vendor PO confirmation page" },
+  ],
   presentation: [
     { key: "companyName", label: "Company Name", kind: "text" },
     { key: "senderName", label: "Sender Name", kind: "text" },
@@ -101,6 +114,7 @@ export const TEMPLATE_TYPE_LABELS: Record<string, string> = {
   sales_order: "Sales Order",
   invoice: "Invoice",
   purchase_order: "Purchase Order",
+  blanks_po: "Blanks/Blind PO",
   presentation: "Presentation",
   proof: "Proof",
   shipping_notification: "Shipping Notification",

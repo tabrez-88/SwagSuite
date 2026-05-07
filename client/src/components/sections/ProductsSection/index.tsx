@@ -118,14 +118,44 @@ export default function ProductsSection({ projectId, data, isLocked }: ProductsS
             </Badge>
           </div>
           <div className="flex items-center gap-2">
-            <Button size="sm" variant="outline" onClick={() => addServiceRef.current?.()} disabled={productSection.isLocked}>
-              <Plus className="w-4 h-4" />
-              Service
-            </Button>
-            <Button size="sm" onClick={() => productSection.setLocation(productSection.addProductPath)} disabled={productSection.isLocked}>
-              <Plus className="w-4 h-4" />
-              Add Product
-            </Button>
+            {productSection.bulkArtworkMode ? (
+              <>
+                <span className="text-xs text-muted-foreground">
+                  {productSection.bulkSelectedItems.size} selected
+                </span>
+                <Button size="sm" variant="outline" onClick={productSection.selectAllBulkItems}>
+                  Select All
+                </Button>
+                <Button
+                  size="sm"
+                  disabled={productSection.bulkSelectedItems.size === 0}
+                  onClick={() => productSection.setPickingArtworkForItem("__bulk__")}
+                >
+                  <Palette className="w-4 h-4" />
+                  Upload Artwork
+                </Button>
+                <Button size="sm" variant="ghost" onClick={productSection.clearBulkSelection}>
+                  <X className="w-4 h-4" />
+                </Button>
+              </>
+            ) : (
+              <>
+                {productSection.orderItems.length > 1 && (
+                  <Button size="sm" variant="outline" onClick={() => productSection.setBulkArtworkMode(true)} disabled={productSection.isLocked}>
+                    <Palette className="w-4 h-4" />
+                    Bulk Artwork
+                  </Button>
+                )}
+                <Button size="sm" variant="outline" onClick={() => addServiceRef.current?.()} disabled={productSection.isLocked}>
+                  <Plus className="w-4 h-4" />
+                  Service
+                </Button>
+                <Button size="sm" onClick={() => productSection.setLocation(productSection.addProductPath)} disabled={productSection.isLocked}>
+                  <Plus className="w-4 h-4" />
+                  Add Product
+                </Button>
+              </>
+            )}
           </div>
         </div>
       </CardHeader>
@@ -156,7 +186,15 @@ export default function ProductsSection({ projectId, data, isLocked }: ProductsS
                           className={snapshot.isDragging ? "opacity-90 shadow-lg rounded-lg" : ""}
                         >
                           <div className="flex items-start gap-1">
-                            {!isLocked && (
+                            {productSection.bulkArtworkMode && (
+                              <div className="mt-3 p-1">
+                                <Checkbox
+                                  checked={productSection.bulkSelectedItems.has(item.id)}
+                                  onCheckedChange={() => productSection.toggleBulkItem(item.id)}
+                                />
+                              </div>
+                            )}
+                            {!isLocked && !productSection.bulkArtworkMode && (
                               <div
                                 {...dragProvided.dragHandleProps}
                                 className="mt-3 p-1 cursor-grab active:cursor-grabbing text-gray-400 hover:text-gray-600"
@@ -520,27 +558,7 @@ export default function ProductsSection({ projectId, data, isLocked }: ProductsS
                 />
               </div>
 
-              {/* Imprint Info */}
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <Label>Imprint Method</Label>
-                  <ImprintOptionSelect
-                    type="method"
-                    value={productSection.editItemData.imprintMethod}
-                    onChange={(v) => productSection.setEditItemData((d: any) => ({ ...d, imprintMethod: v }))}
-                    orderId={productSection.projectId}
-                  />
-                </div>
-                <div>
-                  <Label>Imprint Location</Label>
-                  <ImprintOptionSelect
-                    type="location"
-                    value={productSection.editItemData.imprintLocation}
-                    onChange={(v) => productSection.setEditItemData((d: any) => ({ ...d, imprintLocation: v }))}
-                    orderId={productSection.projectId}
-                  />
-                </div>
-              </div>
+              {/* Imprint method/location managed per-decoration — removed from product-level edit */}
 
               {/* Size/Color Line Items Table */}
               <div>
@@ -751,7 +769,9 @@ export default function ProductsSection({ projectId, data, isLocked }: ProductsS
       <FilePickerDialog
         open={!!productSection.pickingArtworkForItem}
         onClose={() => productSection.setPickingArtworkForItem(null)}
-        onSelect={productSection.handleArtworkFilePicked}
+        onSelect={productSection.pickingArtworkForItem === "__bulk__"
+          ? productSection.handleBulkArtworkFilePicked
+          : productSection.handleArtworkFilePicked}
         multiple={false}
         contextProjectId={productSection.projectId}
         title="Select Artwork File"

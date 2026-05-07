@@ -1,4 +1,5 @@
 import { EditableDate, EditableText } from "@/components/shared/InlineEditable";
+import { StageTimeline } from "@/components/shared/StageTimeline";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { format } from "date-fns";
@@ -64,23 +65,18 @@ export default function ProjectDetailsCard({
           </div>
         </div>
 
-        {/* Stage & Project Info */}
+        {/* Stage Timeline & Project Info */}
         <div className="border-t pt-3 pb-3 space-y-2.5">
-          <div className="flex justify-between items-center">
-            <span className="text-sm text-muted-foreground">Stage</span>
-            <div className="flex items-center gap-1.5">
-              {businessStage && (
-                <>
-                  <Badge className={`${businessStage.stage.color} ${businessStage.stage.textColor}`}>
-                    {businessStage.stage.label}
-                  </Badge>
-                  <Badge className={businessStage.currentSubStatus.color}>
-                    {businessStage.currentSubStatus.label}
-                  </Badge>
-                </>
-              )}
+          {businessStage && (
+            <div className="space-y-1.5">
+              <StageTimeline determined={businessStage} />
+              <div className="flex justify-end">
+                <Badge className={businessStage.currentSubStatus.color}>
+                  {businessStage.currentSubStatus.label}
+                </Badge>
+              </div>
             </div>
-          </div>
+          )}
           <div className="flex justify-between items-center">
             <span className="text-sm text-muted-foreground flex items-center gap-1.5">
               Order #
@@ -147,15 +143,20 @@ export default function ProjectDetailsCard({
             <div className="flex-1 space-y-2">
               <div className="flex justify-between items-center">
                 <span className="text-sm text-muted-foreground">In-Hands Date</span>
-                <EditableDate
-                  value={order.inHandsDate}
-                  field="inHandsDate"
-                  onSave={updateField}
-                  isLocked={isLocked}
-                  isPending={isPending}
-                  renderExtra={renderDateBadgeJsx}
-                  className="font-medium"
-                />
+                <div className="flex items-center gap-1.5">
+                  {(order as any).isFirm && (
+                    <Badge className="bg-emerald-100 text-emerald-700 text-[10px] px-1.5 py-0">Firm</Badge>
+                  )}
+                  <EditableDate
+                    value={order.inHandsDate}
+                    field="inHandsDate"
+                    onSave={updateField}
+                    isLocked={isLocked}
+                    isPending={isPending}
+                    renderExtra={renderDateBadgeJsx}
+                    className="font-medium"
+                  />
+                </div>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-sm text-muted-foreground">Event Date</span>

@@ -196,6 +196,9 @@ export function useSalesOrderSection({ projectId, data, lockStatus }: SalesOrder
     }));
   }, [contacts]);
 
+  // Find the approved approval record (most recent approved)
+  const approvedApproval = quoteApprovals.find((a) => a.status === "approved") || null;
+
   return {
     // Data
     order,
@@ -205,6 +208,7 @@ export function useSalesOrderSection({ projectId, data, lockStatus }: SalesOrder
     allArtworkItems,
     soDocuments,
     quoteApprovals,
+    approvedApproval,
     currentStatus,
     statusInfo,
     isLocked,

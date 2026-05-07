@@ -1,12 +1,13 @@
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { FileText, Mail, Package, Store } from "lucide-react";
+import { AlertTriangle, Clock, FileText, Mail, Package, Store } from "lucide-react";
 
 import EmailSection from "@/components/sections/EmailSection";
 import VendorSection from "@/components/sections/VendorSection";
 import ActivitiesSection from "@/pages/Projects/ProjectDetail/sections/OverviewSection/ActivitiesSection";
 
+import { getDateStatus } from "@/lib/dateUtils";
 import { useMarginSettings } from "@/hooks/useMarginSettings";
 import { useOverviewSection } from "./hooks";
 import type { OverviewSectionProps } from "./types";
@@ -46,8 +47,58 @@ export default function OverviewSection(props: OverviewSectionProps) {
     return ds ? <Badge className={`text-[10px] px-1.5 py-0 leading-4 ${ds.color}`}>{ds.label}</Badge> : null;
   };
 
+  // Build deadline alerts for 1.2
+  const deadlineAlerts: Array<{ label: string; urgency: string; message: string }> = [];
+  const ihdStatus = order.inHandsDate ? getDateStatus(order.inHandsDate as unknown as string) : null;
+  const eventStatus = order.eventDate ? getDateStatus(order.eventDate as unknown as string) : null;
+  if (ihdStatus && (ihdStatus.urgency === "overdue" || ihdStatus.urgency === "today" || ihdStatus.urgency === "urgent")) {
+    deadlineAlerts.push({
+      label: "In-Hands Date",
+      urgency: ihdStatus.urgency,
+      message: ihdStatus.urgency === "overdue"
+        ? `In-Hands Date is overdue by ${Math.abs(ihdStatus.daysRemaining)} day(s)`
+        : ihdStatus.urgency === "today"
+          ? "In-Hands Date is today"
+          : `In-Hands Date is in ${ihdStatus.daysRemaining} day(s)`,
+    });
+  }
+  if (eventStatus && (eventStatus.urgency === "overdue" || eventStatus.urgency === "today" || eventStatus.urgency === "urgent")) {
+    deadlineAlerts.push({
+      label: "Event Date",
+      urgency: eventStatus.urgency,
+      message: eventStatus.urgency === "overdue"
+        ? `Event Date is overdue by ${Math.abs(eventStatus.daysRemaining)} day(s)`
+        : eventStatus.urgency === "today"
+          ? "Event Date is today"
+          : `Event Date is in ${eventStatus.daysRemaining} day(s)`,
+    });
+  }
+
   return (
     <div className="space-y-6">
+      {/* Deadline Alert Banner */}
+      {deadlineAlerts.length > 0 && (
+        <div className={`rounded-lg border px-4 py-3 ${
+          deadlineAlerts.some((a) => a.urgency === "overdue")
+            ? "border-red-200 bg-red-50"
+            : "border-orange-200 bg-orange-50"
+        }`}>
+          <div className={`flex items-start gap-2 text-sm ${
+            deadlineAlerts.some((a) => a.urgency === "overdue") ? "text-red-800" : "text-orange-800"
+          }`}>
+            {deadlineAlerts.some((a) => a.urgency === "overdue")
+              ? <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0 text-red-500" />
+              : <Clock className="h-4 w-4 mt-0.5 shrink-0 text-orange-500" />
+            }
+            <div className="space-y-0.5">
+              {deadlineAlerts.map((alert) => (
+                <p key={alert.label} className="font-medium">{alert.message}</p>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
 
         {/* Internal Notes & Activities */}

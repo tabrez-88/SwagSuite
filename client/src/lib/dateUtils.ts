@@ -160,6 +160,41 @@ export function hasTimelineConflict(
   return conflicts;
 }
 
+// ── Business Days Utilities ──
+
+/**
+ * Add N business days (Mon-Fri) to a date.
+ * Skips weekends. Does not account for holidays.
+ */
+export function addBusinessDays(date: Date | string, days: number): Date {
+  const result = new Date(typeof date === "string" ? parseLocalDate(date) || new Date(date) : date);
+  let remaining = Math.abs(days);
+  const direction = days >= 0 ? 1 : -1;
+  while (remaining > 0) {
+    result.setDate(result.getDate() + direction);
+    const dow = result.getDay();
+    if (dow !== 0 && dow !== 6) remaining--;
+  }
+  return result;
+}
+
+/**
+ * Count business days between two dates (exclusive of start, inclusive of end).
+ */
+export function businessDaysBetween(start: Date | string, end: Date | string): number {
+  const s = startOfDay(typeof start === "string" ? parseLocalDate(start) || new Date(start) : start);
+  const e = startOfDay(typeof end === "string" ? parseLocalDate(end) || new Date(end) : end);
+  if (e <= s) return 0;
+  let count = 0;
+  const cursor = new Date(s);
+  while (cursor < e) {
+    cursor.setDate(cursor.getDate() + 1);
+    const dow = cursor.getDay();
+    if (dow !== 0 && dow !== 6) count++;
+  }
+  return count;
+}
+
 // ── Invoice Overdue Check ──
 
 export function isInvoiceOverdue(invoice: any): boolean {

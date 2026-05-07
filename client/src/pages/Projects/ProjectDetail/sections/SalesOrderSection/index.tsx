@@ -24,10 +24,12 @@ import {
 } from "@/components/ui/select";
 import { format } from "date-fns";
 import {
+  CheckCircle2,
   ChevronDown,
   ChevronUp,
   Copy,
   Loader2,
+  MessageSquare,
 } from "lucide-react";
 import { useState } from "react";
 import OrderInfoCard from "./components/OrderInfoCard";
@@ -128,6 +130,38 @@ export default function SalesOrderSection(props: SalesOrderSectionProps) {
           </Button>
         </div>
       </div>
+
+      {/* Approval Info Banner */}
+      {hook.currentStatus === "client_approved" && hook.approvedApproval && (
+        <div className={`rounded-lg border px-4 py-3 ${
+          hook.approvedApproval.approvalNotes
+            ? "border-blue-200 bg-blue-50"
+            : "border-green-200 bg-green-50"
+        }`}>
+          <div className="flex items-start gap-2.5">
+            {hook.approvedApproval.approvalNotes ? (
+              <MessageSquare className="w-4 h-4 mt-0.5 shrink-0 text-blue-600" />
+            ) : (
+              <CheckCircle2 className="w-4 h-4 mt-0.5 shrink-0 text-green-600" />
+            )}
+            <div className="text-sm space-y-0.5">
+              <p className={`font-medium ${hook.approvedApproval.approvalNotes ? "text-blue-800" : "text-green-800"}`}>
+                Approved by {hook.approvedApproval.clientName || hook.approvedApproval.clientEmail || "Client"}
+                {hook.approvedApproval.approvedAt && (
+                  <span className="font-normal text-xs ml-1.5 opacity-70">
+                    on {format(new Date(String(hook.approvedApproval.approvedAt)), "MMM d, yyyy 'at' h:mm a")}
+                  </span>
+                )}
+              </p>
+              {hook.approvedApproval.approvalNotes && (
+                <p className="text-blue-700 italic">
+                  &ldquo;{hook.approvedApproval.approvalNotes}&rdquo;
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Collapsible Order Info Section */}
       {!hook.isInfoCollapsed && (
