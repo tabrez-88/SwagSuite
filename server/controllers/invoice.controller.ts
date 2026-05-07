@@ -433,6 +433,23 @@ export class InvoiceController {
         }
       }
 
+      // Log payment activity
+      try {
+        const { db } = await import("../db");
+        const { projectActivities } = await import("@shared/schema");
+        const userId = (req as any).user?.claims?.sub || "system";
+        if (invoice.orderId) {
+          await db.insert(projectActivities).values({
+            orderId: invoice.orderId,
+            userId,
+            activityType: "system_action",
+            content: `Payment of ${Number(paymentAmount).toLocaleString("en-US", { style: "currency", currency: "USD" })} recorded for Invoice #${invoice.invoiceNumber} via ${paymentMethod}${paymentReference ? ` (Ref: ${paymentReference})` : ""}`,
+            metadata: { action: "invoice_payment", invoiceId: invoice.id, invoiceNumber: invoice.invoiceNumber, amount: paymentAmount, paymentMethod, paymentReference },
+            isSystemGenerated: false,
+          });
+        }
+      } catch { /* best-effort logging */ }
+
       res.json({ message: "Payment recorded successfully" });
     } catch (error) {
       console.error("Manual payment error:", error);
@@ -561,6 +578,22 @@ export class InvoiceController {
           } catch (qbError) {
             console.error("QB payment sync error in webhook:", qbError);
           }
+        }
+
+        // Log Stripe payment activity
+        if (invoice?.orderId) {
+          try {
+            const { db: actDb } = await import("../db");
+            const { projectActivities } = await import("@shared/schema");
+            await actDb.insert(projectActivities).values({
+              orderId: invoice.orderId,
+              userId: "system",
+              activityType: "system_action",
+              content: `Stripe payment of ${(paymentIntent.amount / 100).toLocaleString("en-US", { style: "currency", currency: "USD" })} received for Invoice #${invoice.invoiceNumber}`,
+              metadata: { action: "invoice_payment", invoiceId, invoiceNumber: invoice.invoiceNumber, amount: (paymentIntent.amount / 100).toString(), paymentMethod: "stripe", paymentReference: paymentIntent.id },
+              isSystemGenerated: true,
+            });
+          } catch { /* best-effort logging */ }
         }
       }
 

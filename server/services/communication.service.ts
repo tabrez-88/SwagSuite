@@ -129,6 +129,19 @@ export class CommunicationService {
             cc: data.cc,
             bcc,
           });
+
+          // Log client email activity
+          try {
+            const { projectActivities } = await import("@shared/schema");
+            await db.insert(projectActivities).values({
+              orderId,
+              userId,
+              activityType: "system_action",
+              content: `Email sent to ${data.recipientName || data.recipientEmail}: "${data.subject}"`,
+              metadata: { action: "client_email_sent", recipientEmail: data.recipientEmail, recipientName: data.recipientName, subject: data.subject },
+              isSystemGenerated: false,
+            });
+          } catch { /* best-effort logging */ }
         } else if (data.communicationType === 'vendor_email') {
           await emailService.sendVendorEmail({
             userId,
