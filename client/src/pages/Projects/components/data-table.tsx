@@ -36,12 +36,16 @@ interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
   data: TData[];
   meta?: any;
+  salesRepFilter?: string | null;
+  onSalesRepFilterChange?: (value: string) => void;
 }
 
 export function DataTable<TData, TValue>({
   columns,
   data,
   meta,
+  salesRepFilter,
+  onSalesRepFilterChange,
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = React.useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
@@ -67,6 +71,13 @@ export function DataTable<TData, TValue>({
     },
     meta,
   });
+
+  // Sync sales rep filter from parent into column filter on init
+  React.useEffect(() => {
+    if (salesRepFilter && salesRepFilter !== "all") {
+      table.getColumn("assignedUserName")?.setFilterValue(salesRepFilter);
+    }
+  }, [salesRepFilter, table]);
 
   return (
     <div className="space-y-4">
@@ -108,12 +119,14 @@ export function DataTable<TData, TValue>({
             ),
           ).sort();
           if (salesReps.length === 0) return null;
+          const currentRepValue = salesRepFilter || (table.getColumn("assignedUserName")?.getFilterValue() as string) || "all";
           return (
             <Select
-              value={(table.getColumn("assignedUserName")?.getFilterValue() as string) ?? "all"}
-              onValueChange={(value) =>
-                table.getColumn("assignedUserName")?.setFilterValue(value === "all" ? "" : value)
-              }
+              value={currentRepValue}
+              onValueChange={(value) => {
+                table.getColumn("assignedUserName")?.setFilterValue(value === "all" ? "" : value);
+                onSalesRepFilterChange?.(value);
+              }}
             >
               <SelectTrigger className="w-[180px]">
                 <SelectValue placeholder="Filter by sales rep" />

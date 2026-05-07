@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState, useMemo } from "react";
 import { useLocation } from "@/lib/wouter-compat";
+import { useAuth } from "@/hooks/useAuth";
 
 import NewProjectWizard from "@/components/modals/NewProjectWizard";
 import { Button } from "@/components/ui/button";
@@ -13,10 +14,14 @@ import { KanbanBoard } from "./components/kanban-board";
 import { determineBusinessStage } from "@/constants/businessStages";
 
 export default function ProjectsPage() {
+  const { user } = useAuth();
+  const currentUserName = user ? `${(user as any).firstName || ""} ${(user as any).lastName || ""}`.trim() : "";
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [viewMode, setViewMode] = useState<"table" | "kanban">("table");
   const [activeSOFilter, setActiveSOFilter] = useState<string | null>(null);
   const [activeStageFilter, setActiveStageFilter] = useState<string | null>(null);
+  const [salesRepFilter, setSalesRepFilter] = useState<string | null>(null); // null = not initialized yet
+  const [salesRepInitialized, setSalesRepInitialized] = useState(false);
   const [, setLocation] = useLocation();
 
   const clearFilters = () => { setActiveSOFilter(null); setActiveStageFilter(null); };
@@ -46,18 +51,31 @@ export default function ProjectsPage() {
     };
   });
 
-  const salesOrderCount = ordersWithRelations.filter(
+  // Initialize sales rep filter to current user once data is loaded
+  if (!salesRepInitialized && currentUserName && ordersWithRelations.length > 0) {
+    const hasOrders = ordersWithRelations.some((o) => o.assignedUserName === currentUserName);
+    setSalesRepFilter(hasOrders ? currentUserName : "all");
+    setSalesRepInitialized(true);
+  }
+
+  // Filter by sales rep for summary card counts
+  const repFilteredOrders = useMemo(() => {
+    if (!salesRepFilter || salesRepFilter === "all") return ordersWithRelations;
+    return ordersWithRelations.filter((o) => o.assignedUserName === salesRepFilter);
+  }, [ordersWithRelations, salesRepFilter]);
+
+  const salesOrderCount = repFilteredOrders.filter(
     (o) => o._determinedStage?.stage.id === "sales_order"
   ).length;
-  const invoiceCount = ordersWithRelations.filter(
+  const invoiceCount = repFilteredOrders.filter(
     (o) => o._determinedStage?.stage.id === "invoice"
   ).length;
 
   // SO approval summary counts
-  const awaitingApprovalCount = ordersWithRelations.filter(
+  const awaitingApprovalCount = repFilteredOrders.filter(
     (o) => o.salesOrderStatus === "pending_client_approval"
   ).length;
-  const approvedSOCount = ordersWithRelations.filter(
+  const approvedSOCount = repFilteredOrders.filter(
     (o) => o.salesOrderStatus === "client_approved"
   ).length;
 
@@ -109,7 +127,7 @@ export default function ProjectsPage() {
               <FileText className="text-blue-600" size={20} />
               <div>
                 <p className="text-sm text-gray-600">Total Projects</p>
-                <p className="text-xl font-bold">{orders?.length || 0}</p>
+                <p className="text-xl font-bold">{repFilteredOrders.length}</p>
               </div>
             </div>
           </CardContent>
@@ -177,7 +195,7 @@ export default function ProjectsPage() {
               <div>
                 <p className="text-sm text-gray-600">Total Value</p>
                 <p className="text-xl font-bold">
-                  ${orders?.reduce((sum: number, order: Order) => sum + Number(order.total || 0), 0).toLocaleString() || 0}
+                  ${repFilteredOrders.reduce((sum: number, order: any) => sum + Number(order.total || 0), 0).toLocaleString() || 0}
                 </p>
               </div>
             </div>
@@ -195,6 +213,11 @@ export default function ProjectsPage() {
             {activeStageFilter === "sales_order" && "Sales Orders"}
             {activeStageFilter === "invoice" && "Invoice"}
           </span>
+          {salesRepFilter && salesRepFilter !== "all" && (
+            <span className="px-2 py-0.5 rounded-full bg-purple-100 text-purple-700 font-medium">
+              {salesRepFilter}
+            </span>
+          )}
           <button onClick={clearFilters} className="text-gray-400 hover:text-gray-600 underline text-xs">
             Clear
           </button>
@@ -237,6 +260,8 @@ export default function ProjectsPage() {
             onViewOrder: (order: Order) => setLocation(`/projects/${order.id}`),
             onViewProject: (projectId: string) => setLocation(`/projects/${projectId}`),
           }}
+          salesRepFilter={salesRepFilter}
+          onSalesRepFilterChange={setSalesRepFilter}
         />
       ) : (
         <KanbanBoard
