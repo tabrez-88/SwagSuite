@@ -922,7 +922,7 @@ function DecorationSection({
                 <Input
                   className="text-sm"
                   defaultValue={matrix.rowBasis || ""}
-                  placeholder="e.g. Colors, Stitches"
+                  placeholder="e.g. Colors, Stitches, Size"
                   onBlur={(e) => {
                     updateMatrixMutation.mutate({
                       id: matrix.id,

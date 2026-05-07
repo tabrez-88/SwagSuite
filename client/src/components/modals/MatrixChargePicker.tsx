@@ -34,6 +34,8 @@ interface MatrixChargePickerProps {
   chargeName: string;
   currentMargin?: number;
   numberOfColors?: number;
+  /** Item size (S, M, L, XL, etc.) — used for size-based matrix pricing */
+  itemSize?: string;
   quantity: number;
   projectId: string | number;
   /** When provided, skips server mutation and calls this instead (for local/unsaved state) */
@@ -51,6 +53,7 @@ export default function MatrixChargePicker({
   chargeName,
   currentMargin = 0,
   numberOfColors = 1,
+  itemSize,
   quantity,
   projectId,
   onApply,
@@ -77,6 +80,8 @@ export default function MatrixChargePicker({
   // Initialize colorCount from artwork's numberOfColors
   const [colorCount, setColorCount] = useState(numberOfColors);
   const [colorCountText, setColorCountText] = useState(String(numberOfColors));
+  // Size-based matrix input
+  const [sizeValue, setSizeValue] = useState(itemSize || "");
 
   // Auto-select default or first matrix
   useEffect(() => {
@@ -92,17 +97,22 @@ export default function MatrixChargePicker({
     if (!open) {
       setSelectedMatrixId(null);
       setColorCount(numberOfColors);
+      setSizeValue(itemSize || "");
     } else {
       // When opening, set colorCount from artwork
       setColorCount(numberOfColors);
       setColorCountText(String(numberOfColors));
+      setSizeValue(itemSize || "");
     }
-  }, [open, numberOfColors]);
+  }, [open, numberOfColors, itemSize]);
 
   const selectedMatrix = allMatrices.find(
     (m: any) => m.id === selectedMatrixId,
   );
   const displayType = selectedMatrix?.displayType || "table";
+
+  // Detect if this matrix is size-based (rowBasis contains "size")
+  const isSizeBased = !!(selectedMatrix?.rowBasis && /size/i.test(selectedMatrix.rowBasis));
 
   // ── Determine highlighted row + column + resulting price ──
 
@@ -133,10 +143,10 @@ export default function MatrixChargePicker({
           b.maxQuantity == null && quantity >= b.minQuantity
         );
 
-      // Find row matching colorCount (compare as string since rowLabel is string)
-      const matchedRow = rows.find(
-        (r: any) => r.rowLabel === String(colorCount),
-      );
+      // Find row — match by size (case-insensitive) or by color count
+      const matchedRow = isSizeBased
+        ? rows.find((r: any) => r.rowLabel.trim().toUpperCase() === sizeValue.trim().toUpperCase())
+        : rows.find((r: any) => r.rowLabel === String(colorCount));
 
       if (matchedBreakdown && matchedRow) {
         const cell = cells.find(
@@ -166,7 +176,7 @@ export default function MatrixChargePicker({
       resolvedPrice: null,
       resolvedLabel: chargeName,
     };
-  }, [selectedMatrix, displayType, quantity, colorCount, chargeName]);
+  }, [selectedMatrix, displayType, quantity, colorCount, sizeValue, isSizeBased, chargeName]);
 
   // For per_item/list, user selects a row manually
   const [selectedRowId, setSelectedRowId] = useState<string | null>(null);
@@ -280,37 +290,57 @@ export default function MatrixChargePicker({
               </div>
             )}
 
-            {/* Step 2: # of Colors input (only for table type) */}
+            {/* Step 2: Row selector — size picker or color count (only for table type) */}
             {selectedMatrix && displayType === "table" && (
-              <div className="flex flex-col items-start gap-2">
-                <Label className="text-xs text-muted-foreground whitespace-nowrap">
-                  # of {selectedMatrix.rowBasis || "Colors"}
-                </Label>
-                <Input
-                  type="text"
-                  inputMode="numeric"
-                  className="w-20 text-sm"
-                  value={colorCountText}
-                  onChange={(e) => {
-                    const v = e.target.value;
-                    if (v === "" || /^\d+$/.test(v)) {
-                      setColorCountText(v);
-                      const n = parseInt(v);
-                      if (n > 0) setColorCount(n);
-                    }
-                  }}
-                  onBlur={() => {
-                    const n = parseInt(colorCountText);
-                    if (!n || n < 1) {
-                      setColorCount(1);
-                      setColorCountText("1");
-                    } else {
-                      setColorCount(n);
-                      setColorCountText(String(n));
-                    }
-                  }}
-                />
-              </div>
+              isSizeBased ? (
+                <div className="flex flex-col items-start gap-2">
+                  <Label className="text-xs text-muted-foreground whitespace-nowrap">
+                    {selectedMatrix.rowBasis || "Size"}
+                  </Label>
+                  <Select value={sizeValue} onValueChange={setSizeValue}>
+                    <SelectTrigger className="w-24 text-sm">
+                      <SelectValue placeholder="Size..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {selectedMatrix.rows.map((r: any) => (
+                        <SelectItem key={r.id} value={r.rowLabel}>
+                          {r.rowLabel}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              ) : (
+                <div className="flex flex-col items-start gap-2">
+                  <Label className="text-xs text-muted-foreground whitespace-nowrap">
+                    # of {selectedMatrix.rowBasis || "Colors"}
+                  </Label>
+                  <Input
+                    type="text"
+                    inputMode="numeric"
+                    className="w-20 text-sm"
+                    value={colorCountText}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      if (v === "" || /^\d+$/.test(v)) {
+                        setColorCountText(v);
+                        const n = parseInt(v);
+                        if (n > 0) setColorCount(n);
+                      }
+                    }}
+                    onBlur={() => {
+                      const n = parseInt(colorCountText);
+                      if (!n || n < 1) {
+                        setColorCount(1);
+                        setColorCountText("1");
+                      } else {
+                        setColorCount(n);
+                        setColorCountText(String(n));
+                      }
+                    }}
+                  />
+                </div>
+              )
             )}
           </div>
 

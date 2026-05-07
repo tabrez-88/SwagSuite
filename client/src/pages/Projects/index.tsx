@@ -16,7 +16,12 @@ export default function ProjectsPage() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [viewMode, setViewMode] = useState<"table" | "kanban">("table");
   const [activeSOFilter, setActiveSOFilter] = useState<string | null>(null);
+  const [activeStageFilter, setActiveStageFilter] = useState<string | null>(null);
   const [, setLocation] = useLocation();
+
+  const clearFilters = () => { setActiveSOFilter(null); setActiveStageFilter(null); };
+  const toggleSOFilter = (val: string) => { setActiveStageFilter(null); setActiveSOFilter(activeSOFilter === val ? null : val); };
+  const toggleStageFilter = (val: string) => { setActiveSOFilter(null); setActiveStageFilter(activeStageFilter === val ? null : val); };
 
   const { data: orders = [], isLoading } = useQuery<Order[]>({
     queryKey: ["/api/projects"],
@@ -109,7 +114,10 @@ export default function ProjectsPage() {
             </div>
           </CardContent>
         </Card>
-        <Card>
+        <Card
+          className={`cursor-pointer transition-colors hover:border-blue-400 ${activeStageFilter === "sales_order" ? "border-blue-400 bg-blue-50/50" : ""}`}
+          onClick={() => toggleStageFilter("sales_order")}
+        >
           <CardContent className="p-4">
             <div className="flex items-center space-x-2">
               <ShoppingCart className="text-blue-600" size={20} />
@@ -122,7 +130,7 @@ export default function ProjectsPage() {
         </Card>
         <Card
           className={`cursor-pointer transition-colors hover:border-yellow-400 ${activeSOFilter === "pending_client_approval" ? "border-yellow-400 bg-yellow-50/50" : ""}`}
-          onClick={() => setActiveSOFilter(activeSOFilter === "pending_client_approval" ? null : "pending_client_approval")}
+          onClick={() => toggleSOFilter("pending_client_approval")}
         >
           <CardContent className="p-4">
             <div className="flex items-center space-x-2">
@@ -136,7 +144,7 @@ export default function ProjectsPage() {
         </Card>
         <Card
           className={`cursor-pointer transition-colors hover:border-green-400 ${activeSOFilter === "client_approved" ? "border-green-400 bg-green-50/50" : ""}`}
-          onClick={() => setActiveSOFilter(activeSOFilter === "client_approved" ? null : "client_approved")}
+          onClick={() => toggleSOFilter("client_approved")}
         >
           <CardContent className="p-4">
             <div className="flex items-center space-x-2">
@@ -148,7 +156,10 @@ export default function ProjectsPage() {
             </div>
           </CardContent>
         </Card>
-        <Card>
+        <Card
+          className={`cursor-pointer transition-colors hover:border-green-400 ${activeStageFilter === "invoice" ? "border-green-400 bg-green-50/50" : ""}`}
+          onClick={() => toggleStageFilter("invoice")}
+        >
           <CardContent className="p-4">
             <div className="flex items-center space-x-2">
               <Receipt className="text-green-600" size={20} />
@@ -173,6 +184,22 @@ export default function ProjectsPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Active filter indicator */}
+      {(activeSOFilter || activeStageFilter) && (
+        <div className="flex items-center gap-2 text-sm">
+          <span className="text-gray-500">Filtered by:</span>
+          <span className="px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 font-medium">
+            {activeSOFilter === "pending_client_approval" && "Awaiting Approval"}
+            {activeSOFilter === "client_approved" && "Approved SO"}
+            {activeStageFilter === "sales_order" && "Sales Orders"}
+            {activeStageFilter === "invoice" && "Invoice"}
+          </span>
+          <button onClick={clearFilters} className="text-gray-400 hover:text-gray-600 underline text-xs">
+            Clear
+          </button>
+        </div>
+      )}
 
       {/* Projects View */}
       {isLoading ? (
@@ -202,6 +229,8 @@ export default function ProjectsPage() {
           columns={columns}
           data={activeSOFilter
             ? ordersWithRelations.filter((o) => o.salesOrderStatus === activeSOFilter)
+            : activeStageFilter
+            ? ordersWithRelations.filter((o) => o._determinedStage?.stage.id === activeStageFilter)
             : ordersWithRelations
           }
           meta={{

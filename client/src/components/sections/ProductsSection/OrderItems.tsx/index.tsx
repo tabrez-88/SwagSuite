@@ -52,6 +52,7 @@ export default function OrderItemCard({ item, productSection }: OrderItemCardPro
     chargeName: string;
     chargeType: "run" | "fixed";
     currentMargin?: number;
+    numberOfColors?: number;
   } | null>(null);
   const isExpanded = productSection.expandedItems.has(item.id);
   const itemSupplier = productSection.getItemSupplier(item);
@@ -441,6 +442,7 @@ export default function OrderItemCard({ item, productSection }: OrderItemCardPro
                                       chargeName: c.chargeName || (isRun ? "Imprint Cost" : "Setup Cost"),
                                       chargeType: isRun ? "run" : "fixed",
                                       currentMargin: parseFloat(c.margin || "0"),
+                                      numberOfColors: art.numberOfColors ?? 1,
                                     })}
                                   >
                                     <Grid3X3 className="w-3 h-3" />
@@ -596,9 +598,10 @@ export default function OrderItemCard({ item, productSection }: OrderItemCardPro
             chargeId={matrixPickerTarget.chargeId}
             chargeName={matrixPickerTarget.chargeName}
             currentMargin={matrixPickerTarget.currentMargin}
+            numberOfColors={matrixPickerTarget.numberOfColors}
+            itemSize={item.size || item.color || ""}
             quantity={totals.totalQty || 1}
             projectId={productSection.projectId}
-
           />
         );
       })()}
