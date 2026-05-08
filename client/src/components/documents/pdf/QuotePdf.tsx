@@ -120,11 +120,7 @@ export function QuotePdf({
             )}
           </View>
           <View style={styles.headerRight}>
-            {logoSrc ? (
-              <Image src={logoSrc} style={{ width: 120, height: 40, objectFit: "contain" }} />
-            ) : (
-              <Text style={styles.brandName}>{sellerName || "Liquid Screen Design"}</Text>
-            )}
+            <Text style={styles.brandName}>{sellerName || "Liquid Screen Design"}</Text>
           </View>
         </View>
 

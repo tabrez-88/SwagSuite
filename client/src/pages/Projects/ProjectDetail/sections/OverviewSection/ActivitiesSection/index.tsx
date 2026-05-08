@@ -2,13 +2,22 @@ import { format } from "date-fns";
 import {
   Activity,
   AtSign,
+  CheckCircle2,
+  Clock,
+  DollarSign,
+  Eye,
   FileText,
+  Mail,
   MessageSquare,
   Paperclip,
   Send,
   Settings,
+  Shield,
+  Truck,
   Upload,
+  UserPlus,
   X,
+  XCircle,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -23,20 +32,55 @@ import type { ProjectActivity, TeamMember } from "@/types/project-types";
 import { useActivitiesSection } from "./hooks";
 import type { ActivitiesSectionProps, PreviewFile } from "./types";
 
-function getActivityIcon(activityType: string) {
+function getMetadataAction(metadata: Record<string, unknown> | null | undefined): string {
+  return ((metadata as Record<string, unknown>)?.action as string) || "";
+}
+
+/** True when the activity was triggered by a client/vendor (not internal team or system). */
+function isClientAction(activity: ProjectActivity): boolean {
+  const action = getMetadataAction(activity.metadata);
+  return [
+    "approval_viewed",
+    "quote_approved", "quote_declined",
+    "sales_order_approved", "sales_order_declined",
+    "presentation_first_view",
+  ].includes(action)
+    || activity.activityType === "artwork_approved"
+    || activity.activityType === "artwork_rejected";
+}
+
+function isVendorAction(activity: ProjectActivity): boolean {
+  const action = getMetadataAction(activity.metadata);
+  return ["po_vendor_confirmed", "po_vendor_declined"].includes(action);
+}
+
+function getActivityIcon(activityType: string, metadata?: Record<string, unknown>) {
+  const action = getMetadataAction(metadata);
+
+  if (activityType === "artwork_approved") return <CheckCircle2 className="w-3.5 h-3.5 text-green-700" />;
+  if (activityType === "artwork_rejected") return <XCircle className="w-3.5 h-3.5 text-orange-700" />;
+
+  if (activityType === "system_action") {
+    if (action.includes("approved") || action.includes("confirmed")) return <CheckCircle2 className="w-3.5 h-3.5 text-green-700" />;
+    if (action.includes("declined")) return <XCircle className="w-3.5 h-3.5 text-orange-700" />;
+    if (action.includes("viewed") || action.includes("first_view")) return <Eye className="w-3.5 h-3.5 text-indigo-700" />;
+    if (action.includes("email") || action === "po_sent" || action.includes("reminder")) return <Mail className="w-3.5 h-3.5 text-blue-700" />;
+    if (action.includes("payment") || action.includes("invoice") || action.includes("bill")) return <DollarSign className="w-3.5 h-3.5 text-emerald-700" />;
+    if (action.includes("shipped") || action.includes("delivered") || action.includes("shipping") || action.includes("tracking")) return <Truck className="w-3.5 h-3.5 text-teal-700" />;
+    if (action.includes("assigned")) return <UserPlus className="w-3.5 h-3.5 text-blue-700" />;
+    if (action.includes("unlock")) return <Shield className="w-3.5 h-3.5 text-amber-700" />;
+    if (action.includes("overdue") || action.includes("expired") || action.includes("delay")) return <Clock className="w-3.5 h-3.5 text-orange-700" />;
+    if (action.includes("stage_change")) return <Settings className="w-3.5 h-3.5 text-purple-700" />;
+    return <Activity className="w-3.5 h-3.5 text-gray-700" />;
+  }
+
   switch (activityType) {
-    case "status_change":
-      return <Settings className="w-3.5 h-3.5 text-blue-700" />;
-    case "comment":
-      return <MessageSquare className="w-3.5 h-3.5 text-green-700" />;
-    case "file_upload":
-      return <Upload className="w-3.5 h-3.5 text-purple-700" />;
-    case "mention":
-      return <AtSign className="w-3.5 h-3.5 text-yellow-700" />;
-    case "system_action":
-      return <Activity className="w-3.5 h-3.5 text-gray-700" />;
-    default:
-      return <Activity className="w-3.5 h-3.5 text-gray-600" />;
+    case "status_change": return <Settings className="w-3.5 h-3.5 text-purple-700" />;
+    case "comment": return <MessageSquare className="w-3.5 h-3.5 text-green-700" />;
+    case "product_comment": return <MessageSquare className="w-3.5 h-3.5 text-blue-700" />;
+    case "file_upload": return <Upload className="w-3.5 h-3.5 text-purple-700" />;
+    case "mention": return <AtSign className="w-3.5 h-3.5 text-yellow-700" />;
+    default: return <Activity className="w-3.5 h-3.5 text-gray-600" />;
   }
 }
 
@@ -76,21 +120,51 @@ function AttachmentChips({ attachments, onPreview }: {
   );
 }
 
-function getActivityBg(activityType: string) {
-  switch (activityType) {
-    case "status_change":
-      return "bg-blue-100 border-blue-300";
-    case "comment":
-      return "bg-green-100 border-green-300";
-    case "file_upload":
-      return "bg-purple-100 border-purple-300";
-    case "mention":
-      return "bg-yellow-100 border-yellow-300";
-    case "system_action":
-      return "bg-gray-100 border-gray-300";
-    default:
-      return "bg-gray-100 border-gray-300";
+function getActivityBg(activityType: string, metadata?: Record<string, unknown>) {
+  const action = getMetadataAction(metadata);
+
+  if (activityType === "artwork_approved") return "bg-green-100 border-green-300";
+  if (activityType === "artwork_rejected") return "bg-orange-100 border-orange-300";
+
+  if (activityType === "system_action") {
+    if (action.includes("approved") || action.includes("confirmed")) return "bg-green-100 border-green-300";
+    if (action.includes("declined")) return "bg-orange-100 border-orange-300";
+    if (action.includes("viewed") || action.includes("first_view")) return "bg-indigo-100 border-indigo-300";
+    if (action.includes("email") || action === "po_sent" || action.includes("reminder")) return "bg-blue-100 border-blue-300";
+    if (action.includes("payment") || action.includes("invoice") || action.includes("bill")) return "bg-emerald-100 border-emerald-300";
+    if (action.includes("shipped") || action.includes("delivered") || action.includes("shipping") || action.includes("tracking")) return "bg-teal-100 border-teal-300";
+    if (action.includes("assigned")) return "bg-blue-100 border-blue-300";
+    if (action.includes("unlock")) return "bg-amber-100 border-amber-300";
+    if (action.includes("overdue") || action.includes("expired") || action.includes("delay")) return "bg-orange-100 border-orange-300";
+    if (action.includes("stage_change")) return "bg-purple-100 border-purple-300";
+    return "bg-gray-100 border-gray-300";
   }
+
+  switch (activityType) {
+    case "status_change": return "bg-purple-100 border-purple-300";
+    case "comment": return "bg-green-100 border-green-300";
+    case "product_comment": return "bg-blue-100 border-blue-300";
+    case "file_upload": return "bg-purple-100 border-purple-300";
+    case "mention": return "bg-yellow-100 border-yellow-300";
+    default: return "bg-gray-100 border-gray-300";
+  }
+}
+
+function getActivityLabel(activityType: string, metadata?: Record<string, unknown>): string | null {
+  const action = getMetadataAction(metadata);
+  if (activityType === "artwork_approved") return "Artwork Approved";
+  if (activityType === "artwork_rejected") return "Revision Requested";
+  if (activityType === "status_change") {
+    const section = (metadata?.section as string) || "";
+    return section ? `${section} status` : "Status Change";
+  }
+  if (activityType === "comment") return "Note";
+  if (activityType === "product_comment") return "Product Note";
+  if (activityType === "file_upload") return "File Upload";
+  if (activityType === "system_action" && action) {
+    return action.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+  }
+  return null;
 }
 
 export default function ActivitiesSection({ projectId, data }: ActivitiesSectionProps) {
@@ -286,11 +360,31 @@ export default function ActivitiesSection({ projectId, data }: ActivitiesSection
               <div className="absolute left-[17px] top-2 bottom-2 w-0.5 bg-gray-200" />
               <div className="space-y-4">
                 {hook.activities.map((activity: ProjectActivity) => {
-                  const userName = activity.user
-                    ? `${activity.user.firstName} ${activity.user.lastName}`
-                    : activity.isSystemGenerated
-                      ? "System"
-                      : "Unknown";
+                  const meta = activity.metadata as Record<string, unknown>;
+                  const isClient = isClientAction(activity);
+                  const isVendor = isVendorAction(activity);
+
+                  let userName: string;
+                  let badgeLabel: string | null = null;
+                  let badgeClass = "text-[10px] px-1.5 py-0 h-4";
+                  if (activity.user) {
+                    userName = `${activity.user.firstName} ${activity.user.lastName}`;
+                  } else if (isClient) {
+                    userName = (meta?.clientName as string) || "Client";
+                    badgeLabel = "Client";
+                    badgeClass += " bg-orange-100 text-orange-700 border-orange-300";
+                  } else if (isVendor) {
+                    userName = (meta?.vendorName as string) || "Vendor";
+                    badgeLabel = "Vendor";
+                    badgeClass += " bg-violet-100 text-violet-700 border-violet-300";
+                  } else if (activity.isSystemGenerated) {
+                    userName = "System";
+                    badgeLabel = "System";
+                  } else {
+                    userName = "Unknown";
+                  }
+
+                  const label = getActivityLabel(activity.activityType, meta);
 
                   return (
                     <div
@@ -299,9 +393,9 @@ export default function ActivitiesSection({ projectId, data }: ActivitiesSection
                     >
                       {/* Icon */}
                       <div
-                        className={`relative z-10 flex-shrink-0 w-9 h-9 rounded-full border-2 flex items-center justify-center ${getActivityBg(activity.activityType)}`}
+                        className={`relative z-10 flex-shrink-0 w-9 h-9 rounded-full border-2 flex items-center justify-center ${getActivityBg(activity.activityType, meta)}`}
                       >
-                        {getActivityIcon(activity.activityType)}
+                        {getActivityIcon(activity.activityType, meta)}
                       </div>
 
                       {/* Content */}
@@ -310,12 +404,20 @@ export default function ActivitiesSection({ projectId, data }: ActivitiesSection
                           <span className="text-sm font-medium text-gray-900">
                             {userName}
                           </span>
-                          {activity.isSystemGenerated && (
+                          {badgeLabel && (
                             <Badge
                               variant="outline"
+                              className={badgeClass}
+                            >
+                              {badgeLabel}
+                            </Badge>
+                          )}
+                          {label && (
+                            <Badge
+                              variant="secondary"
                               className="text-[10px] px-1.5 py-0 h-4"
                             >
-                              System
+                              {label}
                             </Badge>
                           )}
                           <span className="text-xs text-gray-400 ml-auto flex-shrink-0">
@@ -327,7 +429,7 @@ export default function ActivitiesSection({ projectId, data }: ActivitiesSection
                         </p>
                         {/* Inline attachments */}
                         <AttachmentChips
-                          attachments={((activity.metadata as Record<string, unknown>)?.attachments as any[]) || []}
+                          attachments={((meta)?.attachments as any[]) || []}
                           onPreview={hook.setPreviewFile}
                         />
                       </div>

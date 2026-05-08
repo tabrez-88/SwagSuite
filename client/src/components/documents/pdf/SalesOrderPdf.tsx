@@ -124,11 +124,7 @@ export function SalesOrderPdf({
             </Text>
           </View>
           <View style={styles.headerRight}>
-            {logoSrc ? (
-              <Image src={logoSrc} style={{ width: 120, height: 40, objectFit: "contain" }} />
-            ) : (
-              <Text style={styles.brandName}>{sellerName || "Liquid Screen Design"}</Text>
-            )}
+            <Text style={styles.brandName}>{sellerName || "Liquid Screen Design"}</Text>
             {order?.isFirm && (
               <View style={[styles.badge, styles.badgeBlue, { marginTop: 6 }]}>
                 <Text>FIRM ORDER</Text>

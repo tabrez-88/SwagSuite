@@ -99,7 +99,10 @@ export default function QuoteApprovalPage() {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-2xl font-bold text-gray-900">{docLabel} Approval</h1>
-              <p className="text-gray-600">Order #{approval.orderNumber}</p>
+              <p className="text-gray-600">
+                Order #{approval.orderNumber}
+                {approval.projectName ? ` — ${approval.projectName}` : ""}
+              </p>
             </div>
             <div className="flex items-center gap-3">
               {getStatusIcon()}

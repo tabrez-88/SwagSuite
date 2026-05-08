@@ -224,6 +224,7 @@ export class ApprovalController {
             content: `Artwork approved by client${comments ? `: ${comments}` : ''}`,
             metadata: {
               approvalId: approval.id,
+              clientName: approval.clientName,
               clientEmail: approval.clientEmail,
               orderItemId: approval.orderItemId,
             },
@@ -383,6 +384,7 @@ export class ApprovalController {
             content: `Artwork revision requested by client: ${comments}`,
             metadata: {
               approvalId: approval.id,
+              clientName: approval.clientName,
               clientEmail: approval.clientEmail,
               orderItemId: approval.orderItemId,
             },
@@ -601,6 +603,7 @@ export class ApprovalController {
         orderTotal: orders.total,
         companyName: companies.name,
         inHandsDate: orders.inHandsDate,
+        projectName: orders.projectName,
         salesOrderStatus: orders.salesOrderStatus,
         documentType: generatedDocuments.documentType,
       })
@@ -1044,7 +1047,7 @@ export class ApprovalController {
             userId: systemUserId,
             activityType: "system_action",
             content: `${docLabel} declined by ${clientName || approval.clientName || approval.clientEmail}. Reason: ${reason}`,
-            metadata: { action: isSalesOrder ? 'sales_order_declined' : 'quote_declined', approvalId: updated.id, reason },
+            metadata: { action: isSalesOrder ? 'sales_order_declined' : 'quote_declined', approvalId: updated.id, clientName: clientName || approval.clientName, reason },
             isSystemGenerated: true,
           });
         }

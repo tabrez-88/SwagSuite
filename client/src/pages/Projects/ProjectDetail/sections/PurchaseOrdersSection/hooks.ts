@@ -9,6 +9,7 @@ import { fetchNextPoSequence } from "@/services/documents/requests";
 import {
   usePurchaseOrders,
   useCreatePurchaseOrder,
+  useUpdatePurchaseOrder,
   useAdvancePOStage,
   useSendPOConfirmation,
   type PurchaseOrderEntity,
@@ -31,6 +32,7 @@ export function usePurchaseOrdersSection({ projectId, data, isLocked }: Purchase
   const orderId = order?.id as string | undefined;
   const { data: poEntities = [] } = usePurchaseOrders(orderId);
   const createPOMutation = useCreatePurchaseOrder(orderId || "");
+  const updatePOMutation = useUpdatePurchaseOrder(orderId || "");
 
   // Lookup PO entity by groupKey
   const getPOEntity = useCallback((groupKey: string): PurchaseOrderEntity | null => {
@@ -97,10 +99,8 @@ export function usePurchaseOrdersSection({ projectId, data, isLocked }: Purchase
       const byEntity = poDocuments.find((d) => d.id === entity.documentId);
       if (byEntity) return byEntity;
     }
-    // Then match by groupKey in document metadata
-    return poDocuments.find((d) => (d.metadata as Record<string, unknown>)?.groupKey === groupKey)
-      || poDocuments.find((d) => (d.metadata as Record<string, unknown>)?.vendorKey === groupKey)
-      || poDocuments.find((d) => d.vendorId === groupKey);
+    // Then match by groupKey in document metadata (only reliable unique key per PO group)
+    return poDocuments.find((d) => (d.metadata as Record<string, unknown>)?.groupKey === groupKey) || null;
   };
 
   const orderExt = order as (typeof order) & { shippingCity?: string; shippingState?: string } | undefined;
@@ -277,8 +277,9 @@ export function usePurchaseOrdersSection({ projectId, data, isLocked }: Purchase
           updates: { metadata: meta },
         });
 
-        // Create PO entity if it doesn't exist yet
-        if (orderId && !getPOEntity(groupKey)) {
+        // Create or update PO entity
+        const existingEntity = getPOEntity(groupKey);
+        if (orderId && !existingEntity) {
           const pending = _pendingNotes.current[groupKey];
           try {
             await createPOMutation.mutateAsync({
@@ -299,6 +300,14 @@ export function usePurchaseOrdersSection({ projectId, data, isLocked }: Purchase
               },
             });
           } catch { /* entity creation is best-effort */ }
+        } else if (existingEntity && existingEntity.documentId !== newDoc.id) {
+          // Regenerate: entity exists but documentId points to the old (deleted) doc
+          try {
+            await updatePOMutation.mutateAsync({
+              id: existingEntity.id,
+              data: { documentId: newDoc.id },
+            });
+          } catch { /* entity update is best-effort */ }
         }
       }
       toast({ title: `PO PDF generated for ${vendorNameStr}` });

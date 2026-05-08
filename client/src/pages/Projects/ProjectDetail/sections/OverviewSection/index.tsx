@@ -83,7 +83,7 @@ export default function OverviewSection(props: OverviewSectionProps) {
             ? "border-red-200 bg-red-50"
             : "border-orange-200 bg-orange-50"
         }`}>
-          <div className={`flex items-start gap-2 text-sm ${
+          <div className={`flex items-center gap-2 text-sm ${
             deadlineAlerts.some((a) => a.urgency === "overdue") ? "text-red-800" : "text-orange-800"
           }`}>
             {deadlineAlerts.some((a) => a.urgency === "overdue")

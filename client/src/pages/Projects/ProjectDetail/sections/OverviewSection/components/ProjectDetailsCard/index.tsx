@@ -20,7 +20,10 @@ interface ProjectDetailsCardProps {
   isPending: boolean;
   openPopover: "salesRep" | "csr" | null;
   setOpenPopover: (val: "salesRep" | "csr" | null) => void;
-  onReassign: (vars: { field: "assignedUserId" | "csrUserId"; userId: string | null }) => void;
+  onReassign: (vars: {
+    field: "assignedUserId" | "csrUserId";
+    userId: string | null;
+  }) => void;
   renderDateBadgeJsx: (dateValue: string) => React.ReactNode;
 }
 
@@ -58,7 +61,10 @@ export default function ProjectDetailsCard({
               <p className="text-sm text-muted-foreground truncate">
                 {primaryContact.firstName} {primaryContact.lastName}
                 {primaryContact.email && (
-                  <span className="text-xs"> &middot; {primaryContact.email}</span>
+                  <span className="text-xs">
+                    {" "}
+                    &middot; {primaryContact.email}
+                  </span>
                 )}
               </p>
             )}
@@ -67,7 +73,7 @@ export default function ProjectDetailsCard({
 
         {/* Stage Timeline & Project Info */}
         <div className="border-t pt-3 pb-3 space-y-2.5">
-          {businessStage && (
+          {/* {businessStage && (
             <div className="space-y-1.5">
               <StageTimeline determined={businessStage} />
               <div className="flex justify-end">
@@ -76,7 +82,7 @@ export default function ProjectDetailsCard({
                 </Badge>
               </div>
             </div>
-          )}
+          )} */}
           <div className="flex justify-between items-center">
             <span className="text-sm text-muted-foreground flex items-center gap-1.5">
               Order #
@@ -125,50 +131,61 @@ export default function ProjectDetailsCard({
           {order.orderType === "rush_order" && (
             <div className="flex justify-between items-center">
               <span className="text-sm text-muted-foreground">Order Type</span>
-              <Badge variant="destructive" className="text-xs">Rush Order</Badge>
+              <Badge variant="destructive" className="text-xs">
+                Rush Order
+              </Badge>
             </div>
           )}
           {order.createdAt && (
             <div className="flex justify-between items-center">
               <span className="text-sm text-muted-foreground">Created</span>
-              <span className="text-sm">{format(new Date(order.createdAt), "MMM d, yyyy")}</span>
+              <span className="text-sm">
+                {format(new Date(order.createdAt), "MMM d, yyyy")}
+              </span>
             </div>
           )}
         </div>
 
         {/* Dates */}
         <div className="border-t pt-3 pb-3">
-          <div className="flex items-center gap-3">
-            <Calendar className="w-5 h-5 text-purple-600 mt-0.5 shrink-0" />
-            <div className="flex-1 space-y-2">
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-muted-foreground">In-Hands Date</span>
-                <div className="flex items-center gap-1.5">
-                  {(order as any).isFirm && (
-                    <Badge className="bg-emerald-100 text-emerald-700 text-[10px] px-1.5 py-0">Firm</Badge>
-                  )}
-                  <EditableDate
-                    value={order.inHandsDate}
-                    field="inHandsDate"
-                    onSave={updateField}
-                    isLocked={isLocked}
-                    isPending={isPending}
-                    renderExtra={renderDateBadgeJsx}
-                    className="font-medium"
-                  />
-                </div>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-muted-foreground">Event Date</span>
+          <div className="flex items-center gap-1.5 mb-2">
+            <Calendar className="w-4 h-4 text-purple-600 mt-0.5 shrink-0" />
+            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+              Date
+            </span>
+          </div>
+          <div className="flex-1 space-y-2">
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-muted-foreground">
+                In-Hands Date
+              </span>
+              <div className="flex items-center gap-1.5">
+                {(order as any).isFirm && (
+                  <Badge className="bg-blue-100 text-blue-700 text-[10px] px-1.5 py-0 uppercase">
+                    Firm
+                  </Badge>
+                )}
                 <EditableDate
-                  value={order.eventDate}
-                  field="eventDate"
+                  value={order.inHandsDate}
+                  field="inHandsDate"
                   onSave={updateField}
                   isLocked={isLocked}
                   isPending={isPending}
                   renderExtra={renderDateBadgeJsx}
+                  className="font-medium"
                 />
               </div>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-muted-foreground">Event Date</span>
+              <EditableDate
+                value={order.eventDate}
+                field="eventDate"
+                onSave={updateField}
+                isLocked={isLocked}
+                isPending={isPending}
+                renderExtra={renderDateBadgeJsx}
+              />
             </div>
           </div>
         </div>
@@ -176,8 +193,10 @@ export default function ProjectDetailsCard({
         {/* Team */}
         <div className="border-t pt-3 space-y-2.5">
           <div className="flex items-center gap-1.5 mb-2">
-            <Users className="w-4 h-4 text-muted-foreground" />
-            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Team</span>
+            <Users className="w-4 h-4 text-blue-500" />
+            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+              Team
+            </span>
           </div>
           <TeamMemberPicker
             role="Sales Rep"

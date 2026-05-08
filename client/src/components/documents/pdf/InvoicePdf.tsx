@@ -144,20 +144,16 @@ export function InvoicePdf({
       <Page size="A4" style={styles.page} wrap>
         {/* ── Header: Seller Name + Invoice Title ──────────────── */}
         <View style={{ marginBottom: 16 }} fixed>
-          {logoSrc ? (
-            <Image src={logoSrc} style={{ width: 120, height: 40, objectFit: "contain", marginBottom: 2 }} />
-          ) : (
-            <Text
-              style={{
-                fontSize: 14,
-                fontFamily: "Helvetica-Bold",
-                color: colors.gray900,
-                marginBottom: 2,
-              }}
-            >
-              {sellerName || "Liquid Screen Design"}
-            </Text>
-          )}
+          <Text
+            style={{
+              fontSize: 14,
+              fontFamily: "Helvetica-Bold",
+              color: colors.gray900,
+              marginBottom: 2,
+            }}
+          >
+            {sellerName || "Liquid Screen Design"}
+          </Text>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
             <Text
               style={{

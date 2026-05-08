@@ -90,7 +90,6 @@ export function PurchaseOrderPdf({
   );
   const effectiveIHD = vendorIHD || order?.supplierInHandsDate;
   const orderShippingAddr = parseAddress(order?.shippingAddress);
-
   // ── Total cost calculation ─────────────────────────────────────
   const itemsCost = isDecoratorPO
     ? artworkItems.reduce((sum: number, art: any) => {
@@ -214,6 +213,7 @@ export function PurchaseOrderPdf({
             <Text style={styles.docMeta}>
               PO #{poNumber}
               {revision && revision > 1 ? ` (Rev ${revision})` : ""}
+              {order?.projectName ? ` — ${order.projectName}` : ""}
             </Text>
             <Text style={styles.docMeta}>
               Date: {fmtDate(order?.createdAt)}
@@ -234,7 +234,7 @@ export function PurchaseOrderPdf({
             )}
           </View>
           <View style={styles.headerRight}>
-            <Text style={styles.brandName}>{"Liquid Screen Design"}</Text>
+            <Text style={styles.brandName}>{sellerName || "Liquid Screen Design"}</Text>
           </View>
         </View>
 

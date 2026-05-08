@@ -16,6 +16,7 @@ export interface QuoteApprovalData {
   orderNumber?: string;
   orderTotal?: string;
   companyName?: string;
+  projectName?: string;
   inHandsDate?: string;
   documentType?: string;
   items: Array<{
