@@ -1,18 +1,17 @@
 import * as React from "react";
 import {
   ColumnDef,
-  ColumnFiltersState,
   SortingState,
   VisibilityState,
   flexRender,
   getCoreRowModel,
-  getFilteredRowModel,
   getPaginationRowModel,
   getSortedRowModel,
   useReactTable,
 } from "@tanstack/react-table";
-import { Search } from "lucide-react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 
+import { Button } from "@/components/ui/button";
 import {
   Table,
   TableBody,
@@ -21,36 +20,20 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Input } from "@/components/ui/input";
-import { DataTablePagination } from "@/components/data-table/data-table-pagination";
 import { DataTableViewOptions } from "@/components/data-table/data-table-view-options";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
   data: TData[];
   meta?: any;
-  salesRepFilter?: string | null;
-  onSalesRepFilterChange?: (value: string) => void;
 }
 
 export function DataTable<TData, TValue>({
   columns,
   data,
   meta,
-  salesRepFilter,
-  onSalesRepFilterChange,
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = React.useState<SortingState>([]);
-  const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
-    []
-  );
   const [columnVisibility, setColumnVisibility] =
     React.useState<VisibilityState>({});
 
@@ -61,143 +44,107 @@ export function DataTable<TData, TValue>({
     getPaginationRowModel: getPaginationRowModel(),
     onSortingChange: setSorting,
     getSortedRowModel: getSortedRowModel(),
-    onColumnFiltersChange: setColumnFilters,
-    getFilteredRowModel: getFilteredRowModel(),
     onColumnVisibilityChange: setColumnVisibility,
     state: {
       sorting,
-      columnFilters,
       columnVisibility,
     },
     meta,
   });
 
-  // Sync sales rep filter from parent into column filter on init
-  React.useEffect(() => {
-    if (salesRepFilter && salesRepFilter !== "all") {
-      table.getColumn("assignedUserName")?.setFilterValue(salesRepFilter);
-    }
-  }, [salesRepFilter, table]);
+  const pageIndex = table.getState().pagination.pageIndex;
+  const pageCount = table.getPageCount();
+  const totalRows = table.getFilteredRowModel().rows.length;
+  const pageSize = table.getState().pagination.pageSize;
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center gap-2">
-        <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
-          <Input
-            placeholder="Search by order number or customer..."
-            value={(table.getColumn("orderNumber")?.getFilterValue() as string) ?? ""}
-            onChange={(event) =>
-              table.getColumn("orderNumber")?.setFilterValue(event.target.value)
-            }
-            className="pl-10"
-          />
-        </div>
-        <Select
-          value={(table.getColumn("stage")?.getFilterValue() as string) ?? "all"}
-          onValueChange={(value) =>
-            table.getColumn("stage")?.setFilterValue(value === "all" ? "" : value)
-          }
-        >
-          <SelectTrigger className="w-[180px]">
-            <SelectValue placeholder="Filter by stage" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Stages</SelectItem>
-            <SelectItem value="presentation">Presentation</SelectItem>
-            <SelectItem value="quote">Quote</SelectItem>
-            <SelectItem value="sales_order">Sales Order</SelectItem>
-            <SelectItem value="invoice">Invoice</SelectItem>
-          </SelectContent>
-        </Select>
-        {(() => {
-          const salesReps = Array.from(
-            new Set(
-              data
-                .map((row: any) => row.assignedUserName)
-                .filter(Boolean) as string[],
-            ),
-          ).sort();
-          if (salesReps.length === 0) return null;
-          const currentRepValue = salesRepFilter || (table.getColumn("assignedUserName")?.getFilterValue() as string) || "all";
-          return (
-            <Select
-              value={currentRepValue}
-              onValueChange={(value) => {
-                table.getColumn("assignedUserName")?.setFilterValue(value === "all" ? "" : value);
-                onSalesRepFilterChange?.(value);
-              }}
-            >
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="Filter by sales rep" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Sales Reps</SelectItem>
-                {salesReps.map((rep) => (
-                  <SelectItem key={rep} value={rep}>
-                    {rep}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          );
-        })()}
+    <>
+      <div className="flex items-center justify-end px-4 pt-3">
         <DataTableViewOptions table={table} />
       </div>
-      <div className="rounded-md border overflow-hidden">
-        <div className="overflow-y-auto max-h-[500px]">
-          <Table>
-            <TableHeader className="sticky top-0 bg-gray-50 z-10">
-              {table.getHeaderGroups().map((headerGroup) => (
-                <TableRow key={headerGroup.id}>
-                  {headerGroup.headers.map((header) => {
-                    return (
-                      <TableHead key={header.id}>
-                        {header.isPlaceholder
-                          ? null
-                          : flexRender(
-                              header.column.columnDef.header,
-                              header.getContext()
-                            )}
-                      </TableHead>
-                    );
-                  })}
-                </TableRow>
-              ))}
-            </TableHeader>
-            <TableBody>
-              {table.getRowModel().rows?.length ? (
-                table.getRowModel().rows.map((row) => (
-                  <TableRow 
-                    key={row.id}
-                    onClick={() => meta?.onViewOrder?.(row.original)}
-                    className="cursor-pointer hover:bg-gray-50"
-                  >
-                    {row.getVisibleCells().map((cell) => (
-                      <TableCell key={cell.id}>
-                        {flexRender(
-                          cell.column.columnDef.cell,
-                          cell.getContext()
+
+      <div className="overflow-x-auto">
+        <Table>
+          <TableHeader>
+            {table.getHeaderGroups().map((headerGroup) => (
+              <TableRow key={headerGroup.id} className="bg-muted/30 border-b-2">
+                {headerGroup.headers.map((header) => (
+                  <TableHead key={header.id} className="text-xs py-3">
+                    {header.isPlaceholder
+                      ? null
+                      : flexRender(
+                          header.column.columnDef.header,
+                          header.getContext()
                         )}
-                      </TableCell>
-                    ))}
-                  </TableRow>
-                ))
-              ) : (
-                <TableRow>
-                  <TableCell
-                    colSpan={columns.length}
-                    className="h-24 text-center"
-                  >
-                    No results.
-                  </TableCell>
+                  </TableHead>
+                ))}
+              </TableRow>
+            ))}
+          </TableHeader>
+          <TableBody>
+            {table.getRowModel().rows?.length ? (
+              table.getRowModel().rows.map((row) => (
+                <TableRow
+                  key={row.id}
+                  onClick={() => meta?.onViewOrder?.(row.original)}
+                  className="cursor-pointer hover:bg-muted/40 transition-colors"
+                >
+                  {row.getVisibleCells().map((cell) => (
+                    <TableCell key={cell.id} className="py-3.5">
+                      {flexRender(
+                        cell.column.columnDef.cell,
+                        cell.getContext()
+                      )}
+                    </TableCell>
+                  ))}
                 </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </div>
+              ))
+            ) : (
+              <TableRow>
+                <TableCell
+                  colSpan={columns.length}
+                  className="h-24 text-center text-muted-foreground"
+                >
+                  No results.
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
       </div>
-      <DataTablePagination table={table} />
-    </div>
+
+      {/* Pagination — matching Production Report style */}
+      {pageCount > 1 && (
+        <div className="flex items-center justify-between px-4 py-3 border-t">
+          <span className="text-xs text-muted-foreground">
+            Showing {pageIndex * pageSize + 1}–
+            {Math.min((pageIndex + 1) * pageSize, totalRows)} of {totalRows}
+          </span>
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7"
+              disabled={!table.getCanPreviousPage()}
+              onClick={() => table.previousPage()}
+            >
+              <ChevronLeft className="h-3.5 w-3.5" />
+            </Button>
+            <span className="text-xs">
+              Page {pageIndex + 1} of {pageCount}
+            </span>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7"
+              disabled={!table.getCanNextPage()}
+              onClick={() => table.nextPage()}
+            >
+              <ChevronRight className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        </div>
+      )}
+    </>
   );
 }

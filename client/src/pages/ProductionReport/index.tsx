@@ -238,8 +238,6 @@ export default function ProductionReport() {
               <Button size="sm" variant="outline" className="h-7 text-xs px-2" onClick={() => applyDatePreset("thisMonth")}>
                 This Month
               </Button>
-            </div>
-            <div className="flex gap-1.5 ml-auto">
               <Button
                 size="sm"
                 variant={filterFirm ? "default" : "outline"}
@@ -247,14 +245,6 @@ export default function ProductionReport() {
                 onClick={() => { setFilterFirm(!filterFirm); setPage(1); }}
               >
                 FIRM
-              </Button>
-              <Button
-                size="sm"
-                variant={filterRush ? "default" : "outline"}
-                className={`h-7 text-xs px-2 ${filterRush ? "bg-red-600 hover:bg-red-700" : ""}`}
-                onClick={() => { setFilterRush(!filterRush); setPage(1); }}
-              >
-                RUSH
               </Button>
             </div>
           </div>
@@ -298,7 +288,7 @@ export default function ProductionReport() {
                       className="cursor-pointer hover:bg-muted/50 text-xs py-3"
                       onClick={() => handleSort("csr_user_id")}
                     >
-                      <span className="flex items-center">Assigned <SortIcon column="csr_user_id" sortBy={sortBy} sortOrder={sortOrder} /></span>
+                      <span className="flex items-center">CSR <SortIcon column="csr_user_id" sortBy={sortBy} sortOrder={sortOrder} /></span>
                     </TableHead>
                     <TableHead
                       className="cursor-pointer hover:bg-muted/50 text-xs py-3"

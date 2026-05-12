@@ -27,6 +27,7 @@ export class ProjectRepository {
         // All order fields
         id: orders.id,
         orderNumber: orders.orderNumber,
+        projectName: orders.projectName,
         companyId: orders.companyId,
         contactId: orders.contactId,
         assignedUserId: orders.assignedUserId,

@@ -5,10 +5,16 @@ interface ProjectFilterPreferences {
   activeSOFilter: string | null;
   activeStageFilter: string | null;
   viewMode: "table" | "kanban";
+  searchQuery: string;
+  companyFilter: string | null;
+  soStatusFilter: string | null;
+  dateType: "inHands" | "createdAt";
+  dateFrom: string;
+  dateTo: string;
   version: number;
 }
 
-const CURRENT_VERSION = 2;
+const CURRENT_VERSION = 3;
 
 function getStorageKey(userId: string): string {
   return `project-filters:${userId}`;
@@ -19,35 +25,41 @@ function getRoleDefaults(
   currentUserName: string,
   hasOrders: boolean,
 ): Omit<ProjectFilterPreferences, "version"> {
+  const base = {
+    activeSOFilter: null,
+    activeStageFilter: null,
+    viewMode: "table" as const,
+    searchQuery: "",
+    companyFilter: null,
+    soStatusFilter: null,
+    dateType: "inHands" as const,
+    dateFrom: "",
+    dateTo: "",
+  };
+
   switch (userRole) {
     case "sales":
       return {
+        ...base,
         salesRepFilter: hasOrders ? currentUserName : "all",
-        activeSOFilter: null,
-        activeStageFilter: null,
-        viewMode: "table",
       };
     case "production":
       return {
+        ...base,
         salesRepFilter: "all",
-        activeSOFilter: null,
         activeStageFilter: "sales_order",
-        viewMode: "table",
       };
     case "finance":
       return {
+        ...base,
         salesRepFilter: "all",
-        activeSOFilter: null,
         activeStageFilter: "invoice",
-        viewMode: "table",
       };
     default:
       // admin, manager, user
       return {
+        ...base,
         salesRepFilter: "all",
-        activeSOFilter: null,
-        activeStageFilter: null,
-        viewMode: "table",
       };
   }
 }
@@ -92,6 +104,12 @@ export function useProjectFilters({
   const [activeSOFilter, setActiveSOFilterState] = useState<string | null>(null);
   const [activeStageFilter, setActiveStageFilterState] = useState<string | null>(null);
   const [viewMode, setViewModeState] = useState<"table" | "kanban">("table");
+  const [searchQuery, setSearchQueryState] = useState("");
+  const [companyFilter, setCompanyFilterState] = useState<string | null>(null);
+  const [soStatusFilter, setSOStatusFilterState] = useState<string | null>(null);
+  const [dateType, setDateTypeState] = useState<"inHands" | "createdAt">("inHands");
+  const [dateFrom, setDateFromState] = useState("");
+  const [dateTo, setDateToState] = useState("");
   const [isInitialized, setIsInitialized] = useState(false);
   const initializedForUser = useRef<string | null>(null);
 
@@ -108,6 +126,12 @@ export function useProjectFilters({
       setActiveSOFilterState(saved.activeSOFilter);
       setActiveStageFilterState(saved.activeStageFilter);
       setViewModeState(saved.viewMode);
+      setSearchQueryState(saved.searchQuery || "");
+      setCompanyFilterState(saved.companyFilter || null);
+      setSOStatusFilterState(saved.soStatusFilter || null);
+      setDateTypeState(saved.dateType || "inHands");
+      setDateFromState(saved.dateFrom || "");
+      setDateToState(saved.dateTo || "");
       initializedForUser.current = userId;
       setIsInitialized(true);
       return;
@@ -121,6 +145,12 @@ export function useProjectFilters({
     setActiveSOFilterState(defaults.activeSOFilter);
     setActiveStageFilterState(defaults.activeStageFilter);
     setViewModeState(defaults.viewMode);
+    setSearchQueryState(defaults.searchQuery);
+    setCompanyFilterState(defaults.companyFilter);
+    setSOStatusFilterState(defaults.soStatusFilter);
+    setDateTypeState(defaults.dateType);
+    setDateFromState(defaults.dateFrom);
+    setDateToState(defaults.dateTo);
 
     initializedForUser.current = userId;
     setIsInitialized(true);
@@ -134,9 +164,15 @@ export function useProjectFilters({
       activeSOFilter,
       activeStageFilter,
       viewMode,
+      searchQuery,
+      companyFilter,
+      soStatusFilter,
+      dateType,
+      dateFrom,
+      dateTo,
       version: CURRENT_VERSION,
     });
-  }, [isInitialized, userId, salesRepFilter, activeSOFilter, activeStageFilter, viewMode]);
+  }, [isInitialized, userId, salesRepFilter, activeSOFilter, activeStageFilter, viewMode, searchQuery, companyFilter, soStatusFilter, dateType, dateFrom, dateTo]);
 
   const setSalesRepFilter = useCallback((value: string | null) => {
     setSalesRepFilterState(value);
@@ -154,6 +190,30 @@ export function useProjectFilters({
     setViewModeState(value);
   }, []);
 
+  const setSearchQuery = useCallback((value: string) => {
+    setSearchQueryState(value);
+  }, []);
+
+  const setCompanyFilter = useCallback((value: string | null) => {
+    setCompanyFilterState(value);
+  }, []);
+
+  const setSOStatusFilter = useCallback((value: string | null) => {
+    setSOStatusFilterState(value);
+  }, []);
+
+  const setDateType = useCallback((value: "inHands" | "createdAt") => {
+    setDateTypeState(value);
+  }, []);
+
+  const setDateFrom = useCallback((value: string) => {
+    setDateFromState(value);
+  }, []);
+
+  const setDateTo = useCallback((value: string) => {
+    setDateToState(value);
+  }, []);
+
   const resetToDefaults = useCallback(() => {
     if (userId) {
       localStorage.removeItem(getStorageKey(userId));
@@ -163,7 +223,33 @@ export function useProjectFilters({
     setActiveSOFilterState(defaults.activeSOFilter);
     setActiveStageFilterState(defaults.activeStageFilter);
     setViewModeState(defaults.viewMode);
+    setSearchQueryState(defaults.searchQuery);
+    setCompanyFilterState(defaults.companyFilter);
+    setSOStatusFilterState(defaults.soStatusFilter);
+    setDateTypeState(defaults.dateType);
+    setDateFromState(defaults.dateFrom);
+    setDateToState(defaults.dateTo);
   }, [userId, userRole, currentUserName, hasOrders]);
+
+  const clearAllFilters = useCallback(() => {
+    setActiveSOFilterState(null);
+    setActiveStageFilterState(null);
+    setSearchQueryState("");
+    setCompanyFilterState(null);
+    setSOStatusFilterState(null);
+    setDateFromState("");
+    setDateToState("");
+  }, []);
+
+  const hasActiveFilters = !!(
+    activeSOFilter ||
+    activeStageFilter ||
+    searchQuery ||
+    companyFilter ||
+    soStatusFilter ||
+    dateFrom ||
+    dateTo
+  );
 
   return {
     salesRepFilter,
@@ -174,7 +260,21 @@ export function useProjectFilters({
     setActiveStageFilter,
     viewMode,
     setViewMode,
+    searchQuery,
+    setSearchQuery,
+    companyFilter,
+    setCompanyFilter,
+    soStatusFilter,
+    setSOStatusFilter,
+    dateType,
+    setDateType,
+    dateFrom,
+    setDateFrom,
+    dateTo,
+    setDateTo,
     resetToDefaults,
+    clearAllFilters,
+    hasActiveFilters,
     isInitialized,
   };
 }
