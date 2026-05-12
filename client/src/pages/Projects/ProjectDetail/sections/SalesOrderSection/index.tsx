@@ -47,22 +47,41 @@ export default function SalesOrderSection(props: SalesOrderSectionProps) {
 
   return (
     <div className="space-y-6">
-      {lockStatus && <LockBanner lockStatus={lockStatus} sectionName="Sales Order" sectionKey="salesOrder" projectId={projectId} />}
+      {lockStatus && (
+        <LockBanner
+          lockStatus={lockStatus}
+          sectionName="Sales Order"
+          sectionKey="salesOrder"
+          projectId={projectId}
+        />
+      )}
       <TimelineWarningBanner conflicts={hook.timelineConflicts} />
 
-      <ProjectInfoBar companyName={hook.companyName} primaryContact={hook.primaryContact} />
+      <ProjectInfoBar
+        companyName={hook.companyName}
+        primaryContact={hook.primaryContact}
+        assignedUser={hook.order?.assignedUserId ? hook.data?.assignedUser : null}
+      />
 
       {/* Sales Order Header */}
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div className="flex items-center gap-6 flex-wrap">
           {/* Status */}
           <div>
-            <label className="text-xs font-medium text-gray-500 block mb-1">Status</label>
-            <Select value={hook.currentStatus} onValueChange={(val) => hook.updateStatusMutation.mutate(val)} disabled={hook.isLocked}>
+            <label className="text-xs font-medium text-gray-500 block mb-1">
+              Status
+            </label>
+            <Select
+              value={hook.currentStatus}
+              onValueChange={(val) => hook.updateStatusMutation.mutate(val)}
+              disabled={hook.isLocked}
+            >
               <SelectTrigger className="w-[220px] h-9">
                 <SelectValue>
                   <span className="flex items-center gap-2">
-                    <span className={`inline-block w-2 h-2 rounded-full ${hook.statusInfo.color.split(" ")[0]}`} />
+                    <span
+                      className={`inline-block w-2 h-2 rounded-full ${hook.statusInfo.color.split(" ")[0]}`}
+                    />
                     {hook.statusInfo.label}
                   </span>
                 </SelectValue>
@@ -71,7 +90,9 @@ export default function SalesOrderSection(props: SalesOrderSectionProps) {
                 {hook.salesOrderStatuses.map((s) => (
                   <SelectItem key={s.value} value={s.value}>
                     <span className="flex items-center gap-2">
-                      <span className={`inline-block w-2 h-2 rounded-full ${s.color.split(" ")[0]}`} />
+                      <span
+                        className={`inline-block w-2 h-2 rounded-full ${s.color.split(" ")[0]}`}
+                      />
                       {s.label}
                     </span>
                   </SelectItem>
@@ -82,35 +103,41 @@ export default function SalesOrderSection(props: SalesOrderSectionProps) {
 
           {/* Sales Order Date (read-only) */}
           <div>
-            <label className="text-xs font-medium text-gray-500 block mb-1">Sales Order Date</label>
-            <span className="text-sm font-medium">{hook.order.createdAt ? format(new Date(String(hook.order.createdAt)), "MMM d, yyyy") : "—"}</span>
+            <label className="text-xs font-medium text-gray-500 block mb-1">
+              Sales Order Date
+            </label>
+            <span className="text-sm font-medium">
+              {hook.order.createdAt
+                ? format(new Date(String(hook.order.createdAt)), "MMM d, yyyy")
+                : "—"}
+            </span>
           </div>
 
           {/* Deposit Status Badge */}
-          {hook.order.depositPercent && Number(hook.order.depositPercent) > 0 && (
-            <div>
-              <label className="text-xs font-medium text-gray-500 block mb-1">Deposit</label>
-              {hook.order.depositStatus === "received" ? (
-                <Badge className="bg-green-100 text-green-800 border-green-200">Deposit Received</Badge>
-              ) : hook.order.depositStatus === "pending" ? (
-                <Badge className="bg-orange-100 text-orange-800 border-orange-200">Deposit Pending</Badge>
-              ) : (
-                <Badge className="bg-yellow-100 text-yellow-800 border-yellow-200">Deposit Required</Badge>
-              )}
-            </div>
-          )}
+          {hook.order.depositPercent &&
+            Number(hook.order.depositPercent) > 0 && (
+              <div>
+                <label className="text-xs font-medium text-gray-500 block mb-1">
+                  Deposit
+                </label>
+                {hook.order.depositStatus === "received" ? (
+                  <Badge className="bg-green-100 text-green-800 border-green-200">
+                    Deposit Received
+                  </Badge>
+                ) : hook.order.depositStatus === "pending" ? (
+                  <Badge className="bg-orange-100 text-orange-800 border-orange-200">
+                    Deposit Pending
+                  </Badge>
+                ) : (
+                  <Badge className="bg-yellow-100 text-yellow-800 border-yellow-200">
+                    Deposit Required
+                  </Badge>
+                )}
+              </div>
+            )}
         </div>
 
         <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={hook.handleDuplicate}
-            disabled={hook.isDuplicating}
-          >
-            {hook.isDuplicating ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <Copy className="w-4 h-4 mr-1.5" />}
-            Duplicate Order
-          </Button>
           <Button
             variant="ghost"
             size="sm"
@@ -128,16 +155,31 @@ export default function SalesOrderSection(props: SalesOrderSectionProps) {
               </>
             )}
           </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={hook.handleDuplicate}
+            disabled={hook.isDuplicating}
+          >
+            {hook.isDuplicating ? (
+              <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />
+            ) : (
+              <Copy className="w-4 h-4 mr-1.5" />
+            )}
+            Duplicate Order
+          </Button>
         </div>
       </div>
 
       {/* Approval Info Banner */}
       {hook.currentStatus === "client_approved" && hook.approvedApproval && (
-        <div className={`rounded-lg border px-4 py-3 ${
-          hook.approvedApproval.approvalNotes
-            ? "border-blue-200 bg-blue-50"
-            : "border-green-200 bg-green-50"
-        }`}>
+        <div
+          className={`rounded-lg border px-4 py-3 ${
+            hook.approvedApproval.approvalNotes
+              ? "border-blue-200 bg-blue-50"
+              : "border-green-200 bg-green-50"
+          }`}
+        >
           <div className="flex items-start gap-2.5">
             {hook.approvedApproval.approvalNotes ? (
               <MessageSquare className="w-4 h-4 mt-0.5 shrink-0 text-blue-600" />
@@ -145,11 +187,20 @@ export default function SalesOrderSection(props: SalesOrderSectionProps) {
               <CheckCircle2 className="w-4 h-4 mt-0.5 shrink-0 text-green-600" />
             )}
             <div className="text-sm space-y-0.5">
-              <p className={`font-medium ${hook.approvedApproval.approvalNotes ? "text-blue-800" : "text-green-800"}`}>
-                Approved by {hook.approvedApproval.clientName || hook.approvedApproval.clientEmail || "Client"}
+              <p
+                className={`font-medium ${hook.approvedApproval.approvalNotes ? "text-blue-800" : "text-green-800"}`}
+              >
+                Approved by{" "}
+                {hook.approvedApproval.clientName ||
+                  hook.approvedApproval.clientEmail ||
+                  "Client"}
                 {hook.approvedApproval.approvedAt && (
                   <span className="font-normal text-xs ml-1.5 opacity-70">
-                    on {format(new Date(String(hook.approvedApproval.approvedAt)), "MMM d, yyyy 'at' h:mm a")}
+                    on{" "}
+                    {format(
+                      new Date(String(hook.approvedApproval.approvedAt)),
+                      "MMM d, yyyy 'at' h:mm a",
+                    )}
                   </span>
                 )}
               </p>
@@ -176,7 +227,11 @@ export default function SalesOrderSection(props: SalesOrderSectionProps) {
         />
       )}
 
-      <ProductsSection projectId={projectId} data={hook.data} isLocked={hook.isLocked} />
+      <ProductsSection
+        projectId={projectId}
+        data={hook.data}
+        isLocked={hook.isLocked}
+      />
 
       {/* Sales Order Document Section */}
       <SODocumentCard
@@ -224,7 +279,11 @@ export default function SalesOrderSection(props: SalesOrderSectionProps) {
           onOpenChange={hook.setShowSendDialog}
           projectId={projectId}
           recipientEmail={hook.primaryContact?.email || ""}
-          recipientName={hook.primaryContact ? `${hook.primaryContact.firstName} ${hook.primaryContact.lastName}` : hook.companyName}
+          recipientName={
+            hook.primaryContact
+              ? `${hook.primaryContact.firstName} ${hook.primaryContact.lastName}`
+              : hook.companyName
+          }
           companyName={hook.companyName}
           orderNumber={hook.order?.orderNumber || ""}
           soDocument={hook.soDocuments[0]}
@@ -237,7 +296,10 @@ export default function SalesOrderSection(props: SalesOrderSectionProps) {
       )}
 
       {/* Duplicate Order Confirmation */}
-      <AlertDialog open={hook.showDuplicateConfirm} onOpenChange={hook.setShowDuplicateConfirm}>
+      <AlertDialog
+        open={hook.showDuplicateConfirm}
+        onOpenChange={hook.setShowDuplicateConfirm}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center gap-2">
@@ -245,13 +307,22 @@ export default function SalesOrderSection(props: SalesOrderSectionProps) {
               Duplicate Order
             </AlertDialogTitle>
             <AlertDialogDescription>
-              A new project will be created with all items, line items, charges, artwork, and settings copied from this order. The new project will start as a fresh draft.
+              A new project will be created with all items, line items, charges,
+              artwork, and settings copied from this order. The new project will
+              start as a fresh draft.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <Button onClick={hook.confirmDuplicate} disabled={hook.isDuplicating}>
-              {hook.isDuplicating ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Copy className="w-4 h-4 mr-2" />}
+            <Button
+              onClick={hook.confirmDuplicate}
+              disabled={hook.isDuplicating}
+            >
+              {hook.isDuplicating ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <Copy className="w-4 h-4 mr-2" />
+              )}
               Duplicate
             </Button>
           </AlertDialogFooter>

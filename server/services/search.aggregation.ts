@@ -1,4 +1,4 @@
-import { and, eq, gte, lte, sql, count } from "drizzle-orm";
+import { and, eq, gte, lte, sql, count, inArray } from "drizzle-orm";
 import { db } from "../db";
 import { orders, companies } from "@shared/schema";
 
@@ -32,7 +32,7 @@ const ALLOWED_FIELDS: Record<string, any> = {
 const ALLOWED_GROUP_BY: Record<string, any> = {
   stage: sql`
     CASE
-      WHEN ${orders.salesOrderStatus} = 'ready_to_invoice' THEN 'invoice'
+      WHEN ${orders.salesOrderStatus} IN ('ready_to_invoice', 'invoiced', 'closed') THEN 'invoice'
       WHEN ${orders.orderType} IN ('sales_order', 'rush_order') OR (${orders.salesOrderStatus} IS NOT NULL AND ${orders.salesOrderStatus} != 'new') THEN 'sales_order'
       WHEN ${orders.quoteStatus} IS NOT NULL AND ${orders.quoteStatus} != 'draft' THEN 'quote'
       ELSE 'presentation'
@@ -47,7 +47,7 @@ function buildFilterConditions(filters: AggregationFilters) {
   if (filters.stage) {
     switch (filters.stage) {
       case "invoice":
-        conditions.push(eq(orders.salesOrderStatus, "ready_to_invoice"));
+        conditions.push(inArray(orders.salesOrderStatus, ["ready_to_invoice", "invoiced", "closed"]));
         break;
       case "sales_order":
         conditions.push(

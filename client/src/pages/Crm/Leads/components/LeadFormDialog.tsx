@@ -16,6 +16,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { DatePickerInput } from "@/components/ui/date-picker-input";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
@@ -276,7 +277,7 @@ export default function LeadFormDialog({
                 <FormItem>
                   <FormLabel>Next Follow-Up Date</FormLabel>
                   <FormControl>
-                    <Input type="date" {...field} />
+                    <DatePickerInput value={field.value} onChange={field.onChange} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>

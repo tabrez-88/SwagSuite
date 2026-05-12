@@ -1,4 +1,5 @@
 import { Input } from "@/components/ui/input";
+import { DatePickerInput } from "@/components/ui/date-picker-input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -116,16 +117,14 @@ export function SearchFilters({ filters, onChange }: SearchFiltersProps) {
       <div className="space-y-1.5">
         <Label className="text-xs font-medium text-gray-600">Date Range</Label>
         <div className="space-y-1.5">
-          <Input
-            type="date"
+          <DatePickerInput
             value={filters.dateFrom}
-            onChange={(e) => updateFilter("dateFrom", e.target.value)}
+            onChange={(v) => updateFilter("dateFrom", v)}
             className="h-8 text-sm"
           />
-          <Input
-            type="date"
+          <DatePickerInput
             value={filters.dateTo}
-            onChange={(e) => updateFilter("dateTo", e.target.value)}
+            onChange={(v) => updateFilter("dateTo", v)}
             className="h-8 text-sm"
           />
         </div>

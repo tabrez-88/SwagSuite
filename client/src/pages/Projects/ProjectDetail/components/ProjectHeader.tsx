@@ -1,6 +1,7 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { StageBadge } from "@/components/shared/StageBadge";
+import { EditableText } from "@/components/shared/InlineEditable";
 import { FileText, X, Zap } from "lucide-react";
 import { useLocation } from "@/lib/wouter-compat";
 import type { Order } from "@shared/schema";
@@ -11,36 +12,43 @@ interface ProjectHeaderProps {
   order: Order;
   isRushOrder: boolean;
   businessStage?: DeterminedStage;
+  updateField: (fields: Record<string, unknown>) => void;
+  isPending: boolean;
 }
 
 export default function ProjectHeader({
   order,
   isRushOrder,
   businessStage,
+  updateField,
+  isPending,
 }: ProjectHeaderProps) {
   const [, setLocation] = useLocation();
 
   return (
     <div className="bg-white border-b px-6 py-4">
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="flex gap-2 items-center">
+      <div className="flex flex-wrap items-center gap-3 w-full">
+        <div className="flex gap-2 items-center w-200">
           <FileText className="size-8" />
           <div className="flex flex-col">
-            <h2 className="text-lg font-semibold">
-              {order.projectName || `Project #${order.orderNumber}`}
-            </h2>
-            <p className="text-sm text-muted-foreground mt-1">
-              Full project details, communications, and workflow management
-            </p>
+            <EditableText
+              value={order.projectName || ""}
+              field="projectName"
+              onSave={updateField}
+              placeholder={`Project #${order.orderNumber}`}
+              emptyText={`Project #${order.orderNumber}`}
+              isPending={isPending}
+              className="text-xl font-semibold"
+            />
+            {order.projectName && (
+              <span className="text-sm text-muted-foreground">
+                #{order.orderNumber}
+              </span>
+            )}
           </div>
         </div>
         <Separator orientation="vertical" className="h-12" />
-        {order.projectName && (
-          <span className="text-sm text-muted-foreground">#{order.orderNumber}</span>
-        )}
-        {businessStage && (
-          <StageBadge stage={businessStage} size="md" />
-        )}
+        {businessStage && <StageBadge stage={businessStage} size="md" />}
         {isRushOrder && (
           <Badge variant="destructive" className="flex items-center gap-1">
             <Zap className="w-3 h-3" />
@@ -57,7 +65,6 @@ export default function ProjectHeader({
           Close
         </Button>
       </div>
-
     </div>
   );
 }

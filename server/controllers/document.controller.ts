@@ -1,5 +1,6 @@
 import type { Request, Response } from "express";
 import { documentService } from "../services/document.service";
+import { activityRepository } from "../repositories/activity.repository";
 import { getUserId } from "../utils/getUserId";
 
 export class DocumentController {
@@ -34,6 +35,19 @@ export class DocumentController {
       metadata,
       file: req.file,
     });
+
+    // Log activity
+    try {
+      await activityRepository.create({
+        orderId: projectId,
+        userId,
+        activityType: "system_action",
+        content: `Generated ${documentType || "document"}${documentNumber ? ` #${documentNumber}` : ""}`,
+        isSystemGenerated: true,
+        metadata: { action: "document_generated", documentType, documentId: document.id },
+        mentionedUsers: [],
+      });
+    } catch (e) { console.error("Activity log failed:", e); }
 
     res.json(document);
   }

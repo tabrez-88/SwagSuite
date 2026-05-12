@@ -10,6 +10,7 @@ export function usePostActivity(projectId: string | number) {
     mutationFn: (data: Record<string, any>) => requests.postActivity(projectId, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: activityKeys.byOrder(projectId) });
+      queryClient.invalidateQueries({ queryKey: activityKeys.infinite(projectId) });
       toast({ title: "Note sent" });
     },
     onError: () => toast({ title: "Failed to post note", variant: "destructive" }),

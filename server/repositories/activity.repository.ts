@@ -1,33 +1,56 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, count, desc, eq } from "drizzle-orm";
 import { db } from "../db";
 
 export class ActivityRepository {
-  async getByOrderId(orderId: string) {
+  async getByOrderId(orderId: string, options?: { limit?: number; offset?: number }) {
     const { users } = await import("@shared/schema");
     const { projectActivities } = await import("@shared/schema");
 
-    return db
-      .select({
-        id: projectActivities.id,
-        orderId: projectActivities.orderId,
-        userId: projectActivities.userId,
-        activityType: projectActivities.activityType,
-        content: projectActivities.content,
-        metadata: projectActivities.metadata,
-        mentionedUsers: projectActivities.mentionedUsers,
-        isSystemGenerated: projectActivities.isSystemGenerated,
-        createdAt: projectActivities.createdAt,
-        user: {
-          id: users.id,
-          firstName: users.firstName,
-          lastName: users.lastName,
-          email: users.email,
-        },
-      })
-      .from(projectActivities)
-      .leftJoin(users, eq(projectActivities.userId, users.id))
-      .where(eq(projectActivities.orderId, orderId))
-      .orderBy(desc(projectActivities.createdAt));
+    const baseSelect = {
+      id: projectActivities.id,
+      orderId: projectActivities.orderId,
+      userId: projectActivities.userId,
+      activityType: projectActivities.activityType,
+      content: projectActivities.content,
+      metadata: projectActivities.metadata,
+      mentionedUsers: projectActivities.mentionedUsers,
+      isSystemGenerated: projectActivities.isSystemGenerated,
+      createdAt: projectActivities.createdAt,
+      user: {
+        id: users.id,
+        firstName: users.firstName,
+        lastName: users.lastName,
+        email: users.email,
+      },
+    };
+
+    // If no pagination params, return all (backward compat)
+    if (options?.limit == null) {
+      return db
+        .select(baseSelect)
+        .from(projectActivities)
+        .leftJoin(users, eq(projectActivities.userId, users.id))
+        .where(eq(projectActivities.orderId, orderId))
+        .orderBy(desc(projectActivities.createdAt));
+    }
+
+    // Paginated: fetch data + total count
+    const [data, [{ total }]] = await Promise.all([
+      db
+        .select(baseSelect)
+        .from(projectActivities)
+        .leftJoin(users, eq(projectActivities.userId, users.id))
+        .where(eq(projectActivities.orderId, orderId))
+        .orderBy(desc(projectActivities.createdAt))
+        .limit(options.limit)
+        .offset(options.offset ?? 0),
+      db
+        .select({ total: count() })
+        .from(projectActivities)
+        .where(eq(projectActivities.orderId, orderId)),
+    ]);
+
+    return { data, total };
   }
 
   async create(data: any) {

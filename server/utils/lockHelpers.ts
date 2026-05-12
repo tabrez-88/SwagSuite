@@ -17,7 +17,7 @@ export function isSectionLocked(
       return hasSalesOrder && !unlocks.quote;
     }
     case 'salesOrder': {
-      return order.salesOrderStatus === 'ready_to_invoice' && !unlocks.salesOrder;
+      return ['ready_to_invoice', 'invoiced', 'closed'].includes(order.salesOrderStatus || '') && !unlocks.salesOrder;
     }
     case 'invoice': {
       return invoice?.status === 'paid' && !unlocks.invoice;

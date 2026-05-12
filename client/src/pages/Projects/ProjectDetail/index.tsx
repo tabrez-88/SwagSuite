@@ -4,6 +4,7 @@ import ProjectHeader from "./components/ProjectHeader";
 import ProjectNestedSidebar from "./components/ProjectNestedSidebar";
 import { useProjectData } from "./hooks";
 import { useLockStatus } from "@/hooks/useLockStatus";
+import { useInlineEdit } from "@/hooks/useInlineEdit";
 
 // Sections
 import OverviewSection from "./sections/OverviewSection";
@@ -46,6 +47,7 @@ export default function ProjectDetailPage() {
 
   const data = useProjectData(projectId, activeSection);
   const lockStatus = useLockStatus(data);
+  const { updateField: headerUpdateField, isPending: headerPending } = useInlineEdit({ projectId: projectId! });
 
   // Redirect bare /projects/:projectId to /projects/:projectId/overview
   useEffect(() => {
@@ -145,6 +147,8 @@ export default function ProjectDetailPage() {
         order={data.order}
         isRushOrder={data.isRushOrder}
         businessStage={data.businessStage}
+        updateField={headerUpdateField}
+        isPending={headerPending}
       />
 
       <div className="flex relative bg-white h-full">

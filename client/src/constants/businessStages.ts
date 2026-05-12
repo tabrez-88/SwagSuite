@@ -81,6 +81,8 @@ export const BUSINESS_STAGES: Record<BusinessStage, StageConfig> = {
       { value: "in_production", label: "In Production", color: "bg-purple-100 text-purple-800", order: 5 },
       { value: "shipped", label: "Shipped", color: "bg-indigo-100 text-indigo-800", order: 6 },
       { value: "ready_to_invoice", label: "Ready To Be Invoiced", color: "bg-teal-100 text-teal-800", order: 7 },
+      { value: "invoiced", label: "Invoiced", color: "bg-green-100 text-green-800", order: 8 },
+      { value: "closed", label: "Closed", color: "bg-gray-100 text-gray-800", order: 9 },
     ],
   },
   invoice: {
@@ -116,8 +118,8 @@ export const STAGE_ORDER: BusinessStage[] = [
 export function determineBusinessStage(order: Order): DeterminedStage {
   const o = order as any;
 
-  // Priority 1: Invoice — salesOrderStatus is "ready_to_invoice"
-  if (o.salesOrderStatus === "ready_to_invoice") {
+  // Priority 1: Invoice — salesOrderStatus is "ready_to_invoice", "invoiced", or "closed"
+  if (["ready_to_invoice", "invoiced", "closed"].includes(o.salesOrderStatus)) {
     const stage = BUSINESS_STAGES.invoice;
     const subStatus = stage.statuses[0]; // "pending" by default
     return buildResult(stage, subStatus);

@@ -5,6 +5,25 @@ import { cloudinary } from "../config/cloudinary";
 
 export class ActivityController {
   static async list(req: Request, res: Response) {
+    const limitParam = req.query.limit as string | undefined;
+    const offsetParam = req.query.offset as string | undefined;
+
+    // If limit is provided, return paginated response
+    if (limitParam) {
+      const limit = Math.min(Math.max(parseInt(limitParam, 10) || 5, 1), 50);
+      const offset = Math.max(parseInt(offsetParam || "0", 10) || 0, 0);
+
+      const result = await activityService.getByOrderId(req.params.projectId, { limit, offset });
+      const { data, total } = result as { data: any[]; total: number };
+
+      return res.json({
+        data,
+        total,
+        hasMore: offset + data.length < total,
+      });
+    }
+
+    // No pagination params — return all (backward compat)
     const activities = await activityService.getByOrderId(req.params.projectId);
     res.json(activities);
   }

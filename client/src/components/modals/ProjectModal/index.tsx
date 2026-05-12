@@ -32,6 +32,7 @@ import { cn } from "@/lib/utils";
 import { Separator } from "@/components/ui/separator";
 import { Checkbox } from "@/components/ui/checkbox";
 import { AddressAutocomplete } from "@/components/ui/address-autocomplete";
+import { DatePickerInput } from "@/components/ui/date-picker-input";
 import type { ProjectModalProps } from "./types";
 import { useProjectModal } from "./hooks";
 
@@ -149,11 +150,11 @@ export default function ProjectModal(props: ProjectModalProps) {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label>Customer In-Hands Date</Label>
-                <Input type="date" value={h.formData.inHandsDate} onChange={(e) => h.handleFieldChange("inHandsDate", e.target.value)} className="mt-1" disabled={h.isLocked} />
+                <DatePickerInput value={h.formData.inHandsDate} onChange={(v) => h.handleFieldChange("inHandsDate", v)} className="mt-1" disabled={h.isLocked} />
               </div>
               <div>
                 <Label>Event Date</Label>
-                <Input type="date" value={h.formData.eventDate} onChange={(e) => h.handleFieldChange("eventDate", e.target.value)} className="mt-1" disabled={h.isLocked} />
+                <DatePickerInput value={h.formData.eventDate} onChange={(v) => h.handleFieldChange("eventDate", v)} className="mt-1" disabled={h.isLocked} />
               </div>
             </div>
 
@@ -173,7 +174,7 @@ export default function ProjectModal(props: ProjectModalProps) {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <Label>Supplier In-Hands Date</Label>
-                    <Input type="date" value={h.formData.supplierInHandsDate} onChange={(e) => h.handleFieldChange("supplierInHandsDate", e.target.value)} className="mt-1" disabled={h.isLocked} />
+                    <DatePickerInput value={h.formData.supplierInHandsDate} onChange={(v) => h.handleFieldChange("supplierInHandsDate", v)} className="mt-1" disabled={h.isLocked} />
                     <p className="text-xs text-gray-400 mt-1">Visible to supplier on POs</p>
                   </div>
                   <div className="flex items-center space-x-2 pt-8">

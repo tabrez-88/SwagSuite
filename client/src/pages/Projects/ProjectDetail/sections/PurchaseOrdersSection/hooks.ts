@@ -153,7 +153,9 @@ export function usePurchaseOrdersSection({ projectId, data, isLocked }: Purchase
   const _pendingBlindShip = useRef<Record<string, boolean>>({});
 
   // Build a PO PDF element for a specific group
-  const buildVendorPoDoc = useCallback((groupKey: string) => {
+  // poNumberOverride: when generating, pass the sequential PO number so the PDF
+  // content matches the stored document number (avoids preview/generated mismatch).
+  const buildVendorPoDoc = useCallback((groupKey: string, poNumberOverride?: string) => {
     const group = vendorPOs.find((g) => g.groupKey === groupKey);
     if (!group) return null;
     const { vendor, items } = group;
@@ -162,8 +164,9 @@ export function usePurchaseOrdersSection({ projectId, data, isLocked }: Purchase
     const vendorDoc = getVendorDoc(groupKey);
     const docMeta = vendorDoc?.metadata as Record<string, unknown> | null;
     const poEntityForGroup = getPOEntity(groupKey);
-    // Use PO entity number (from DB) if available, otherwise build fallback
-    const poNumber = poEntityForGroup?.poNumber
+    // Use explicit override first (generation), then DB entity, then doc metadata, then fallback
+    const poNumber = poNumberOverride
+      || poEntityForGroup?.poNumber
       || (vendorDoc?.documentNumber as string)
       || `${order?.orderNumber || projectId}-${isDecorator ? `DEC-${(vendor.id || groupKey).substring(0, 4).toUpperCase()}` : (vendor.id || groupKey).substring(0, 4).toUpperCase()}`;
     // For supplier POs shipping to decorator, find the decorator group info
@@ -239,8 +242,6 @@ export function usePurchaseOrdersSection({ projectId, data, isLocked }: Purchase
       });
       return;
     }
-    const pdfDoc = buildVendorPoDoc(groupKey);
-    if (!pdfDoc) return;
     let poNumber: string;
     try {
       const { next } = await fetchNextPoSequence(projectId);
@@ -250,6 +251,9 @@ export function usePurchaseOrdersSection({ projectId, data, isLocked }: Purchase
       const suffix = isDecorator ? `DEC-${vendorId.substring(0, 4).toUpperCase()}` : vendorId.substring(0, 4).toUpperCase();
       poNumber = `${order?.orderNumber || projectId}-${suffix}`;
     }
+    // Build PDF AFTER resolving PO number so the content matches the stored number
+    const pdfDoc = buildVendorPoDoc(groupKey, poNumber);
+    if (!pdfDoc) return;
     try {
       const newDoc = await generateDocument({
         pdfDocument: pdfDoc,

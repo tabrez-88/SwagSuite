@@ -81,8 +81,8 @@ export function useAddProductPage({ projectId, data }: AddProductPageProps) {
   const [selectedProduct, setSelectedProduct] = useState<ProductResult | null>(null);
   const [configLines, setConfigLines] = useState<ConfigLine[]>([]);
   const [productNotes, setProductNotes] = useState("");
-  const [imprintLocation, setImprintLocation] = useState("");
-  const [imprintMethod, setImprintMethod] = useState("");
+  const [overrideProductName, setOverrideProductName] = useState("");
+  const [overrideImageUrl, setOverrideImageUrl] = useState("");
 
   // ── Local charges & artwork (pre-creation, stored in memory) ──
   const [localCharges, setLocalCharges] = useState<LocalCharge[]>([]);
@@ -238,10 +238,7 @@ export function useAddProductPage({ projectId, data }: AddProductPageProps) {
       fileName: file.originalName || file.fileName || "artwork",
     });
     setArtUploadName(file.originalName || file.fileName || "");
-    // Auto-populate from product defaults
-    if (imprintLocation) setArtUploadLocation(imprintLocation);
-    if (imprintMethod) setArtUploadMethod(imprintMethod);
-  }, [imprintLocation, imprintMethod]);
+  }, []);
 
   const handleCreateLocalArtwork = useCallback(() => {
     if (!artPickedFile || !artUploadLocation || !artUploadMethod) return;
@@ -282,6 +279,8 @@ export function useAddProductPage({ projectId, data }: AddProductPageProps) {
     setDecoratorType("supplier");
     setDecoratorId("");
     setEditingLocalArtwork(null);
+    setOverrideProductName("");
+    setOverrideImageUrl("");
     resetArtForm();
   }, [resetArtForm]);
 
@@ -342,8 +341,6 @@ export function useAddProductPage({ projectId, data }: AddProductPageProps) {
     color: "",
     size: "",
     notes: "",
-    imprintLocation: "",
-    imprintMethod: "",
   });
 
   // ── Per-supplier search functions ──
@@ -580,8 +577,8 @@ export function useAddProductPage({ projectId, data }: AddProductPageProps) {
   const openProductConfig = (product: ProductResult) => {
     setSelectedProduct(product);
     setProductNotes("");
-    setImprintLocation("");
-    setImprintMethod("");
+    setOverrideProductName("");
+    setOverrideImageUrl("");
 
     const defaultCost = product.baseCost || 0;
     const defaultPrice = product.basePrice || 0;
@@ -606,6 +603,18 @@ export function useAddProductPage({ projectId, data }: AddProductPageProps) {
       unitCost: selectedProduct.baseCost || 0,
       unitPrice: selectedProduct.basePrice || 0,
     }]);
+  };
+
+  const duplicateConfigLine = (id: string) => {
+    setConfigLines(prev => {
+      const source = prev.find(l => l.id === id);
+      if (!source) return prev;
+      const idx = prev.indexOf(source);
+      const clone = { ...source, id: crypto.randomUUID() };
+      const arr = [...prev];
+      arr.splice(idx + 1, 0, clone);
+      return arr;
+    });
   };
 
   const updateConfigLine = (id: string, field: keyof ConfigLine, value: any) => {
@@ -635,12 +644,12 @@ export function useAddProductPage({ projectId, data }: AddProductPageProps) {
       product: ProductResult;
       lines: ConfigLine[];
       notes: string;
-      imprintLocation: string;
-      imprintMethod: string;
       decoratorType: "supplier" | "third_party";
       decoratorId: string;
+      productName?: string;
+      imageUrl?: string;
     }) => {
-      const { product, lines, notes, imprintLocation, imprintMethod, decoratorType: decType, decoratorId: decId } = payload;
+      const { product, lines, notes, decoratorType: decType, decoratorId: decId, productName, imageUrl } = payload;
 
       const totalQty = lines.reduce((sum, l) => sum + l.quantity, 0);
       const totalCost = lines.reduce((sum, l) => sum + l.quantity * l.unitCost, 0);
@@ -665,9 +674,9 @@ export function useAddProductPage({ projectId, data }: AddProductPageProps) {
         charges: "0",
         color: lines.length === 1 ? lines[0].color : "",
         size: lines.length === 1 ? lines[0].size : "",
-        imprintLocation,
-        imprintMethod,
         notes,
+        ...(productName ? { productName } : {}),
+        ...(imageUrl ? { imageUrl } : {}),
         sizePricing,
         decoratorType: decType,
         ...(decType === "third_party" && decId ? { decoratorId: decId } : {}),
@@ -813,8 +822,6 @@ export function useAddProductPage({ projectId, data }: AddProductPageProps) {
         charges: "0",
         color: manualForm.color,
         size: manualForm.size,
-        imprintLocation: manualForm.imprintLocation,
-        imprintMethod: manualForm.imprintMethod,
         notes: manualForm.notes,
       });
 
@@ -965,10 +972,10 @@ export function useAddProductPage({ projectId, data }: AddProductPageProps) {
       product: selectedProduct,
       lines: configLines,
       notes: productNotes,
-      imprintLocation,
-      imprintMethod,
       decoratorType,
       decoratorId,
+      productName: overrideProductName || undefined,
+      imageUrl: overrideImageUrl || undefined,
     });
     doAdd();
   };
@@ -1070,11 +1077,12 @@ export function useAddProductPage({ projectId, data }: AddProductPageProps) {
     configLines,
     productNotes,
     setProductNotes,
-    imprintLocation,
-    setImprintLocation,
-    imprintMethod,
-    setImprintMethod,
+    overrideProductName,
+    setOverrideProductName,
+    overrideImageUrl,
+    setOverrideImageUrl,
     addConfigLine,
+    duplicateConfigLine,
     updateConfigLine,
     removeConfigLine,
     applyTierToConfigLines,

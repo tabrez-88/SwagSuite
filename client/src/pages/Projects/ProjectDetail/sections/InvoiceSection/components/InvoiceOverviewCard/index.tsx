@@ -1,6 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { DatePickerInput } from "@/components/ui/date-picker-input";
 import { CalendarIcon, Clock, FileText, Info } from "lucide-react";
 import { format } from "date-fns";
 import { invoiceStatusColors } from "../../types";
@@ -75,15 +76,14 @@ export default function InvoiceOverviewCard({
                   : "Not set"}
               </p>
             ) : (
-              <Input
-                type="date"
+              <DatePickerInput
                 className="h-8 text-sm w-[150px]"
                 value={
                   invoice.dueDate
                     ? format(new Date(invoice.dueDate), "yyyy-MM-dd")
                     : ""
                 }
-                onChange={(e) => onDueDateChange(e.target.value)}
+                onChange={(v) => onDueDateChange(v)}
               />
             )}
           </div>

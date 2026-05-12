@@ -7,7 +7,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ImprintOptionSelect } from "@/components/shared/ImprintOptionSelect";
 import { marginColorClass, isBelowMinimum, calcMarginPercent } from "@/hooks/useMarginSettings";
 import {
   ArrowLeft, Search, Package, PenLine, Loader2, Plus,
@@ -525,22 +524,6 @@ export default function AddProductPage({ projectId, data }: AddProductPageProps)
                     placeholder="e.g., L, XL"
                   />
                 </div>
-                <div>
-                  <Label>Imprint Location</Label>
-                  <ImprintOptionSelect
-                    type="location"
-                    value={h.manualForm.imprintLocation}
-                    onChange={(v) => h.setManualForm(f => ({ ...f, imprintLocation: v }))}
-                  />
-                </div>
-                <div>
-                  <Label>Imprint Method</Label>
-                  <ImprintOptionSelect
-                    type="method"
-                    value={h.manualForm.imprintMethod}
-                    onChange={(v) => h.setManualForm(f => ({ ...f, imprintMethod: v }))}
-                  />
-                </div>
                 <div className="col-span-2">
                   <Label>Notes</Label>
                   <Textarea
@@ -620,14 +603,15 @@ export default function AddProductPage({ projectId, data }: AddProductPageProps)
         configTotalPrice={h.configTotalPrice}
         configMargin={h.configMargin}
         marginSettings={h.marginSettings}
-        imprintLocation={h.imprintLocation}
-        setImprintLocation={h.setImprintLocation}
-        imprintMethod={h.imprintMethod}
-        setImprintMethod={h.setImprintMethod}
         productNotes={h.productNotes}
         setProductNotes={h.setProductNotes}
         addConfigLine={h.addConfigLine}
+        duplicateConfigLine={h.duplicateConfigLine}
         removeConfigLine={h.removeConfigLine}
+        overrideProductName={h.overrideProductName}
+        setOverrideProductName={h.setOverrideProductName}
+        overrideImageUrl={h.overrideImageUrl}
+        setOverrideImageUrl={h.setOverrideImageUrl}
         updateConfigLine={h.updateConfigLine}
         handleConfigCostChange={h.handleConfigCostChange}
         handleConfigMarginChange={h.handleConfigMarginChange}

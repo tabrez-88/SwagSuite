@@ -28,6 +28,7 @@ import {
 } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
 import { AddressAutocomplete } from "@/components/ui/address-autocomplete";
+import { DatePickerInput } from "@/components/ui/date-picker-input";
 import { ArrowLeft, ArrowRight, Check, ChevronsUpDown, DollarSign, Loader2, PlusCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { BUSINESS_STAGES } from "@/constants/businessStages";
@@ -293,11 +294,11 @@ export default function NewProjectWizard(props: NewProjectWizardProps) {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label>In-Hands Date</Label>
-                <Input type="date" value={h.inHandsDate} onChange={(e) => h.setInHandsDate(e.target.value)} className="mt-1" />
+                <DatePickerInput value={h.inHandsDate} onChange={(v) => h.setInHandsDate(v)} className="mt-1" />
               </div>
               <div>
                 <Label>Event Date</Label>
-                <Input type="date" value={h.eventDate} onChange={(e) => h.setEventDate(e.target.value)} className="mt-1" />
+                <DatePickerInput value={h.eventDate} onChange={(v) => h.setEventDate(v)} className="mt-1" />
               </div>
             </div>
 

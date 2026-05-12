@@ -68,8 +68,9 @@ export function useEmailVendor({
         cc: formData.cc || undefined,
         bcc: formData.bcc || undefined,
         metadata: { type: "purchase_order", documentId: doc.id, vendorId: doc.vendorId },
-        // Only attach artwork for decorator POs, not blanks/supplier POs
-        autoAttachArtworkForVendor: (doc.metadata as Record<string, unknown>)?.poType === "decorator" ? doc.vendorId : undefined,
+        // Only attach artwork for decorator POs, not blanks/supplier POs.
+        // Prefix with "decorator-" so the server filters by decoratorId, not supplierId.
+        autoAttachArtworkForVendor: (doc.metadata as Record<string, unknown>)?.poType === "decorator" ? `decorator-${doc.vendorId}` : undefined,
         autoAttachDocumentFile: doc.fileUrl ? { fileUrl: doc.fileUrl, fileName: (doc as GeneratedDocument & { fileName?: string }).fileName || `PO-${doc.documentNumber}.pdf` } : undefined,
         additionalAttachments: userAttachments,
       });

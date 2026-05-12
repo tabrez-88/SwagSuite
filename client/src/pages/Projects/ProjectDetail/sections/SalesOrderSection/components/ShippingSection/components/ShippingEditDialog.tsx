@@ -3,6 +3,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
+import { DatePickerInput } from "@/components/ui/date-picker-input";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -179,8 +180,8 @@ export function ShippingEditDialog({
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label>Supplier In-Hands Date</Label>
-                <Input type="date" value={form.shipInHandsDate}
-                  onChange={(e) => setForm(f => ({ ...f, shipInHandsDate: e.target.value }))} />
+                <DatePickerInput value={form.shipInHandsDate}
+                  onChange={(v) => setForm(f => ({ ...f, shipInHandsDate: v }))} />
               </div>
               <div className="flex items-end gap-2 pb-0.5">
                 <Checkbox checked={form.shipFirm ?? false}
@@ -295,8 +296,8 @@ export function ShippingEditDialog({
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <Label>Supplier In-Hands Date</Label>
-                  <Input type="date" value={form.leg2InHandsDate}
-                    onChange={(e) => setForm(f => ({ ...f, leg2InHandsDate: e.target.value }))} />
+                  <DatePickerInput value={form.leg2InHandsDate}
+                    onChange={(v) => setForm(f => ({ ...f, leg2InHandsDate: v }))} />
                 </div>
                 <div className="flex items-end gap-2 pb-0.5">
                   <Checkbox checked={form.leg2Firm ?? false}

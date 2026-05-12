@@ -19,6 +19,8 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import type { Order } from "@shared/schema";
+import { calcSupplierInHandsDate } from "@/lib/dateUtils";
+import { DatePickerInput } from "@/components/ui/date-picker-input";
 import { Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useSOEditDialog } from "./hooks";
@@ -152,28 +154,29 @@ export default function SOEditDialog({
             </div>
             <div>
               <Label className="text-xs text-gray-500">In-Hands Date</Label>
-              <Input
-                type="date"
+              <DatePickerInput
                 value={String(form.inHandsDate || "")}
-                onChange={(e) => setForm({ ...form, inHandsDate: e.target.value })}
+                onChange={(v) => {
+                  const updated: Record<string, unknown> = { ...form, inHandsDate: v };
+                  if (v) updated.supplierInHandsDate = calcSupplierInHandsDate(v);
+                  setForm(updated);
+                }}
                 className="mt-1"
               />
             </div>
             <div>
               <Label className="text-xs text-gray-500">Event Date</Label>
-              <Input
-                type="date"
+              <DatePickerInput
                 value={String(form.eventDate || "")}
-                onChange={(e) => setForm({ ...form, eventDate: e.target.value })}
+                onChange={(v) => setForm({ ...form, eventDate: v })}
                 className="mt-1"
               />
             </div>
             <div>
               <Label className="text-xs text-gray-500">Supplier In-Hands Date</Label>
-              <Input
-                type="date"
+              <DatePickerInput
                 value={String(form.supplierInHandsDate || "")}
-                onChange={(e) => setForm({ ...form, supplierInHandsDate: e.target.value })}
+                onChange={(v) => setForm({ ...form, supplierInHandsDate: v })}
                 className="mt-1"
               />
             </div>

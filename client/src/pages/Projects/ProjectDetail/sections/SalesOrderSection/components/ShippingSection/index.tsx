@@ -13,6 +13,7 @@ import {
   DialogFooter,
   DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
+import { DatePickerInput } from "@/components/ui/date-picker-input";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -221,7 +222,7 @@ export default function ShippingSection({ projectId, data, isLocked }: ShippingS
                                   {item.shippingDestination === "decorator" && " → Client"}
                                 </Badge>
                                 {item.decoratorType === "third_party" && item.shippingDestination !== "decorator" && (
-                                  <AlertTriangle className="w-3.5 h-3.5 text-amber-500" title="Has third-party decorator but not shipping through decorator" />
+                                  <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />
                                 )}
                               </div>
                             ) : (
@@ -357,8 +358,8 @@ export default function ShippingSection({ projectId, data, isLocked }: ShippingS
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label className="text-xs">Supplier In-Hands Date</Label>
-                <Input type="date" className="h-8 text-sm" value={hook.bulkForm.shipInHandsDate}
-                  onChange={(e) => hook.setBulkForm(p => ({ ...p, shipInHandsDate: e.target.value }))} />
+                <DatePickerInput className="h-8 text-sm" value={hook.bulkForm.shipInHandsDate}
+                  onChange={(v) => hook.setBulkForm(p => ({ ...p, shipInHandsDate: v }))} />
               </div>
             </div>
             <div>
@@ -405,7 +406,7 @@ export default function ShippingSection({ projectId, data, isLocked }: ShippingS
             </div>
             <div>
               <Label>Ship Date</Label>
-              <Input type="date" value={hook.form.shipDate} onChange={(e) => hook.setField("shipDate", e.target.value)} />
+              <DatePickerInput value={hook.form.shipDate} onChange={(v) => hook.setField("shipDate", v)} />
             </div>
             <div>
               <Label>Status</Label>

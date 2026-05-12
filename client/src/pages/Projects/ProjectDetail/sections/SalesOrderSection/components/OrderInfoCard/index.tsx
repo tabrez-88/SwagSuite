@@ -3,9 +3,17 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { Order } from "@shared/schema";
-import { Calculator, ClipboardList, CreditCard, Loader2, MapPin, Pencil } from "lucide-react";
+import {
+  Calculator,
+  ClipboardList,
+  CreditCard,
+  Loader2,
+  MapPin,
+  Pencil,
+} from "lucide-react";
 import { format } from "date-fns";
 import { useOrderInfoCard } from "./hooks";
+import { Separator } from "@/components/ui/separator";
 
 interface OrderInfoCardProps {
   projectId: string;
@@ -14,7 +22,10 @@ interface OrderInfoCardProps {
   onEditClick: () => void;
   updateField: (fields: Record<string, unknown>) => void;
   isFieldPending: boolean;
-  primaryContact: { firstName?: string; lastName?: string; email?: string } | null | undefined;
+  primaryContact:
+    | { firstName?: string; lastName?: string; email?: string }
+    | null
+    | undefined;
 }
 
 export default function OrderInfoCard({
@@ -38,7 +49,12 @@ export default function OrderInfoCard({
               Order Details
             </CardTitle>
             {!isLocked && (
-              <Button variant="outline" size="sm" className="h-8" onClick={onEditClick}>
+              <Button
+                variant="default"
+                size="sm"
+                className="h-8"
+                onClick={onEditClick}
+              >
                 <Pencil className="w-3.5 h-3.5 mr-1.5" />
                 Edit
               </Button>
@@ -48,58 +64,91 @@ export default function OrderInfoCard({
         <CardContent className="space-y-4">
           {/* Introduction / Notes */}
           <div>
-            <p className="text-xs font-medium text-gray-500 mb-1">Introduction</p>
-            <p className="text-sm text-gray-700 whitespace-pre-wrap">{order.notes || <span className="text-gray-400 italic">No introduction</span>}</p>
+            <span className="text-sm text-muted-foreground">Introduction</span>
+            <p className="text-sm text-gray-700 whitespace-pre-wrap">
+              {order.notes || (
+                <span className="text-gray-400 italic">No introduction</span>
+              )}
+            </p>
           </div>
+          <Separator />
 
           {/* Dates, Business, Tax */}
           <div className="grid grid-cols-2 gap-x-8 gap-y-2">
             {/* Dates group */}
             <div className="flex justify-between items-center">
-              <span className="text-sm text-muted-foreground">In-Hands Date</span>
+              <span className="text-sm text-muted-foreground">
+                In-Hands Date
+              </span>
               <span className="text-sm font-medium">
-                {order.inHandsDate ? format(new Date(String(order.inHandsDate)), "MMM d, yyyy") : "—"}
+                {order.inHandsDate
+                  ? format(new Date(String(order.inHandsDate)), "MMM d, yyyy")
+                  : "—"}
               </span>
             </div>
             <div className="flex justify-between items-center">
               <span className="text-sm text-muted-foreground">Event Date</span>
               <span className="text-sm font-medium">
-                {order.eventDate ? format(new Date(String(order.eventDate)), "MMM d, yyyy") : "—"}
+                {order.eventDate
+                  ? format(new Date(String(order.eventDate)), "MMM d, yyyy")
+                  : "—"}
               </span>
             </div>
             <div className="flex justify-between items-center">
-              <span className="text-sm text-muted-foreground">Supplier In-Hands</span>
+              <span className="text-sm text-muted-foreground">
+                Supplier In-Hands
+              </span>
               <span className="text-sm font-medium">
-                {order.supplierInHandsDate ? format(new Date(String(order.supplierInHandsDate)), "MMM d, yyyy") : "—"}
+                {order.supplierInHandsDate
+                  ? format(
+                      new Date(String(order.supplierInHandsDate)),
+                      "MMM d, yyyy",
+                    )
+                  : "—"}
               </span>
             </div>
 
             {/* Business group */}
             <div className="flex justify-between items-center">
               <span className="text-sm text-muted-foreground">Customer PO</span>
-              <span className="text-sm font-medium">{order.customerPo || "—"}</span>
+              <span className="text-sm font-medium">
+                {order.customerPo || "—"}
+              </span>
             </div>
             <div className="flex justify-between items-center">
-              <span className="text-sm text-muted-foreground">Payment Terms</span>
-              <span className="text-sm font-medium">{order.paymentTerms || "—"}</span>
+              <span className="text-sm text-muted-foreground">
+                Payment Terms
+              </span>
+              <span className="text-sm font-medium">
+                {order.paymentTerms || "—"}
+              </span>
             </div>
             <div className="flex justify-between items-center">
               <span className="text-sm text-muted-foreground">Currency</span>
-              <span className="text-sm font-medium">{order.currency || "USD"}</span>
+              <span className="text-sm font-medium">
+                {order.currency || "USD"}
+              </span>
             </div>
             <div className="flex justify-between items-center">
-              <span className="text-sm text-muted-foreground">Default Margin</span>
-              <span className="text-sm font-medium">{order.margin ? `${order.margin}%` : "—"}</span>
+              <span className="text-sm text-muted-foreground">
+                Default Margin
+              </span>
+              <span className="text-sm font-medium">
+                {order.margin ? `${order.margin}%` : "—"}
+              </span>
             </div>
             <div className="flex justify-between items-center">
               <span className="text-sm text-muted-foreground">Discount</span>
-              <span className="text-sm font-medium">{order.orderDiscount ? `${order.orderDiscount}%` : "—"}</span>
+              <span className="text-sm font-medium">
+                {order.orderDiscount ? `${order.orderDiscount}%` : "—"}
+              </span>
             </div>
             {order.depositPercent && Number(order.depositPercent) > 0 && (
               <div className="flex justify-between items-center">
                 <span className="text-sm text-muted-foreground">Deposit</span>
                 <span className="text-sm font-medium">
-                  {String(order.depositPercent)}% (${Number(order.depositAmount || 0).toLocaleString()})
+                  {String(order.depositPercent)}% ($
+                  {Number(order.depositAmount || 0).toLocaleString()})
                 </span>
               </div>
             )}
@@ -108,7 +157,9 @@ export default function OrderInfoCard({
             <div className="flex justify-between items-center">
               <span className="text-sm text-muted-foreground">Tax Code</span>
               <span className="text-sm font-medium">
-                {taxCodes?.find((tc) => String(tc.id) === order.defaultTaxCodeId)?.label || "None"}
+                {taxCodes?.find(
+                  (tc) => String(tc.id) === order.defaultTaxCodeId,
+                )?.label || "None"}
               </span>
             </div>
             <div className="flex justify-between items-center">
@@ -116,19 +167,31 @@ export default function OrderInfoCard({
               <div className="flex items-center gap-2">
                 {(() => {
                   const taxAmount = Number(order.tax || 0);
-                  const activeTaxCode = taxCodes?.find((tc) => String(tc.id) === order.defaultTaxCodeId);
+                  const activeTaxCode = taxCodes?.find(
+                    (tc) => String(tc.id) === order.defaultTaxCodeId,
+                  );
                   return (
                     <>
-                      <span className={`text-sm font-medium ${taxAmount > 0 ? "text-amber-700" : ""}`}>
+                      <span
+                        className={`text-sm font-medium ${taxAmount > 0 ? "text-amber-700" : ""}`}
+                      >
                         ${taxAmount.toFixed(2)}
                       </span>
-                      {activeTaxCode && !activeTaxCode.isExempt && taxAmount > 0 && (
-                        <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-5 bg-amber-50 text-amber-700 border-amber-200">
-                          {activeTaxCode.rate}%
-                        </Badge>
-                      )}
+                      {activeTaxCode &&
+                        !activeTaxCode.isExempt &&
+                        taxAmount > 0 && (
+                          <Badge
+                            variant="outline"
+                            className="text-[10px] px-1.5 py-0 h-5 bg-amber-50 text-amber-700 border-amber-200"
+                          >
+                            {activeTaxCode.rate}%
+                          </Badge>
+                        )}
                       {activeTaxCode?.isExempt && (
-                        <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-5 bg-green-50 text-green-700 border-green-200">
+                        <Badge
+                          variant="outline"
+                          className="text-[10px] px-1.5 py-0 h-5 bg-green-50 text-green-700 border-green-200"
+                        >
                           Exempt
                         </Badge>
                       )}
@@ -153,27 +216,49 @@ export default function OrderInfoCard({
                 )}
               </div>
             </div>
+            {/* Firm / Rush badges */}
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-muted-foreground">FIRM</span>
+              <div className="flex items-center gap-3">
+                {!!order.isFirm ? (
+                  <Badge
+                    variant="outline"
+                    className="text-xs bg-blue-50 text-blue-700 border-blue-200"
+                  >
+                    Firm Order
+                  </Badge>
+                ) : (
+                  <span className="text-sm font-medium">—</span>
+                )}
+              </div>
+            </div>
           </div>
-
-          {/* Firm / Rush badges */}
-          <div className="flex items-center gap-3">
-            {!!order.isFirm && (
-              <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">Firm Order</Badge>
-            )}
-            {!!order.isRush && (
-              <Badge variant="destructive" className="text-xs">Rush Order</Badge>
-            )}
-          </div>
-
+          <Separator />
           {/* Supplier Notes & Additional Info */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <p className="text-xs font-medium text-gray-500 mb-1">Supplier Notes</p>
-              <p className="text-sm text-gray-700 whitespace-pre-wrap">{order.supplierNotes || <span className="text-gray-400 italic">No supplier notes</span>}</p>
+              <span className="text-sm text-muted-foreground">
+                Supplier Notes
+              </span>
+              <p className="text-sm text-gray-700 whitespace-pre-wrap">
+                {order.supplierNotes || (
+                  <span className="text-gray-400 italic">
+                    No supplier notes
+                  </span>
+                )}
+              </p>
             </div>
             <div>
-              <p className="text-xs font-medium text-gray-500 mb-1">Additional Information</p>
-              <p className="text-sm text-gray-700 whitespace-pre-wrap">{order.additionalInformation || <span className="text-gray-400 italic">No additional info</span>}</p>
+              <span className="text-sm text-muted-foreground">
+                Additional Information
+              </span>
+              <p className="text-sm text-gray-700 whitespace-pre-wrap">
+                {order.additionalInformation || (
+                  <span className="text-gray-400 italic">
+                    No additional info
+                  </span>
+                )}
+              </p>
             </div>
           </div>
         </CardContent>

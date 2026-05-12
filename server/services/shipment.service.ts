@@ -1,4 +1,5 @@
 import { shipmentRepository } from "../repositories/shipment.repository";
+import { activityRepository } from "../repositories/activity.repository";
 
 export class ShipmentService {
   async getByOrderId(orderId: string) {
@@ -10,7 +11,24 @@ export class ShipmentService {
   }
 
   async create(data: any) {
-    return shipmentRepository.createOrderShipment(data);
+    const shipment = await shipmentRepository.createOrderShipment(data);
+
+    // Log activity
+    if (data.orderId) {
+      try {
+        await activityRepository.create({
+          orderId: data.orderId,
+          userId: data.userId || "system-user",
+          activityType: "system_action",
+          content: `Shipment created${data.trackingNumber ? ` — tracking: ${data.trackingNumber}` : ""}`,
+          isSystemGenerated: true,
+          metadata: { action: "shipment_created", shipmentId: shipment.id, trackingNumber: data.trackingNumber || null },
+          mentionedUsers: [],
+        });
+      } catch (e) { console.error("Activity log failed:", e); }
+    }
+
+    return shipment;
   }
 
   async update(shipmentId: string, data: any) {

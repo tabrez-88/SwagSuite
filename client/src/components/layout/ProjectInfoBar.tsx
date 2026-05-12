@@ -1,4 +1,5 @@
 import { Building2, User, Mail } from "lucide-react";
+import { Separator } from "../ui/separator";
 
 interface ProjectInfoBarProps {
   companyName: string;
@@ -7,11 +8,26 @@ interface ProjectInfoBarProps {
     lastName?: string;
     email?: string;
   } | null;
+  assignedUser?: {
+    firstName?: string;
+    lastName?: string;
+    email?: string;
+  } | null;
 }
 
-export default function ProjectInfoBar({ companyName, primaryContact }: ProjectInfoBarProps) {
+export default function ProjectInfoBar({
+  companyName,
+  primaryContact,
+  assignedUser,
+}: ProjectInfoBarProps) {
   const contactName = primaryContact
-    ? [primaryContact.firstName, primaryContact.lastName].filter(Boolean).join(" ")
+    ? [primaryContact.firstName, primaryContact.lastName]
+        .filter(Boolean)
+        .join(" ")
+    : null;
+
+  const assignedUserName = assignedUser
+    ? [assignedUser.firstName, assignedUser.lastName].filter(Boolean).join(" ")
     : null;
 
   return (
@@ -32,6 +48,21 @@ export default function ProjectInfoBar({ companyName, primaryContact }: ProjectI
           {primaryContact.email}
         </span>
       )}
+      {/* {assignedUserName && (
+        <div className="flex gap-2 items-center bg-primary text-white rounded-lg px-2 py-1">
+          <span>Sales Rep :</span>
+          <span className="inline-flex items-center gap-1.5">
+            <User className="w-3.5 h-3.5" />
+            {assignedUserName}
+          </span>
+          {assignedUser?.email && (
+            <span className="inline-flex text-xs items-center gap-1.5">
+              <Mail className="w-3.5 h-3.5" />
+              {assignedUser.email}
+            </span>
+          )}
+        </div>
+      )} */}
     </div>
   );
 }

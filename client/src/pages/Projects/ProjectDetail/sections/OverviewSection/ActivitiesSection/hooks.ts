@@ -1,5 +1,5 @@
-import { useState, useRef } from "react";
-import { usePostActivity } from "@/services/activities";
+import { useState, useRef, useCallback } from "react";
+import { usePostActivity, useInfiniteActivities } from "@/services/activities";
 import { type MediaLibraryItem } from "@/lib/media-library";
 import type { TeamMember, ProjectData } from "@/types/project-types";
 import type { PreviewFile } from "./types";
@@ -13,6 +13,30 @@ const defaultTeamMembers: TeamMember[] = [
 
 export function useActivitiesSection(projectId: string, data: ProjectData) {
   const { activities, teamMembers } = data;
+
+  // Infinite scroll for timeline
+  const infiniteQuery = useInfiniteActivities(projectId, 5);
+  const timelineActivities = infiniteQuery.data?.pages.flatMap((p) => p.data) ?? [];
+  const hasMoreTimeline = infiniteQuery.hasNextPage ?? false;
+  const isFetchingMore = infiniteQuery.isFetchingNextPage;
+  const fetchNextPage = infiniteQuery.fetchNextPage;
+
+  const sentinelRef = useCallback(
+    (node: HTMLDivElement | null) => {
+      if (!node) return;
+      const observer = new IntersectionObserver(
+        (entries) => {
+          if (entries[0].isIntersecting && hasMoreTimeline && !isFetchingMore) {
+            fetchNextPage();
+          }
+        },
+        { rootMargin: "100px" },
+      );
+      observer.observe(node);
+      return () => observer.disconnect();
+    },
+    [hasMoreTimeline, isFetchingMore, fetchNextPage],
+  );
 
   const [internalNote, setInternalNote] = useState("");
   const [mentionQuery, setMentionQuery] = useState("");
@@ -97,6 +121,11 @@ export function useActivitiesSection(projectId: string, data: ProjectData) {
 
   return {
     activities,
+    timelineActivities,
+    hasMoreTimeline,
+    isFetchingMore,
+    sentinelRef,
+    isTimelineLoading: infiniteQuery.isLoading,
     internalNote,
     showMentionSuggestions,
     filteredTeamMembers,

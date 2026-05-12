@@ -195,6 +195,15 @@ export function businessDaysBetween(start: Date | string, end: Date | string): n
   return count;
 }
 
+/**
+ * Calculate supplier in-hands date from customer in-hands date.
+ * Returns 2 business days before the given date (Mon-Fri only).
+ */
+export function calcSupplierInHandsDate(inHandsDate: string | Date): string {
+  const result = addBusinessDays(inHandsDate, -2);
+  return result.toISOString().split("T")[0];
+}
+
 // ── Invoice Overdue Check ──
 
 export function isInvoiceOverdue(invoice: any): boolean {

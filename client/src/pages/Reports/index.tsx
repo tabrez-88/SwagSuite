@@ -8,6 +8,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
+import { DatePickerInput } from "@/components/ui/date-picker-input";
 import {
   Table,
   TableBody,
@@ -230,17 +231,15 @@ export default function Reports() {
               Commission Report
             </CardTitle>
             <div className="flex items-center gap-2">
-              <Input
-                type="date"
+              <DatePickerInput
                 value={commissionFrom}
-                onChange={(e) => setCommissionFrom(e.target.value)}
+                onChange={(v) => setCommissionFrom(v)}
                 className="w-36 h-8 text-xs"
               />
               <span className="text-xs text-gray-500">to</span>
-              <Input
-                type="date"
+              <DatePickerInput
                 value={commissionTo}
-                onChange={(e) => setCommissionTo(e.target.value)}
+                onChange={(v) => setCommissionTo(v)}
                 className="w-36 h-8 text-xs"
               />
             </div>

@@ -162,8 +162,7 @@ export function PurchaseOrderPdf({
           );
         }, 0);
 
-  const totalCost =
-    itemsCost + itemChargesTotal + supplierArtworkTotal;
+  const totalCost = itemsCost + itemChargesTotal + supplierArtworkTotal;
 
   // ── Resolve ship-to ────────────────────────────────────────────
   const resolveShipTo = () => {
@@ -234,19 +233,19 @@ export function PurchaseOrderPdf({
             )}
           </View>
           <View style={styles.headerRight}>
-            <Text style={styles.brandName}>{sellerName || "Liquid Screen Design"}</Text>
+            <Text style={styles.brandName}>{"Liquid Screen Design"}</Text>
           </View>
         </View>
 
         {/* ── Vendor block ─────────────────────────────────────── */}
         <View style={{ marginBottom: 16 }}>
           <Text style={styles.addressLabel}>VENDOR:</Text>
-          <Text style={[styles.addressLine, styles.bold, { fontSize: 11 }]}>
+          {vendor?.contactPerson && (
+            <Text style={styles.addressLine}>{vendor.contactPerson}</Text>
+          )}
+          <Text style={[styles.addressLine]}>
             {vendorAddress?.companyNameOnDocs || vendor?.name}
           </Text>
-          {vendor?.contactPerson && (
-            <Text style={styles.addressLine}>Attn: {vendor.contactPerson}</Text>
-          )}
           {vendorAddress?.street && (
             <Text style={styles.addressLine}>{vendorAddress.street}</Text>
           )}
@@ -295,11 +294,6 @@ export function PurchaseOrderPdf({
             {!isDecoratorPO && hasThirdPartyItems && decoratorName && (
               <Text style={[styles.addressLine, styles.bold, { fontSize: 11 }]}>
                 {decoratorName}
-              </Text>
-            )}
-            {!isDecoratorPO && hasThirdPartyItems && decoratorPONumber && (
-              <Text style={[styles.addressLine, styles.bold, { color: colors.blue700 }]}>
-                Attn: Decoration PO #{decoratorPONumber}
               </Text>
             )}
             {(shipToAddr.contactName ||
@@ -353,14 +347,18 @@ export function PurchaseOrderPdf({
         {/* ── Shipping instructions (account type + method) ───── */}
         {(() => {
           const shippingItem = isDecoratorPO
-            ? vendorItems.find((i: any) => i.leg2ShippingAccountType || i.shippingAccountType)
+            ? vendorItems.find(
+                (i: any) => i.leg2ShippingAccountType || i.shippingAccountType,
+              )
             : vendorItems.find((i: any) => i.shippingAccountType);
           if (!shippingItem) return null;
           const acctType = isDecoratorPO
-            ? (shippingItem.leg2ShippingAccountType || shippingItem.shippingAccountType)
+            ? shippingItem.leg2ShippingAccountType ||
+              shippingItem.shippingAccountType
             : shippingItem.shippingAccountType;
           const method = isDecoratorPO
-            ? (shippingItem.leg2ShippingMethod || shippingItem.shippingMethodOverride)
+            ? shippingItem.leg2ShippingMethod ||
+              shippingItem.shippingMethodOverride
             : shippingItem.shippingMethodOverride;
           const acctLabels: Record<string, string> = {
             supplier:
@@ -404,7 +402,7 @@ export function PurchaseOrderPdf({
           );
         })()}
 
-        {/* ── Garment breakdown for decorator POs ────────────── */}
+        {/* ── Garment breakdown for decorator POs ──────────────
         {isDecoratorPO && vendorItems.length > 0 && (
           <View style={{ marginBottom: 12, borderWidth: 1, borderColor: colors.gray200, borderRadius: 2, padding: 10 }} wrap={false}>
             <Text style={[styles.artworkHeader, { marginBottom: 6 }]}>
@@ -446,7 +444,7 @@ export function PurchaseOrderPdf({
               </Text>
             </View>
           </View>
-        )}
+        )} */}
 
         {/* ── Items ────────────────────────────────────────────── */}
         {vendorItems.map((item: any) => {
@@ -546,10 +544,7 @@ export function PurchaseOrderPdf({
                           return lines.map((line: any, li: number) => {
                             const lineCost =
                               parseFloat(
-                                line.unitCost ||
-                                  item.cost ||
-                                  item.unitPrice ||
-                                  "0",
+                                line.cost || item.cost || item.unitPrice || "0",
                               ) || cost;
                             const lineQty = line.quantity || 0;
                             const label =
@@ -686,7 +681,7 @@ export function PurchaseOrderPdf({
                                 return lines.reduce((s: number, l: any) => {
                                   const lc =
                                     parseFloat(
-                                      l.unitCost ||
+                                      l.cost ||
                                         item.cost ||
                                         item.unitPrice ||
                                         "0",

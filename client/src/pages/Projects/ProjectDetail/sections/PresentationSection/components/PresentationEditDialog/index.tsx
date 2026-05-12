@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { DatePickerInput } from "@/components/ui/date-picker-input";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -102,10 +103,9 @@ export default function PresentationEditDialog({
         <div className="space-y-4 py-2">
           <div>
             <Label className="text-xs text-gray-500">In-Hands Date</Label>
-            <Input
-              type="date"
+            <DatePickerInput
               value={(form.inHandsDate as string) || ""}
-              onChange={(e) => setForm({ ...form, inHandsDate: e.target.value })}
+              onChange={(v) => setForm({ ...form, inHandsDate: v })}
               className="mt-1"
             />
           </div>
@@ -132,10 +132,9 @@ export default function PresentationEditDialog({
             </div>
             <div>
               <Label className="text-xs text-gray-500">Expiry Date</Label>
-              <Input
-                type="date"
+              <DatePickerInput
                 value={(form.expiryDate as string) || ""}
-                onChange={(e) => setForm({ ...form, expiryDate: e.target.value })}
+                onChange={(v) => setForm({ ...form, expiryDate: v })}
                 className="mt-1"
               />
             </div>

@@ -29,6 +29,7 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import { Input } from "@/components/ui/input";
+import { DatePickerInput } from "@/components/ui/date-picker-input";
 import { Textarea } from "@/components/ui/textarea";
 import { FilePreviewModal } from "@/components/modals/FilePreviewModal";
 import {
@@ -250,12 +251,10 @@ export default function PODetailPanel({ documentId, open, onOpenChange }: PODeta
                       </div>
                       <div>
                         <label className="text-xs text-muted-foreground mb-1 block">Action Date</label>
-                        <Input
-                          type="date"
+                        <DatePickerInput
                           className="h-8 text-sm"
                           value={po.next_action_date ? format(parseLocalDate(po.next_action_date)!, "yyyy-MM-dd") : ""}
-                          onChange={(e) => {
-                            const val = e.target.value;
+                          onChange={(val) => {
                             updateNextActionMutation.mutate({
                               nextActionDate: val || null,
                             });

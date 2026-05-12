@@ -9,7 +9,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Pencil, Check, X, Loader2 } from "lucide-react";
+import { Calendar as CalendarIcon, Pencil, Check, X, Loader2 } from "lucide-react";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { format } from "date-fns";
+import { parseLocalDate } from "@/lib/dateUtils";
 import { cn } from "@/lib/utils";
 
 interface EditableBaseProps {
@@ -112,18 +116,18 @@ export function EditableText({
   return (
     <span
       className={cn(
-        "group/edit inline-flex items-center gap-1.5 cursor-pointer hover:bg-gray-100 rounded px-1 -mx-1 transition-colors",
+        "group/edit inline-flex items-center text-sm gap-1.5 cursor-pointer hover:bg-gray-100 rounded px-1 -mx-1 transition-colors",
         className,
       )}
       onClick={() => setEditing(true)}
     >
-      <span className={cn("text-sm", !value && "text-muted-foreground italic")}>
+      <span className={cn(!value && "text-muted-foreground italic")}>
         {prefix}{value || emptyText}{suffix}
       </span>
       {isPending ? (
         <Loader2 className="w-3 h-3 animate-spin text-muted-foreground" />
       ) : (
-        <Pencil className="w-3 h-3 text-muted-foreground opacity-0 group-hover/edit:opacity-100 transition-opacity" />
+        <Pencil className="w-3 h-3 text-muted-foreground opacity-0 hidden group-hover/edit:block group-hover/edit:opacity-100 transition-opacity" />
       )}
     </span>
   );
@@ -149,45 +153,14 @@ export function EditableDate({
   isPending,
   className,
 }: EditableDateProps) {
-  const [editing, setEditing] = useState(false);
-  const toDateStr = (v: string | Date | null | undefined) => v ? new Date(v).toISOString().split("T")[0] : "";
-  const dateStr = toDateStr(value);
-  const [editValue, setEditValue] = useState(dateStr);
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    if (editing && inputRef.current) inputRef.current.focus();
-  }, [editing]);
-
-  useEffect(() => {
-    if (!editing) {
-      setEditValue(toDateStr(value));
-    }
-  }, [value, editing]);
-
-  const handleSave = useCallback(() => {
-    setEditing(false);
-    const newDateStr = editValue || "";
-    const oldDateStr = toDateStr(value);
-    if (newDateStr !== oldDateStr) {
-      onSave({ [field]: editValue ? new Date(editValue) : null });
-    }
-  }, [editValue, value, field, onSave]);
-
-  const handleCancel = useCallback(() => {
-    setEditing(false);
-    setEditValue(toDateStr(value));
-  }, [value]);
-
-  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (e.key === "Enter") handleSave();
-    if (e.key === "Escape") handleCancel();
-  }, [handleSave, handleCancel]);
+  const [open, setOpen] = useState(false);
+  const parsed = value ? parseLocalDate(value as string) : null;
 
   const formatDisplay = (v: string | Date | null | undefined): string => {
     if (!v) return emptyText;
     try {
-      return new Date(v).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+      const d = parseLocalDate(v as string);
+      return d ? format(d, "MMM d, yyyy") : emptyText;
     } catch {
       return String(v);
     }
@@ -202,40 +175,47 @@ export function EditableDate({
     );
   }
 
-  if (editing) {
-    return (
-      <div className="flex items-center gap-1">
-        <Input
-          ref={inputRef}
-          type="date"
-          value={editValue}
-          onChange={(e) => setEditValue(e.target.value)}
-          onBlur={handleSave}
-          onKeyDown={handleKeyDown}
-          className="h-7 text-sm w-40"
-        />
-      </div>
-    );
-  }
-
   return (
-    <span
-      className={cn(
-        "group/edit inline-flex items-center gap-1.5 cursor-pointer hover:bg-gray-100 rounded px-1 -mx-1 transition-colors",
-        className,
-      )}
-      onClick={() => setEditing(true)}
-    >
-      <span className={cn("text-sm", !value && "text-muted-foreground italic")}>
-        {formatDisplay(value)}
-      </span>
-      {value && renderExtra?.(value as string)}
-      {isPending ? (
-        <Loader2 className="w-3 h-3 animate-spin text-muted-foreground" />
-      ) : (
-        <Pencil className="w-3 h-3 text-muted-foreground opacity-0 group-hover/edit:opacity-100 transition-opacity" />
-      )}
-    </span>
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className={cn(
+            "group/edit inline-flex items-center gap-1.5 cursor-pointer hover:bg-gray-100 rounded px-1 -mx-1 transition-colors",
+            className,
+          )}
+        >
+          <span className={cn("text-sm", !value && "text-muted-foreground italic")}>
+            {formatDisplay(value)}
+          </span>
+          {value && renderExtra?.(value as string)}
+          {isPending ? (
+            <Loader2 className="w-3 h-3 animate-spin text-muted-foreground" />
+          ) : (
+            <CalendarIcon className="w-3 h-3 text-muted-foreground opacity-0 group-hover/edit:opacity-100 transition-opacity" />
+          )}
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className="w-auto p-0" align="start">
+        <Calendar
+          mode="single"
+          selected={parsed ?? undefined}
+          onSelect={(date) => {
+            if (date) {
+              const y = date.getFullYear();
+              const m = String(date.getMonth() + 1).padStart(2, "0");
+              const d = String(date.getDate()).padStart(2, "0");
+              onSave({ [field]: new Date(`${y}-${m}-${d}`) });
+            } else {
+              onSave({ [field]: null });
+            }
+            setOpen(false);
+          }}
+          defaultMonth={parsed ?? undefined}
+          initialFocus
+        />
+      </PopoverContent>
+    </Popover>
   );
 }
 

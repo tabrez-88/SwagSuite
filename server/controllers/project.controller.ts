@@ -860,6 +860,7 @@ export class ProjectController {
           const soDisplayMap: Record<string, string> = {
             new: "New", pending_client_approval: "Pending Client Approval", client_change_requested: "Client Change Requested",
             client_approved: "Client Approved", in_production: "In Production", shipped: "Shipped", ready_to_invoice: "Ready To Be Invoiced",
+            invoiced: "Invoiced", closed: "Closed",
           };
           const oldLabel = soDisplayMap[(oldOrder as any).salesOrderStatus || ""] || (oldOrder as any).salesOrderStatus || "None";
           const newLabel = soDisplayMap[req.body.salesOrderStatus] || req.body.salesOrderStatus;
@@ -938,7 +939,8 @@ export class ProjectController {
         }
 
         // Auto-relock: clear unlock overrides when status transitions trigger a new lock
-        if (oldOrder && req.body.salesOrderStatus === 'ready_to_invoice' && (oldOrder as any).salesOrderStatus !== 'ready_to_invoice') {
+        const invoiceStatuses = ['ready_to_invoice', 'invoiced', 'closed'];
+        if (oldOrder && invoiceStatuses.includes(req.body.salesOrderStatus) && !invoiceStatuses.includes((oldOrder as any).salesOrderStatus)) {
           const currentStageData = (order as any).stageData || {};
           if (currentStageData.unlocks?.salesOrder) {
             const updatedStageData = { ...currentStageData, unlocks: { ...(currentStageData.unlocks || {}) } };
@@ -1409,6 +1411,19 @@ export class ProjectController {
       // Recalculate order totals (includes discount, tax, shipping)
       await recalculateOrderTotals(req.params.projectId);
 
+      // Log activity
+      try {
+        await activityRepository.create({
+          orderId: req.params.projectId,
+          userId: (req.user as any)?.claims?.sub || "system-user",
+          activityType: "system_action",
+          content: `Added product: ${req.body.productName || req.body.name || "New item"}`,
+          isSystemGenerated: true,
+          metadata: { action: "product_added", itemId: item.id },
+          mentionedUsers: [],
+        });
+      } catch (e) { console.error("Activity log failed:", e); }
+
       res.status(201).json(item);
     } catch (error) {
       console.error("Error creating order item:", error);
@@ -1445,11 +1460,28 @@ export class ProjectController {
         ),
       );
 
+      // Capture product name before deletion for activity log
+      const { orderItems } = await import("@shared/schema");
+      const [deletedItem] = await db.select({ productName: orderItems.productName }).from(orderItems).where(eq(orderItems.id, req.params.itemId)).limit(1);
+
       // Now safe to delete the order item
       await projectRepository.deleteOrderItem(req.params.itemId);
 
       // Recalculate order totals (includes discount, tax, shipping)
       await recalculateOrderTotals(req.params.projectId);
+
+      // Log activity
+      try {
+        await activityRepository.create({
+          orderId: req.params.projectId,
+          userId: (req.user as any)?.claims?.sub || "system-user",
+          activityType: "system_action",
+          content: `Removed product: ${deletedItem?.productName || "Unknown"}`,
+          isSystemGenerated: true,
+          metadata: { action: "product_removed" },
+          mentionedUsers: [],
+        });
+      } catch (e) { console.error("Activity log failed:", e); }
 
       res.json({ message: "Order item deleted successfully" });
     } catch (error) {

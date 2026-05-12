@@ -22,6 +22,7 @@ import { useQuery } from "@tanstack/react-query";
 import {
   Building2,
   ChevronDown,
+  Copy,
   DollarSign,
   FileText,
   Grid3X3,
@@ -69,14 +70,16 @@ interface ProductConfigDialogProps {
   configTotalPrice: number;
   configMargin: number;
   marginSettings: any;
-  imprintLocation: string;
-  setImprintLocation: (v: string) => void;
-  imprintMethod: string;
-  setImprintMethod: (v: string) => void;
   productNotes: string;
   setProductNotes: (v: string) => void;
   addConfigLine: () => void;
+  duplicateConfigLine: (id: string) => void;
   removeConfigLine: (id: string) => void;
+  // Editable product name/image
+  overrideProductName: string;
+  setOverrideProductName: (v: string) => void;
+  overrideImageUrl: string;
+  setOverrideImageUrl: (v: string) => void;
   updateConfigLine: (id: string, field: keyof ConfigLine, value: any) => void;
   handleConfigCostChange: (id: string, e: React.ChangeEvent<HTMLInputElement>) => void;
   handleConfigMarginChange: (id: string, e: React.ChangeEvent<HTMLInputElement>) => void;
@@ -149,14 +152,16 @@ export function ProductConfigDialog({
   configTotalPrice,
   configMargin,
   marginSettings,
-  imprintLocation,
-  setImprintLocation,
-  imprintMethod,
-  setImprintMethod,
   productNotes,
   setProductNotes,
   addConfigLine,
+  duplicateConfigLine,
   removeConfigLine,
+  // Editable product name/image
+  overrideProductName,
+  setOverrideProductName,
+  overrideImageUrl,
+  setOverrideImageUrl,
   updateConfigLine,
   handleConfigCostChange,
   handleConfigMarginChange,
@@ -219,6 +224,7 @@ export function ProductConfigDialog({
 }: ProductConfigDialogProps) {
 
   const [taxCodeId, setTaxCodeId] = useState("");
+  const [showImagePicker, setShowImagePicker] = useState(false);
   const [matrixPickerTarget, setMatrixPickerTarget] = useState<{
     artworkTempId: string;
     chargeTempId: string;
@@ -350,21 +356,34 @@ export function ProductConfigDialog({
 
           {selectedProduct && (
             <div className="space-y-6">
-              {/* Product Summary */}
+              {/* Product Summary — editable name & image */}
               <div className="flex gap-4 p-4 bg-muted/50 rounded-lg">
-                {selectedProduct.imageUrl ? (
-                  <img
-                    src={selectedProduct.imageUrl}
-                    alt={selectedProduct.name}
-                    className="w-20 h-20 object-contain rounded border bg-white"
-                  />
-                ) : (
-                  <div className="w-20 h-20 bg-muted rounded border flex items-center justify-center">
-                    <ImageIcon className="w-8 h-8 text-muted-foreground" />
+                <div
+                  className="relative group cursor-pointer flex-shrink-0"
+                  onClick={() => setShowImagePicker(true)}
+                >
+                  {(overrideImageUrl || selectedProduct.imageUrl) ? (
+                    <img
+                      src={overrideImageUrl || selectedProduct.imageUrl}
+                      alt={overrideProductName || selectedProduct.name}
+                      className="w-20 h-20 object-contain rounded border bg-white"
+                    />
+                  ) : (
+                    <div className="w-20 h-20 bg-muted rounded border flex items-center justify-center">
+                      <ImageIcon className="w-8 h-8 text-muted-foreground" />
+                    </div>
+                  )}
+                  <div className="absolute inset-0 bg-black/40 rounded opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                    <Pencil className="w-4 h-4 text-white" />
                   </div>
-                )}
+                </div>
                 <div className="flex-1">
-                  <h3 className="font-semibold text-lg">{selectedProduct.name}</h3>
+                  <Input
+                    value={overrideProductName || selectedProduct.name}
+                    onChange={(e) => setOverrideProductName(e.target.value)}
+                    placeholder={selectedProduct.name || "Product name..."}
+                    className="text-lg font-semibold h-auto py-1 px-2 border-transparent hover:border-gray-300 focus:border-blue-500"
+                  />
                   <div className="flex items-center gap-2 mt-1">
                     {selectedProduct.sku && (
                       <Badge variant="outline" className="text-xs">
@@ -385,40 +404,6 @@ export function ProductConfigDialog({
                 </div>
               </div>
 
-              {/* Imprint Info */}
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label>Imprint Location</Label>
-                  <ImprintOptionSelect type="location" value={imprintLocation} onChange={setImprintLocation} />
-                </div>
-                <div>
-                  <Label>Imprint Method</Label>
-                  {selectedProduct.decorationMethods && selectedProduct.decorationMethods.length > 0 ? (
-                    <Select
-                      value={(selectedProduct.decorationMethods as string[]).includes(imprintMethod) ? imprintMethod : (imprintMethod ? "__custom__" : "")}
-                      onValueChange={(v) => setImprintMethod(v === "__custom__" ? "" : v)}
-                    >
-                      <SelectTrigger><SelectValue placeholder="Select method" /></SelectTrigger>
-                      <SelectContent>
-                        {selectedProduct.decorationMethods.map((m: string) => (
-                          <SelectItem key={m} value={m}>{m}</SelectItem>
-                        ))}
-                        <SelectItem value="__custom__">Custom...</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  ) : (
-                    <ImprintOptionSelect type="method" value={imprintMethod} onChange={setImprintMethod} />
-                  )}
-                  {selectedProduct.decorationMethods
-                    && selectedProduct.decorationMethods.length > 0
-                    && !(selectedProduct.decorationMethods as string[]).includes(imprintMethod)
-                    && imprintMethod !== undefined
-                    && (
-                    <Input className="mt-2" placeholder="Enter custom method" value={imprintMethod}
-                      onChange={(e) => setImprintMethod(e.target.value)} />
-                  )}
-                </div>
-              </div>
 
               {/* Supplier Pricing Tiers */}
               {selectedProduct?.pricingTiers && selectedProduct.pricingTiers.length > 0 && (
@@ -549,14 +534,23 @@ export function ProductConfigDialog({
                             <td className="p-2 text-right">
                               <span className="text-xs font-semibold">${lineTotal.toFixed(2)}</span>
                             </td>
-                            {/* Delete */}
+                            {/* Duplicate & Delete */}
                             <td className="p-2">
-                              {configLines.length > 1 && (
-                                <button className="w-7 h-7 flex items-center justify-center rounded text-gray-300 hover:text-red-500 hover:bg-red-50"
-                                  onClick={() => removeConfigLine(line.id)}>
-                                  <Trash2 className="w-3 h-3" />
+                              <div className="flex items-center gap-0.5">
+                                <button
+                                  className="w-7 h-7 flex items-center justify-center rounded text-gray-300 hover:text-blue-500 hover:bg-blue-50"
+                                  onClick={() => duplicateConfigLine(line.id)}
+                                  title="Duplicate line"
+                                >
+                                  <Copy className="w-3 h-3" />
                                 </button>
-                              )}
+                                {configLines.length > 1 && (
+                                  <button className="w-7 h-7 flex items-center justify-center rounded text-gray-300 hover:text-red-500 hover:bg-red-50"
+                                    onClick={() => removeConfigLine(line.id)}>
+                                    <Trash2 className="w-3 h-3" />
+                                  </button>
+                                )}
+                              </div>
                             </td>
                           </PortalAwareDrag>
                             )}
@@ -1167,6 +1161,20 @@ export function ProductConfigDialog({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* PRODUCT IMAGE PICKER */}
+      <FilePickerDialog
+        open={showImagePicker}
+        onClose={() => setShowImagePicker(false)}
+        onSelect={(files: any[]) => {
+          const file = files[0];
+          if (file) {
+            setOverrideImageUrl(file.cloudinaryUrl || file.filePath || file.url);
+          }
+          setShowImagePicker(false);
+        }}
+        title="Change Product Image"
+      />
 
       {/* CHARGE DIALOG */}
       <AddEditChargeDialog

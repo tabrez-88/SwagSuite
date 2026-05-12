@@ -1,6 +1,7 @@
 import type { Request, Response } from "express";
 import { projectRepository } from "../repositories/project.repository";
 import { invoiceRepository } from "../repositories/invoice.repository";
+import { activityRepository } from "../repositories/activity.repository";
 import { companyRepository } from "../repositories/company.repository";
 import { settingsRepository } from "../repositories/settings.repository";
 import { getQuickBooksCredentials } from "../services/quickbooks.service";
@@ -109,6 +110,19 @@ export class InvoiceController {
         }
       }
 
+      // Log activity
+      try {
+        await activityRepository.create({
+          orderId: order.id,
+          userId: (req.user as any)?.claims?.sub || "system-user",
+          activityType: "system_action",
+          content: `Invoice ${invoiceNumber} created`,
+          isSystemGenerated: true,
+          metadata: { action: "invoice_created", invoiceId: invoice.id, invoiceNumber },
+          mentionedUsers: [],
+        });
+      } catch (e) { console.error("Activity log failed:", e); }
+
       res.json(invoice);
     } catch (error) {
       console.error("Invoice creation error:", error);
@@ -159,6 +173,19 @@ export class InvoiceController {
         depositAmount: depositAmount.toFixed(2),
         depositStatus: "pending",
       } as any);
+
+      // Log activity
+      try {
+        await activityRepository.create({
+          orderId: order.id,
+          userId: (req.user as any)?.claims?.sub || "system-user",
+          activityType: "system_action",
+          content: `Deposit invoice ${invoiceNumber} created (${depositPercent}%)`,
+          isSystemGenerated: true,
+          metadata: { action: "deposit_invoice_created", invoiceId: invoice.id, invoiceNumber },
+          mentionedUsers: [],
+        });
+      } catch (e) { console.error("Activity log failed:", e); }
 
       res.json(invoice);
     } catch (error) {

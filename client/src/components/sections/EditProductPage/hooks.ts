@@ -173,6 +173,27 @@ export function useEditProductPage(projectId: string, itemId: string, data: Proj
     setEditableLines(prev => prev.filter(l => l.id !== id));
   };
 
+  const duplicateLine = (id: string) => {
+    setEditableLines(prev => {
+      const idx = prev.findIndex(l => l.id === id);
+      if (idx === -1) return prev;
+      const source = prev[idx];
+      const clone = {
+        id: crypto.randomUUID(),
+        isExisting: false,
+        orderItemId: itemId,
+        color: source.color,
+        size: source.size,
+        quantity: source.quantity,
+        cost: source.cost,
+        unitPrice: source.unitPrice,
+      };
+      const next = [...prev];
+      next.splice(idx + 1, 0, clone);
+      return next;
+    });
+  };
+
   const reorderLine = useCallback((sourceIndex: number, destIndex: number) => {
     setEditableLines(prev => {
       const next = [...prev];
@@ -696,6 +717,7 @@ export function useEditProductPage(projectId: string, itemId: string, data: Proj
     chargeSubtotal: chargeSub,
     addLine,
     removeLine,
+    duplicateLine,
     reorderLine,
     updateLine,
     applyTierToLines,

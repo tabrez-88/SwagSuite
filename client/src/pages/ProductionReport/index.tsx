@@ -3,6 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { DatePickerInput } from "@/components/ui/date-picker-input";
 import {
   Select,
   SelectContent,
@@ -216,20 +217,16 @@ export default function ProductionReport() {
                 <SelectItem value="nextAction">Next Action</SelectItem>
               </SelectContent>
             </Select>
-            <Input
-              type="date"
+            <DatePickerInput
               value={filterDateFrom}
-              onChange={(e) => { setFilterDateFrom(e.target.value); setPage(1); }}
+              onChange={(v) => { setFilterDateFrom(v); setPage(1); }}
               className="h-8 w-36 text-xs"
-              placeholder="From"
             />
             <span className="text-xs text-muted-foreground">to</span>
-            <Input
-              type="date"
+            <DatePickerInput
               value={filterDateTo}
-              onChange={(e) => { setFilterDateTo(e.target.value); setPage(1); }}
+              onChange={(v) => { setFilterDateTo(v); setPage(1); }}
               className="h-8 w-36 text-xs"
-              placeholder="To"
             />
             <div className="flex gap-1.5">
               <Button size="sm" variant="outline" className="h-7 text-xs px-2" onClick={() => applyDatePreset("overdue")}>

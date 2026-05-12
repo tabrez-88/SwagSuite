@@ -53,7 +53,7 @@ export function useLockStatus(data: ProjectData): LockStatus {
 
   // Sales Order: locked when salesOrderStatus is "ready_to_invoice"
   const soStatus = (order as any)?.salesOrderStatus;
-  const soNaturallyLocked = soStatus === "ready_to_invoice";
+  const soNaturallyLocked = ["ready_to_invoice", "invoiced", "closed"].includes(soStatus);
   const soOverridden = !!unlocks.salesOrder;
   const soLocked = soNaturallyLocked && !soOverridden;
 

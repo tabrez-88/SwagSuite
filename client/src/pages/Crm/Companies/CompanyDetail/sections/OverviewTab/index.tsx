@@ -23,6 +23,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { DatePickerInput } from "@/components/ui/date-picker-input";
 import { Label } from "@/components/ui/label";
 import {
   Command,
@@ -300,22 +301,18 @@ export default function OverviewTab({
               <div className="flex flex-wrap items-end gap-3">
                 <div>
                   <Label className="text-xs">From</Label>
-                  <Input
-                    type="date"
+                  <DatePickerInput
                     value={spendFrom}
-                    onChange={(e) => setSpendFrom(e.target.value)}
+                    onChange={(v) => setSpendFrom(v)}
                     className="h-8 w-40 mt-1"
-                    data-testid="spend-from"
                   />
                 </div>
                 <div>
                   <Label className="text-xs">To</Label>
-                  <Input
-                    type="date"
+                  <DatePickerInput
                     value={spendTo}
-                    onChange={(e) => setSpendTo(e.target.value)}
+                    onChange={(v) => setSpendTo(v)}
                     className="h-8 w-40 mt-1"
-                    data-testid="spend-to"
                   />
                 </div>
                 <div className="flex flex-wrap gap-1 ml-auto">

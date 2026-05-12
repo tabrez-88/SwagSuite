@@ -2,6 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DatePickerInput } from "@/components/ui/date-picker-input";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter,
@@ -246,7 +247,7 @@ export default function BillsSection(props: BillsSectionProps) {
 
             <div>
               <label className="text-xs font-medium text-gray-500 block mb-1">Due Date</label>
-              <Input type="date" value={billForm.dueDate} onChange={(e) => handleFieldChange("dueDate", e.target.value)} />
+              <DatePickerInput value={billForm.dueDate} onChange={(v) => handleFieldChange("dueDate", v)} />
             </div>
 
             <div>
@@ -309,7 +310,7 @@ export default function BillsSection(props: BillsSectionProps) {
 
             <div>
               <label className="text-xs font-medium text-gray-500 block mb-1">Due Date</label>
-              <Input type="date" value={editForm.dueDate} onChange={(e) => handleEditFieldChange("dueDate", e.target.value)} />
+              <DatePickerInput value={editForm.dueDate} onChange={(v) => handleEditFieldChange("dueDate", v)} />
             </div>
 
             <div>

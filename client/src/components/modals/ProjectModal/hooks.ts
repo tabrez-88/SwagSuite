@@ -7,6 +7,7 @@ import { useCompanyAddresses } from "@/services/company-addresses";
 import { usePaymentTerms, useDefaultPaymentTermName } from "@/services/payment-terms";
 import { useUpdateProject, useCreateProject } from "@/services/projects/mutations";
 import { projectKeys } from "@/services/projects/keys";
+import { calcSupplierInHandsDate } from "@/lib/dateUtils";
 import type { ProjectModalProps, ProjectFormData } from "./types";
 
 // Normalize various country name/code formats to standard 2-letter codes
@@ -194,7 +195,13 @@ export function useProjectModal({ open, onOpenChange, order, initialCompanyId, b
   }, [open, order, contacts, formData.contactId]);
 
   const handleFieldChange = (field: string, value: any) => {
-    setFormData((prev) => ({ ...prev, [field]: value }));
+    setFormData((prev) => {
+      const updated = { ...prev, [field]: value };
+      if (field === "inHandsDate" && value) {
+        updated.supplierInHandsDate = calcSupplierInHandsDate(value);
+      }
+      return updated;
+    });
   };
 
   // Sync shipping address with billing when checkbox is checked

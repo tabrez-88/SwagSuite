@@ -1,4 +1,4 @@
-import { Input } from "@/components/ui/input";
+import { DatePickerInput } from "@/components/ui/date-picker-input";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
@@ -103,22 +103,16 @@ export default function VendorStageControls({
       </div>
       <div>
         <label className="text-[10px] font-medium text-gray-500 block mb-1">Next Action Date</label>
-        <Input
-          type="date"
+        <DatePickerInput
           value={(meta?.nextActionDate as string) || ''}
-          onChange={(e) => onUpdateDocMeta({
+          onChange={(v) => onUpdateDocMeta({
             docId: vendorDoc.id,
-            updates: { metadata: { ...(meta || {}), nextActionDate: e.target.value } },
+            updates: { metadata: { ...(meta || {}), nextActionDate: v } },
           })}
           className="h-8 text-xs w-[160px]"
           disabled={isLocked}
         />
       </div>
-      {(order?.inHandsDate as string) ? (
-        <div className="text-[10px] text-gray-500 ml-auto">
-          Customer IHD: <strong>{new Date(order!.inHandsDate as string).toLocaleDateString()}</strong>
-        </div>
-      ) : null}
     </div>
   );
 }

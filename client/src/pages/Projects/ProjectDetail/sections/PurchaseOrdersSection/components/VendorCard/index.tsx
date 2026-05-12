@@ -297,26 +297,28 @@ export default function VendorCard({
                   })()}
                 </p>
                 {/* Line 3: IHD + PO# + lifecycle */}
-                <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                <div className="flex items-center gap-2 mt-0.5 flex-wrap"  onClick={(e) => e.stopPropagation()}>
                   <Popover open={ihdPopoverOpen} onOpenChange={setIhdPopoverOpen}>
                     <PopoverTrigger asChild>
-                      {effectiveIhd ? (
-                        <Badge
-                          variant="outline"
-                          className={`text-[10px] cursor-pointer hover:opacity-80 ${vendorIhdValue ? "bg-blue-50 text-blue-700 border-blue-200" : "bg-gray-50 text-gray-600 border-gray-200"}`}
-                        >
-                          <Calendar className="w-3 h-3 mr-1" />
-                          Required by:{" "}
-                          {new Date(effectiveIhd as string).toLocaleDateString()}
-                        </Badge>
-                      ) : (
-                        <Badge
-                          variant="outline"
-                          className="text-[10px] cursor-pointer hover:opacity-80 bg-red-50 text-red-600 border-red-200"
-                        >
-                          No IHD set
-                        </Badge>
-                      )}
+                      <button type="button" className="inline-flex">
+                        {effectiveIhd ? (
+                          <Badge
+                            variant="outline"
+                            className={`text-[10px] cursor-pointer hover:opacity-80 ${vendorIhdValue ? "bg-blue-50 text-blue-700 border-blue-200" : "bg-gray-50 text-gray-600 border-gray-200"}`}
+                          >
+                            <Calendar className="w-3 h-3 mr-1" />
+                            Required by:{" "}
+                            {new Date(effectiveIhd as string).toLocaleDateString()}
+                          </Badge>
+                        ) : (
+                          <Badge
+                            variant="outline"
+                            className="text-[10px] cursor-pointer hover:opacity-80 bg-red-50 text-red-600 border-red-200"
+                          >
+                            No IHD set
+                          </Badge>
+                        )}
+                      </button>
                     </PopoverTrigger>
                     <PopoverContent className="w-auto p-0" align="start">
                       <CalendarPicker

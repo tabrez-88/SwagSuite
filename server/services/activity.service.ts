@@ -5,8 +5,8 @@ import { userRepository } from "../repositories/user.repository";
 import { registerInMediaLibrary } from "../utils/registerInMediaLibrary";
 
 export class ActivityService {
-  async getByOrderId(orderId: string) {
-    return activityRepository.getByOrderId(orderId);
+  async getByOrderId(orderId: string, options?: { limit?: number; offset?: number }) {
+    return activityRepository.getByOrderId(orderId, options);
   }
 
   async create(orderId: string, userId: string, data: {

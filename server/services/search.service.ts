@@ -1,5 +1,5 @@
 import OpenAI from "openai";
-import { and, desc, eq, gte, lte, ilike, or, sql } from "drizzle-orm";
+import { and, desc, eq, gte, lte, ilike, inArray, or, sql } from "drizzle-orm";
 import { db } from "../db";
 import {
   orders,
@@ -104,7 +104,7 @@ Available entity types: order, product, company, contact, vendor, purchase_order
 - "activity" = activity log entries, notes, comments on orders
 
 Stage values: presentation, quote, sales_order, invoice
-Order statuses: salesOrderStatus (new, pending_client_approval, client_approved, in_production, shipped, ready_to_invoice)
+Order statuses: salesOrderStatus (new, pending_client_approval, client_approved, in_production, shipped, ready_to_invoice, invoiced, closed)
 
 Today is ${new Date().toISOString().split("T")[0]}.
 
@@ -307,7 +307,7 @@ async function searchOrders(
   if (f.stage) {
     switch (f.stage) {
       case "invoice":
-        conditions.push(eq(orders.salesOrderStatus, "ready_to_invoice"));
+        conditions.push(inArray(orders.salesOrderStatus, ["ready_to_invoice", "invoiced", "closed"]));
         break;
       case "sales_order":
         conditions.push(
@@ -369,7 +369,7 @@ async function searchOrders(
     const marginPct = o.margin ? Math.round(parseFloat(o.margin)) : 0;
     // Compute display stage from fields
     let stage = "presentation";
-    if (o.salesOrderStatus === "ready_to_invoice") stage = "invoice";
+    if (o.salesOrderStatus && ["ready_to_invoice", "invoiced", "closed"].includes(o.salesOrderStatus)) stage = "invoice";
     else if (o.orderType === "sales_order" || o.orderType === "rush_order" ||
       (o.salesOrderStatus && o.salesOrderStatus !== "new")) stage = "sales_order";
     else if (o.quoteStatus && o.quoteStatus !== "draft") stage = "quote";

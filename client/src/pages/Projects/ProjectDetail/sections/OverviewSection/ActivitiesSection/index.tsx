@@ -7,12 +7,15 @@ import {
   DollarSign,
   Eye,
   FileText,
+  Loader2,
   Mail,
   MessageSquare,
   Paperclip,
+  Plus,
   Send,
   Settings,
   Shield,
+  Trash2,
   Truck,
   Upload,
   UserPlus,
@@ -61,8 +64,22 @@ function getActivityIcon(activityType: string, metadata?: Record<string, unknown
   if (activityType === "artwork_rejected") return <XCircle className="w-3.5 h-3.5 text-orange-700" />;
 
   if (activityType === "system_action") {
+    // Specific approval/decline icons per document type
+    if (action === "quote_approved") return <FileText className="w-3.5 h-3.5 text-green-700" />;
+    if (action === "quote_declined") return <FileText className="w-3.5 h-3.5 text-red-700" />;
+    if (action === "sales_order_approved") return <CheckCircle2 className="w-3.5 h-3.5 text-emerald-700" />;
+    if (action === "sales_order_declined") return <XCircle className="w-3.5 h-3.5 text-red-700" />;
+    if (action === "po_vendor_confirmed") return <CheckCircle2 className="w-3.5 h-3.5 text-green-700" />;
+    if (action === "po_vendor_declined") return <XCircle className="w-3.5 h-3.5 text-red-700" />;
+    // New tracked actions
+    if (action === "product_added") return <Plus className="w-3.5 h-3.5 text-blue-700" />;
+    if (action === "product_removed") return <Trash2 className="w-3.5 h-3.5 text-red-700" />;
+    if (action === "invoice_created" || action === "deposit_invoice_created") return <DollarSign className="w-3.5 h-3.5 text-emerald-700" />;
+    if (action === "document_generated") return <FileText className="w-3.5 h-3.5 text-blue-700" />;
+    if (action === "shipment_created") return <Truck className="w-3.5 h-3.5 text-teal-700" />;
+    // Generic fallbacks
     if (action.includes("approved") || action.includes("confirmed")) return <CheckCircle2 className="w-3.5 h-3.5 text-green-700" />;
-    if (action.includes("declined")) return <XCircle className="w-3.5 h-3.5 text-orange-700" />;
+    if (action.includes("declined")) return <XCircle className="w-3.5 h-3.5 text-red-700" />;
     if (action.includes("viewed") || action.includes("first_view")) return <Eye className="w-3.5 h-3.5 text-indigo-700" />;
     if (action.includes("email") || action === "po_sent" || action.includes("reminder")) return <Mail className="w-3.5 h-3.5 text-blue-700" />;
     if (action.includes("payment") || action.includes("invoice") || action.includes("bill")) return <DollarSign className="w-3.5 h-3.5 text-emerald-700" />;
@@ -127,8 +144,22 @@ function getActivityBg(activityType: string, metadata?: Record<string, unknown>)
   if (activityType === "artwork_rejected") return "bg-orange-100 border-orange-300";
 
   if (activityType === "system_action") {
+    // Specific approval/decline backgrounds per document type
+    if (action === "quote_approved") return "bg-green-100 border-green-400";
+    if (action === "quote_declined") return "bg-red-100 border-red-300";
+    if (action === "sales_order_approved") return "bg-emerald-100 border-emerald-400";
+    if (action === "sales_order_declined") return "bg-red-100 border-red-300";
+    if (action === "po_vendor_confirmed") return "bg-green-100 border-green-300";
+    if (action === "po_vendor_declined") return "bg-red-100 border-red-300";
+    // New tracked actions
+    if (action === "product_added") return "bg-blue-100 border-blue-300";
+    if (action === "product_removed") return "bg-red-100 border-red-300";
+    if (action === "invoice_created" || action === "deposit_invoice_created") return "bg-emerald-100 border-emerald-300";
+    if (action === "document_generated") return "bg-blue-100 border-blue-300";
+    if (action === "shipment_created") return "bg-teal-100 border-teal-300";
+    // Generic fallbacks
     if (action.includes("approved") || action.includes("confirmed")) return "bg-green-100 border-green-300";
-    if (action.includes("declined")) return "bg-orange-100 border-orange-300";
+    if (action.includes("declined")) return "bg-red-100 border-red-300";
     if (action.includes("viewed") || action.includes("first_view")) return "bg-indigo-100 border-indigo-300";
     if (action.includes("email") || action === "po_sent" || action.includes("reminder")) return "bg-blue-100 border-blue-300";
     if (action.includes("payment") || action.includes("invoice") || action.includes("bill")) return "bg-emerald-100 border-emerald-300";
@@ -162,6 +193,20 @@ function getActivityLabel(activityType: string, metadata?: Record<string, unknow
   if (activityType === "product_comment") return "Product Note";
   if (activityType === "file_upload") return "File Upload";
   if (activityType === "system_action" && action) {
+    // Specific labels for approvals/declines
+    const labelMap: Record<string, string> = {
+      quote_approved: "Quote Approved \u2713",
+      quote_declined: "Quote Declined",
+      sales_order_approved: "Sales Order Approved \u2713",
+      sales_order_declined: "Sales Order Declined",
+      product_added: "Product Added",
+      product_removed: "Product Removed",
+      invoice_created: "Invoice Created",
+      deposit_invoice_created: "Deposit Invoice Created",
+      document_generated: "Document Generated",
+      shipment_created: "Shipment Created",
+    };
+    if (labelMap[action]) return labelMap[action];
     return action.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
   }
   return null;
@@ -346,7 +391,12 @@ export default function ActivitiesSection({ projectId, data }: ActivitiesSection
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {hook.activities.length === 0 ? (
+          {hook.isTimelineLoading ? (
+            <div className="p-8 text-center text-sm text-gray-500">
+              <Loader2 className="w-6 h-6 mx-auto mb-2 animate-spin text-gray-400" />
+              <p>Loading activities...</p>
+            </div>
+          ) : hook.timelineActivities.length === 0 ? (
             <div className="p-8 text-center text-sm text-gray-500">
               <Activity className="w-10 h-10 mx-auto mb-3 text-gray-300" />
               <p className="font-medium">No activity yet</p>
@@ -359,7 +409,7 @@ export default function ActivitiesSection({ projectId, data }: ActivitiesSection
               {/* Timeline line */}
               <div className="absolute left-[17px] top-2 bottom-2 w-0.5 bg-gray-200" />
               <div className="space-y-4">
-                {hook.activities.map((activity: ProjectActivity) => {
+                {hook.timelineActivities.map((activity: ProjectActivity) => {
                   const meta = activity.metadata as Record<string, unknown>;
                   const isClient = isClientAction(activity);
                   const isVendor = isVendorAction(activity);
@@ -389,7 +439,7 @@ export default function ActivitiesSection({ projectId, data }: ActivitiesSection
                   return (
                     <div
                       key={activity.id}
-                      className="relative flex gap-3 pl-0"
+                      className={`relative flex gap-3 pl-0 ${isClient || isVendor ? "ring-1 ring-orange-200 rounded-lg p-1.5 -ml-1.5" : ""}`}
                     >
                       {/* Icon */}
                       <div
@@ -415,7 +465,7 @@ export default function ActivitiesSection({ projectId, data }: ActivitiesSection
                           {label && (
                             <Badge
                               variant="secondary"
-                              className="text-[10px] px-1.5 py-0 h-4"
+                              className={`text-[10px] px-1.5 py-0 h-4 ${isClient || isVendor ? "font-semibold" : ""}`}
                             >
                               {label}
                             </Badge>
@@ -437,6 +487,17 @@ export default function ActivitiesSection({ projectId, data }: ActivitiesSection
                   );
                 })}
               </div>
+
+              {/* Infinite scroll sentinel */}
+              {hook.hasMoreTimeline && (
+                <div ref={hook.sentinelRef} className="flex justify-center py-4">
+                  {hook.isFetchingMore ? (
+                    <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
+                  ) : (
+                    <span className="text-xs text-gray-400">Scroll for more</span>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </CardContent>

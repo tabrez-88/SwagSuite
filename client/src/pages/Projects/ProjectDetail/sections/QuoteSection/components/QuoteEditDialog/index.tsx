@@ -20,6 +20,8 @@ import {
 import { Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { Order } from "@shared/schema";
+import { calcSupplierInHandsDate } from "@/lib/dateUtils";
+import { DatePickerInput } from "@/components/ui/date-picker-input";
 import { useQuoteEditDialog } from "./hooks";
 
 interface QuoteEditDialogProps {
@@ -83,19 +85,21 @@ export default function QuoteEditDialog({
           <div className="grid grid-cols-2 gap-4">
             <div>
               <Label className="text-xs text-gray-500">In-Hands Date</Label>
-              <Input
-                type="date"
+              <DatePickerInput
                 value={form.inHandsDate || ""}
-                onChange={(e) => setForm({ ...form, inHandsDate: e.target.value })}
+                onChange={(v) => {
+                  const updated: Record<string, string | null> = { ...form, inHandsDate: v };
+                  if (v) updated.supplierInHandsDate = calcSupplierInHandsDate(v);
+                  setForm(updated);
+                }}
                 className="mt-1"
               />
             </div>
             <div>
               <Label className="text-xs text-gray-500">Supplier In-Hands Date</Label>
-              <Input
-                type="date"
+              <DatePickerInput
                 value={form.supplierInHandsDate || ""}
-                onChange={(e) => setForm({ ...form, supplierInHandsDate: e.target.value })}
+                onChange={(v) => setForm({ ...form, supplierInHandsDate: v })}
                 className="mt-1"
               />
             </div>
