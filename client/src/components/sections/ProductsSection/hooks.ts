@@ -165,8 +165,8 @@ export function useProductsSection({ projectId, data, isLocked }: ProductsSectio
   };
 
   const getProductImage = (item: EnrichedOrderItem) => {
-    const currentProduct = allProducts.find((p) => p.id === item.productId);
-    return currentProduct?.imageUrl || null;
+    // productImageUrl is already COALESCE(orderItem.imageUrl, product.imageUrl) from the DB
+    return item.productImageUrl || null;
   };
 
   const getArtworkCount = (itemId: string): number => allArtworkItems[itemId]?.length || 0;
@@ -263,6 +263,7 @@ export function useProductsSection({ projectId, data, isLocked }: ProductsSectio
       shippingDestination: item.shippingDestination || "",
       shippingAccountType: item.shippingAccountType || "",
       shippingNotes: item.shippingNotes || "",
+      imageUrl: item.imageUrl || "",
     });
     // Copy lines for local editing
     if (itemLines.length > 0) {
@@ -363,6 +364,7 @@ export function useProductsSection({ projectId, data, isLocked }: ProductsSectio
       shippingDestination: editItemData.shippingDestination || null,
       shippingAccountType: editItemData.shippingAccountType || null,
       shippingNotes: editItemData.shippingNotes || null,
+      imageUrl: editItemData.imageUrl || null,
       quantity: totalQty,
       cost: avgCost.toFixed(2),
       unitPrice: avgPrice.toFixed(2),

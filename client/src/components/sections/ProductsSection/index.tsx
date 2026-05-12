@@ -40,6 +40,7 @@ import {
   Loader2,
   Package,
   Palette,
+  Pencil,
   Plus,
   Save,
   Trash2,
@@ -83,6 +84,7 @@ export default function ProductsSection({ projectId, data, isLocked }: ProductsS
   const [depositPercent, setDepositPercent] = useState<string>(order?.depositPercent || "50");
   const [depositEnabled, setDepositEnabled] = useState(hasDeposit);
   const onRegisterAdd = useCallback((fn: () => void) => { addServiceRef.current = fn; }, []);
+  const [showEditImagePicker, setShowEditImagePicker] = useState(false);
 
   // Invoice awareness for deposit toggle
   const { data: allInvoices } = useQuery<any[]>({
@@ -524,12 +526,22 @@ export default function ProductsSection({ projectId, data, isLocked }: ProductsS
               {/* Product Info Header */}
               <div className="flex gap-4 p-4 bg-gray-50 rounded-lg">
                 {(() => {
-                  const img = productSection.getProductImage(productSection.editingItem);
-                  return img ? (
-                    <img src={img} alt={productSection.editingItem.productName ?? undefined} className="w-16 h-16 object-contain rounded border bg-white" />
-                  ) : (
-                    <div className="w-16 h-16 bg-gray-200 rounded border flex items-center justify-center">
-                      <Package className="w-6 h-6 text-gray-400" />
+                  const editImg = productSection.editItemData.imageUrl || productSection.getProductImage(productSection.editingItem);
+                  return (
+                    <div
+                      className="relative group cursor-pointer"
+                      onClick={() => setShowEditImagePicker(true)}
+                    >
+                      {editImg ? (
+                        <img src={editImg} alt={productSection.editingItem.productName ?? undefined} className="w-16 h-16 object-contain rounded border bg-white" />
+                      ) : (
+                        <div className="w-16 h-16 bg-gray-200 rounded border flex items-center justify-center">
+                          <Package className="w-6 h-6 text-gray-400" />
+                        </div>
+                      )}
+                      <div className="absolute inset-0 bg-black/40 rounded opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                        <Pencil className="w-4 h-4 text-white" />
+                      </div>
                     </div>
                   );
                 })()}
@@ -544,6 +556,21 @@ export default function ProductsSection({ projectId, data, isLocked }: ProductsS
                     )}
                   </div>
                 </div>
+                <FilePickerDialog
+                  open={showEditImagePicker}
+                  onClose={() => setShowEditImagePicker(false)}
+                  onSelect={(files: any[]) => {
+                    const file = files[0];
+                    if (file) {
+                      productSection.setEditItemData((d: any) => ({
+                        ...d,
+                        imageUrl: file.cloudinaryUrl,
+                      }));
+                    }
+                    setShowEditImagePicker(false);
+                  }}
+                  title="Change Product Image"
+                />
               </div>
 
               {/* Description */}

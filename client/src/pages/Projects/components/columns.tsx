@@ -27,7 +27,7 @@ import {
   type DeterminedStage,
 } from "@/constants/businessStages";
 import type { Order } from "@shared/schema";
-import { DataTableColumnHeader } from "@/components/data-table/data-table-column-header";
+
 
 export type OrderWithRelations = Order & {
   companyName?: string;
@@ -82,7 +82,6 @@ export const columns: ColumnDef<OrderWithRelations>[] = [
       </span>
     ),
     cell: ({ row }) => {
-      console.log("Rendering orderNumber cell for project:", row.original);
       return (
         <div>
           {row.original.projectName ? (
@@ -159,7 +158,12 @@ export const columns: ColumnDef<OrderWithRelations>[] = [
   {
     accessorKey: "total",
     header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Total" />
+      <span
+        className="flex items-center cursor-pointer select-none"
+        onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+      >
+        Total <SortIcon column={column} />
+      </span>
     ),
     cell: ({ row }) => {
       const amount = parseFloat(row.getValue("total") || "0");

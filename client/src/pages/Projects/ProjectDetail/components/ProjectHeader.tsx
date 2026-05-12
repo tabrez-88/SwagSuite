@@ -32,7 +32,7 @@ export default function ProjectHeader({
           <FileText className="size-8" />
           <div className="flex flex-col">
             <EditableText
-              value={order.projectName || ""}
+              value={order.projectName ? order.projectName : `Project #${order.orderNumber}`}
               field="projectName"
               onSave={updateField}
               placeholder={`Project #${order.orderNumber}`}

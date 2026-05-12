@@ -16,7 +16,7 @@ export class ApprovalController {
 
     const { db } = await import("../db");
     const { artworkApprovals, artworkItems, orders, orderItems, products, companies } = await import("@shared/schema");
-    const { eq, and, desc } = await import("drizzle-orm");
+    const { eq, and, desc, sql } = await import("drizzle-orm");
 
     const [approval] = await db
       .select({
@@ -38,7 +38,7 @@ export class ApprovalController {
         companyName: companies.name,
         productName: products.name,
         productSku: products.sku,
-        productImageUrl: products.imageUrl,
+        productImageUrl: sql`COALESCE(${orderItems.imageUrl}, ${products.imageUrl})`.as("product_image_url"),
         itemQuantity: orderItems.quantity,
         itemColor: orderItems.color,
         itemSize: orderItems.size,
@@ -581,7 +581,7 @@ export class ApprovalController {
 
     const { db } = await import("../db");
     const { quoteApprovals, orders, companies, orderItems, products, generatedDocuments } = await import("@shared/schema");
-    const { eq } = await import("drizzle-orm");
+    const { eq, sql } = await import("drizzle-orm");
 
     const [approval] = await db
       .select({
@@ -670,7 +670,7 @@ export class ApprovalController {
         id: orderItems.id,
         productName: products.name,
         productSku: products.sku,
-        productImageUrl: products.imageUrl,
+        productImageUrl: sql`COALESCE(${orderItems.imageUrl}, ${products.imageUrl})`.as("product_image_url"),
         quantity: orderItems.quantity,
         unitPrice: orderItems.unitPrice,
         totalPrice: orderItems.totalPrice,
