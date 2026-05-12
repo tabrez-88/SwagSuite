@@ -405,10 +405,10 @@ export default function ActivitiesSection({ projectId, data }: ActivitiesSection
               </p>
             </div>
           ) : (
-            <div className="relative">
+            <div className="relative ">
               {/* Timeline line */}
-              <div className="absolute left-[17px] top-2 bottom-2 w-0.5 bg-gray-200" />
-              <div className="space-y-4">
+              <div className="absolute left-[34px] h-full z-90 top-0 bottom-0 w-0.5 bg-gray-200" />
+              <div className="space-y-4 max-h-[510px] overflow-y-auto px-2">
                 {hook.timelineActivities.map((activity: ProjectActivity) => {
                   const meta = activity.metadata as Record<string, unknown>;
                   const isClient = isClientAction(activity);
@@ -422,7 +422,7 @@ export default function ActivitiesSection({ projectId, data }: ActivitiesSection
                   } else if (isClient) {
                     userName = (meta?.clientName as string) || "Client";
                     badgeLabel = "Client";
-                    badgeClass += " bg-orange-100 text-orange-700 border-orange-300";
+                    badgeClass += " bg-blue-100 text-blue-700 border-blue-300";
                   } else if (isVendor) {
                     userName = (meta?.vendorName as string) || "Vendor";
                     badgeLabel = "Vendor";
@@ -439,7 +439,7 @@ export default function ActivitiesSection({ projectId, data }: ActivitiesSection
                   return (
                     <div
                       key={activity.id}
-                      className={`relative flex gap-3 pl-0 ${isClient || isVendor ? "ring-1 ring-orange-200 rounded-lg p-1.5 -ml-1.5" : ""}`}
+                      className={`relative flex items-center gap-3 p-2 ${isClient || isVendor ? "ring-2 ring-blue-200 rounded-lg p-1.5 " : ""}`}
                     >
                       {/* Icon */}
                       <div

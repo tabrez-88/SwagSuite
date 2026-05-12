@@ -424,7 +424,7 @@ export class AuthController {
       }
 
       // Validate role
-      if (!['admin', 'manager', 'user'].includes(role)) {
+      if (!['admin', 'manager', 'user', 'sales', 'production', 'finance'].includes(role)) {
         return res.status(400).json({ message: "Invalid role" });
       }
 

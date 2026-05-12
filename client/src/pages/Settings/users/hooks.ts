@@ -27,6 +27,27 @@ const roleConfig: Record<string, RoleConfigEntry> = {
     bgColor: "bg-blue-50",
     borderColor: "border-blue-200",
   },
+  sales: {
+    label: "Sales",
+    icon: UserIcon,
+    color: "text-emerald-600",
+    bgColor: "bg-emerald-50",
+    borderColor: "border-emerald-200",
+  },
+  production: {
+    label: "Production",
+    icon: UserIcon,
+    color: "text-orange-600",
+    bgColor: "bg-orange-50",
+    borderColor: "border-orange-200",
+  },
+  finance: {
+    label: "Finance",
+    icon: UserIcon,
+    color: "text-purple-600",
+    bgColor: "bg-purple-50",
+    borderColor: "border-purple-200",
+  },
   user: {
     label: "User",
     icon: UserIcon,
@@ -49,12 +70,13 @@ export function useUsersPage() {
     isLoading: boolean;
   };
   const { data: currentUser } = useAuthUser() as unknown as { data: User | undefined };
+  const isStaff = !!currentUser?.role && currentUser.role !== "user";
   const { data: pendingInvitations = [] } = usePendingInvitations(
-    currentUser?.role === "admin" || currentUser?.role === "manager",
+    isStaff,
   ) as unknown as { data: PendingInvitation[] };
 
   const isAdmin = currentUser?.role === "admin";
-  const canInvite = currentUser?.role === "admin" || currentUser?.role === "manager";
+  const canInvite = isStaff;
 
   // Debug: Log current user info
   console.log("Current user:", currentUser);

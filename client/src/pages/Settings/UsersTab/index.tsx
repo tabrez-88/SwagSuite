@@ -108,7 +108,7 @@ export function UsersTab({ user }: UsersTabProps) {
                   <Select
                     value={userItem.role || "user"}
                     onValueChange={(
-                      value: "admin" | "manager" | "user",
+                      value: "admin" | "manager" | "user" | "sales" | "production" | "finance",
                     ) => updateUserRole(userItem.id, value)}
                     disabled={isUpdatingRole || !isAdmin}
                   >
@@ -119,18 +119,23 @@ export function UsersTab({ user }: UsersTabProps) {
                       <SelectItem value="admin">Admin</SelectItem>
                       <SelectItem value="manager">Manager</SelectItem>
                       <SelectItem value="user">User</SelectItem>
+                      <SelectItem value="sales">Sales</SelectItem>
+                      <SelectItem value="production">Production</SelectItem>
+                      <SelectItem value="finance">Finance</SelectItem>
                     </SelectContent>
                   </Select>
                   <Badge
                     variant={
                       userItem.role === "admin"
                         ? "default"
-                        : userItem.role === "manager"
+                        : userItem.role === "manager" || userItem.role === "production"
                           ? "secondary"
                           : "outline"
                     }
                   >
-                    {userItem.role || "user"}
+                    {userItem.role
+                      ? userItem.role.charAt(0).toUpperCase() + userItem.role.slice(1)
+                      : "User"}
                   </Badge>
                 </div>
               </div>

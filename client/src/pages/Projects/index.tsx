@@ -2,12 +2,13 @@ import { useQuery } from "@tanstack/react-query";
 import { useState, useMemo } from "react";
 import { useLocation } from "@/lib/wouter-compat";
 import { useAuth } from "@/hooks/useAuth";
+import { useProjectFilters } from "@/hooks/useProjectFilters";
 
 import NewProjectWizard from "@/components/modals/NewProjectWizard";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import type { Order } from "@shared/schema";
-import { CheckCircle2, Clock, DollarSign, FileText, Kanban, List, PlusCircle, ShoppingCart, Receipt } from "lucide-react";
+import { CheckCircle2, Clock, DollarSign, FileText, Kanban, List, PlusCircle, ShoppingCart, Receipt, RotateCcw } from "lucide-react";
 import { columns, OrderWithRelations } from "./components/columns";
 import { DataTable } from "./components/data-table";
 import { KanbanBoard } from "./components/kanban-board";
@@ -17,16 +18,7 @@ export default function ProjectsPage() {
   const { user } = useAuth();
   const currentUserName = user ? `${(user as any).firstName || ""} ${(user as any).lastName || ""}`.trim() : "";
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [viewMode, setViewMode] = useState<"table" | "kanban">("table");
-  const [activeSOFilter, setActiveSOFilter] = useState<string | null>(null);
-  const [activeStageFilter, setActiveStageFilter] = useState<string | null>(null);
-  const [salesRepFilter, setSalesRepFilter] = useState<string | null>(null); // null = not initialized yet
-  const [salesRepInitialized, setSalesRepInitialized] = useState(false);
   const [, setLocation] = useLocation();
-
-  const clearFilters = () => { setActiveSOFilter(null); setActiveStageFilter(null); };
-  const toggleSOFilter = (val: string) => { setActiveStageFilter(null); setActiveSOFilter(activeSOFilter === val ? null : val); };
-  const toggleStageFilter = (val: string) => { setActiveSOFilter(null); setActiveStageFilter(activeStageFilter === val ? null : val); };
 
   const { data: orders = [], isLoading } = useQuery<Order[]>({
     queryKey: ["/api/projects"],
@@ -51,12 +43,25 @@ export default function ProjectsPage() {
     };
   });
 
-  // Initialize sales rep filter to current user once data is loaded
-  if (!salesRepInitialized && currentUserName && ordersWithRelations.length > 0) {
-    const hasOrders = ordersWithRelations.some((o) => o.assignedUserName === currentUserName);
-    setSalesRepFilter(hasOrders ? currentUserName : "all");
-    setSalesRepInitialized(true);
-  }
+  const hasOrders = ordersWithRelations.some((o) => o.assignedUserName === currentUserName);
+
+  const {
+    salesRepFilter, setSalesRepFilter,
+    activeSOFilter, setActiveSOFilter,
+    activeStageFilter, setActiveStageFilter,
+    viewMode, setViewMode,
+    resetToDefaults,
+  } = useProjectFilters({
+    userId: (user as any)?.id || null,
+    userRole: (user as any)?.role || "user",
+    currentUserName,
+    hasOrders,
+    isDataLoaded: !isLoading,
+  });
+
+  const clearFilters = () => { setActiveSOFilter(null); setActiveStageFilter(null); };
+  const toggleSOFilter = (val: string) => { setActiveStageFilter(null); setActiveSOFilter(activeSOFilter === val ? null : val); };
+  const toggleStageFilter = (val: string) => { setActiveSOFilter(null); setActiveStageFilter(activeStageFilter === val ? null : val); };
 
   // Filter by sales rep for summary card counts
   const repFilteredOrders = useMemo(() => {
@@ -220,6 +225,10 @@ export default function ProjectsPage() {
           )}
           <button onClick={clearFilters} className="text-gray-400 hover:text-gray-600 underline text-xs">
             Clear
+          </button>
+          <button onClick={resetToDefaults} className="text-gray-400 hover:text-gray-600 underline text-xs flex items-center gap-1">
+            <RotateCcw size={10} />
+            Reset to Defaults
           </button>
         </div>
       )}

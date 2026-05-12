@@ -288,6 +288,54 @@ export default function ProfilePage() {
                                 </li>
                             </>
                         )}
+                        {user.role === "sales" && (
+                            <>
+                                <li className="flex items-center gap-2 text-emerald-700">
+                                    <CheckCircle2 className="h-4 w-4" />
+                                    Manage quotes and sales orders
+                                </li>
+                                <li className="flex items-center gap-2 text-emerald-700">
+                                    <CheckCircle2 className="h-4 w-4" />
+                                    Access CRM and client management
+                                </li>
+                                <li className="flex items-center gap-2 text-emerald-700">
+                                    <CheckCircle2 className="h-4 w-4" />
+                                    Access system settings
+                                </li>
+                            </>
+                        )}
+                        {user.role === "production" && (
+                            <>
+                                <li className="flex items-center gap-2 text-orange-700">
+                                    <CheckCircle2 className="h-4 w-4" />
+                                    Manage purchase orders and production
+                                </li>
+                                <li className="flex items-center gap-2 text-orange-700">
+                                    <CheckCircle2 className="h-4 w-4" />
+                                    Track vendor and shipping status
+                                </li>
+                                <li className="flex items-center gap-2 text-orange-700">
+                                    <CheckCircle2 className="h-4 w-4" />
+                                    Access system settings
+                                </li>
+                            </>
+                        )}
+                        {user.role === "finance" && (
+                            <>
+                                <li className="flex items-center gap-2 text-purple-700">
+                                    <CheckCircle2 className="h-4 w-4" />
+                                    Manage invoices and billing
+                                </li>
+                                <li className="flex items-center gap-2 text-purple-700">
+                                    <CheckCircle2 className="h-4 w-4" />
+                                    Access financial reports
+                                </li>
+                                <li className="flex items-center gap-2 text-purple-700">
+                                    <CheckCircle2 className="h-4 w-4" />
+                                    Access system settings
+                                </li>
+                            </>
+                        )}
                         {user.role === "user" && (
                             <>
                                 <li className="flex items-center gap-2 text-gray-700">

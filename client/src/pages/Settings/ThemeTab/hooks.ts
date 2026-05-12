@@ -24,11 +24,12 @@ export function useThemeTab() {
   const { user, isLoading: authLoading } = useAuth();
   const { toast } = useToast();
 
+  const userRole = (user as any)?.role;
   const isAdmin =
-    (user as any)?.role === "admin" ||
+    userRole === "admin" ||
     (user as any)?.email === "bgoltzman@liquidscreendesign.com";
-  const isManager = (user as any)?.role === "manager";
-  const hasAccess = isAdmin || isManager;
+  const isManager = userRole === "manager";
+  const hasAccess = isAdmin || isManager || (!!userRole && userRole !== "user");
 
   const { data: brandingSettings } = useBranding() as { data: BrandingSettings | undefined };
 

@@ -48,17 +48,17 @@ export default function Settings() {
   const { user, isLoading: authLoading } = useAuth();
   const [activeTab, setActiveTab] = useTabParam("features");
 
-  // Load admin settings from backend (admin/manager only).
-  const isStaff =
-    (user as any)?.role === "admin" || (user as any)?.role === "manager";
+  // Load admin settings from backend (staff roles).
+  const userRole = (user as any)?.role;
+  const isAdmin =
+    userRole === "admin" ||
+    (user as any)?.email === "bgoltzman@liquidscreendesign.com";
+  const isManager = userRole === "manager";
+  const isStaff = !!userRole && userRole !== "user";
   const { data: adminSettings, isLoading: settingsLoading } =
     useAdminSettings(isStaff);
 
-  const isAdmin =
-    (user as any)?.role === "admin" ||
-    (user as any)?.email === "bgoltzman@liquidscreendesign.com";
-  const isManager = (user as any)?.role === "manager";
-  const hasAccess = isAdmin || isManager;
+  const hasAccess = isStaff || isAdmin;
 
   const { data: imprintPending } = useImprintSuggestionPendingCount();
 
@@ -102,7 +102,7 @@ export default function Settings() {
         </div>
         <Badge variant="outline" className="flex items-center gap-2">
           <Shield className="w-4 h-4" />
-          {isAdmin ? "Administrator" : "Manager"} Access
+          {isAdmin ? "Administrator" : userRole ? userRole.charAt(0).toUpperCase() + userRole.slice(1) : "User"} Access
         </Badge>
       </div>
 

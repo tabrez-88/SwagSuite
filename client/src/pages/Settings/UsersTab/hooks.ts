@@ -17,7 +17,7 @@ export function useUsersTab(user: any) {
   const _updateRole = useUpdateUserRole();
   const _updateCommission = useUpdateUserCommission();
 
-  const updateUserRole = (userId: string, newRole: "admin" | "manager" | "user") => {
+  const updateUserRole = (userId: string, newRole: "admin" | "manager" | "user" | "sales" | "production" | "finance") => {
     _updateRole.mutate(
       { userId, role: newRole },
       {

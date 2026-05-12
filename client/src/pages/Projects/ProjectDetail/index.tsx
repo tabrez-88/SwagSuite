@@ -159,7 +159,7 @@ export default function ProjectDetailPage() {
           salesOrderStatus={data.order?.salesOrderStatus ?? undefined}
         />
 
-        <div className="flex-1 p-6 pb-24 bg-gray-50">
+        <div className="flex-1 p-6 bg-gray-50">
           {renderSection()}
         </div>
       </div>

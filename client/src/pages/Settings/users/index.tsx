@@ -142,6 +142,9 @@ export default function UsersPage() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="user">User</SelectItem>
+                      <SelectItem value="sales">Sales</SelectItem>
+                      <SelectItem value="production">Production</SelectItem>
+                      <SelectItem value="finance">Finance</SelectItem>
                       <SelectItem value="manager">Manager</SelectItem>
                       {isAdmin && <SelectItem value="admin">Admin</SelectItem>}
                     </SelectContent>
@@ -350,6 +353,24 @@ export default function UsersPage() {
                               <div className="flex items-center gap-2">
                                 <Shield className="h-4 w-4 text-blue-600" />
                                 <span>Manager</span>
+                              </div>
+                            </SelectItem>
+                            <SelectItem value="sales">
+                              <div className="flex items-center gap-2">
+                                <UserIcon className="h-4 w-4 text-emerald-600" />
+                                <span>Sales</span>
+                              </div>
+                            </SelectItem>
+                            <SelectItem value="production">
+                              <div className="flex items-center gap-2">
+                                <UserIcon className="h-4 w-4 text-orange-600" />
+                                <span>Production</span>
+                              </div>
+                            </SelectItem>
+                            <SelectItem value="finance">
+                              <div className="flex items-center gap-2">
+                                <UserIcon className="h-4 w-4 text-purple-600" />
+                                <span>Finance</span>
                               </div>
                             </SelectItem>
                             <SelectItem value="user">
