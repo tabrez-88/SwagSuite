@@ -328,21 +328,32 @@ export default function VendorCard({
                       <CalendarPicker
                         mode="single"
                         selected={effectiveIhd ? new Date(effectiveIhd as string) : undefined}
-                        onSelect={(date) => {
+                        onSelect={async (date) => {
                           if (!date) return;
                           const isoDate = date.toISOString().slice(0, 10);
-                          if (vendorDoc) {
-                            onUpdateDocMeta({ docId: vendorDoc.id, updates: { supplierIHD: isoDate } });
-                          }
-                          // Sync to item-level shipInHandsDate for all items in this PO group
-                          for (const item of po.items) {
-                            updateItemShipping.mutate({
-                              itemId: item.id,
-                              fields: { shipInHandsDate: new Date(isoDate).toISOString() },
-                            });
-                          }
                           setIhdPopoverOpen(false);
-                          toast({ title: "Supplier IHD updated", description: `Set to ${date.toLocaleDateString()} for ${po.items.length} item(s)` });
+                          try {
+                            // Update doc metadata (supplierIHD)
+                            if (vendorDoc) {
+                              const existingMeta = (vendorDoc.metadata as Record<string, unknown>) || {};
+                              await updateDocMetaMutation.mutateAsync({
+                                docId: vendorDoc.id,
+                                updates: { metadata: { ...existingMeta, supplierIHD: isoDate } },
+                              });
+                            }
+                            // Sync to item-level shipInHandsDate
+                            await Promise.all(
+                              po.items.map((item) =>
+                                updateItemShipping.mutateAsync({
+                                  itemId: item.id,
+                                  fields: { shipInHandsDate: new Date(isoDate).toISOString() },
+                                }),
+                              ),
+                            );
+                            toast({ title: "Supplier IHD updated", description: `Set to ${date.toLocaleDateString()} for ${po.items.length} item(s)` });
+                          } catch {
+                            // Mutations already show their own error toasts via onError
+                          }
                         }}
                       />
                     </PopoverContent>
