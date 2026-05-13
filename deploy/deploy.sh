@@ -43,7 +43,7 @@ echo ""
 
 # Service configuration
 SERVICE_NAME="swagsuite"
-REGION="asia-southeast2"  # Jakarta region
+REGION="europe-west1"  # Europe region
 IMAGE_NAME="gcr.io/$PROJECT_ID/$SERVICE_NAME"
 
 # Build options

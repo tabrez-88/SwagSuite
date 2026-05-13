@@ -2,7 +2,7 @@
 # Triggered on push to main branch via Cloud Build trigger
 
 substitutions:
-  _REGION: 'asia-southeast2'
+  _REGION: 'europe-west1'
   _REPO: 'cloud-run-source-deploy'
   _TAG: '${SHORT_SHA}'
 
@@ -62,8 +62,8 @@ steps:
       - '300'
       - '--update-env-vars'
       - 'NODE_ENV=production,QB_ENVIRONMENT=sandbox,DEFAULT_USER_ROLE=admin,SHIPSTATION_DRY_RUN=false,SHIPSTATION_ENABLE_LABEL_PURCHASE=false'
-      - '--update-secrets'
-      - 'TWO_FACTOR_ENCRYPTION_KEY=TWO_FACTOR_ENCRYPTION_KEY:latest,SHIPSTATION_API_KEY=SHIPSTATION_API_KEY:latest,SHIPSTATION_API_SECRET=SHIPSTATION_API_SECRET:latest'
+      # Secrets loaded at runtime via loadSecrets() from Secret Manager
+      # No --update-secrets needed
     id: 'deploy-cloud-run'
     waitFor: ['push-image']
 
