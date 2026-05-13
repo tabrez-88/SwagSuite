@@ -83,6 +83,17 @@ export function usePurchaseOrdersSection({ projectId, data, isLocked }: Purchase
   const grandTotalCost = vendorPOs.reduce((s, po) => s + po.totalCost, 0);
   const grandTotalQty = vendorPOs.reduce((s, po) => s + po.totalQty, 0);
 
+  const getVendorDoc = (groupKey: string) => {
+    // Prefer exact match via PO entity documentId (most reliable link)
+    const entity = getPOEntity(groupKey);
+    if (entity?.documentId) {
+      const byEntity = poDocuments.find((d) => d.id === entity.documentId);
+      if (byEntity) return byEntity;
+    }
+    // Then match by groupKey in document metadata (only reliable unique key per PO group)
+    return poDocuments.find((d) => (d.metadata as Record<string, unknown>)?.groupKey === groupKey) || null;
+  };
+
   // PO group hashes for stale detection (keyed by groupKey)
   const vendorHashes = useMemo(() => {
     const hashes: Record<string, string> = {};
@@ -96,17 +107,6 @@ export function usePurchaseOrdersSection({ projectId, data, isLocked }: Purchase
     return hashes;
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [vendorPOs, order, poDocuments]);
-
-  const getVendorDoc = (groupKey: string) => {
-    // Prefer exact match via PO entity documentId (most reliable link)
-    const entity = getPOEntity(groupKey);
-    if (entity?.documentId) {
-      const byEntity = poDocuments.find((d) => d.id === entity.documentId);
-      if (byEntity) return byEntity;
-    }
-    // Then match by groupKey in document metadata (only reliable unique key per PO group)
-    return poDocuments.find((d) => (d.metadata as Record<string, unknown>)?.groupKey === groupKey) || null;
-  };
 
   const orderExt = order as (typeof order) & { shippingCity?: string; shippingState?: string } | undefined;
   const hasShippingAddress = !!order?.shippingAddress ||
