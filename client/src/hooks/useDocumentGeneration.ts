@@ -6,7 +6,7 @@ import { uploadDocument, deleteDocument as deleteDocumentRequest, createQuoteApp
 
 // Build a fingerprint string for items + order-level fields to detect changes.
 // Stored in document metadata so we can flag stale PDFs after edits.
-export function buildItemsHash(items: any[], type: "quote" | "po" | "sales_order", order?: any): string {
+export function buildItemsHash(items: any[], type: "quote" | "po" | "sales_order", order?: any, effectiveSupplierIhd?: string | null): string {
   const sorted = [...items].sort((a, b) => (a.id || "").localeCompare(b.id || ""));
   const itemsData = sorted.map((i) => ({
     id: i.id,
@@ -25,7 +25,7 @@ export function buildItemsHash(items: any[], type: "quote" | "po" | "sales_order
       ? { notes: order.notes || "", additionalInfo: order.additionalInformation || "", ihd: order.inHandsDate || "", eventDate: order.eventDate || "" }
       : type === "sales_order"
         ? { notes: order.notes || "", ihd: order.inHandsDate || "", eventDate: order.eventDate || "", billing: order.billingAddress || "", shipping: order.shippingAddress || "" }
-        : { notes: order.notes || "", supplierNotes: order.supplierNotes || "", supplierIhd: order.supplierInHandsDate || "", isFirm: order.isFirm || false, isRush: order.isRush || false }
+        : { notes: order.notes || "", supplierNotes: order.supplierNotes || "", supplierIhd: effectiveSupplierIhd ?? (order.supplierInHandsDate || ""), isFirm: order.isFirm || false, isRush: order.isRush || false }
     : {};
   return JSON.stringify({ items: itemsData, ...orderFields });
 }

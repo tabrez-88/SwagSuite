@@ -37,6 +37,7 @@ import {
 import { useState, useCallback, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { useMutation } from "@tanstack/react-query";
+import { useUpdateItemShipping } from "@/services/project-items/mutations";
 import { pushOrderToShipStation } from "@/services/settings/requests";
 import { useIntegrationSettingsList } from "@/services/integrations/settings/queries";
 import type { GeneratedDocument } from "@shared/schema";
@@ -135,6 +136,9 @@ export default function VendorCard({
     companyName: context.companyName,
     orderId: context.order?.id as string | undefined,
   });
+
+  // Mutation to sync IHD to item-level shipping
+  const updateItemShipping = useUpdateItemShipping(context.projectId);
 
   // Local dialog states
   const [showTextPreview, setShowTextPreview] = useState(false);
@@ -330,8 +334,15 @@ export default function VendorCard({
                           if (vendorDoc) {
                             onUpdateDocMeta({ docId: vendorDoc.id, updates: { supplierIHD: isoDate } });
                           }
+                          // Sync to item-level shipInHandsDate for all items in this PO group
+                          for (const item of po.items) {
+                            updateItemShipping.mutate({
+                              itemId: item.id,
+                              fields: { shipInHandsDate: new Date(isoDate).toISOString() },
+                            });
+                          }
                           setIhdPopoverOpen(false);
-                          toast({ title: "IHD updated", description: `Supplier in-hands date set to ${date.toLocaleDateString()}` });
+                          toast({ title: "Supplier IHD updated", description: `Set to ${date.toLocaleDateString()} for ${po.items.length} item(s)` });
                         }}
                       />
                     </PopoverContent>

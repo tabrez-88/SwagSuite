@@ -87,10 +87,15 @@ export function usePurchaseOrdersSection({ projectId, data, isLocked }: Purchase
   const vendorHashes = useMemo(() => {
     const hashes: Record<string, string> = {};
     for (const group of vendorPOs) {
-      hashes[group.groupKey] = buildItemsHash(group.items, "po", order);
+      // If PO has custom supplier IHD in doc metadata, use that instead of order-level
+      const doc = getVendorDoc(group.groupKey);
+      const docMeta = doc?.metadata as Record<string, unknown> | null;
+      const effectiveIhd = (docMeta?.supplierIHD as string) || null;
+      hashes[group.groupKey] = buildItemsHash(group.items, "po", order, effectiveIhd);
     }
     return hashes;
-  }, [vendorPOs, order]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vendorPOs, order, poDocuments]);
 
   const getVendorDoc = (groupKey: string) => {
     // Prefer exact match via PO entity documentId (most reliable link)
@@ -147,6 +152,8 @@ export function usePurchaseOrdersSection({ projectId, data, isLocked }: Purchase
   const _updatePODocMeta = useUpdatePODocMeta(projectId);
   // Pending revision for regenerate flow
   const _pendingRevision = useRef<number | null>(null);
+  // Pending custom metadata to preserve across regenerate (custom IHD, blind ship, etc.)
+  const _pendingCustomMeta = useRef<Record<string, Record<string, unknown>>>({});
   // Pending vendor notes (set by VendorCard before PO entity exists)
   const _pendingNotes = useRef<Record<string, { vendorNotes: string; internalNotes: string }>>({});
   // Pending blind ship flag (set by VendorCard before doc exists)
@@ -273,9 +280,33 @@ export function usePurchaseOrdersSection({ projectId, data, isLocked }: Purchase
           revision: _pendingRevision.current || (newDoc.metadata as Record<string, unknown>)?.revision || 1,
           blindShip: _pendingBlindShip.current[groupKey] || false,
         };
-        if (orderIHD && !isDecorator) {
-          meta.supplierIHD = new Date(orderIHD as unknown as string).toISOString().split("T")[0];
+        // Check for preserved custom metadata from regenerate (highest priority)
+        const pendingCustom = _pendingCustomMeta.current[groupKey];
+        if (pendingCustom?.supplierIHD) {
+          meta.supplierIHD = pendingCustom.supplierIHD;
+        } else if (isDecorator) {
+          // Decorator→Client PO: use order-level supplier IHD
+          if (orderIHD) {
+            meta.supplierIHD = new Date(orderIHD as unknown as string).toISOString().split("T")[0];
+          }
+        } else if (orderIHD) {
+          // Check if this supplier group has third-party items with a decorator
+          const hasThirdParty = group.items.some((i) => i.decoratorType === "third_party");
+          if (hasThirdParty) {
+            // Supplier→Decorator PO (blank): 1 week before order-level supplier IHD
+            const supplierDate = new Date(orderIHD as unknown as string);
+            supplierDate.setDate(supplierDate.getDate() - 7);
+            meta.supplierIHD = supplierDate.toISOString().split("T")[0];
+          } else {
+            meta.supplierIHD = new Date(orderIHD as unknown as string).toISOString().split("T")[0];
+          }
         }
+        // Apply other preserved custom fields from regenerate
+        if (pendingCustom?.blindShip !== undefined) meta.blindShip = pendingCustom.blindShip;
+        if (pendingCustom?.shippingAccountName) meta.shippingAccountName = pendingCustom.shippingAccountName;
+        if (pendingCustom?.shippingAccountNumber) meta.shippingAccountNumber = pendingCustom.shippingAccountNumber;
+        // Clear after use
+        delete _pendingCustomMeta.current[groupKey];
         await _updatePODocMeta.mutateAsync({
           docId: newDoc.id,
           updates: { metadata: meta },
@@ -352,9 +383,20 @@ export function usePurchaseOrdersSection({ projectId, data, isLocked }: Purchase
   const handleRegeneratePO = async (doc: GeneratedDocument) => {
     const oldMeta = doc.metadata as Record<string, unknown> | null;
     const oldRevision = (oldMeta?.revision as number) || 1;
+    const groupKey = (oldMeta?.groupKey as string) || doc.vendorId || "";
+
+    // Preserve custom metadata from old doc before deleting
+    const customFields: Record<string, unknown> = {};
+    if (oldMeta?.supplierIHD) customFields.supplierIHD = oldMeta.supplierIHD;
+    if (oldMeta?.blindShip) customFields.blindShip = oldMeta.blindShip;
+    if (oldMeta?.shippingAccountName) customFields.shippingAccountName = oldMeta.shippingAccountName;
+    if (oldMeta?.shippingAccountNumber) customFields.shippingAccountNumber = oldMeta.shippingAccountNumber;
+    if (Object.keys(customFields).length > 0) {
+      _pendingCustomMeta.current[groupKey] = customFields;
+    }
+
     await deleteDocument(doc.id);
     await new Promise((r) => setTimeout(r, 300));
-    const groupKey = (oldMeta?.groupKey as string) || doc.vendorId || "";
     const group = vendorPOs.find((g) => g.groupKey === groupKey);
     const vendorName = group?.vendor.name || doc.vendorName || "";
     // Store next revision so handleGeneratePO picks it up
