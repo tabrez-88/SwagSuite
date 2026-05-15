@@ -38,7 +38,7 @@ Write-Host ""
 
 # Service configuration
 $SERVICE_NAME = "swagsuite"
-$REGION = "asia-southeast2"  # Jakarta region
+$REGION = "us-west1"  # US West (Oregon) - near Neon DB us-west-2
 $IMAGE_NAME = "gcr.io/$PROJECT_ID/$SERVICE_NAME"
 
 # Build options

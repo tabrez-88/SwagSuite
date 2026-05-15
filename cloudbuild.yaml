@@ -2,7 +2,7 @@
 # Triggered on push to main branch via Cloud Build trigger
 
 substitutions:
-  _REGION: 'europe-west1'
+  _REGION: 'us-west1'
   _REPO: 'cloud-run-source-deploy'
   _TAG: '${SHORT_SHA}'
 
@@ -51,11 +51,11 @@ steps:
       - 'managed'
       - '--allow-unauthenticated'
       - '--memory'
-      - '1Gi'
+      - '2Gi'
       - '--cpu'
-      - '1'
+      - '2'
       - '--min-instances'
-      - '0'
+      - '1'
       - '--max-instances'
       - '3'
       - '--timeout'
