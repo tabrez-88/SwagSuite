@@ -5,7 +5,7 @@ import type { Express, RequestHandler } from "express";
 import connectPg from "connect-pg-simple";
 import { userRepository } from "../repositories/user.repository";
 import { comparePassword } from "../utils/password";
-import { pool } from "../db";
+import pg from "pg";
 import {
   generateTOTPSecret,
   generateQRCodeDataURL,
@@ -54,8 +54,14 @@ setInterval(() => {
 export function getSession() {
   const sessionTtl = 7 * 24 * 60 * 60 * 1000; // 1 week
   const pgStore = connectPg(session);
+  // Use native pg Pool for session store (not @neondatabase/serverless)
+  // connect-pg-simple requires standard pg Pool, not Neon's WebSocket-based pool
+  const sessionPool = new pg.Pool({
+    connectionString: process.env.DATABASE_URL?.trim(),
+    ssl: { rejectUnauthorized: false },
+  });
   const sessionStore = new pgStore({
-    pool,
+    pool: sessionPool,
     createTableIfMissing: true,
     ttl: sessionTtl,
     tableName: "sessions",
