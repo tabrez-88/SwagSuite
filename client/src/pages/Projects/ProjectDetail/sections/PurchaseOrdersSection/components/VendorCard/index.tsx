@@ -330,7 +330,7 @@ export default function VendorCard({
                         selected={effectiveIhd ? new Date(effectiveIhd as string) : undefined}
                         onSelect={async (date) => {
                           if (!date) return;
-                          const isoDate = date.toISOString().slice(0, 10);
+                          const isoDate = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
                           setIhdPopoverOpen(false);
                           try {
                             // Update doc metadata (supplierIHD)
