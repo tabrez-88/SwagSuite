@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { reportKeys } from "./keys";
-import type { LeadSourceReport, ReportSuggestion } from "./types";
+import type { LeadSourceReport, ReportSuggestion, ReportTemplate } from "./types";
 import * as requests from "./requests";
 
 export function useLeadSourceReport() {
@@ -42,4 +42,12 @@ export function useShippingMargins<T = unknown>(period: string) {
     queryKey: reportKeys.shippingMargins(period),
     queryFn: () => requests.fetchShippingMargins(period),
   });
+}
+
+export function useReportTemplates() {
+  return useQuery<ReportTemplate[]>({ queryKey: reportKeys.templates });
+}
+
+export function useRecentReports() {
+  return useQuery<ReportTemplate[]>({ queryKey: reportKeys.recent });
 }

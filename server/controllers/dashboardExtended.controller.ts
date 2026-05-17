@@ -1120,4 +1120,115 @@ export class DashboardExtendedController {
     const report = await runAiReport(query.trim());
     res.json(report);
   }
+
+  // ── Report Templates CRUD ──────────────────────────────────────────
+
+  /**
+   * GET /api/reports/templates — List all report templates
+   */
+  static async getReportTemplates(req: Request, res: Response) {
+    const { db } = await import("../db");
+    const { reportTemplates } = await import("@shared/schema");
+    const { desc } = await import("drizzle-orm");
+
+    const rows = await db
+      .select()
+      .from(reportTemplates)
+      .orderBy(desc(reportTemplates.createdAt));
+    res.json(rows);
+  }
+
+  /**
+   * POST /api/reports/templates — Create a report template
+   */
+  static async createReportTemplate(req: Request, res: Response) {
+    const { getUserId } = await import("../utils/getUserId");
+    const { db } = await import("../db");
+    const { reportTemplates } = await import("@shared/schema");
+
+    const userId = getUserId(req);
+    const { name, description, query, parameters, schedule, recipients } = req.body;
+    if (!name || !query) {
+      return res.status(400).json({ message: "name and query are required" });
+    }
+
+    const [row] = await db
+      .insert(reportTemplates)
+      .values({
+        name,
+        description: description || null,
+        query,
+        parameters: parameters || null,
+        schedule: schedule || null,
+        recipients: recipients || null,
+        createdBy: userId,
+      })
+      .returning();
+    res.json(row);
+  }
+
+  /**
+   * PUT /api/reports/templates/:id — Update a report template
+   */
+  static async updateReportTemplate(req: Request, res: Response) {
+    const { db } = await import("../db");
+    const { reportTemplates } = await import("@shared/schema");
+    const { eq } = await import("drizzle-orm");
+
+    const { id } = req.params;
+    const { name, description, query, parameters, schedule, recipients, isActive } = req.body;
+
+    const updates: Record<string, unknown> = { updatedAt: new Date() };
+    if (name !== undefined) updates.name = name;
+    if (description !== undefined) updates.description = description;
+    if (query !== undefined) updates.query = query;
+    if (parameters !== undefined) updates.parameters = parameters;
+    if (schedule !== undefined) updates.schedule = schedule;
+    if (recipients !== undefined) updates.recipients = recipients;
+    if (isActive !== undefined) updates.isActive = isActive;
+
+    const [row] = await db
+      .update(reportTemplates)
+      .set(updates)
+      .where(eq(reportTemplates.id, id))
+      .returning();
+
+    if (!row) return res.status(404).json({ message: "Template not found" });
+    res.json(row);
+  }
+
+  /**
+   * DELETE /api/reports/templates/:id — Delete a report template
+   */
+  static async deleteReportTemplate(req: Request, res: Response) {
+    const { db } = await import("../db");
+    const { reportTemplates } = await import("@shared/schema");
+    const { eq } = await import("drizzle-orm");
+
+    const { id } = req.params;
+    const [row] = await db
+      .delete(reportTemplates)
+      .where(eq(reportTemplates.id, id))
+      .returning();
+
+    if (!row) return res.status(404).json({ message: "Template not found" });
+    res.json({ success: true });
+  }
+
+  /**
+   * GET /api/reports/recent — Recent generated reports (last 20 templates ordered by lastRun)
+   */
+  static async getRecentReports(req: Request, res: Response) {
+    const { db } = await import("../db");
+    const { reportTemplates } = await import("@shared/schema");
+    const { desc, isNotNull } = await import("drizzle-orm");
+
+    const rows = await db
+      .select()
+      .from(reportTemplates)
+      .where(isNotNull(reportTemplates.lastRun))
+      .orderBy(desc(reportTemplates.lastRun))
+      .limit(20);
+    res.json(rows);
+  }
 }

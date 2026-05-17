@@ -9,6 +9,8 @@ const router = Router();
 router.get("/api/integrations/hubspot/status", isAuthenticated, asyncHandler(IntegrationController.getHubspotStatus));
 router.get("/api/integrations/hubspot/metrics", isAuthenticated, asyncHandler(IntegrationController.getHubspotMetrics));
 router.post("/api/integrations/hubspot/sync", isAuthenticated, asyncHandler(IntegrationController.syncHubspot));
+// Webhook endpoint (unauthenticated - HubSpot sends webhooks without session auth)
+router.post("/api/integrations/hubspot/webhook", asyncHandler(IntegrationController.handleHubspotWebhook));
 
 // ==================== Slack Bridge (SlackSidebar + SlackPanel) ====================
 router.get("/api/slack/sync-messages", isAuthenticated, asyncHandler(IntegrationController.syncSlackMessages));

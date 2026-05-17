@@ -10,6 +10,9 @@ import {
   Copy,
   BarChart3,
   FileText,
+  Save,
+  Trash2,
+  BookmarkCheck,
 } from "lucide-react";
 import { useAIReportGenerator } from "./hooks";
 
@@ -20,7 +23,11 @@ export function AIReportGenerator() {
     isGenerating,
     suggestions,
     generatedReport,
+    savedTemplates,
     handleGenerateReport,
+    handleSaveAsTemplate,
+    handleDeleteTemplate,
+    isSavingTemplate,
     getCategoryColor,
     exampleQueries,
     handleExportCsv,
@@ -103,6 +110,10 @@ export function AIReportGenerator() {
                 <span className="text-xs text-muted-foreground">
                   {new Date(generatedReport.generatedAt).toLocaleString()}
                 </span>
+                <Button size="sm" variant="outline" onClick={handleSaveAsTemplate} disabled={isSavingTemplate}>
+                  <Save className="h-3 w-3 mr-1" />
+                  {isSavingTemplate ? "Saving..." : "Save Template"}
+                </Button>
                 <Button size="sm" variant="outline" onClick={handleExportCsv}>
                   <Download className="h-3 w-3 mr-1" />
                   CSV
@@ -187,6 +198,51 @@ export function AIReportGenerator() {
                     size="sm"
                     variant="outline"
                     onClick={() => setNaturalLanguageQuery(suggestion.query)}
+                    className="w-full"
+                  >
+                    <Play className="h-3 w-3 mr-2" />
+                    Use This Query
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+      {/* Saved Templates */}
+      {savedTemplates && savedTemplates.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <BookmarkCheck className="h-5 w-5" />
+              Saved Report Templates
+            </CardTitle>
+            <CardDescription>
+              Your saved report queries — click to re-run
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {savedTemplates.map((tpl) => (
+                <div key={tpl.id} className="border rounded-lg p-4 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-medium truncate">{tpl.name}</h4>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                      onClick={() => handleDeleteTemplate(tpl.id)}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                  {tpl.description && (
+                    <p className="text-sm text-muted-foreground line-clamp-2">{tpl.description}</p>
+                  )}
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setNaturalLanguageQuery(tpl.query)}
                     className="w-full"
                   >
                     <Play className="h-3 w-3 mr-2" />

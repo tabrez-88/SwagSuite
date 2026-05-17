@@ -18,3 +18,23 @@ export async function fetchShippingMargins(period: string) {
   const res = await apiRequest("GET", `/api/dashboard/shipping-margins?period=${period}`);
   return res.json();
 }
+
+export async function createReportTemplate(data: {
+  name: string;
+  query: string;
+  description?: string;
+  schedule?: string;
+}) {
+  const res = await apiRequest("POST", "/api/reports/templates", data);
+  return res.json();
+}
+
+export async function updateReportTemplate(id: string, data: Record<string, unknown>) {
+  const res = await apiRequest("PUT", `/api/reports/templates/${id}`, data);
+  return res.json();
+}
+
+export async function deleteReportTemplate(id: string) {
+  const res = await apiRequest("DELETE", `/api/reports/templates/${id}`);
+  return res.json();
+}

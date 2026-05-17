@@ -43,12 +43,26 @@ const REPORTS: ReportDef[] = [
     id: "margin_summary",
     name: "Order Margin Summary",
     description:
-      "Summarizes revenue, cost, and margin across committed orders within a date range.",
-    params: ["from", "to"],
+      "Summarizes revenue, cost, and margin across committed orders within a date range. Supports sorting by margin, total, or date (asc/desc) and limiting results.",
+    params: ["from", "to", "sort", "sortDir", "limit"],
     async execute(p) {
       const from = dateOrUndefined(p.from) ?? yearStart();
       const to = dateOrUndefined(p.to) ?? new Date();
-      const rows = await db
+      const limit = parseInt(p.limit || "0", 10);
+
+      const sortField = p.sort || "createdAt";
+      const sortDir = p.sortDir || "desc";
+
+      const sortColumn =
+        sortField === "margin" ? orders.margin :
+        sortField === "total" ? orders.total :
+        orders.createdAt;
+
+      const orderExpr = sortDir === "asc"
+        ? sql`${sortColumn} ASC NULLS LAST`
+        : sql`${sortColumn} DESC NULLS LAST`;
+
+      let query = db
         .select({
           id: orders.id,
           orderNumber: orders.orderNumber,
@@ -67,7 +81,14 @@ const REPORTS: ReportDef[] = [
             lte(orders.createdAt, to),
           ),
         )
-        .orderBy(desc(orders.createdAt));
+        .orderBy(orderExpr)
+        .$dynamic();
+
+      if (limit > 0) {
+        query = query.limit(limit);
+      }
+
+      const rows = await query;
       return rows.map((r) => ({
         ...r,
         total: parseFloat(r.total || "0"),
@@ -81,12 +102,15 @@ const REPORTS: ReportDef[] = [
     id: "top_vendors_by_spend",
     name: "Top Vendors by Spend",
     description:
-      "Ranks vendors by total cost (from order items) within a date range.",
-    params: ["from", "to", "limit"],
+      "Ranks vendors by total cost (from order items) within a date range. Use sortDir=asc for lowest spend.",
+    params: ["from", "to", "limit", "sortDir"],
     async execute(p) {
       const from = dateOrUndefined(p.from) ?? yearStart();
       const to = dateOrUndefined(p.to) ?? new Date();
       const limit = parseInt(p.limit || "20", 10);
+      const orderExpr = p.sortDir === "asc"
+        ? sql`SUM(${orderItems.cost} * ${orderItems.quantity}) ASC`
+        : sql`SUM(${orderItems.cost} * ${orderItems.quantity}) DESC`;
       return db
         .select({
           supplierId: orderItems.supplierId,
@@ -106,7 +130,7 @@ const REPORTS: ReportDef[] = [
           ),
         )
         .groupBy(orderItems.supplierId, suppliers.name)
-        .orderBy(sql`SUM(${orderItems.cost} * ${orderItems.quantity}) DESC`)
+        .orderBy(orderExpr)
         .limit(limit);
     },
   },
@@ -116,12 +140,15 @@ const REPORTS: ReportDef[] = [
     id: "top_customers_by_spend",
     name: "Top Customers by Spend",
     description:
-      "Ranks companies by total order revenue within a date range.",
-    params: ["from", "to", "limit"],
+      "Ranks companies by total order revenue within a date range. Use sortDir=asc for lowest spend.",
+    params: ["from", "to", "limit", "sortDir"],
     async execute(p) {
       const from = dateOrUndefined(p.from) ?? yearStart();
       const to = dateOrUndefined(p.to) ?? new Date();
       const limit = parseInt(p.limit || "20", 10);
+      const orderExpr = p.sortDir === "asc"
+        ? sql`SUM(${orders.total}) ASC`
+        : sql`SUM(${orders.total}) DESC`;
       return db
         .select({
           companyId: orders.companyId,
@@ -139,7 +166,7 @@ const REPORTS: ReportDef[] = [
           ),
         )
         .groupBy(orders.companyId, companies.name)
-        .orderBy(sql`SUM(${orders.total}) DESC`)
+        .orderBy(orderExpr)
         .limit(limit);
     },
   },
@@ -273,10 +300,15 @@ Available reports:
 ${REPORT_LIST_PROMPT}
 
 Respond in JSON only (no markdown, no code fences):
-{"reportId": "...", "params": {"from": "YYYY-MM-DD", "to": "YYYY-MM-DD", ...}}
+{"reportId": "...", "params": {"from": "YYYY-MM-DD", "to": "YYYY-MM-DD", "sort": "...", "sortDir": "...", "limit": "..."}}
 
-For date-relative phrases: today is ${new Date().toISOString().split("T")[0]}. "Last 6 weeks" → from = 6 weeks ago, "this quarter" → from = quarter start, "last year" → from/to = last calendar year, "this month" → from = month start. Always compute concrete dates.
-If no date is mentioned, omit from/to to use defaults.`,
+Parameter rules:
+- For date-relative phrases: today is ${new Date().toISOString().split("T")[0]}. "Last 6 weeks" → from = 6 weeks ago, "this quarter" → from = quarter start, "last year" → from/to = last calendar year, "this month" → from = month start. Always compute concrete dates.
+- If no date is mentioned, omit from/to to use defaults.
+- sort: field to sort by (e.g. "margin", "total", "createdAt"). Use when user asks for "highest", "lowest", "best", "worst", "top", "bottom".
+- sortDir: "asc" for lowest/worst/bottom, "desc" for highest/best/top. Default is "desc".
+- limit: number of results to return. Use when user says "top 5", "bottom 10", etc. Omit for all results.
+- Only include params that are relevant to the query. Omit unused params.`,
         },
         { role: "user", content: query },
       ],
@@ -305,7 +337,20 @@ function heuristicRoute(query: string): RouteResult {
   if (/overdue|late|past.*due/i.test(q)) return { reportId: "overdue_orders", params: {} };
   if (/inactive|churn|stop.*order|haven.*order/i.test(q)) return { reportId: "inactive_customers", params: {} };
   if (/salesperson|rep|commission|by.*person/i.test(q)) return { reportId: "orders_by_salesperson", params: {} };
-  return { reportId: "margin_summary", params: {} };
+
+  // Detect sort intent for margin report
+  const params: Record<string, string> = {};
+  if (/lowest|worst|bottom|smallest/i.test(q)) {
+    params.sort = "margin";
+    params.sortDir = "asc";
+  } else if (/highest|best|top|largest/i.test(q)) {
+    params.sort = "margin";
+    params.sortDir = "desc";
+  }
+  const limitMatch = q.match(/(?:top|bottom|first|last)\s+(\d+)/i);
+  if (limitMatch) params.limit = limitMatch[1];
+
+  return { reportId: "margin_summary", params };
 }
 
 // ──────── Public API ────────

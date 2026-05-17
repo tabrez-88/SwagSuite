@@ -3,6 +3,9 @@ import { useToast } from "@/hooks/use-toast";
 import {
   useReportSuggestions,
   useGenerateReport,
+  useReportTemplates,
+  useCreateReportTemplate,
+  useDeleteReportTemplate,
 } from "@/services/reports";
 import type { GeneratedReport, ReportSuggestion } from "./types";
 
@@ -14,6 +17,10 @@ export function useAIReportGenerator() {
   const { data: suggestions } = useReportSuggestions() as unknown as {
     data: ReportSuggestion[] | undefined;
   };
+
+  const { data: savedTemplates } = useReportTemplates();
+  const createTemplateMutation = useCreateReportTemplate();
+  const deleteTemplateMutation = useDeleteReportTemplate();
 
   const generateMutation = useGenerateReport();
   const isGenerating = generateMutation.isPending;
@@ -73,6 +80,31 @@ export function useAIReportGenerator() {
     "Show me customers who haven't ordered in the last 90 days",
   ];
 
+  const handleSaveAsTemplate = () => {
+    if (!generatedReport) return;
+    createTemplateMutation.mutate(
+      {
+        name: generatedReport.name,
+        query: generatedReport.query,
+        description: generatedReport.summary,
+      },
+      {
+        onSuccess: () =>
+          toast({ title: "Template Saved", description: "Report saved as a reusable template." }),
+        onError: (err: Error) =>
+          toast({ title: "Save Failed", description: err.message, variant: "destructive" }),
+      },
+    );
+  };
+
+  const handleDeleteTemplate = (id: string) => {
+    deleteTemplateMutation.mutate(id, {
+      onSuccess: () => toast({ title: "Template Deleted" }),
+      onError: (err: Error) =>
+        toast({ title: "Delete Failed", description: err.message, variant: "destructive" }),
+    });
+  };
+
   const handleExportCsv = () => {
     if (!generatedReport?.data?.length) return;
     const headers = Object.keys(generatedReport.data[0]);
@@ -101,7 +133,11 @@ export function useAIReportGenerator() {
     isGenerating,
     suggestions,
     generatedReport,
+    savedTemplates,
     handleGenerateReport,
+    handleSaveAsTemplate,
+    handleDeleteTemplate,
+    isSavingTemplate: createTemplateMutation.isPending,
     getCategoryColor,
     exampleQueries,
     handleExportCsv,

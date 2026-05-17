@@ -51,6 +51,59 @@ export class IntegrationController {
     res.json({ message: `${syncType} sync initiated successfully` });
   }
 
+  /**
+   * POST /api/integrations/hubspot/webhook — Inbound HubSpot webhook handler
+   * HubSpot sends an array of event objects. We process company-related events
+   * by upserting the hubspotId + hubspotSyncedAt on matching companies.
+   * Unauthenticated — HubSpot sends webhooks without session auth.
+   */
+  static async handleHubspotWebhook(req: Request, res: Response) {
+    const events = req.body;
+    if (!Array.isArray(events) || events.length === 0) {
+      return res.status(200).json({ message: "No events" });
+    }
+
+    console.log(`[HubSpot Webhook] Received ${events.length} event(s)`);
+
+    try {
+      const { db } = await import("../db");
+      const { companies } = await import("@shared/schema");
+      const { eq } = await import("drizzle-orm");
+
+      let processed = 0;
+      for (const event of events) {
+        // HubSpot webhook event shape: { objectType, objectId, propertyName, propertyValue, subscriptionType, ... }
+        if (event.objectType !== "company") continue;
+
+        const hubspotCompanyId = String(event.objectId);
+
+        // Try to find existing company by hubspotId
+        const [existing] = await db
+          .select({ id: companies.id })
+          .from(companies)
+          .where(eq(companies.hubspotId, hubspotCompanyId))
+          .limit(1);
+
+        if (existing) {
+          await db
+            .update(companies)
+            .set({ hubspotSyncedAt: new Date() })
+            .where(eq(companies.id, existing.id));
+          processed++;
+        } else {
+          console.log(`[HubSpot Webhook] No matching company for HubSpot ID ${hubspotCompanyId}`);
+        }
+      }
+
+      console.log(`[HubSpot Webhook] Processed ${processed}/${events.length} events`);
+      res.status(200).json({ processed, total: events.length });
+    } catch (error) {
+      console.error("[HubSpot Webhook] Error processing events:", error);
+      // Always return 200 to prevent HubSpot from retrying
+      res.status(200).json({ message: "Acknowledged with errors" });
+    }
+  }
+
   // ==================== Slack Bridge ====================
 
   static async syncSlackMessages(req: Request, res: Response) {

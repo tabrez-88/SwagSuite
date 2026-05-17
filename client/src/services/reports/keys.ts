@@ -2,6 +2,8 @@ export const reportKeys = {
   all: ["reports"] as const,
   leadSources: ["/api/reports/lead-sources"] as const,
   suggestions: ["/api/reports/suggestions"] as const,
+  templates: ["/api/reports/templates"] as const,
+  recent: ["/api/reports/recent"] as const,
   projectReport: (filters?: unknown) =>
     filters ? (["/api/projects/report", filters] as const) : (["/api/projects/report"] as const),
   dashboardStats: ["/api/dashboard/stats"] as const,

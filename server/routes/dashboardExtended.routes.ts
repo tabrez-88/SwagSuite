@@ -38,8 +38,11 @@ router.get("/api/dashboard/news-alerts", isAuthenticated, asyncHandler(Dashboard
 // AI reports
 router.get("/api/reports/suggestions", isAuthenticated, asyncHandler(DashboardExtendedController.getReportSuggestions));
 router.post("/api/reports/generate", isAuthenticated, asyncHandler(DashboardExtendedController.generateReport));
-// Stubs for templates & recent reports (client queries these; return empty arrays)
-router.get("/api/reports/templates", isAuthenticated, (_req, res) => res.json([]));
-router.get("/api/reports/recent", isAuthenticated, (_req, res) => res.json([]));
+// Report templates CRUD
+router.get("/api/reports/templates", isAuthenticated, asyncHandler(DashboardExtendedController.getReportTemplates));
+router.post("/api/reports/templates", isAuthenticated, asyncHandler(DashboardExtendedController.createReportTemplate));
+router.put("/api/reports/templates/:id", isAuthenticated, asyncHandler(DashboardExtendedController.updateReportTemplate));
+router.delete("/api/reports/templates/:id", isAuthenticated, asyncHandler(DashboardExtendedController.deleteReportTemplate));
+router.get("/api/reports/recent", isAuthenticated, asyncHandler(DashboardExtendedController.getRecentReports));
 
 export default router;
