@@ -8,7 +8,7 @@ import {
   suppliers,
   users,
 } from "@shared/schema";
-import { and, desc, eq, gte, inArray, lte, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, lte, or, sql } from "drizzle-orm";
 
 // ──────── Init ────────
 
@@ -28,7 +28,21 @@ export interface ReportDef {
   execute: (params: Record<string, string>) => Promise<any[]>;
 }
 
-const COMMITTED_STAGES = ["sales_order", "invoice"];
+/**
+ * Business stage is derived from orderType + salesOrderStatus, NOT currentStage.
+ * currentStage is a production tracker ("created", "po-sent", etc.) — never "sales_order".
+ * This mirrors the frontend determineBusinessStage() logic in businessStages.ts.
+ */
+function committedOrderFilter() {
+  return or(
+    // Sales Order stage: orderType is sales_order/rush_order, or salesOrderStatus beyond "new"
+    inArray(orders.orderType, ["sales_order", "rush_order"]),
+    inArray(orders.salesOrderStatus, [
+      "pending_client_approval", "client_change_requested", "client_approved",
+      "in_production", "shipped", "ready_to_invoice", "invoiced", "closed",
+    ]),
+  );
+}
 
 /** Parse a date-ish string or return undefined. */
 function dateOrUndefined(s?: string): Date | undefined {
@@ -76,7 +90,7 @@ const REPORTS: ReportDef[] = [
         .leftJoin(companies, eq(orders.companyId, companies.id))
         .where(
           and(
-            inArray(orders.currentStage, COMMITTED_STAGES),
+            committedOrderFilter(),
             gte(orders.createdAt, from),
             lte(orders.createdAt, to),
           ),
@@ -124,7 +138,7 @@ const REPORTS: ReportDef[] = [
         .leftJoin(suppliers, eq(orderItems.supplierId, suppliers.id))
         .where(
           and(
-            inArray(orders.currentStage, COMMITTED_STAGES),
+            committedOrderFilter(),
             gte(orders.createdAt, from),
             lte(orders.createdAt, to),
           ),
@@ -160,7 +174,7 @@ const REPORTS: ReportDef[] = [
         .leftJoin(companies, eq(orders.companyId, companies.id))
         .where(
           and(
-            inArray(orders.currentStage, COMMITTED_STAGES),
+            committedOrderFilter(),
             gte(orders.createdAt, from),
             lte(orders.createdAt, to),
           ),
@@ -186,7 +200,8 @@ const REPORTS: ReportDef[] = [
           projectName: orders.projectName,
           companyName: companies.name,
           inHandsDate: orders.inHandsDate,
-          currentStage: orders.currentStage,
+          orderType: orders.orderType,
+          salesOrderStatus: orders.salesOrderStatus,
           total: orders.total,
           assignedUser: sql<string>`COALESCE(${users.firstName} || ' ' || ${users.lastName}, '')`,
         })
@@ -196,8 +211,8 @@ const REPORTS: ReportDef[] = [
         .where(
           and(
             lte(orders.inHandsDate, now),
-            // Not yet fully completed — still in production or earlier
-            sql`${orders.currentStage} NOT IN ('invoice')`,
+            // Not yet invoiced/closed — salesOrderStatus not in final invoice stages
+            sql`COALESCE(${orders.salesOrderStatus}, 'new') NOT IN ('ready_to_invoice', 'invoiced', 'closed')`,
           ),
         )
         .orderBy(orders.inHandsDate);
@@ -255,7 +270,7 @@ const REPORTS: ReportDef[] = [
         .leftJoin(users, eq(orders.assignedUserId, users.id))
         .where(
           and(
-            inArray(orders.currentStage, COMMITTED_STAGES),
+            committedOrderFilter(),
             gte(orders.createdAt, from),
             lte(orders.createdAt, to),
           ),
